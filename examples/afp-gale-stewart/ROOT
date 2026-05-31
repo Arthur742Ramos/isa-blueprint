@@ -1,0 +1,4 @@
+session "Gale_Stewart_Blueprint" = "GaleStewart_Games" +
+  description "A blueprint corollary layered on the AFP Gale-Stewart games entry."
+  theories
+    Gale_Stewart_Blueprint

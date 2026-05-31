@@ -50,6 +50,7 @@ What works today:
 - ✅ VS Code extension under [`vscode/`](vscode/) for explorer status and inline diagnostics
 - ✅ `init` scaffolder with default config and GitHub Actions workflow
 - ✅ Minimal end-to-end example under [`examples/minimal/`](examples/minimal)
+- ✅ Real AFP integration example under [`examples/afp-gale-stewart/`](examples/afp-gale-stewart) — cross-session `check` proving Gale–Stewart determinacy against the published `GaleStewart_Games` entry
 - ✅ pytest suite + cross-platform CI (Ubuntu + Windows, Python 3.11/3.12/3.13)
 
 ---
@@ -70,6 +71,15 @@ or from a checkout:
 git clone https://github.com/Arthur742Ramos/isa-blueprint
 cd isa-blueprint
 pip install -e ".[dev]"
+```
+
+Both forms install an `isabelle-blueprint` console script. If your Python
+scripts directory is not on `PATH`, every command also works through the
+module form:
+
+```bash
+python -m isabelle_blueprint --version
+python -m isabelle_blueprint report examples/group-theory
 ```
 
 Optional system dependencies:
@@ -209,8 +219,52 @@ explore them with `report` / `graph` / `tasks` without a working Isabelle:
 | [`group-theory`](examples/group-theory) | Markdown | 10 | 50% | Multi-level DAG mixing `missing` / `named` / `found` / `proved`. |
 | [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 50% | `.tex` ingestion with `\isabelle` / `\uses` / `\isabelleok`. |
 | [`agent-workflow`](examples/agent-workflow) | Markdown | 8 | 38% | Task orchestration (ready vs blocked) + `compat` pinning. |
+| [`afp-gale-stewart`](examples/afp-gale-stewart) | Markdown | 7 | 100% | **Real AFP entry**: cross-session `check`, all 7 facts `proved` (see below). |
 
 See [`examples/README.md`](examples/README.md) for the full tour.
+
+### End-to-end with a real AFP entry
+
+The [`afp-gale-stewart`](examples/afp-gale-stewart) example is the integration
+test: every node maps to a fact that genuinely exists in the published
+[Archive of Formal Proofs](https://www.isa-afp.org) entry
+[`GaleStewart_Games`](https://www.isa-afp.org/entries/GaleStewart_Games.html)
+(the Gale–Stewart determinacy theorem), plus one local corollary layered on
+top of it. A single `check` builds **one** wrapper session spanning the AFP
+entry *and* a local session, so it exercises cross-session fact resolution and
+the `[afp]` dependency pin together.
+
+```bash
+isabelle-blueprint compat examples/afp-gale-stewart   # versions + AFP entry pin
+isabelle-blueprint check  examples/afp-gale-stewart   # builds AFP + local session
+isabelle-blueprint report examples/afp-gale-stewart   # folds proof status back in
+```
+
+On a machine with Isabelle2025-2 and the AFP `GaleStewart_Games` entry built,
+`check` returns `0` (~238 s) and stamps **all seven facts `proved`** — they
+exist *and* depend on no `sorry`/oracle:
+
+```text
+# build/Blueprint_Proof_Status.tsv (node, fact, status, oracle)
+game-determined       closed_GSgame.every_game_is_determined        proved  -
+position-determined   closed_GSgame.every_position_is_determined    proved  -
+at-most-one-winner    GSgame.at_most_one_player_winning             proved  -
+induced-play          GSgame.induced_play_def                       proved  -
+play                  GSgame.play_def                               proved  -
+winning-strategy      GSgame.strategy_winning_by_Even_def           proved  -
+closed-determinacy    closed_GSgame.closed_game_determinacy         proved  -
+```
+
+`report` then shows **7 / 7 nodes formalised (100%)**. The example's
+[README](examples/afp-gale-stewart/README.md) quotes the full captured run and
+explains the three machine-specific paths to edit (the AFP `thys` directory,
+`[afp].root`, and the version pin) before running `check` against your own AFP
+checkout.
+
+> Because locale facts like `closed_GSgame.every_game_is_determined` would
+> otherwise have their theory mis-derived from the locale name, each node here
+> uses the mapping form with an explicit `theory` and `session` — see
+> [Blueprint syntax (Markdown)](#blueprint-syntax-markdown) below.
 
 ---
 
@@ -360,6 +414,13 @@ site_dir  = "site"
 ```
 
 Everything is optional — the defaults shown above are also what `init` writes for you.
+
+> **AFP + `check`:** `compat` uses `[afp].root` / `[afp].entry` to verify the
+> entry is present, but `check` builds only the directories it is given with
+> `-d` (the project root plus `[isabelle].dirs`). To proof-check facts from an
+> AFP entry, add that entry's `thys` directory to `[isabelle].dirs` so the
+> wrapper build can see it. The [`afp-gale-stewart`](examples/afp-gale-stewart)
+> example does exactly this.
 
 ---
 

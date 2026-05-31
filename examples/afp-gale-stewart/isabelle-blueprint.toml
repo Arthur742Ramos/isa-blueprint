@@ -1,0 +1,21 @@
+[project]
+name = "Gale-Stewart determinacy (AFP)"
+blueprint = "blueprint.md"
+
+[isabelle]
+session = "Gale_Stewart_Blueprint"
+# Pin the toolchain so `isabelle-blueprint compat` can flag drift.
+version = "Isabelle2025-2"
+# The local ROOT here plus the AFP `thys` directory are both made
+# available to `isabelle build` via `-d` when running `check`.
+dirs = ["C:\\src\\isabelle-borel-determinacy\\vendor\\afp-2026-04-09\\thys"]
+
+[afp]
+# Declare the Archive of Formal Proofs dependency this blueprint builds on.
+root = "C:\\src\\isabelle-borel-determinacy\\vendor\\afp-2026-04-09"
+entry = "GaleStewart_Games"
+required = true
+
+[output]
+build_dir = "build"
+site_dir = "site"
