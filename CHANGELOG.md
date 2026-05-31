@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.1] - 2025
+## [0.5.1] - 2026-05-31
 
 ### Added
 
@@ -71,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.status-table` (e.g. per-node pages), instead of throwing in the browser
   console.
 
-## [0.5.0] - 2025
+## [0.5.0] - 2026-05-31
 
 The v0.5 Beta milestone. Covered the original roadmap end-to-end: Markdown +
 LaTeX blueprint parsers, AFP / version-pin compatibility checks, PIDE `dump`

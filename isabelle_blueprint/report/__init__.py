@@ -4,6 +4,7 @@ from isabelle_blueprint.report.badge import (
     build_endpoint_payload,
     coverage_color,
     coverage_message,
+    render_badge_svg,
     write_badge_endpoint,
     write_badge_svg,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "emit_step_outputs",
     "emit_step_summary",
     "output_values",
+    "render_badge_svg",
     "stable_output_keys",
     "write_badge_endpoint",
     "write_badge_svg",
