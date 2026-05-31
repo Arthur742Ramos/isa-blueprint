@@ -1,0 +1,4 @@
+session "Relations" = "HOL" +
+  description "Basic theory of binary and equivalence relations."
+  theories
+    Relations

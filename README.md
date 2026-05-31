@@ -4,11 +4,29 @@
 
 [![blueprint](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml/badge.svg)](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml)
 [![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
+[![status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#roadmap)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-IsabelleBlueprint lets you write a Markdown "blueprint" of the theorems, definitions, and lemmas you intend to formalize, link them to concrete Isabelle facts, validate the dependency graph, render a browsable HTML status site, and emit ready-to-execute prompts for AI agents working on the proofs.
+IsabelleBlueprint lets you write a Markdown (or LaTeX) "blueprint" of the theorems, definitions, and lemmas you intend to formalize, link them to concrete Isabelle facts, validate the dependency graph, render a browsable HTML status site, and emit ready-to-execute prompts for AI agents working on the proofs.
 
 It is heavily inspired by [Patrick Massot's *Lean Blueprint*](https://github.com/PatrickMassot/leanblueprint), but it is **Isabelle-aware from the ground up** and **Python-first** (no LaTeX toolchain required).
+
+```mermaid
+flowchart LR
+    A["✍️ blueprint.md / .tex<br/>definitions · lemmas · theorems"] --> B["📦 parse + validate<br/>build the dependency DAG"]
+    B --> C["🔍 check / dump<br/>ask Isabelle: does the fact exist?<br/>is it really proved?"]
+    B --> G["🕸️ graph<br/>DOT · JSON · SVG"]
+    C --> R["📊 report<br/>JSON + Markdown status"]
+    C --> W["🌐 web<br/>static HTML site"]
+    C --> T["🤖 tasks<br/>agent-ready prompts"]
+    style A fill:#eff6ff,stroke:#3b82f6
+    style C fill:#ecfdf5,stroke:#10b981
+    style T fill:#fef3c7,stroke:#f59e0b
+```
+
+From one source of truth you get a validated plan, a live status picture, a
+browsable site, and a queue of proof obligations — each tagged with whether a
+human or an AI agent can start on it right now.
 
 ---
 
@@ -37,6 +55,10 @@ What works today:
 ---
 
 ## Install
+
+> **Pre-release:** until the first PyPI publish lands (see the roadmap), install
+> from a checkout. The published-package command below is the intended path once
+> `isabelle-blueprint` is on PyPI.
 
 ```bash
 pip install isabelle-blueprint
@@ -71,6 +93,7 @@ cd my-project
 #    See examples/minimal/blueprint.md for the syntax.
 
 # 3. Validate structure and (optionally) check Isabelle fact/proof status.
+#    (Requires Isabelle; see the note below before running on a live install.)
 isabelle-blueprint check
 
 # 4. Check local Isabelle/AFP compatibility pins.
@@ -89,16 +112,103 @@ isabelle-blueprint tasks
 isabelle-blueprint report
 ```
 
-Try it on the bundled example:
+Try it on the bundled examples (no Isabelle required for `report` / `graph` / `tasks`):
 
 ```bash
-isabelle-blueprint check  examples/minimal
-isabelle-blueprint compat examples/minimal
-isabelle-blueprint web    examples/minimal
-isabelle-blueprint tasks  examples/minimal
-isabelle-blueprint report examples/minimal
-# Open examples/minimal/site/index.html in a browser.
+isabelle-blueprint report examples/group-theory
+isabelle-blueprint graph  examples/group-theory
+isabelle-blueprint tasks  examples/agent-workflow
 ```
+
+> **Tip:** `report`, `graph`, `tasks`, and `compat` run without Isabelle, so
+> they are the fastest way to explore the tool. `check` and `dump` invoke
+> Isabelle itself; run those once you have a working Isabelle/AFP install
+> configured in `isabelle-blueprint.toml`.
+
+---
+
+## Visual tour
+
+A blueprint is a dependency graph. Here is the bundled
+[`group-theory`](examples/group-theory) example — ten nodes across three
+levels, fanning out from the `group` definition up to two top-level theorems:
+
+```mermaid
+graph BT
+    subgroup["subgroup · named"] --> group["group · found"]
+    left_cancel["left-cancel · proved"] --> group
+    right_cancel["right-cancel · proved"] --> group
+    identity_unique["identity-unique · found"] --> group
+    inverse_unique["inverse-unique · found"] --> group
+    inverse_unique --> left_cancel
+    inverse_of_inverse["inverse-of-inverse · named"] --> inverse_unique
+    socks_shoes["socks-shoes · missing"] --> inverse_unique
+    cancellation["cancellation · missing"] --> left_cancel
+    cancellation --> right_cancel
+    inverse_laws["inverse-laws · missing"] --> inverse_of_inverse
+    inverse_laws --> socks_shoes
+```
+
+`isabelle-blueprint report` turns that into a status table:
+
+```text
+# Group theory demo - blueprint status
+
+- Nodes: **10**
+- Formalised (found or proved): **5** (50.0%)
+
+| Formal status | Count |
+| --- | ---: |
+| `found` | 3 |
+| `missing` | 3 |
+| `named` | 2 |
+| `proved` | 2 |
+```
+
+…and `isabelle-blueprint tasks` reports exactly which obligations are
+unblocked — every dependency formalised, so an agent can start now:
+
+```text
+# Agent tasks
+
+- **Subgroup** (`subgroup`) -> `Group_Demo.subgroup_def`
+- **Inverse of the inverse** (`inverse-of-inverse`) -> `Group_Demo.inverse_of_inverse`
+- **Socks-and-shoes law** (`socks-shoes`) -> `Group_Demo.socks_shoes`
+- **Cancellation theorem** (`cancellation`) -> `Group_Demo.cancellation`
+
+Total: 4 ready task(s).
+```
+
+### Status colour legend
+
+The `web` and `report` outputs colour-code the **formal** axis so reviewers
+can see at a glance where work is needed:
+
+| Colour | Status | Meaning |
+| --- | --- | --- |
+| 🔵 `#3b82f6` | `found` | The named Isabelle fact exists. |
+| 🟢 `#10b981` | `proved` | Exists with no `sorry`/oracle dependency. |
+| 🟠 `#f59e0b` | `named` | A name is recorded; existence not yet confirmed. |
+| 🟣 `#a855f7` | `tainted` | Exists but depends on `sorry`/skip/oracle. |
+| 🔴 `#ef4444` | `not_found` | The name was searched for and is absent. |
+| 🟡 `#fbbf24` | `stale` | Previously verified; source has since changed. |
+| ⚫ `#9ca3af` | `missing` | No Isabelle fact recorded yet. |
+
+---
+
+## Examples
+
+The [`examples/`](examples/) directory is a gallery of runnable projects —
+explore them with `report` / `graph` / `tasks` without a working Isabelle:
+
+| Example | Format | Nodes | Coverage | Demonstrates |
+| --- | --- | ---: | ---: | --- |
+| [`minimal`](examples/minimal) | Markdown | 4 | 0% | Smallest blueprint; every subcommand. |
+| [`group-theory`](examples/group-theory) | Markdown | 10 | 50% | Multi-level DAG mixing `missing` / `named` / `found` / `proved`. |
+| [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 50% | `.tex` ingestion with `\isabelle` / `\uses` / `\isabelleok`. |
+| [`agent-workflow`](examples/agent-workflow) | Markdown | 8 | 38% | Task orchestration (ready vs blocked) + `compat` pinning. |
+
+See [`examples/README.md`](examples/README.md) for the full tour.
 
 ---
 
@@ -137,9 +247,27 @@ Most blueprint tools collapse "is this proved?" into a single status. IsabelleBl
 | **formal**     | `missing` · `named` · `not_found` · `found` · `proved` · `tainted` · `stale` · `broken`               | What we know about the corresponding Isabelle fact.           |
 | **agent**      | `blocked` · `ready` · `in_progress` · `attempted` · `needs_human` · `solved`                          | Where the (human or AI) prover is in the work queue.          |
 
-The `web` and `report` outputs color-code each axis independently so reviewers can see at a glance where the project needs writing, formalization, or human review.
+The `web` and `report` outputs color-code each axis independently so reviewers can see at a glance where the project needs writing, formalization, or human review. The **agent** axis shown in static `report` / `web` output reflects the last recorded state; `tasks` is the authoritative source for *derived* readiness, since it recomputes which nodes are unblocked from the current dependency graph each run.
 
 `found` means the named Isabelle fact exists. `proved` means the fact exists and the checker found no theorem-oracle dependency such as `Pure.skip_proof`; `tainted` means the fact exists but depends on `sorry`, skipped proof, or another oracle detected by Isabelle's theorem dependency API or PIDE dump output.
+
+The **formal** axis is the one `check` drives. A node typically walks this
+lifecycle as the formalization progresses:
+
+```mermaid
+stateDiagram-v2
+    [*] --> missing: node created
+    missing --> named: record an isabelle fact name
+    named --> found: check finds the fact
+    named --> not_found: check can't find it
+    not_found --> found: fact added in Isabelle
+    found --> proved: no sorry / oracle deps
+    found --> tainted: depends on sorry / oracle
+    proved --> stale: source changed since
+    tainted --> proved: oracle removed
+    stale --> found: re-checked
+    proved --> [*]
+```
 
 ---
 
@@ -235,14 +363,29 @@ Everything is optional — the defaults shown above are also what `init` writes 
 
 ## Roadmap
 
-The original roadmap is implemented:
+Everything in the original roadmap is shipped:
 
-- **v0.2** — LaTeX blueprint parser for Lean Blueprint-style sources.
-- **v0.3** — PIDE / `dump` integration, true `proved` status, and `sorry` / oracle detection.
-- **v0.4** — AFP compatibility and version-pin checks.
-- **v0.5** — VS Code extension surfacing blueprint state inline in the editor.
+- ✅ **v0.2** — LaTeX blueprint parser for Lean Blueprint-style sources.
+- ✅ **v0.3** — PIDE / `dump` integration, true `proved` status, and `sorry` / oracle detection.
+- ✅ **v0.4** — AFP compatibility and version-pin checks.
+- ✅ **v0.5** — VS Code extension surfacing blueprint state inline in the editor.
 
-The first post-roadmap tranche adds generated Isabelle session dependencies, richer status/dependency visualisations in the HTML site, and typed package metadata. Future work can keep deepening Isabelle/PIDE integration and distribution workflows from there.
+Where we are heading next:
+
+- 🔜 **v0.6** — Incremental + parallel `check` over the PIDE protocol, so large
+  blueprints re-verify only the nodes whose Isabelle sources changed.
+- 🔜 **v0.7** — Multi-blueprint / multi-session projects: compose several
+  blueprints into one dependency graph and one status site.
+- 🗺️ **v0.8** — Richer web UI: interactive graph (filter by status/tag, click a
+  node to jump to its proof), trend charts, and a shareable status badge.
+- 🗺️ **v0.9** — Plugin API for custom node kinds, status providers, and report
+  renderers, plus first-class GitHub Action outputs (PR status comments).
+- 🎯 **v1.0** — First stable PyPI release with a stable CLI/JSON contract,
+  semantic versioning guarantees, and end-to-end documentation.
+
+Have an idea? Open an issue on
+[GitHub](https://github.com/Arthur742Ramos/isa-blueprint/issues) — the roadmap
+is community-driven.
 
 ---
 

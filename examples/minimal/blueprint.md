@@ -1,8 +1,8 @@
 # Minimal IsabelleBlueprint demo
 
 This example exercises every IsabelleBlueprint subcommand without depending on a
-real `isabelle` binary. It contains three little arithmetic facts about
-`Nat.add` and zero.
+real `isabelle` binary. It contains four nodes — one definition plus three
+little arithmetic facts about `Nat.add` and zero.
 
 Run it from the project root:
 

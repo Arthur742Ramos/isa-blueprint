@@ -1,0 +1,4 @@
+session "Group_Demo" = "HOL" +
+  description "Elementary group theory facts referenced by the blueprint."
+  theories
+    Group_Demo

@@ -1,0 +1,109 @@
+\documentclass{article}
+
+% IsabelleBlueprint reads the theorem-like environments below directly.
+% You do not need to compile this with LaTeX for `isabelle-blueprint` to
+% parse it, but it is written to be valid so you can also build a PDF.
+
+\usepackage{amsthm}
+\newtheorem{definition}{Definition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+
+% Blueprint macros (no-ops for LaTeX; metadata for isabelle-blueprint).
+\newcommand{\isabelle}[1]{}
+\newcommand{\isabelleok}{}
+\newcommand{\uses}[1]{}
+\newcommand{\tags}[1]{}
+
+\begin{document}
+
+\title{Relations blueprint}
+\maketitle
+
+This blueprint develops the basic theory of binary relations and
+equivalence relations. It demonstrates IsabelleBlueprint's LaTeX
+ingestion path: each environment carries a \verb|\label|, an optional
+\verb|\isabelle| fact, \verb|\uses| dependencies, and \verb|\tags|.
+A \verb|\isabelleok| marker upgrades a named fact to ``found''.
+
+\begin{definition}[Binary relation]
+\label{relation}
+\isabelle{Relations.relation_def}
+\isabelleok
+\tags{foundations}
+A \emph{binary relation} on a set $A$ is a subset $R \subseteq A \times A$.
+We write $a \mathrel{R} b$ for $(a, b) \in R$.
+\end{definition}
+
+\begin{definition}[Reflexive]
+\label{reflexive}
+\isabelle{Relations.reflexive_def}
+\isabelleok
+\uses{relation}
+\tags{properties}
+$R$ is \emph{reflexive} if $a \mathrel{R} a$ for every $a \in A$.
+\end{definition}
+
+\begin{definition}[Symmetric]
+\label{symmetric}
+\isabelle{Relations.symmetric_def}
+\isabelleok
+\uses{relation}
+\tags{properties}
+$R$ is \emph{symmetric} if $a \mathrel{R} b$ implies $b \mathrel{R} a$.
+\end{definition}
+
+\begin{definition}[Transitive]
+\label{transitive}
+\isabelle{Relations.transitive_def}
+\uses{relation}
+\tags{properties}
+$R$ is \emph{transitive} if $a \mathrel{R} b$ and $b \mathrel{R} c$
+imply $a \mathrel{R} c$.
+\end{definition}
+
+\begin{definition}[Equivalence relation]
+\label{equivalence}
+\isabelle{Relations.equivalence_def}
+\uses{reflexive, symmetric, transitive}
+\tags{foundations}
+An \emph{equivalence relation} is a relation that is reflexive,
+symmetric, and transitive.
+\end{definition}
+
+\begin{lemma}[Equality is an equivalence]
+\label{eq-equivalence}
+\isabelle{Relations.eq_equivalence}
+\isabelleok
+\uses{equivalence}
+\tags{examples}
+The equality relation $\{(a, a) \mid a \in A\}$ is an equivalence
+relation on $A$.
+\begin{proof}
+Reflexivity, symmetry, and transitivity of $=$ are immediate.
+\end{proof}
+\end{lemma}
+
+\begin{definition}[Equivalence class]
+\label{eq-class}
+\isabelle{Relations.eq_class_def}
+\uses{equivalence}
+\tags{quotients}
+For an equivalence relation $R$ and $a \in A$, the \emph{equivalence
+class} of $a$ is $[a]_R = \{ b \in A \mid a \mathrel{R} b \}$.
+\end{definition}
+
+\begin{theorem}[Classes partition the set]
+\label{partition}
+\isabelle{Relations.classes_partition}
+\uses{eq-class, eq-equivalence}
+\tags{quotients}
+The equivalence classes of $R$ form a partition of $A$: every element
+lies in exactly one class.
+\begin{proof}
+Reflexivity puts $a \in [a]_R$. If $[a]_R$ and $[b]_R$ share an element
+then symmetry and transitivity force $[a]_R = [b]_R$.
+\end{proof}
+\end{theorem}
+
+\end{document}
