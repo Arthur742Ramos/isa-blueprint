@@ -18,6 +18,7 @@ from pathlib import Path
 
 from isabelle_blueprint.errors import CheckerError
 from isabelle_blueprint.isabelle.theory_gen import (
+    generate_check_root,
     generate_check_theory,
     group_facts_by_theory,
 )
@@ -141,6 +142,7 @@ def run_check(
     session_name: str | None = None,
     isabelle_executable: str = "isabelle",
     extra_dirs: list[Path] | None = None,
+    project_root: Path | None = None,
     write_theory: bool = True,
 ) -> CheckResult:
     """Generate the check theory and (optionally) run ``isabelle build``.
@@ -184,10 +186,23 @@ def run_check(
         )
         return result
 
-    cmd = [isabelle_executable, "build", "-d", "."]
+    # Drop a small ROOT alongside the generated theory so ``isabelle build``
+    # can resolve a wrapper session that inherits from the user's session and
+    # adds the Blueprint_Check theory. Without this, ``-d .`` finds nothing
+    # buildable (the user's ROOT lives in project_root, not build_dir), the
+    # build trivially fails, and every fact is silently flipped to NOT_FOUND.
+    wrapper_session = "Blueprint_Check_Wrapper"
+    (build_dir / "ROOT").write_text(
+        generate_check_root(session_name, wrapper_name=wrapper_session),
+        encoding="utf-8",
+    )
+
+    cmd = [isabelle_executable, "build", "-d", str(build_dir)]
+    if project_root is not None:
+        cmd.extend(["-d", str(project_root)])
     for d in extra_dirs or []:
         cmd.extend(["-d", str(d)])
-    cmd.append(session_name)
+    cmd.append(wrapper_session)
     result.invoked_command = cmd
 
     start = time.monotonic()
@@ -215,7 +230,6 @@ def run_check(
     result.stderr = proc.stderr
 
     bad_facts = _extract_bad_facts(proc.stderr + "\n" + proc.stdout)
-    fact_map = {fc.fact: fc for fc in result.facts}
     if proc.returncode == 0:
         for fc in result.facts:
             fc.exists = True

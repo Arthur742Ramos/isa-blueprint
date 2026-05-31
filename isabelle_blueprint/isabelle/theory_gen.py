@@ -100,3 +100,23 @@ def generate_check_theory(
         lines.append("")
     lines.append("end")
     return "\n".join(lines) + "\n"
+
+
+def generate_check_root(
+    session_name: str,
+    *,
+    wrapper_name: str = "Blueprint_Check_Wrapper",
+    theory_name: str = "Blueprint_Check",
+) -> str:
+    """Return the contents of a ROOT file that wraps the user's session.
+
+    The wrapper session inherits from ``session_name`` and adds the auto-generated
+    ``Blueprint_Check`` theory. Writing this file alongside ``Blueprint_Check.thy``
+    in the build directory lets ``isabelle build -d <build_dir>`` resolve the
+    theory without modifying the user's own ROOT file.
+    """
+    return (
+        f'session "{wrapper_name}" = "{session_name}" +\n'
+        f"  theories\n"
+        f"    {theory_name}\n"
+    )

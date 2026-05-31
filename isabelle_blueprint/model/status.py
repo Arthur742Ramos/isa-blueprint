@@ -52,14 +52,16 @@ class AgentStatus(str, Enum):
 
 # Mapping from status -> color used for graph nodes and badges
 # (see roadmap section 7).
-STATUS_COLORS: dict[FormalStatus, str] = {
-    FormalStatus.MISSING: "#9ca3af",       # gray - only blueprint text exists
-    FormalStatus.NAMED: "#f59e0b",         # orange - fact name assigned, unchecked
-    FormalStatus.NOT_FOUND: "#ef4444",     # red - fact name assigned but not found
-    FormalStatus.FOUND: "#3b82f6",         # blue - exists, dependencies may be incomplete
-    FormalStatus.PROVED: "#10b981",        # green - exists and trusted
-    FormalStatus.TAINTED: "#a855f7",       # purple - sorry/oracle suspected
-    FormalStatus.STALE: "#fbbf24",         # amber - dependencies changed
-    FormalStatus.BROKEN: "#dc2626",        # dark red - build failure
-    FormalStatus.FAILED_CHECK: "#dc2626",
+# Templates look these up by the enum's string value (e.g. ``node.status.formal.value``)
+# so we key the table by those same strings rather than by enum members.
+STATUS_COLORS: dict[str, str] = {
+    FormalStatus.MISSING.value: "#9ca3af",       # gray - only blueprint text exists
+    FormalStatus.NAMED.value: "#f59e0b",         # orange - fact name assigned, unchecked
+    FormalStatus.NOT_FOUND.value: "#ef4444",     # red - fact name assigned but not found
+    FormalStatus.FOUND.value: "#3b82f6",         # blue - exists, dependencies may be incomplete
+    FormalStatus.PROVED.value: "#10b981",        # green - exists and trusted
+    FormalStatus.TAINTED.value: "#a855f7",       # purple - sorry/oracle suspected
+    FormalStatus.STALE.value: "#fbbf24",         # amber - dependencies changed
+    FormalStatus.BROKEN.value: "#dc2626",        # dark red - build failure
+    FormalStatus.FAILED_CHECK.value: "#dc2626",
 }

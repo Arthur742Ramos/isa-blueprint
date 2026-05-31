@@ -122,9 +122,9 @@ Most blueprint tools collapse "is this proved?" into a single status. IsabelleBl
 
 | Axis           | Values                                                                                                | Meaning                                                       |
 |----------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| **blueprint**  | `stub` · `drafted` · `reviewed`                                                                       | State of the informal Markdown write-up.                      |
+| **blueprint**  | `stub` · `written` · `reviewed`                                                                       | State of the informal Markdown write-up.                      |
 | **formal**     | `missing` · `named` · `not_found` · `found` · `proved` · `tainted` · `stale` · `broken`               | What we know about the corresponding Isabelle fact.           |
-| **agent**      | `blocked` · `ready` · `in_progress` · `attempted` · `needs_human` · `done`                            | Where the (human or AI) prover is in the work queue.          |
+| **agent**      | `blocked` · `ready` · `in_progress` · `attempted` · `needs_human` · `solved`                          | Where the (human or AI) prover is in the work queue.          |
 
 The `web` and `report` outputs color-code each axis independently so reviewers can see at a glance where the project needs writing, formalization, or human review.
 
@@ -144,7 +144,7 @@ uses:
   - def-divides
   - lem-add-comm
 status:
-  blueprint: drafted
+  blueprint: written
   formal: named
 :::
 

@@ -23,6 +23,7 @@ class NodeKind(str, Enum):
     CONSTRUCTION = "construction"
     REMARK = "remark"
     EXAMPLE = "example"
+    NOTE = "note"
     OTHER = "other"
 
     @classmethod

@@ -65,6 +65,7 @@ def render_site(
         "has_svg": svg is not None,
         "tasks": tasks,
         "page_count": len(project.nodes),
+        "dot_source": dot_source,
     }
 
     _render_page(env, "index.html.j2", output_dir / "index.html", page="index", **common)

@@ -80,6 +80,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         session_name=config.isabelle_session,
         isabelle_executable=args.isabelle or config.isabelle_executable,
         extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
     )
     write_report(result, config.check_report_path)
     apply_check_report(project, result)

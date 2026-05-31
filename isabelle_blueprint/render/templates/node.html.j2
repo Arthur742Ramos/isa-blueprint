@@ -22,12 +22,12 @@
 
 {% if node.statement %}
   <h2>Statement</h2>
-  <div class="prose"><p>{{ node.statement|replace('\n\n', '</p><p>')|safe }}</p></div>
+  <div class="prose"><p>{{ node.statement|e|replace('\n\n', '</p><p>')|safe }}</p></div>
 {% endif %}
 
 {% if node.informal_proof %}
   <h2>Informal proof</h2>
-  <div class="prose"><p>{{ node.informal_proof|replace('\n\n', '</p><p>')|safe }}</p></div>
+  <div class="prose"><p>{{ node.informal_proof|e|replace('\n\n', '</p><p>')|safe }}</p></div>
 {% endif %}
 
 {% if dependencies %}

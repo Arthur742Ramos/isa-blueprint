@@ -14,7 +14,7 @@
   {% else %}
     <div class="callout warning">
       <p><strong>Graphviz is not installed.</strong> Showing raw DOT instead. Install <code>graphviz</code> on PATH to get an inline diagram.</p>
-      <pre><code>{% include 'graph.dot' ignore missing %}</code></pre>
+      <pre><code>{{ dot_source|e }}</code></pre>
     </div>
   {% endif %}
 </div>
