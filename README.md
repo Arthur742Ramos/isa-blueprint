@@ -192,6 +192,8 @@ can see at a glance where work is needed:
 | 🟣 `#a855f7` | `tainted` | Exists but depends on `sorry`/skip/oracle. |
 | 🔴 `#ef4444` | `not_found` | The name was searched for and is absent. |
 | 🟡 `#fbbf24` | `stale` | Previously verified; source has since changed. |
+| 🟥 `#dc2626` | `broken` | The Isabelle build failed for this node. |
+| 🟥 `#dc2626` | `failed_check` | Generic check failure (kept for forward compatibility). |
 | ⚫ `#9ca3af` | `missing` | No Isabelle fact recorded yet. |
 
 ---
