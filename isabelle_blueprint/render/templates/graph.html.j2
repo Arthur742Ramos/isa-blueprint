@@ -19,6 +19,31 @@
   {% endif %}
 </div>
 
+<section>
+  <h2>Dependency levels</h2>
+  <p class="lede">
+    Nodes are grouped by longest dependency distance: level 0 nodes have no known dependencies, and higher levels can build on earlier lanes.
+  </p>
+  <div class="swimlanes">
+    {% for row in dependency_levels %}
+      <section class="swimlane {{ 'cycle' if row.is_cycle }}" data-level="{{ row.level if row.level is not none else 'cycle' }}">
+        <h3>{{ row.label }} <span>{{ row.count }}</span></h3>
+        {% if row.is_cycle %}
+          <p class="swimlane-note">Cycle detected; these nodes could not be assigned an acyclic level.</p>
+        {% endif %}
+        <ul>
+          {% for node in row.nodes %}
+            <li>
+              <a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a>
+              <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  </div>
+</section>
+
 <details>
   <summary>Raw DOT source</summary>
   <p><a href="graph.dot">Download <code>graph.dot</code></a> &middot; <a href="graph.json">Download <code>graph.json</code></a></p>

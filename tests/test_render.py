@@ -57,9 +57,51 @@ def test_render_site_index_mentions_node_titles(tmp_path: Path):
     body = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "A" in body
     assert "B" in body
+    assert 'class="status-bar"' in body
+    assert "Dependency depth" in body
 
 
 def test_node_page_lists_dependency(tmp_path: Path):
     render_site(_project(), tmp_path)
     text = (tmp_path / "nodes" / "lem-b.html").read_text(encoding="utf-8")
     assert "def-a" in text
+
+
+def test_graph_page_renders_dependency_levels(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert "Dependency levels" in body
+    assert 'data-level="0"' in body
+    assert 'data-level="1"' in body
+    assert "def-a" in body
+    assert "lem-b" in body
+
+
+def test_graph_page_marks_cyclic_dependency_levels(tmp_path: Path):
+    a = BlueprintNode(
+        id="a",
+        kind=NodeKind.LEMMA,
+        title="A",
+        uses=["b"],
+        isabelle=IsabelleRef(fact="Demo.a"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    b = BlueprintNode(
+        id="b",
+        kind=NodeKind.LEMMA,
+        title="B",
+        uses=["a"],
+        isabelle=IsabelleRef(fact="Demo.b"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    render_site(BlueprintProject.from_nodes("cycle", [a, b]), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert 'data-level="cycle"' in body
+    assert "Cycle detected" in body
+
+
+def test_status_page_includes_summary_and_filter_data(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "status.html").read_text(encoding="utf-8")
+    assert 'class="status-summary"' in body
+    assert 'data-blueprint="written" data-formal="named"' in body

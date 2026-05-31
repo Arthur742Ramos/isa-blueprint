@@ -57,6 +57,43 @@ h2 { margin-top: 2rem; }
 }
 .status-card-count { font-size: 1.6rem; font-weight: 700; }
 .status-card-label { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.status-card-percent { color: var(--muted); font-size: 0.8rem; }
+
+.status-bar {
+  display: flex;
+  height: 0.85rem;
+  min-height: 0.85rem;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: white;
+  margin: 0.75rem 0 1rem;
+}
+.status-bar span { min-width: 0.35rem; }
+
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.status-summary article {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+.status-summary h2 { margin-top: 0; }
+.summary-row {
+  display: grid;
+  grid-template-columns: 7rem 1fr 2.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+}
+.summary-row span { color: var(--muted); }
+.summary-row meter { width: 100%; }
 
 .node-list { list-style: none; padding: 0; }
 .node-list li { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
@@ -109,6 +146,32 @@ h2 { margin-top: 2rem; }
   overflow: auto;
 }
 .graph-svg { width: 100%; height: auto; min-height: 300px; }
+
+.swimlanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.swimlane {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.swimlane.cycle {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+.swimlane h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 0.75rem;
+}
+.swimlane h3 span { color: var(--muted); font-weight: 500; }
+.swimlane ul { list-style: none; margin: 0; padding: 0; }
+.swimlane li { padding: 0.35rem 0; border-top: 1px solid var(--border); }
+.swimlane-note { color: #991b1b; font-size: 0.85rem; }
 
 .callout {
   border-left: 4px solid var(--accent);

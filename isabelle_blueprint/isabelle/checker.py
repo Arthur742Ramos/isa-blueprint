@@ -225,8 +225,16 @@ def run_check(
     # buildable (the user's ROOT lives in project_root, not build_dir), the
     # build trivially fails, and every fact is silently flipped to NOT_FOUND.
     wrapper_session = "Blueprint_Check_Wrapper"
+    session_deps = sorted(
+        {
+            ref.session
+            for theory_refs in grouped.values()
+            for ref in theory_refs
+            if ref.session and ref.session != session_name
+        }
+    )
     (build_dir / "ROOT").write_text(
-        generate_check_root(session_name, wrapper_name=wrapper_session),
+        generate_check_root(session_name, wrapper_name=wrapper_session, session_deps=session_deps),
         encoding="utf-8",
     )
 

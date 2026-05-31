@@ -24,6 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Mathematics",
   "Topic :: Software Development :: Documentation",
+  "Typing :: Typed",
 ]
 dependencies = [
   "PyYAML>=6.0",
@@ -44,6 +45,9 @@ Homepage = "https://github.com/Arthur742Ramos/isa-blueprint"
 Repository = "https://github.com/Arthur742Ramos/isa-blueprint"
 Issues = "https://github.com/Arthur742Ramos/isa-blueprint/issues"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 include = ["isabelle_blueprint*"]
 exclude = ["tests*", "examples*"]
@@ -52,6 +56,7 @@ exclude = ["tests*", "examples*"]
 isabelle_blueprint = [
   "render/templates/*.j2",
   "render/templates/static/*.css",
+  "py.typed",
 ]
 
 [tool.pytest.ini_options]

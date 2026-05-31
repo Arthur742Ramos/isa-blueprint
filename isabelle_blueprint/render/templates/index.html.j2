@@ -9,13 +9,37 @@
 
 <section>
   <h2>Formal status</h2>
+  <div class="status-bar" aria-label="Formal status distribution">
+    {% for item in formal_breakdown if item.count %}
+      <span style="width: {{ item.percent }}%; background: {{ item.color }};" title="{{ item.label }}: {{ item.count }}"></span>
+    {% endfor %}
+  </div>
   <div class="status-grid">
-    {% for status, count in formal_counts.items() %}
-      <div class="status-card" style="border-left: 6px solid {{ status_colors.get(status, '#9ca3af') }};">
-        <div class="status-card-count">{{ count }}</div>
-        <div class="status-card-label">{{ status }}</div>
+    {% for item in formal_breakdown if item.count %}
+      <div class="status-card" style="border-left: 6px solid {{ item.color }};">
+        <div class="status-card-count">{{ item.count }}</div>
+        <div class="status-card-label">{{ item.label }}</div>
+        <div class="status-card-percent">{{ item.percent }}%</div>
       </div>
     {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Dependency depth</h2>
+  <div class="status-grid">
+    <div class="status-card">
+      <div class="status-card-count">{{ dependency_stats.max_level + 1 if project.nodes else 0 }}</div>
+      <div class="status-card-label">level{{ '' if dependency_stats.max_level == 0 else 's' }}</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-count">{{ dependency_stats.cycle_count }}</div>
+      <div class="status-card-label">cycle node{{ '' if dependency_stats.cycle_count == 1 else 's' }}</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-count">{{ dependency_stats.missing_dependency_count }}</div>
+      <div class="status-card-label">missing dep{{ '' if dependency_stats.missing_dependency_count == 1 else 's' }}</div>
+    </div>
   </div>
 </section>
 
