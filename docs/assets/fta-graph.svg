@@ -12,8 +12,8 @@
 <!-- prime&#45;pred -->
 <g id="node1" class="node">
 <title>prime&#45;pred</title>
-<g id="a_node1"><a xlink:title="definition | blueprint=reviewed formal=found agent=blocked">
-<path fill="#3b82f6" stroke="#1f2937" d="M323.12,-396C323.12,-396 278.62,-396 278.62,-396 272.62,-396 266.62,-390 266.62,-384 266.62,-384 266.62,-372 266.62,-372 266.62,-366 272.62,-360 278.62,-360 278.62,-360 323.12,-360 323.12,-360 329.12,-360 335.12,-366 335.12,-372 335.12,-372 335.12,-384 335.12,-384 335.12,-390 329.12,-396 323.12,-396"/>
+<g id="a_node1"><a xlink:title="definition | blueprint=reviewed formal=named agent=blocked">
+<path fill="#f59e0b" stroke="#1f2937" d="M323.12,-396C323.12,-396 278.62,-396 278.62,-396 272.62,-396 266.62,-390 266.62,-384 266.62,-384 266.62,-372 266.62,-372 266.62,-366 272.62,-360 278.62,-360 278.62,-360 323.12,-360 323.12,-360 329.12,-360 335.12,-366 335.12,-372 335.12,-372 335.12,-384 335.12,-384 335.12,-390 329.12,-396 323.12,-396"/>
 <text xml:space="preserve" text-anchor="middle" x="300.88" y="-381.05" font-family="Helvetica,sans-Serif" font-size="11.00">prime&#45;pred</text>
 <text xml:space="preserve" text-anchor="middle" x="300.88" y="-367.55" font-family="Helvetica,sans-Serif" font-size="11.00">Primality</text>
 </a>
@@ -22,8 +22,8 @@
 <!-- mset&#45;prod -->
 <g id="node2" class="node">
 <title>mset&#45;prod</title>
-<g id="a_node2"><a xlink:title="definition | blueprint=reviewed formal=found agent=blocked">
-<path fill="#3b82f6" stroke="#1f2937" d="M503,-396C503,-396 400.75,-396 400.75,-396 394.75,-396 388.75,-390 388.75,-384 388.75,-384 388.75,-372 388.75,-372 388.75,-366 394.75,-360 400.75,-360 400.75,-360 503,-360 503,-360 509,-360 515,-366 515,-372 515,-372 515,-384 515,-384 515,-390 509,-396 503,-396"/>
+<g id="a_node2"><a xlink:title="definition | blueprint=reviewed formal=named agent=blocked">
+<path fill="#f59e0b" stroke="#1f2937" d="M503,-396C503,-396 400.75,-396 400.75,-396 394.75,-396 388.75,-390 388.75,-384 388.75,-384 388.75,-372 388.75,-372 388.75,-366 394.75,-360 400.75,-360 400.75,-360 503,-360 503,-360 509,-360 515,-366 515,-372 515,-372 515,-384 515,-384 515,-390 509,-396 503,-396"/>
 <text xml:space="preserve" text-anchor="middle" x="451.88" y="-381.05" font-family="Helvetica,sans-Serif" font-size="11.00">mset&#45;prod</text>
 <text xml:space="preserve" text-anchor="middle" x="451.88" y="-367.55" font-family="Helvetica,sans-Serif" font-size="11.00">Product over a multiset</text>
 </a>
@@ -108,8 +108,8 @@
 <!-- existence -->
 <g id="node7" class="node">
 <title>existence</title>
-<g id="a_node7"><a xlink:title="theorem | blueprint=written formal=named agent=blocked">
-<path fill="#f59e0b" stroke="#1f2937" d="M259,-252C259,-252 108.75,-252 108.75,-252 102.75,-252 96.75,-246 96.75,-240 96.75,-240 96.75,-228 96.75,-228 96.75,-222 102.75,-216 108.75,-216 108.75,-216 259,-216 259,-216 265,-216 271,-222 271,-228 271,-228 271,-240 271,-240 271,-246 265,-252 259,-252"/>
+<g id="a_node7"><a xlink:title="theorem | blueprint=written formal=named agent=ready">
+<path fill="#a855f7" stroke="#1f2937" d="M259,-252C259,-252 108.75,-252 108.75,-252 102.75,-252 96.75,-246 96.75,-240 96.75,-240 96.75,-228 96.75,-228 96.75,-222 102.75,-216 108.75,-216 108.75,-216 259,-216 259,-216 265,-216 271,-222 271,-228 271,-228 271,-240 271,-240 271,-246 265,-252 259,-252"/>
 <text xml:space="preserve" text-anchor="middle" x="183.88" y="-237.05" font-family="Helvetica,sans-Serif" font-size="11.00">existence</text>
 <text xml:space="preserve" text-anchor="middle" x="183.88" y="-223.55" font-family="Helvetica,sans-Serif" font-size="11.00">Existence of a prime factorization</text>
 </a>
@@ -130,8 +130,8 @@
 <!-- uniqueness -->
 <g id="node8" class="node">
 <title>uniqueness</title>
-<g id="a_node8"><a xlink:title="theorem | blueprint=written formal=missing agent=ready">
-<path fill="#a855f7" stroke="#1f2937" d="M388.75,-180C388.75,-180 219,-180 219,-180 213,-180 207,-174 207,-168 207,-168 207,-156 207,-156 207,-150 213,-144 219,-144 219,-144 388.75,-144 388.75,-144 394.75,-144 400.75,-150 400.75,-156 400.75,-156 400.75,-168 400.75,-168 400.75,-174 394.75,-180 388.75,-180"/>
+<g id="a_node8"><a xlink:title="theorem | blueprint=written formal=missing agent=blocked">
+<path fill="#9ca3af" stroke="#1f2937" d="M388.75,-180C388.75,-180 219,-180 219,-180 213,-180 207,-174 207,-168 207,-168 207,-156 207,-156 207,-150 213,-144 219,-144 219,-144 388.75,-144 388.75,-144 394.75,-144 400.75,-150 400.75,-156 400.75,-156 400.75,-168 400.75,-168 400.75,-174 394.75,-180 388.75,-180"/>
 <text xml:space="preserve" text-anchor="middle" x="303.88" y="-165.05" font-family="Helvetica,sans-Serif" font-size="11.00">uniqueness</text>
 <text xml:space="preserve" text-anchor="middle" x="303.88" y="-151.55" font-family="Helvetica,sans-Serif" font-size="11.00">Uniqueness of the prime factorization</text>
 </a>

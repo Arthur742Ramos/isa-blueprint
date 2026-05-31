@@ -17,7 +17,7 @@ isabelle: Euclid_Demo.prime
 tags: [prime]
 status:
   blueprint: reviewed
-  formal: found
+  formal: named
 
 `p` is prime when `p > 1` and its only divisors are `1` and `p`. This is the
 library predicate `prime`.
@@ -63,7 +63,7 @@ isabelle: Euclid_Demo.euclid_number
 tags: [factorial]
 status:
   blueprint: reviewed
-  formal: found
+  formal: named
 
 For a bound `n`, the Euclid number is `N n = fact n + 1`.
 :::

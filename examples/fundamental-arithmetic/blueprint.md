@@ -14,11 +14,11 @@ isabelle-blueprint tasks  examples/fundamental-arithmetic
 
 ::: definition {#prime-pred}
 title: Primality
-isabelle: FTA_Demo.prime
+isabelle: FTA_Demo.prime_nat
 tags: [prime]
 status:
   blueprint: reviewed
-  formal: found
+  formal: named
 
 `p` is prime when `p > 1` and its only divisors are `1` and `p` (the library
 predicate `prime`).
@@ -26,11 +26,11 @@ predicate `prime`).
 
 ::: definition {#mset-prod}
 title: Product over a multiset
-isabelle: FTA_Demo.prod_mset
+isabelle: FTA_Demo.prod_mset_nat
 tags: [multiset]
 status:
   blueprint: reviewed
-  formal: found
+  formal: named
 
 `prod_mset M` multiplies together all elements of the multiset `M`, with the
 empty multiset giving `1`.
@@ -38,7 +38,7 @@ empty multiset giving `1`.
 
 ::: definition {#factor-list}
 title: Prime factorization
-isabelle: FTA_Demo.prime_factorization
+isabelle: FTA_Demo.prime_factorization_of_def
 uses:
   - prime-pred
   - mset-prod
@@ -118,6 +118,7 @@ tags: [prime, existence]
 status:
   blueprint: written
   formal: named
+  agent: ready
 
 Every `n > 1` has at least one prime factorization.
 
@@ -138,7 +139,6 @@ tags: [prime, uniqueness]
 status:
   blueprint: written
   formal: missing
-  agent: ready
 
 Any two prime factorizations of the same `n` are equal as multisets.
 

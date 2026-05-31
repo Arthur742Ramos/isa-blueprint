@@ -233,7 +233,8 @@ See [`examples/README.md`](examples/README.md) for the full tour.
 
 Four worked proofs spanning a complexity gradient — each graph below is the
 actual `isabelle-blueprint web` / `graph` output, colour-coded by formal status
-(see the [legend](#status-colour-legend) above). They render natively on GitHub.
+(see the [legend](#status-colour-legend) above) — with agent-ready open tasks
+drawn in purple regardless of their formal status. They render natively on GitHub.
 
 **① gauss-sum — trivial, 3 nodes, 100% proved (all green)**
 

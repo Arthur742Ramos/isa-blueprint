@@ -137,7 +137,7 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
       return [];
     }
 
-    if (/(^\s*uses:\s*$)|(^\s*-\s*$)/.test(line)) {
+    if (this.isUsesContext(document, position, line)) {
       return nodes.map((node) => {
         const item = new vscode.CompletionItem(node.id, vscode.CompletionItemKind.Reference);
         item.detail = `${node.kind} — ${node.title}`;
@@ -158,6 +158,42 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     return [];
+  }
+
+  /**
+   * Node-id completion fires either directly after a `uses:` line, or on a
+   * bare list item (`- `) that belongs to a `uses:` block. A bare `- ` on its
+   * own matches any empty list item (e.g. under a `Notes:` block), so we scan
+   * upward to confirm the enclosing block key is actually `uses:`.
+   */
+  private isUsesContext(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    line: string,
+  ): boolean {
+    if (/^\s*uses:\s*$/.test(line)) {
+      return true;
+    }
+    if (!/^\s*-\s*\S*$/.test(line)) {
+      return false;
+    }
+    for (let ln = position.line - 1; ln >= 0; ln--) {
+      const text = document.lineAt(ln).text;
+      if (/^\s*$/.test(text)) {
+        continue;
+      }
+      if (/^\s*-\s*/.test(text)) {
+        // Another list item in the same block; keep scanning upward.
+        continue;
+      }
+      if (/^\s*uses:\s*$/.test(text)) {
+        return true;
+      }
+      // A heading, container fence, a different block key, or a dedented
+      // non-list line ends the block without finding `uses:`.
+      return false;
+    }
+    return false;
   }
 }
 
