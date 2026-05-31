@@ -24,7 +24,7 @@ from isabelle_blueprint.isabelle.dump import (
     run_dump,
     write_dump_report,
 )
-from isabelle_blueprint.parser import parse_blueprint_file
+from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.github_actions import (
@@ -35,15 +35,28 @@ from isabelle_blueprint.report.github_actions import (
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.markdown_report import write_markdown_report
 from isabelle_blueprint.report.metrics import build_status_metrics, output_values
+from isabelle_blueprint.report.pr_comment import (
+    post_or_update_pr_comment,
+    write_pr_comment_preview,
+)
+from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 
 
 def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
     config = load_config(project_dir)
-    if not config.blueprint_path.exists():
-        raise BlueprintError(
-            f"blueprint not found at {config.blueprint_path}; run `isabelle-blueprint init` first"
-        )
-    project = parse_blueprint_file(config.blueprint_path, project_name=config.project_name)
+    paths = config.blueprint_paths
+    missing = [p for p in paths if not p.exists()]
+    if missing:
+        if len(paths) == 1:
+            raise BlueprintError(
+                f"blueprint not found at {missing[0]}; run `isabelle-blueprint init` first"
+            )
+        formatted = ", ".join(str(p) for p in missing)
+        raise BlueprintError(f"configured blueprints are missing: {formatted}")
+    if len(paths) == 1:
+        project = parse_blueprint_file(paths[0], project_name=config.project_name)
+    else:
+        project = parse_blueprint(paths, project_name=config.project_name)
     return config, project
 
 
@@ -95,7 +108,24 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.append:
         project_dir = Path(args.project_dir).resolve()
         config = load_config(project_dir)
-        path = config.blueprint_path
+        paths = config.blueprint_paths
+        target = getattr(args, "blueprint", None)
+        if target is not None:
+            resolved = (project_dir / target).resolve()
+            if resolved not in [p.resolve() for p in paths]:
+                raise BlueprintError(
+                    f"--blueprint {target!r} is not one of the configured "
+                    f"blueprints: {', '.join(str(p) for p in paths)}"
+                )
+            path = resolved
+        elif len(paths) > 1:
+            formatted = ", ".join(str(p) for p in paths)
+            raise BlueprintError(
+                "project has multiple blueprints; pass --blueprint <path> to "
+                f"choose one of: {formatted}"
+            )
+        else:
+            path = paths[0]
         if not path.exists():
             raise BlueprintError(
                 f"blueprint not found at {path}; run `isabelle-blueprint init` first"
@@ -128,6 +158,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         extra_dirs=config.isabelle_dirs,
         project_root=config.project_root,
         timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
+        incremental=bool(getattr(args, "incremental", False)),
+        cache_path=config.check_cache_path if getattr(args, "incremental", False) else None,
+        jobs=getattr(args, "jobs", None),
     )
     write_report(result, config.check_report_path)
     apply_check_report(project, result)
@@ -207,7 +240,8 @@ def cmd_web(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    index = render_site(project, config.site_dir)
+    trends = load_trends(config.trends_path)
+    index = render_site(project, config.site_dir, trends=trends)
     print(f"site -> {index}")
     return 0
 
@@ -231,11 +265,13 @@ def cmd_report(args: argparse.Namespace) -> int:
     summary_path = write_summary_json(project, config.build_dir / "summary.json")
     badge_json_path = write_badge_endpoint(project, config.build_dir / "badge.json")
     badge_svg_path = write_badge_svg(project, config.build_dir / "badge.svg")
+    trend_entry = append_trend_entry(project, config.trends_path)
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
     print(f"badge json -> {badge_json_path}")
     print(f"badge svg -> {badge_svg_path}")
+    print(f"trends -> {config.trends_path} (entry @ {trend_entry['timestamp']})")
 
     # Compute metrics once and reuse for both the GH outputs and the step
     # summary so the two surfaces can never drift apart.
@@ -246,6 +282,25 @@ def cmd_report(args: argparse.Namespace) -> int:
     summary_md = build_summary_markdown(project.name, metrics.to_dict())
     if emit_step_summary(summary_md):
         print("github summary -> $GITHUB_STEP_SUMMARY")
+    return 0
+
+
+def cmd_comment(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    if args.preview:
+        preview_path = write_pr_comment_preview(project, config.build_dir / "pr-comment.md")
+        print(f"pr comment preview -> {preview_path}")
+        return 0
+    result = post_or_update_pr_comment(project)
+    if result.status == "skipped":
+        print(f"pr comment skipped: {result.reason}")
+        return 0 if not args.strict else 6
+    if result.url:
+        print(f"pr comment {result.status} -> {result.url}")
+    else:
+        print(f"pr comment {result.status}")
     return 0
 
 
@@ -272,6 +327,21 @@ def _build_parser() -> argparse.ArgumentParser:
         "--strict",
         action="store_true",
         help="exit non-zero if Isabelle is unavailable or the build did not run",
+    )
+    p_check.add_argument(
+        "--incremental",
+        action="store_true",
+        help=(
+            "skip facts whose blueprint inputs and context match a previously-proved "
+            "cache entry (cache file: build/check-cache.json)"
+        ),
+    )
+    p_check.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="forward `-j N` to `isabelle build` to parallelise upstream session builds",
     )
     p_check.set_defaults(func=cmd_check)
 
@@ -310,6 +380,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("project_dir", nargs="?", default=".")
     p_report.set_defaults(func=cmd_report)
 
+    p_comment = sub.add_parser(
+        "comment",
+        help="post or update a GitHub PR status comment (or preview the body locally)",
+    )
+    p_comment.add_argument("project_dir", nargs="?", default=".")
+    p_comment.add_argument(
+        "--preview",
+        action="store_true",
+        help="write the comment body to build/pr-comment.md instead of posting",
+    )
+    p_comment.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero when the PR context (token, repo, PR number) cannot be resolved",
+    )
+    p_comment.set_defaults(func=cmd_comment)
+
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
@@ -323,6 +410,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--append",
         action="store_true",
         help="append the stub to the project blueprint instead of printing to stdout",
+    )
+    p_new.add_argument(
+        "--blueprint",
+        default=None,
+        help="target blueprint file (required with --append when the project has multiple blueprints)",
     )
     p_new.set_defaults(func=cmd_new)
 

@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from collections import Counter, deque
 from enum import Enum
 from pathlib import Path
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -46,10 +47,16 @@ def render_site(
     output_dir: Path,
     *,
     graphviz_executable: str = "dot",
+    trends: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Render the project to a static HTML site under ``output_dir``.
 
     Returns the path to ``index.html``.
+
+    ``trends`` is an optional list of historical entries (as written by
+    :mod:`isabelle_blueprint.report.trends`) used to render the trend
+    chart on ``trends.html``. When omitted, the trends page renders an
+    empty-state.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     env = _make_env()
@@ -68,6 +75,12 @@ def render_site(
     agent_counts = Counter(n.status.agent.value for n in project.nodes)
     dependency_levels = _dependency_levels(project)
 
+    trends_data = list(trends or [])
+    (output_dir / "trends.json").write_text(
+        json.dumps({"entries": trends_data}, indent=2),
+        encoding="utf-8",
+    )
+
     common = {
         "project": project,
         "status_colors": STATUS_COLORS,
@@ -80,15 +93,19 @@ def render_site(
         "dependency_levels": dependency_levels,
         "dependency_stats": _dependency_stats(project, dependency_levels),
         "has_svg": svg is not None,
+        "svg_source": _inline_svg(svg),
         "tasks": tasks,
         "page_count": len(project.nodes),
         "dot_source": dot_source,
+        "formal_status_values": [s.value for s in FormalStatus],
+        "trends": trends_data,
     }
 
     _render_page(env, "index.html.j2", output_dir / "index.html", page="index", **common)
     _render_page(env, "graph.html.j2", output_dir / "graph.html", page="graph", **common)
     _render_page(env, "status.html.j2", output_dir / "status.html", page="status", **common)
     _render_page(env, "tasks.html.j2", output_dir / "tasks.html", page="tasks", **common)
+    _render_page(env, "trends.html.j2", output_dir / "trends.html", page="trends", **common)
 
     node_dir = output_dir / "nodes"
     node_dir.mkdir(parents=True, exist_ok=True)
@@ -116,6 +133,25 @@ def render_site(
     write_badge_svg(project, output_dir / "badge.svg")
 
     return output_dir / "index.html"
+
+
+_SVG_PROLOG_RE = re.compile(r"<\?xml[^>]*\?>\s*", re.IGNORECASE)
+_SVG_DOCTYPE_RE = re.compile(r"<!DOCTYPE[^>]*>\s*", re.IGNORECASE)
+
+
+def _inline_svg(svg: str | None) -> str | None:
+    """Return ``svg`` stripped of its XML prolog / DOCTYPE for inline embedding.
+
+    Graphviz emits a standalone SVG document with an XML prolog and a DTD
+    reference; both are invalid inside an HTML body and trip strict parsers.
+    Returning ``None`` (or ``None`` input) lets the template fall back to the
+    raw-DOT callout.
+    """
+    if svg is None:
+        return None
+    text = _SVG_PROLOG_RE.sub("", svg, count=1)
+    text = _SVG_DOCTYPE_RE.sub("", text, count=1)
+    return text
 
 
 def _render_page(env: Environment, template_name: str, out_path: Path, **context) -> None:

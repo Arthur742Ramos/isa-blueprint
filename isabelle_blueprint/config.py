@@ -27,6 +27,12 @@ class BlueprintConfig:
     afp_root: Path | None = None
     afp_entry: str | None = None
     afp_required: bool = False
+    extra_blueprint_paths: list[Path] = field(default_factory=list)
+
+    @property
+    def blueprint_paths(self) -> list[Path]:
+        """All blueprint sources, primary first."""
+        return [self.blueprint_path, *self.extra_blueprint_paths]
 
     @property
     def check_report_path(self) -> Path:
@@ -68,6 +74,16 @@ class BlueprintConfig:
     def checker_theory_path(self) -> Path:
         return self.build_dir / "Blueprint_Check.thy"
 
+    @property
+    def check_cache_path(self) -> Path:
+        """JSON cache file used by ``isabelle-blueprint check --incremental``."""
+        return self.build_dir / "check-cache.json"
+
+    @property
+    def trends_path(self) -> Path:
+        """JSON file storing coverage / problem counts across runs (v0.8)."""
+        return self.build_dir / "trends.json"
+
 
 DEFAULT_CONFIG_NAME = "isabelle-blueprint.toml"
 DEFAULT_BLUEPRINT_NAME = "blueprint.md"
@@ -91,7 +107,20 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
     afp_section = raw.get("afp", {})
     output_section = raw.get("output", {})
 
-    blueprint_path = root / project_section.get("blueprint", DEFAULT_BLUEPRINT_NAME)
+    blueprint_setting = project_section.get("blueprint", DEFAULT_BLUEPRINT_NAME)
+    blueprints_setting = project_section.get("blueprints")
+    if blueprints_setting is not None:
+        if isinstance(blueprints_setting, str):
+            blueprints_setting = [blueprints_setting]
+        if not isinstance(blueprints_setting, list) or not blueprints_setting:
+            raise ValueError(
+                "[project].blueprints must be a non-empty list of paths"
+            )
+        all_blueprints = [str(p) for p in blueprints_setting]
+    else:
+        all_blueprints = [blueprint_setting]
+    blueprint_path = (root / all_blueprints[0]).resolve()
+    extra_blueprint_paths = [(root / p).resolve() for p in all_blueprints[1:]]
     build_dir = root / output_section.get("build_dir", "build")
     site_dir = root / output_section.get("site_dir", "site")
     isabelle_session = isabelle_section.get("session")
@@ -108,7 +137,7 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
 
     return BlueprintConfig(
         project_root=root,
-        blueprint_path=blueprint_path.resolve(),
+        blueprint_path=blueprint_path,
         build_dir=build_dir.resolve(),
         site_dir=site_dir.resolve(),
         isabelle_session=isabelle_session,
@@ -120,4 +149,5 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
         afp_root=afp_root,
         afp_entry=afp_entry,
         afp_required=afp_required,
+        extra_blueprint_paths=extra_blueprint_paths,
     )
