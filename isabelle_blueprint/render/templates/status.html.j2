@@ -35,6 +35,31 @@
   </article>
 </section>
 
+<section class="filters" aria-label="Filter status table">
+  <div class="filter-row">
+    <span class="filter-label">Blueprint</span>
+    {% for item in blueprint_breakdown if item.count > 0 %}
+      <button type="button" class="filter-pill" data-filter-dim="blueprint" data-filter-value="{{ item.label }}">{{ item.label }} <small>({{ item.count }})</small></button>
+    {% endfor %}
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Formal</span>
+    {% for item in formal_breakdown if item.count > 0 %}
+      <button type="button" class="filter-pill" data-filter-dim="formal" data-filter-value="{{ item.label }}" style="--pill-accent: {{ item.color }};">{{ item.label }} <small>({{ item.count }})</small></button>
+    {% endfor %}
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Agent</span>
+    {% for item in agent_breakdown if item.count > 0 %}
+      <button type="button" class="filter-pill" data-filter-dim="agent" data-filter-value="{{ item.label }}">{{ item.label }} <small>({{ item.count }})</small></button>
+    {% endfor %}
+  </div>
+  <div class="filter-row filter-row-actions">
+    <button type="button" class="filter-clear" data-filter-clear>Clear filters</button>
+    <span class="filter-count"><span data-filter-count>{{ project.nodes|length }} / {{ project.nodes|length }}</span> nodes shown</span>
+  </div>
+</section>
+
 <table class="status-table">
   <thead>
     <tr>

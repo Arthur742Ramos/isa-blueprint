@@ -108,3 +108,51 @@ def test_status_page_includes_summary_and_filter_data(tmp_path: Path):
     body = (tmp_path / "status.html").read_text(encoding="utf-8")
     assert 'class="status-summary"' in body
     assert 'data-blueprint="written" data-formal="named"' in body
+
+
+def test_status_page_includes_interactive_filter_pills(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "status.html").read_text(encoding="utf-8")
+    # The pill UI needs DOM hooks for filters.js to find.
+    assert 'class="filters"' in body
+    assert 'data-filter-dim="blueprint"' in body
+    assert 'data-filter-dim="formal"' in body
+    # The clear button + live count both need to exist for the JS no-op
+    # guard to actually wire up.
+    assert "data-filter-clear" in body
+    assert "data-filter-count" in body
+
+
+def test_render_site_emits_badge_artifacts(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    badge_json = tmp_path / "badge.json"
+    badge_svg = tmp_path / "badge.svg"
+    assert badge_json.exists()
+    assert badge_svg.exists()
+
+    payload = json.loads(badge_json.read_text(encoding="utf-8"))
+    assert payload["schemaVersion"] == 1
+    assert payload["label"] == "blueprint"
+    # Sample project has 2 named/0 proved nodes -> "0% proved (0/2)".
+    assert "0% proved" in payload["message"]
+
+    svg_text = badge_svg.read_text(encoding="utf-8")
+    assert svg_text.startswith("<svg")
+    assert svg_text.rstrip().endswith("</svg>")
+
+
+def test_render_site_ships_filters_js_static_asset(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    filters_js = tmp_path / "static" / "filters.js"
+    assert filters_js.exists()
+    js_text = filters_js.read_text(encoding="utf-8")
+    # Loose contract check: the JS still wires up the DOM attrs the template
+    # writes out, and still toggles the .is-hidden class our CSS targets.
+    assert "data-filter-dim" in js_text
+    assert "is-hidden" in js_text
+
+
+def test_base_layout_loads_filters_script(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "status.html").read_text(encoding="utf-8")
+    assert 'src="static/filters.js"' in body

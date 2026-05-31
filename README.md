@@ -324,9 +324,9 @@ All subcommands take an optional positional `project_dir` (default `.`) and read
 | `dump`     | Run `isabelle dump` or inspect an existing dump directory and update node proof status from PIDE theory output. | `build/dump_report.json`, `build/project.json`                    |
 | `compat`   | Check Isabelle executable/version pins, configured session visibility, and optional AFP root/entry pins. | `build/compat_report.json`                                        |
 | `graph`    | Emit the dependency graph in DOT and JSON; SVG if Graphviz is installed.                            | `build/graph.dot`, `build/graph.json`, `build/graph.svg`          |
-| `web`      | Render the static HTML site (index, status, graph, tasks, per-node pages).                          | `site/index.html`, `site/nodes/*.html`, `site/graph.svg`          |
+| `web`      | Render the static HTML site (index, status, graph, tasks, per-node pages). The status table ships with click-to-filter pills (Blueprint / Formal / Agent) and a live "shown / total" counter, courtesy of a small vanilla-JS file shipped alongside the CSS. | `site/index.html`, `site/nodes/*.html`, `site/graph.svg`          |
 | `tasks`    | Emit an AI-agent task pack — one JSON record per node, plus a Markdown overview and per-task prompts. | `build/tasks.json`, `build/tasks.md`, `build/prompts/*.md`        |
-| `report`   | Write JSON and Markdown summary reports of the project state.                                       | `build/project.json`, `build/report.md`, `build/summary.json`     |
+| `report`   | Write JSON, Markdown, and badge summary reports of the project state, and (inside a GitHub Actions runner) emit stable step outputs + a job summary. | `build/project.json`, `build/report.md`, `build/summary.json`, `build/badge.json`, `build/badge.svg`     |
 | `new`      | Print (or `--append`) a ready-to-edit node stub with a humanised title and a suggested Isabelle fact name. | stub on stdout, or appended to `blueprint.md`              |
 
 Flags worth knowing:
@@ -337,6 +337,91 @@ Flags worth knowing:
 - `isabelle-blueprint compat --strict` — exit non-zero on compatibility errors.
 - `isabelle-blueprint init --force` — overwrite existing scaffolded files.
 - `isabelle-blueprint new theorem my-id` — print a stub; add `--append` to drop it straight into `blueprint.md`.
+
+---
+
+## Status badge
+
+Every `isabelle-blueprint report` run writes two badge artefacts under
+`build/`:
+
+- **`build/badge.json`** — a [shields.io endpoint](https://shields.io/endpoint)
+  payload. Publish it anywhere reachable over HTTPS (GitHub Pages, S3, your
+  blog) and point shields.io at it:
+
+  ```markdown
+  ![blueprint](https://img.shields.io/endpoint?url=https://YOUR_HOST/badge.json)
+  ```
+
+- **`build/badge.svg`** — a self-contained flat SVG with no external
+  dependencies. Drop it into your README or wiki directly:
+
+  ```markdown
+  ![blueprint](https://YOUR_HOST/badge.svg)
+  ```
+
+The badge label is always `blueprint`. The message and color are derived from
+the same `StatusMetrics` that drive the Markdown report and the GitHub Actions
+outputs, so the three surfaces can never disagree.
+
+Color thresholds (coverage = `proved / formal_target_count`):
+
+| Color         | When                                                            |
+|---------------|-----------------------------------------------------------------|
+| `lightgrey`   | No nodes, or no node yet wants a formal proof.                  |
+| `red`         | Any node is `not_found`, `broken`, `failed_check`, or `tainted` — **or** coverage < 25%. |
+| `orange`      | 25% ≤ coverage < 50%.                                           |
+| `yellow`      | 50% ≤ coverage < 75%.                                           |
+| `green`       | 75% ≤ coverage < 100%.                                          |
+| `brightgreen` | 100% coverage.                                                  |
+
+`stale` nodes (re-check needed) do **not** force the badge red on their own —
+they just hold their previous color until the next `check` clarifies them.
+
+---
+
+## GitHub Actions outputs
+
+Inside a GitHub-hosted runner, `isabelle-blueprint report` additionally:
+
+- Appends a fixed set of scalar outputs to `$GITHUB_OUTPUT`, so downstream
+  steps can gate on them with `${{ steps.<id>.outputs.<key> }}`.
+- Appends a compact Markdown summary to `$GITHUB_STEP_SUMMARY`, so the run
+  page shows project coverage + a small counts table without you needing to
+  upload an artefact.
+
+Both surfaces are no-ops when the env vars are absent (i.e. locally), so the
+same command works in both environments.
+
+The output keys are a **frozen public contract** — they will keep their names,
+order, and semantics across minor versions:
+
+| Output key            | Type                  | Meaning                                                                                       |
+|-----------------------|-----------------------|-----------------------------------------------------------------------------------------------|
+| `coverage_percent`    | integer or empty      | `proved / formal_target_count` as a 0–100 integer; empty string when there are no formal targets. |
+| `node_count`          | integer               | Total nodes in the blueprint.                                                                 |
+| `formal_target_count` | integer               | Nodes whose `formal` status is anything other than `missing`.                                 |
+| `proved_count`        | integer               | Nodes with `formal: proved`.                                                                  |
+| `found_count`         | integer               | Nodes with `formal: found` (fact exists, proof not yet verified).                             |
+| `problem_count`       | integer               | Nodes in `not_found` / `broken` / `failed_check` / `tainted`.                                 |
+| `has_cycles`          | `"true"` / `"false"`  | Whether the dependency graph still has a cycle.                                               |
+
+Example workflow snippet:
+
+```yaml
+- id: blueprint
+  run: isabelle-blueprint report .
+
+- name: Fail if blueprint has problems or cycles
+  if: steps.blueprint.outputs.problem_count != '0' || steps.blueprint.outputs.has_cycles == 'true'
+  run: exit 1
+
+- name: Comment coverage on PR
+  if: github.event_name == 'pull_request' && steps.blueprint.outputs.coverage_percent != ''
+  run: gh pr comment ${{ github.event.pull_request.number }} --body "Blueprint coverage: ${{ steps.blueprint.outputs.coverage_percent }}%"
+  env:
+    GH_TOKEN: ${{ github.token }}
+```
 
 ---
 
@@ -513,10 +598,13 @@ Where we are heading next:
   blueprints re-verify only the nodes whose Isabelle sources changed.
 - 🔜 **v0.7** — Multi-blueprint / multi-session projects: compose several
   blueprints into one dependency graph and one status site.
-- 🗺️ **v0.8** — Richer web UI: interactive graph (filter by status/tag, click a
-  node to jump to its proof), trend charts, and a shareable status badge.
-- 🗺️ **v0.9** — Plugin API for custom node kinds, status providers, and report
-  renderers, plus first-class GitHub Action outputs (PR status comments).
+- 🟡 **v0.8** — Richer web UI: ✅ shareable status badge (`badge.json` +
+  `badge.svg`) and ✅ interactive status table filters landed in v0.5.1;
+  click-through graph filtering and trend charts are still to come.
+- 🟡 **v0.9** — ✅ First-class GitHub Action outputs (`$GITHUB_OUTPUT` +
+  `$GITHUB_STEP_SUMMARY`) landed in v0.5.1; the full plugin API for custom
+  node kinds, status providers, and report renderers (plus PR status
+  comments) is still to come.
 - 🎯 **v1.0** — First stable PyPI release with a stable CLI/JSON contract,
   semantic versioning guarantees, and end-to-end documentation.
 
