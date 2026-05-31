@@ -1,0 +1,10 @@
+[project]
+name = "Infinitude of the primes"
+blueprint = "blueprint.md"
+
+[isabelle]
+session = "Euclid_Demo"
+
+[output]
+build_dir = "build"
+site_dir  = "site"

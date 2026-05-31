@@ -1,0 +1,4 @@
+session "Euclid_Demo" = "HOL" +
+  options [document = false]
+  theories
+    Euclid_Demo

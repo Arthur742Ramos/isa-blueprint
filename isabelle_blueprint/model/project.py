@@ -1,6 +1,7 @@
 """Project model: a collection of nodes plus validation."""
 from __future__ import annotations
 
+import difflib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +19,8 @@ class ValidationReport:
     duplicate_ids: list[str] = field(default_factory=list)
     missing_dependencies: list[tuple[str, str]] = field(default_factory=list)
     cycles: list[list[str]] = field(default_factory=list)
+    # missing-dependency id -> ranked list of similar known ids ("did you mean?")
+    suggestions: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -28,7 +31,12 @@ class ValidationReport:
         for dup in self.duplicate_ids:
             msgs.append(f"duplicate node id: {dup!r}")
         for node_id, missing in self.missing_dependencies:
-            msgs.append(f"node {node_id!r} depends on undefined node {missing!r}")
+            msg = f"node {node_id!r} depends on undefined node {missing!r}"
+            hints = self.suggestions.get(missing)
+            if hints:
+                quoted = " or ".join(repr(h) for h in hints)
+                msg += f" (did you mean {quoted}?)"
+            msgs.append(msg)
         for cycle in self.cycles:
             msgs.append("dependency cycle: " + " -> ".join(cycle))
         return msgs
@@ -45,6 +53,7 @@ class ValidationReport:
                 for node, missing in self.missing_dependencies
             ],
             "cycles": [list(cycle) for cycle in self.cycles],
+            "suggestions": {k: list(v) for k, v in self.suggestions.items()},
             "ok": self.ok,
         }
 
@@ -86,12 +95,17 @@ class BlueprintProject:
                 report.duplicate_ids.append(node.id)
             seen.add(node.id)
 
-        # missing dependencies
+        # missing dependencies (with "did you mean?" suggestions)
         all_ids = {node.id for node in self.nodes}
+        sorted_ids = sorted(all_ids)
         for node in self.nodes:
             for dep in node.uses:
                 if dep not in all_ids:
                     report.missing_dependencies.append((node.id, dep))
+                    if dep not in report.suggestions:
+                        close = difflib.get_close_matches(dep, sorted_ids, n=3, cutoff=0.6)
+                        if close:
+                            report.suggestions[dep] = close
 
         # cycle detection (DFS)
         adjacency: dict[str, list[str]] = {n.id: [d for d in n.uses if d in all_ids] for n in self.nodes}

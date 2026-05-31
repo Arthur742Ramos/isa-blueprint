@@ -36,7 +36,8 @@ This release covers the original roadmap end to end. It ships the planner, real 
 
 What works today:
 
-- ✅ Markdown blueprint parser (fenced `:::` blocks + YAML metadata)
+- ✅ Markdown blueprint parser (single-`:::` blocks, optional YAML metadata, humanised titles)
+- ✅ `new` stub generator + author-friendly snippets/completion in the VS Code extension
 - ✅ LaTeX blueprint parser for Lean Blueprint-style `\label`, `\lean`, `\uses`, and proof environments
 - ✅ Three-axis status model: blueprint × formal × agent
 - ✅ Dependency validation (cycles, missing references, duplicates)
@@ -100,7 +101,8 @@ isabelle-blueprint init my-project
 cd my-project
 
 # 2. Edit blueprint.md, adding your definitions, lemmas, and theorems.
-#    See examples/minimal/blueprint.md for the syntax.
+#    See examples/minimal/blueprint.md for the syntax — or scaffold a node:
+isabelle-blueprint new theorem my-headline-result --append
 
 # 3. Validate structure and (optionally) check Isabelle fact/proof status.
 #    (Requires Isabelle; see the note below before running on a live install.)
@@ -215,6 +217,10 @@ explore them with `report` / `graph` / `tasks` without a working Isabelle:
 
 | Example | Format | Nodes | Coverage | Demonstrates |
 | --- | --- | ---: | ---: | --- |
+| [`gauss-sum`](examples/gauss-sum) | Markdown (`:::`) | 3 | 100% | **Trivial / all-green.** `1+…+n = n(n+1)/2` by induction; every node `proved`. |
+| [`sqrt2-irrational`](examples/sqrt2-irrational) | Markdown | 5 | 60% | **Intermediate.** `√2` irrational; mixed statuses, one ready task. |
+| [`euclid-primes`](examples/euclid-primes) | Markdown | 6 | 66.7% | **Intermediate.** Euclid's infinitude of primes; partially-formalised DAG. |
+| [`fundamental-arithmetic`](examples/fundamental-arithmetic) | Markdown | 10 | 50% | **Advanced.** Prime factorisation existence + uniqueness; two agent-ready tasks. |
 | [`minimal`](examples/minimal) | Markdown | 4 | 0% | Smallest blueprint; every subcommand. |
 | [`group-theory`](examples/group-theory) | Markdown | 10 | 50% | Multi-level DAG mixing `missing` / `named` / `found` / `proved`. |
 | [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 50% | `.tex` ingestion with `\isabelle` / `\uses` / `\isabelleok`. |
@@ -222,6 +228,45 @@ explore them with `report` / `graph` / `tasks` without a working Isabelle:
 | [`afp-gale-stewart`](examples/afp-gale-stewart) | Markdown | 7 | 100% | **Real AFP entry**: cross-session `check`, all 7 facts `proved` (see below). |
 
 See [`examples/README.md`](examples/README.md) for the full tour.
+
+### Showcase gallery
+
+Four worked proofs spanning a complexity gradient — each graph below is the
+actual `isabelle-blueprint web` / `graph` output, colour-coded by formal status
+(see the [legend](#status-colour-legend) above) — with agent-ready open tasks
+drawn in purple regardless of their formal status. They render natively on GitHub.
+
+**① gauss-sum — trivial, 3 nodes, 100% proved (all green)**
+
+The closed form `1 + 2 + … + n = n(n+1)/2` by a single induction, written in the
+lighter `::: kind {#id}` grammar. Every node is `proved`, so this is what a
+*finished* blueprint looks like.
+
+![gauss-sum dependency graph — all nodes green/proved](docs/assets/gauss-sum-graph.svg)
+
+**② sqrt2-irrational — intermediate, 5 nodes, 60% (mixed colours)**
+
+The classic reductio that `√2` is irrational. Parity and coprimality helper
+lemmas mix `proved` / `found` / `named` / `missing`, so the graph shows the full
+colour palette and `tasks` surfaces one ready obligation.
+
+![sqrt2-irrational dependency graph — mixed status colours](docs/assets/sqrt2-graph.svg)
+
+**③ euclid-primes — intermediate, 6 nodes, 66.7%**
+
+Euclid's infinitude of the primes. A compact DAG with two open obligations near
+the top and one agent-ready task.
+
+![euclid-primes dependency graph](docs/assets/euclid-graph.svg)
+
+**④ fundamental-arithmetic — advanced, 10 nodes, 50%, two ready tasks**
+
+Existence *and* uniqueness of prime factorisation: a multi-level, ten-node DAG
+with proved helper lemmas feeding several still-open theorems — the richest
+graph in the gallery.
+
+![fundamental-arithmetic dependency graph — 10-node multi-level DAG](docs/assets/fta-graph.svg)
+
 
 ### End-to-end with a real AFP entry
 
@@ -282,6 +327,7 @@ All subcommands take an optional positional `project_dir` (default `.`) and read
 | `web`      | Render the static HTML site (index, status, graph, tasks, per-node pages).                          | `site/index.html`, `site/nodes/*.html`, `site/graph.svg`          |
 | `tasks`    | Emit an AI-agent task pack — one JSON record per node, plus a Markdown overview and per-task prompts. | `build/tasks.json`, `build/tasks.md`, `build/prompts/*.md`        |
 | `report`   | Write JSON and Markdown summary reports of the project state.                                       | `build/project.json`, `build/report.md`, `build/summary.json`     |
+| `new`      | Print (or `--append`) a ready-to-edit node stub with a humanised title and a suggested Isabelle fact name. | stub on stdout, or appended to `blueprint.md`              |
 
 Flags worth knowing:
 
@@ -290,6 +336,7 @@ Flags worth knowing:
 - `isabelle-blueprint dump --from path/to/dump` — inspect an existing PIDE dump directory instead of invoking `isabelle dump`.
 - `isabelle-blueprint compat --strict` — exit non-zero on compatibility errors.
 - `isabelle-blueprint init --force` — overwrite existing scaffolded files.
+- `isabelle-blueprint new theorem my-id` — print a stub; add `--append` to drop it straight into `blueprint.md`.
 
 ---
 
@@ -329,7 +376,20 @@ stateDiagram-v2
 
 ## Blueprint syntax (Markdown)
 
-Each node is a fenced block. The opening fence carries the kind and id; the body is split into metadata (YAML) and free-form Markdown by a second `:::` line:
+A node is a fenced block opened with `::: <kind> {#id}` and closed with a single
+`:::`. Everything is optional except the opening fence — the parser fills in
+sensible defaults, so the smallest possible node is just:
+
+````markdown
+::: definition {#nat-add}
+Natural-number addition is the usual recursive definition on `nat`.
+:::
+````
+
+That alone gives you a node with id `nat-add`, kind `definition`, and a title
+**humanised from the id** ("Nat add"). Add metadata as you need it. Metadata is a
+short block of `key: value` lines at the top of the body, separated from the prose
+by **one blank line**:
 
 ````markdown
 ::: theorem {#sum-divides}
@@ -338,10 +398,7 @@ isabelle: Arith_Demo.sum_divides
 uses:
   - def-divides
   - lem-add-comm
-status:
-  blueprint: written
-  formal: named
-:::
+status: written
 
 If $a \mid b$ and $a \mid c$, then $a \mid (b + c)$.
 
@@ -351,10 +408,27 @@ Unfold the definition of divides and use commutativity of addition.
 :::
 ````
 
+### Cheat-sheet
+
+| You write… | You get… |
+|------------|----------|
+| `::: lemma {#add-zero}` | a `lemma` node, id `add-zero`, title *"Add zero"* |
+| *(omit `title:`)* | title is humanised from the id |
+| `status: written` | shorthand for `status: { blueprint: written }` |
+| `isabelle: Thy.fact` | a string fact ref (or use a `{theory:, fact:, session:}` map) |
+| `uses:` + `  - other-id` | a dependency edge to `other-id` |
+| `tags: [nat, identity]` | inline YAML list of tags |
+| a single `:::` to close | closes the node (the old two-`:::` form still parses) |
+| `--- … ---` at the top | optional YAML frontmatter instead of the blank-line block |
+
 - **Kinds** the parser understands: `definition`, `lemma`, `theorem`, `proposition`, `corollary`, `example`, `note`. Unknown kinds become `other`.
 - **`uses`** is a list of node ids — they drive the dependency graph and the topological order of agent tasks.
-- **`isabelle`** can be a string (`Theory.fact_name`) or a YAML mapping (`{theory: ..., fact: ..., session: ...}`).
+- **`isabelle`** can be a string (`Theory.fact_name`) or a YAML mapping (`{theory: ..., fact: ..., session: ...}`). Leaving it off keeps the node's formal status at `missing` until you add one.
 - Both fence styles are accepted: `::: theorem {#id}` *and* `::: {.theorem #id}`.
+- Don't want to hand-write the skeleton? Run `isabelle-blueprint new theorem my-id`
+  and it prints a filled-in stub (humanised title + a suggested `isabelle:` fact
+  name derived from the id). `check` is forgiving too — a typo'd `uses:` id gets a
+  *"did you mean …?"* suggestion instead of a bare error.
 
 See [`examples/minimal/blueprint.md`](examples/minimal/blueprint.md) for a complete working example.
 

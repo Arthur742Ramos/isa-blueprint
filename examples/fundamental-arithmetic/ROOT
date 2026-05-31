@@ -1,0 +1,4 @@
+session "FTA_Demo" = "HOL" +
+  options [document = false]
+  theories
+    FTA_Demo

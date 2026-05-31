@@ -23,11 +23,8 @@ the fact exists in any session).
 ::: definition {#nat-add}
 title: Natural-number addition
 isabelle: Arith_Demo.add_def_def
-status:
-  blueprint: written
-  formal: missing
+status: written
 tags: [nat, addition]
-:::
 
 We treat addition on `nat` as the standard recursive definition. The lemmas
 below pin down two of its identity laws and then combine them.
@@ -38,11 +35,8 @@ title: Right identity for addition
 isabelle: Arith_Demo.add_zero_right
 uses:
   - nat-add
-status:
-  blueprint: written
-  formal: missing
+status: written
 tags: [nat, identity]
-:::
 
 For every natural number $n$, $n + 0 = n$.
 
@@ -57,11 +51,8 @@ title: Left identity for addition
 isabelle: Arith_Demo.add_zero_left
 uses:
   - nat-add
-status:
-  blueprint: written
-  formal: missing
+status: written
 tags: [nat, identity]
-:::
 
 For every natural number $n$, $0 + n = n$.
 
@@ -76,11 +67,8 @@ isabelle: Arith_Demo.add_zero_both
 uses:
   - add-zero-right
   - add-zero-left
-status:
-  blueprint: written
-  formal: missing
+status: written
 tags: [nat, identity, headline]
-:::
 
 Combining the two identity lemmas, $0$ is both a left and a right identity for
 addition on the naturals.

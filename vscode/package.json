@@ -13,10 +13,17 @@
   ],
   "activationEvents": [
     "workspaceContains:isabelle-blueprint.toml",
-    "onCommand:isabelleBlueprint.refresh"
+    "onCommand:isabelleBlueprint.refresh",
+    "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "snippets": [
+      {
+        "language": "markdown",
+        "path": "./snippets/blueprint.json"
+      }
+    ],
     "commands": [
       {
         "command": "isabelleBlueprint.refresh",

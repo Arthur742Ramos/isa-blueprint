@@ -65,6 +65,11 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
     return this.projects.map((loaded) => new ProjectItem(loaded));
   }
+
+  /** Every node known across all loaded projects, for editor completion. */
+  allNodes(): BlueprintNode[] {
+    return this.projects.flatMap((loaded) => loaded.project.nodes);
+  }
 }
 
 type TreeItem = ProjectItem | NodeItem | DependencyItem;
@@ -113,6 +118,85 @@ class DependencyItem extends vscode.TreeItem {
   }
 }
 
+/**
+ * Suggests known node ids after `uses:`/`- ` and known Isabelle facts after
+ * `isabelle:` while editing a blueprint Markdown file. Ids and facts are drawn
+ * from the most recently loaded project JSON, so completion improves after a
+ * `build`/`check` regenerates it.
+ */
+class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.CompletionItem[] {
+    const line = document.lineAt(position.line).text.slice(0, position.character);
+    const nodes = this.provider.allNodes();
+    if (nodes.length === 0) {
+      return [];
+    }
+
+    if (this.isUsesContext(document, position, line)) {
+      return nodes.map((node) => {
+        const item = new vscode.CompletionItem(node.id, vscode.CompletionItemKind.Reference);
+        item.detail = `${node.kind} — ${node.title}`;
+        item.documentation = new vscode.MarkdownString(tooltipForNode(node));
+        return item;
+      });
+    }
+
+    if (/^\s*isabelle:\s*\S*$/.test(line)) {
+      return nodes
+        .filter((node) => node.isabelle && node.isabelle.fact)
+        .map((node) => {
+          const fact = node.isabelle.fact as string;
+          const item = new vscode.CompletionItem(fact, vscode.CompletionItemKind.Value);
+          item.detail = `fact of ${node.id}`;
+          return item;
+        });
+    }
+
+    return [];
+  }
+
+  /**
+   * Node-id completion fires either directly after a `uses:` line, or on a
+   * bare list item (`- `) that belongs to a `uses:` block. A bare `- ` on its
+   * own matches any empty list item (e.g. under a `Notes:` block), so we scan
+   * upward to confirm the enclosing block key is actually `uses:`.
+   */
+  private isUsesContext(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    line: string,
+  ): boolean {
+    if (/^\s*uses:\s*$/.test(line)) {
+      return true;
+    }
+    if (!/^\s*-\s*\S*$/.test(line)) {
+      return false;
+    }
+    for (let ln = position.line - 1; ln >= 0; ln--) {
+      const text = document.lineAt(ln).text;
+      if (/^\s*$/.test(text)) {
+        continue;
+      }
+      if (/^\s*-\s*/.test(text)) {
+        // Another list item in the same block; keep scanning upward.
+        continue;
+      }
+      if (/^\s*uses:\s*$/.test(text)) {
+        return true;
+      }
+      // A heading, container fence, a different block key, or a dedented
+      // non-list line ends the block without finding `uses:`.
+      return false;
+    }
+    return false;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
   const provider = new BlueprintTreeProvider();
@@ -128,6 +212,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelleBlueprint.openNode", async (loaded: LoadedProject, node: BlueprintNode) => {
       await openNode(loaded, node);
     }),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      { language: "markdown", scheme: "file" },
+      new BlueprintCompletionProvider(provider),
+      ":",
+      " ",
+      "-",
+    ),
   );
 
   const watcher = vscode.workspace.createFileSystemWatcher("**/project.json");

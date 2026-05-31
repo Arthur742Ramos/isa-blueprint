@@ -72,6 +72,36 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_new(args: argparse.Namespace) -> int:
+    from isabelle_blueprint.scaffold import render_node_stub
+
+    fact = "" if args.no_fact else args.fact
+    stub = render_node_stub(
+        args.kind,
+        args.id,
+        title=args.title,
+        fact=fact,
+        uses=args.uses or [],
+        status=args.status,
+    )
+
+    if args.append:
+        project_dir = Path(args.project_dir).resolve()
+        config = load_config(project_dir)
+        path = config.blueprint_path
+        if not path.exists():
+            raise BlueprintError(
+                f"blueprint not found at {path}; run `isabelle-blueprint init` first"
+            )
+        existing = path.read_text(encoding="utf-8")
+        separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
+        path.write_text(existing + separator + stub, encoding="utf-8")
+        print(f"appended {args.kind} {args.id!r} to {path}")
+    else:
+        sys.stdout.write(stub)
+    return 0
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -79,6 +109,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         project.validate().raise_if_failed()
     except ValidationError as exc:
         print(f"validation failed: {exc}", file=sys.stderr)
+        for issue in exc.issues:
+            print(f"  - {issue}", file=sys.stderr)
         return 2
 
     result = run_check(
@@ -257,6 +289,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("project_dir", nargs="?", default=".")
     p_report.set_defaults(func=cmd_report)
 
+    p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
+    p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
+    p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
+    p_new.add_argument("project_dir", nargs="?", default=".", help="project dir (used with --append)")
+    p_new.add_argument("--title", default=None, help="explicit title (default: humanised from id)")
+    p_new.add_argument("--fact", default=None, help="Isabelle fact name (default: suggested from id)")
+    p_new.add_argument("--no-fact", action="store_true", help="omit the isabelle: line entirely")
+    p_new.add_argument("--uses", nargs="*", default=None, metavar="ID", help="dependency node ids")
+    p_new.add_argument("--status", default="stub", help="initial blueprint status (default: stub)")
+    p_new.add_argument(
+        "--append",
+        action="store_true",
+        help="append the stub to the project blueprint instead of printing to stdout",
+    )
+    p_new.set_defaults(func=cmd_new)
+
     return parser
 
 
@@ -273,14 +321,12 @@ def main(argv: list[str] | None = None) -> int:
 _DEFAULT_BLUEPRINT = """# My blueprint
 
 Welcome! Edit this file and replace the placeholder nodes below.
+Tip: run `isabelle-blueprint new theorem my-id` to scaffold more nodes.
 
 ::: definition {#example-def}
 title: Example definition
 isabelle: Main.True
-status:
-  blueprint: stub
-  formal: missing
-:::
+status: stub
 
 Describe what is being defined.
 :::
@@ -290,10 +336,7 @@ title: Example theorem
 isabelle: My_Theory.example_lemma
 uses:
   - example-def
-status:
-  blueprint: stub
-  formal: missing
-:::
+status: stub
 
 State the result.
 
