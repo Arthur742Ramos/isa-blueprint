@@ -1,0 +1,4 @@
+session "Sqrt2_Demo" = "HOL" +
+  options [document = false]
+  theories
+    Sqrt2_Demo

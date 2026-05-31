@@ -1,0 +1,4 @@
+session "Gauss_Demo" = "HOL" +
+  description "Gauss summation formula IsabelleBlueprint demo session."
+  theories
+    Gauss_Demo

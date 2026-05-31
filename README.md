@@ -217,6 +217,10 @@ explore them with `report` / `graph` / `tasks` without a working Isabelle:
 
 | Example | Format | Nodes | Coverage | Demonstrates |
 | --- | --- | ---: | ---: | --- |
+| [`gauss-sum`](examples/gauss-sum) | Markdown (`:::`) | 3 | 100% | **Trivial / all-green.** `1+…+n = n(n+1)/2` by induction; every node `proved`. |
+| [`sqrt2-irrational`](examples/sqrt2-irrational) | Markdown | 5 | 60% | **Intermediate.** `√2` irrational; mixed statuses, one ready task. |
+| [`euclid-primes`](examples/euclid-primes) | Markdown | 6 | 66.7% | **Intermediate.** Euclid's infinitude of primes; partially-formalised DAG. |
+| [`fundamental-arithmetic`](examples/fundamental-arithmetic) | Markdown | 10 | 50% | **Advanced.** Prime factorisation existence + uniqueness; two agent-ready tasks. |
 | [`minimal`](examples/minimal) | Markdown | 4 | 0% | Smallest blueprint; every subcommand. |
 | [`group-theory`](examples/group-theory) | Markdown | 10 | 50% | Multi-level DAG mixing `missing` / `named` / `found` / `proved`. |
 | [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 50% | `.tex` ingestion with `\isabelle` / `\uses` / `\isabelleok`. |
@@ -224,6 +228,44 @@ explore them with `report` / `graph` / `tasks` without a working Isabelle:
 | [`afp-gale-stewart`](examples/afp-gale-stewart) | Markdown | 7 | 100% | **Real AFP entry**: cross-session `check`, all 7 facts `proved` (see below). |
 
 See [`examples/README.md`](examples/README.md) for the full tour.
+
+### Showcase gallery
+
+Four worked proofs spanning a complexity gradient — each graph below is the
+actual `isabelle-blueprint web` / `graph` output, colour-coded by formal status
+(see the [legend](#status-colour-legend) above). They render natively on GitHub.
+
+**① gauss-sum — trivial, 3 nodes, 100% proved (all green)**
+
+The closed form `1 + 2 + … + n = n(n+1)/2` by a single induction, written in the
+lighter `::: kind {#id}` grammar. Every node is `proved`, so this is what a
+*finished* blueprint looks like.
+
+![gauss-sum dependency graph — all nodes green/proved](docs/assets/gauss-sum-graph.svg)
+
+**② sqrt2-irrational — intermediate, 5 nodes, 60% (mixed colours)**
+
+The classic reductio that `√2` is irrational. Parity and coprimality helper
+lemmas mix `proved` / `found` / `named` / `missing`, so the graph shows the full
+colour palette and `tasks` surfaces one ready obligation.
+
+![sqrt2-irrational dependency graph — mixed status colours](docs/assets/sqrt2-graph.svg)
+
+**③ euclid-primes — intermediate, 6 nodes, 66.7%**
+
+Euclid's infinitude of the primes. A compact DAG with two open obligations near
+the top and one agent-ready task.
+
+![euclid-primes dependency graph](docs/assets/euclid-graph.svg)
+
+**④ fundamental-arithmetic — advanced, 10 nodes, 50%, two ready tasks**
+
+Existence *and* uniqueness of prime factorisation: a multi-level, ten-node DAG
+with proved helper lemmas feeding several still-open theorems — the richest
+graph in the gallery.
+
+![fundamental-arithmetic dependency graph — 10-node multi-level DAG](docs/assets/fta-graph.svg)
+
 
 ### End-to-end with a real AFP entry
 
