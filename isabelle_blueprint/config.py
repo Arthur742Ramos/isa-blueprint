@@ -68,6 +68,11 @@ class BlueprintConfig:
     def checker_theory_path(self) -> Path:
         return self.build_dir / "Blueprint_Check.thy"
 
+    @property
+    def check_cache_path(self) -> Path:
+        """JSON cache file used by ``isabelle-blueprint check --incremental``."""
+        return self.build_dir / "check-cache.json"
+
 
 DEFAULT_CONFIG_NAME = "isabelle-blueprint.toml"
 DEFAULT_BLUEPRINT_NAME = "blueprint.md"

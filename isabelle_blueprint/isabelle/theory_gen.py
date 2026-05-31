@@ -42,13 +42,22 @@ class FactReference:
     session: str | None = None
 
 
-def group_facts_by_theory(project: BlueprintProject) -> dict[str, list[FactReference]]:
+def group_facts_by_theory(
+    project: BlueprintProject,
+    *,
+    include_node_ids: set[str] | None = None,
+) -> dict[str, list[FactReference]]:
     """Return references grouped by their owning theory.
 
-    Nodes without a resolvable ``isabelle:`` reference are skipped.
+    Nodes without a resolvable ``isabelle:`` reference are skipped. When
+    ``include_node_ids`` is provided, only nodes whose id is in that set are
+    considered (used by the incremental checker to generate a wrapper theory
+    that contains only the subset of facts that actually need re-checking).
     """
     grouped: dict[str, list[FactReference]] = defaultdict(list)
     for node in project.nodes:
+        if include_node_ids is not None and node.id not in include_node_ids:
+            continue
         ref = _resolve(node)
         if ref is None:
             continue
@@ -78,9 +87,15 @@ def generate_check_theory(
     default_import_session: str | None = None,
     proof_status_file: str = "Blueprint_Proof_Status.tsv",
     generation_nonce: str | None = None,
+    include_node_ids: set[str] | None = None,
 ) -> str:
-    """Return the source of an Isabelle theory that references every fact."""
-    grouped = group_facts_by_theory(project)
+    """Return the source of an Isabelle theory that references every fact.
+
+    When ``include_node_ids`` is provided, only those nodes contribute facts to
+    the generated theory. This is used by the incremental checker to ship a
+    reduced wrapper containing just the changed/uncached subset.
+    """
+    grouped = group_facts_by_theory(project, include_node_ids=include_node_ids)
     imports = sorted(
         {
             _import_name(ref, default_import_session=default_import_session)

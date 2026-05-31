@@ -128,6 +128,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         extra_dirs=config.isabelle_dirs,
         project_root=config.project_root,
         timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
+        incremental=bool(getattr(args, "incremental", False)),
+        cache_path=config.check_cache_path if getattr(args, "incremental", False) else None,
+        jobs=getattr(args, "jobs", None),
     )
     write_report(result, config.check_report_path)
     apply_check_report(project, result)
@@ -272,6 +275,21 @@ def _build_parser() -> argparse.ArgumentParser:
         "--strict",
         action="store_true",
         help="exit non-zero if Isabelle is unavailable or the build did not run",
+    )
+    p_check.add_argument(
+        "--incremental",
+        action="store_true",
+        help=(
+            "skip facts whose blueprint inputs and context match a previously-proved "
+            "cache entry (cache file: build/check-cache.json)"
+        ),
+    )
+    p_check.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="forward `-j N` to `isabelle build` to parallelise upstream session builds",
     )
     p_check.set_defaults(func=cmd_check)
 

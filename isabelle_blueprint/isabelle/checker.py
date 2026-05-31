@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from isabelle_blueprint.errors import CheckerError
+from isabelle_blueprint.isabelle import check_cache
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.theory_gen import (
     generate_check_root,
@@ -169,28 +170,84 @@ def run_check(
     write_theory: bool = True,
     proof_status: bool = True,
     timeout: float | None = None,
+    incremental: bool = False,
+    cache_path: Path | None = None,
+    jobs: int | None = None,
 ) -> CheckResult:
     """Generate the check theory and (optionally) run ``isabelle build``.
 
     If ``session_name`` is ``None`` or the Isabelle binary is unavailable, we
     skip the build step and return a report describing the situation without
     raising. Each fact's per-node status is set to ``NAMED`` in that case.
+
+    When ``incremental`` is true and ``cache_path`` is provided, nodes whose
+    inputs and context hash match a previously-proved cache entry are
+    short-circuited: they are surfaced as already-proved ``FactCheck`` records
+    without being included in the generated wrapper theory, and ``isabelle
+    build`` is invoked on only the remaining subset. If every node is a cache
+    hit, the build step is skipped entirely.
+
+    ``jobs`` is forwarded as ``isabelle build -j N`` to control parallelism
+    across upstream session builds. Values <= 0 are ignored.
     """
     build_dir.mkdir(parents=True, exist_ok=True)
     proof_status_path = build_dir / "Blueprint_Proof_Status.tsv"
     check_timestamp = datetime.now(timezone.utc).isoformat()
+
+    # === Incremental cache: partition nodes into cache_hits vs to_check ===
+    use_cache = bool(incremental and cache_path is not None)
+    cache_entries: dict[str, dict] = {}
+    node_hashes: dict[str, str] = {}
+    cached_hits: dict[str, FactCheck] = {}
+    if use_cache:
+        cache_entries = check_cache.load_cache(cache_path)
+        context_fingerprint = check_cache.compute_context_fingerprint(
+            session_name=session_name,
+            isabelle_executable=isabelle_executable,
+            extra_dirs=extra_dirs,
+            project_root=project_root,
+            proof_status=proof_status,
+        )
+        for node in project.nodes:
+            if not node.isabelle.fact:
+                continue
+            h = check_cache.compute_node_hash(node, context=context_fingerprint)
+            node_hashes[node.id] = h
+            entry = cache_entries.get(node.id)
+            if entry is None or entry.get("hash") != h:
+                continue
+            fc_dict = check_cache.reusable_entry(entry, proof_status_required=proof_status)
+            if fc_dict is None:
+                continue
+            cached_hits[node.id] = FactCheck(
+                node_id=fc_dict["node_id"],
+                fact=fc_dict["fact"],
+                theory=fc_dict.get("theory"),
+                exists=True,
+                error=None,
+                proof_status=fc_dict.get("proof_status"),
+                oracles=list(fc_dict.get("oracles") or []),
+            )
+
+    # Set of node ids that still need verification: all nodes with a fact ref,
+    # minus the cache hits.
+    facts_node_ids = {n.id for n in project.nodes if n.isabelle.fact}
+    to_check_ids = facts_node_ids - cached_hits.keys()
+    include_filter: set[str] | None = to_check_ids if use_cache else None
+
     theory_text = generate_check_theory(
         project,
         emit_proof_status=proof_status,
         default_import_session=session_name,
         proof_status_file=proof_status_path.name,
         generation_nonce=check_timestamp if proof_status and not proof_status_path.exists() else None,
+        include_node_ids=include_filter,
     )
     theory_path = build_dir / "Blueprint_Check.thy"
     if write_theory:
         theory_path.write_text(theory_text, encoding="utf-8")
 
-    grouped = group_facts_by_theory(project)
+    grouped = group_facts_by_theory(project, include_node_ids=include_filter)
     references = [
         FactCheck(node_id=ref.node_id, fact=ref.fact, theory=ref.theory, exists=False)
         for theory_refs in grouped.values()
@@ -207,11 +264,30 @@ def run_check(
         facts=references,
     )
 
+    # Fast path: every reference is a cache hit, so don't invoke isabelle.
+    # Persist the cache (dropping entries for any nodes that have since been
+    # deleted from the blueprint) and return immediately. We still mark
+    # ``ran=True`` and ``proof_checked`` so that ``apply_check_report`` will
+    # honour the cached proof statuses rather than knock everything down to
+    # NAMED.
+    if use_cache and cached_hits and not to_check_ids:
+        result.ran = True
+        result.return_code = 0
+        result.proof_checked = bool(proof_status)
+        result.facts = list(cached_hits.values())
+        retained = {nid: cache_entries[nid] for nid in cached_hits if nid in cache_entries}
+        try:
+            check_cache.save_cache(cache_path, retained)
+        except OSError:
+            pass
+        return result
+
     if not isabelle_available:
         result.error = (
             f"Isabelle executable {isabelle_executable!r} not found on PATH; "
             "skipped build. Fact-existence is assumed unverified."
         )
+        _merge_cache_hits_into(result, cached_hits)
         return result
 
     if session_name is None:
@@ -219,6 +295,7 @@ def run_check(
             "No Isabelle session configured (set [isabelle].session in "
             "isabelle-blueprint.toml); skipped build."
         )
+        _merge_cache_hits_into(result, cached_hits)
         return result
 
     # Drop a small ROOT alongside the generated theory so ``isabelle build``
@@ -245,6 +322,8 @@ def run_check(
         cmd.extend(["-d", str(project_root)])
     for d in extra_dirs or []:
         cmd.extend(["-d", str(d)])
+    if jobs is not None and jobs > 0:
+        cmd.extend(["-j", str(jobs)])
     cmd.append(wrapper_session)
     result.invoked_command = cmd
 
@@ -263,6 +342,7 @@ def run_check(
             f"isabelle build timed out after {timeout:.0f}s; "
             "increase [isabelle].timeout in isabelle-blueprint.toml or pass --timeout"
         )
+        _merge_cache_hits_into(result, cached_hits)
         return result
     except OSError as exc:
         # Binary resolved on PATH but couldn't actually be launched (stale
@@ -270,6 +350,7 @@ def run_check(
         # point of view that's the same as "not available".
         result.error = f"failed to invoke {isabelle_executable!r}: {exc}"
         result.isabelle_available = False
+        _merge_cache_hits_into(result, cached_hits)
         return result
     finally:
         result.duration_seconds = time.monotonic() - start
@@ -309,7 +390,53 @@ def run_check(
                 f"isabelle build returned {proc.returncode} with no recognised fact errors"
             )
 
+    # Splice cache hits back into result.facts so the report covers every node.
+    # Cache hits carry proof_status="proved" by construction, so even if the
+    # current build returned 0 facts (everything was cached or the wrapper was
+    # empty), we still want proof_checked=True when proof status was requested.
+    if cached_hits:
+        _merge_cache_hits_into(result, cached_hits)
+        if proof_status:
+            result.proof_checked = True
+
+    # Persist the updated cache: keep the cache hits as-is and refresh entries
+    # for newly-verified facts. Skip anything that wasn't conclusively proved.
+    if use_cache:
+        new_cache: dict[str, dict] = {}
+        for nid in cached_hits:
+            if nid in cache_entries:
+                new_cache[nid] = cache_entries[nid]
+        for fc in result.facts:
+            if fc.node_id in cached_hits:
+                continue
+            if not fc.exists or fc.error:
+                continue
+            if fc.tainted:
+                continue
+            if proof_status and fc.proof_status != "proved":
+                continue
+            h = node_hashes.get(fc.node_id)
+            if not h:
+                continue
+            new_cache[fc.node_id] = check_cache.record_entry(asdict(fc), node_hash=h)
+        try:
+            check_cache.save_cache(cache_path, new_cache)
+        except OSError:
+            # Cache persistence is best-effort: a write failure must never
+            # break a check run.
+            pass
+
     return result
+
+
+def _merge_cache_hits_into(result: CheckResult, cached_hits: dict[str, FactCheck]) -> None:
+    """Append cache-hit fact checks to ``result.facts``, skipping duplicates."""
+    if not cached_hits:
+        return
+    existing = {fc.node_id for fc in result.facts}
+    for nid, fc in cached_hits.items():
+        if nid not in existing:
+            result.facts.append(fc)
 
 
 def _extract_bad_facts(stderr_text: str) -> dict[str, str]:
