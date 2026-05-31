@@ -24,7 +24,7 @@ from isabelle_blueprint.isabelle.dump import (
     run_dump,
     write_dump_report,
 )
-from isabelle_blueprint.parser import parse_blueprint_file
+from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.github_actions import (
@@ -39,11 +39,19 @@ from isabelle_blueprint.report.metrics import build_status_metrics, output_value
 
 def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
     config = load_config(project_dir)
-    if not config.blueprint_path.exists():
-        raise BlueprintError(
-            f"blueprint not found at {config.blueprint_path}; run `isabelle-blueprint init` first"
-        )
-    project = parse_blueprint_file(config.blueprint_path, project_name=config.project_name)
+    paths = config.blueprint_paths
+    missing = [p for p in paths if not p.exists()]
+    if missing:
+        if len(paths) == 1:
+            raise BlueprintError(
+                f"blueprint not found at {missing[0]}; run `isabelle-blueprint init` first"
+            )
+        formatted = ", ".join(str(p) for p in missing)
+        raise BlueprintError(f"configured blueprints are missing: {formatted}")
+    if len(paths) == 1:
+        project = parse_blueprint_file(paths[0], project_name=config.project_name)
+    else:
+        project = parse_blueprint(paths, project_name=config.project_name)
     return config, project
 
 
@@ -95,7 +103,24 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.append:
         project_dir = Path(args.project_dir).resolve()
         config = load_config(project_dir)
-        path = config.blueprint_path
+        paths = config.blueprint_paths
+        target = getattr(args, "blueprint", None)
+        if target is not None:
+            resolved = (project_dir / target).resolve()
+            if resolved not in [p.resolve() for p in paths]:
+                raise BlueprintError(
+                    f"--blueprint {target!r} is not one of the configured "
+                    f"blueprints: {', '.join(str(p) for p in paths)}"
+                )
+            path = resolved
+        elif len(paths) > 1:
+            formatted = ", ".join(str(p) for p in paths)
+            raise BlueprintError(
+                "project has multiple blueprints; pass --blueprint <path> to "
+                f"choose one of: {formatted}"
+            )
+        else:
+            path = paths[0]
         if not path.exists():
             raise BlueprintError(
                 f"blueprint not found at {path}; run `isabelle-blueprint init` first"
@@ -341,6 +366,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--append",
         action="store_true",
         help="append the stub to the project blueprint instead of printing to stdout",
+    )
+    p_new.add_argument(
+        "--blueprint",
+        default=None,
+        help="target blueprint file (required with --append when the project has multiple blueprints)",
     )
     p_new.set_defaults(func=cmd_new)
 

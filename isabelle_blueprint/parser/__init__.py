@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.parser.latex import (
     parse_latex_file,
     parse_latex_text,
@@ -40,12 +41,26 @@ def parse_blueprint_text(
 
 
 def parse_blueprint(paths: Iterable[Path | str], *, project_name: str = "blueprint") -> BlueprintProject:
-    """Parse one or more Markdown/LaTeX files into a single project."""
+    """Parse one or more Markdown/LaTeX files into a single project.
+
+    Raises :class:`BlueprintError` if two source files declare the same node id;
+    the message includes both source paths so the conflict can be resolved.
+    """
     nodes = []
     sources = []
+    seen_ids: dict[str, str] = {}
     for path in paths:
+        path_str = str(path)
         sub = parse_blueprint_file(path, project_name=project_name)
-        nodes.extend(sub.nodes)
+        for node in sub.nodes:
+            previous = seen_ids.get(node.id)
+            if previous is not None:
+                raise BlueprintError(
+                    f"duplicate node id {node.id!r} found in {path_str} "
+                    f"(also declared in {previous})"
+                )
+            seen_ids[node.id] = path_str
+            nodes.append(node)
         sources.extend(sub.source_files)
     return BlueprintProject.from_nodes(project_name, nodes, sources)
 
