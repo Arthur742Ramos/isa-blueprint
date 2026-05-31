@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from isabelle_blueprint.isabelle.checker import (
@@ -13,6 +14,7 @@ from isabelle_blueprint.isabelle.checker import (
     write_report,
 )
 from isabelle_blueprint.isabelle.theory_gen import (
+    generate_check_root,
     generate_check_theory,
     group_facts_by_theory,
 )
@@ -21,13 +23,13 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 
 
-def _node(node_id: str, fact: str | None, *, uses=None):
+def _node(node_id: str, fact: str | None, *, uses=None, session: str | None = None):
     return BlueprintNode(
         id=node_id,
         kind=NodeKind.LEMMA,
         title=node_id.upper(),
         uses=list(uses or []),
-        isabelle=IsabelleRef(fact=fact) if fact else IsabelleRef(),
+        isabelle=IsabelleRef(fact=fact, session=session) if fact else IsabelleRef(),
         status=NodeStatus(),
     )
 
@@ -75,6 +77,19 @@ def test_generate_check_theory_can_session_qualify_parent_imports():
     project = _proj(_node("a", "Demo.foo"))
     text = generate_check_theory(project, default_import_session="Demo_Session")
     assert '"Demo_Session.Demo"' in text
+
+
+def test_generate_check_root_declares_session_dependencies_before_theories():
+    text = generate_check_root(
+        "Base_Session",
+        wrapper_name="Wrapper",
+        theory_name="Blueprint_Check",
+        session_deps=["Other_Session", "Base_Session", "Other_Session"],
+    )
+    assert text.count('"Other_Session"') == 1
+    assert text.count('"Base_Session"') == 1
+    assert "  sessions\n    \"Other_Session\"\n  theories\n" in text
+    assert text.index("  sessions") < text.index("  theories")
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +263,30 @@ def test_run_check_no_session_skips_build(tmp_path: Path, monkeypatch):
     assert result.ran is False
     assert result.isabelle_available is True
     assert "session" in (result.error or "").lower()
+
+
+def test_run_check_writes_root_with_per_node_session_deps(tmp_path: Path, monkeypatch):
+    import shutil
+
+    from isabelle_blueprint.isabelle import checker as checker_module
+
+    monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+    def fake_run(cmd, cwd, capture_output, text, check):
+        root_text = (Path(cwd) / "ROOT").read_text(encoding="utf-8")
+        assert "  sessions\n    \"Other_Session\"\n  theories\n" in root_text
+        assert root_text.index("  sessions") < root_text.index("  theories")
+        assert '"Base_Session"' in root_text
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(checker_module.subprocess, "run", fake_run)
+    project = _proj(
+        _node("a", "Demo.a"),
+        _node("b", "Other.b", session="Other_Session"),
+        _node("c", "Base.c", session="Base_Session"),
+    )
+    result = run_check(project, build_dir=tmp_path, session_name="Base_Session")
+    assert result.ran is True
 
 
 def test_write_report_round_trip(tmp_path: Path):

@@ -242,7 +242,7 @@ The original roadmap is implemented:
 - **v0.4** — AFP compatibility and version-pin checks.
 - **v0.5** — VS Code extension surfacing blueprint state inline in the editor.
 
-Future work should focus on deeper Isabelle integration, richer HTML visualisations, and packaging/distribution polish.
+The first post-roadmap tranche adds generated Isabelle session dependencies, richer status/dependency visualisations in the HTML site, and typed package metadata. Future work can keep deepening Isabelle/PIDE integration and distribution workflows from there.
 
 ---
 

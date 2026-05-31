@@ -2,6 +2,39 @@
 {% block content %}
 <h1>Status table</h1>
 
+<section class="status-summary">
+  <article>
+    <h2>Blueprint</h2>
+    {% for item in blueprint_breakdown %}
+      <div class="summary-row">
+        <span>{{ item.label }}</span>
+        <meter min="0" max="100" value="{{ item.percent }}">{{ item.percent }}%</meter>
+        <strong>{{ item.count }}</strong>
+      </div>
+    {% endfor %}
+  </article>
+  <article>
+    <h2>Formal</h2>
+    {% for item in formal_breakdown %}
+      <div class="summary-row">
+        <span>{{ item.label }}</span>
+        <meter min="0" max="100" value="{{ item.percent }}">{{ item.percent }}%</meter>
+        <strong>{{ item.count }}</strong>
+      </div>
+    {% endfor %}
+  </article>
+  <article>
+    <h2>Agent</h2>
+    {% for item in agent_breakdown %}
+      <div class="summary-row">
+        <span>{{ item.label }}</span>
+        <meter min="0" max="100" value="{{ item.percent }}">{{ item.percent }}%</meter>
+        <strong>{{ item.count }}</strong>
+      </div>
+    {% endfor %}
+  </article>
+</section>
+
 <table class="status-table">
   <thead>
     <tr>
@@ -16,7 +49,7 @@
   </thead>
   <tbody>
     {% for node in project.nodes %}
-      <tr>
+      <tr data-blueprint="{{ node.status.blueprint.value }}" data-formal="{{ node.status.formal.value }}" data-agent="{{ node.status.agent.value }}">
         <td><a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a></td>
         <td>{{ node.kind.value }}</td>
         <td>{{ node.title }}</td>

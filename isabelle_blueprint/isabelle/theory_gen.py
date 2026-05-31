@@ -168,6 +168,7 @@ def generate_check_root(
     *,
     wrapper_name: str = "Blueprint_Check_Wrapper",
     theory_name: str = "Blueprint_Check",
+    session_deps: list[str] | None = None,
 ) -> str:
     """Return the contents of a ROOT file that wraps the user's session.
 
@@ -176,11 +177,13 @@ def generate_check_root(
     in the build directory lets ``isabelle build -d <build_dir>`` resolve the
     theory without modifying the user's own ROOT file.
     """
-    return (
-        f'session "{wrapper_name}" = "{session_name}" +\n'
-        f"  theories\n"
-        f"    {theory_name}\n"
-    )
+    deps = sorted({dep for dep in session_deps or [] if dep and dep != session_name})
+    lines = [f"session {_root_string(wrapper_name)} = {_root_string(session_name)} +"]
+    if deps:
+        lines.append("  sessions")
+        lines.extend(f"    {_root_string(dep)}" for dep in deps)
+    lines.extend(["  theories", f"    {theory_name}"])
+    return "\n".join(lines) + "\n"
 
 
 def _ml_string(text: str) -> str:
@@ -191,6 +194,10 @@ def _ml_string(text: str) -> str:
         .replace("\t", "\\t")
     )
     return f'"{escaped}"'
+
+
+def _root_string(text: str) -> str:
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _comment_escape(text: str) -> str:
