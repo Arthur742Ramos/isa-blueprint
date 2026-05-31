@@ -5,7 +5,6 @@ from collections import Counter
 from pathlib import Path
 
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.metrics import build_status_metrics
 
 

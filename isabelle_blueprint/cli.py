@@ -5,19 +5,20 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
 from isabelle_blueprint.agents.tasks import write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.errors import BlueprintError, ValidationError
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
-from isabelle_blueprint.isabelle.compat import check_compatibility, write_compat_report
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
     apply_check_report,
     run_check,
     write_report,
 )
+from isabelle_blueprint.isabelle.compat import check_compatibility, write_compat_report
 from isabelle_blueprint.isabelle.dump import (
     apply_dump_report,
     inspect_dump_dir,
@@ -41,8 +42,11 @@ from isabelle_blueprint.report.pr_comment import (
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 
+if TYPE_CHECKING:
+    from isabelle_blueprint.model.project import BlueprintProject
 
-def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
+
+def _load(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:
     config = load_config(project_dir)
     paths = config.blueprint_paths
     missing = [p for p in paths if not p.exists()]
@@ -60,7 +64,7 @@ def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # n
     return config, project
 
 
-def _try_apply_check(project: "BlueprintProject", config: BlueprintConfig) -> None:  # noqa: F821
+def _try_apply_check(project: BlueprintProject, config: BlueprintConfig) -> None:
     """Apply a previously stored check report if available - non-fatal."""
     if not config.check_report_path.exists():
         return

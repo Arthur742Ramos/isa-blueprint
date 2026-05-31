@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from isabelle_blueprint.errors import CheckerError
@@ -63,7 +63,7 @@ class CheckResult:
     generated_theory_path: str | None = None
     proof_checked: bool = False
     proof_status_path: str | None = None
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -71,7 +71,7 @@ class CheckResult:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CheckResult":
+    def from_dict(cls, data: dict) -> CheckResult:
         """Reconstruct a :class:`CheckResult` from a previously-serialised dict.
 
         Unknown fields in *data* are ignored; missing fields fall back to
@@ -192,7 +192,7 @@ def run_check(
     """
     build_dir.mkdir(parents=True, exist_ok=True)
     proof_status_path = build_dir / "Blueprint_Proof_Status.tsv"
-    check_timestamp = datetime.now(timezone.utc).isoformat()
+    check_timestamp = datetime.now(UTC).isoformat()
 
     # === Incremental cache: partition nodes into cache_hits vs to_check ===
     use_cache = bool(incremental and cache_path is not None)

@@ -10,7 +10,6 @@ from isabelle_blueprint.config import load_config
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.parser import parse_blueprint
 
-
 _BP_A = """# Part A
 
 ::: lemma {#lem-alpha}

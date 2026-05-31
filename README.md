@@ -3,6 +3,8 @@
 > Project planning, dependency tracking, documentation, and AI-task orchestration for **Isabelle/HOL** formalization projects.
 
 [![blueprint](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml/badge.svg)](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml)
+[![PyPI](https://img.shields.io/pypi/v/isabelle-blueprint?label=PyPI)](https://pypi.org/project/isabelle-blueprint/)
+[![GitHub Action](https://img.shields.io/badge/GitHub%20Action-Marketplace-blue?logo=github-actions)](https://github.com/marketplace/actions/isabelleblueprint)
 [![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
 [![status: stable](https://img.shields.io/badge/status-stable-brightgreen.svg)](#roadmap)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -36,6 +38,9 @@ This is the first **stable** release. Everything in the original roadmap, plus
 the v0.6–v0.9 follow-ups, is shipped. The CLI surface, JSON file shapes, and
 GitHub Action outputs are now frozen public contracts documented under
 [`docs/`](docs/) — breaking changes will only ship in a 2.0 line.
+
+Project community docs: [Contributing](CONTRIBUTING.md),
+[Security policy](SECURITY.md), and [Code of conduct](CODE_OF_CONDUCT.md).
 
 What works today:
 

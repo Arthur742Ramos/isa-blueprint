@@ -8,7 +8,7 @@ import pytest
 
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
 from isabelle_blueprint.parser.markdown import parse_blueprint_text
 
 

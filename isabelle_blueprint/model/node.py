@@ -27,7 +27,7 @@ class NodeKind(str, Enum):
     OTHER = "other"
 
     @classmethod
-    def parse(cls, value: str) -> "NodeKind":
+    def parse(cls, value: str) -> NodeKind:
         value = (value or "").strip().lower()
         for member in cls:
             if member.value == value:

@@ -4,8 +4,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
     emit_step_outputs,

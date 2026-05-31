@@ -44,7 +44,7 @@ def _read_event_pr_number(event_path: str | None) -> int | None:
     if not event_path:
         return None
     try:
-        with open(event_path, "r", encoding="utf-8") as f:
+        with open(event_path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return None

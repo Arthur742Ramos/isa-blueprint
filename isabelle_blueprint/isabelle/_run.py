@@ -133,7 +133,7 @@ def run_capture(
                 timeout,
                 output=out.read().decode(encoding, "replace"),
                 stderr=err.read().decode(encoding, "replace"),
-            )
+            ) from None
         out.seek(0)
         err.seek(0)
         return RunResult(

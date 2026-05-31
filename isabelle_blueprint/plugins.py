@@ -15,9 +15,10 @@ reserved but not loaded yet.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
-from typing import Any, Callable
+from typing import Any
 
 STATUS_PROVIDER_GROUP = "isabelle_blueprint.status_providers"
 
