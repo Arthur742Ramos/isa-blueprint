@@ -79,6 +79,11 @@ class BlueprintConfig:
         """JSON cache file used by ``isabelle-blueprint check --incremental``."""
         return self.build_dir / "check-cache.json"
 
+    @property
+    def trends_path(self) -> Path:
+        """JSON file storing coverage / problem counts across runs (v0.8)."""
+        return self.build_dir / "trends.json"
+
 
 DEFAULT_CONFIG_NAME = "isabelle-blueprint.toml"
 DEFAULT_BLUEPRINT_NAME = "blueprint.md"

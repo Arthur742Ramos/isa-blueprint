@@ -35,6 +35,7 @@ from isabelle_blueprint.report.github_actions import (
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.markdown_report import write_markdown_report
 from isabelle_blueprint.report.metrics import build_status_metrics, output_values
+from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 
 
 def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
@@ -235,7 +236,8 @@ def cmd_web(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    index = render_site(project, config.site_dir)
+    trends = load_trends(config.trends_path)
+    index = render_site(project, config.site_dir, trends=trends)
     print(f"site -> {index}")
     return 0
 
@@ -259,11 +261,13 @@ def cmd_report(args: argparse.Namespace) -> int:
     summary_path = write_summary_json(project, config.build_dir / "summary.json")
     badge_json_path = write_badge_endpoint(project, config.build_dir / "badge.json")
     badge_svg_path = write_badge_svg(project, config.build_dir / "badge.svg")
+    trend_entry = append_trend_entry(project, config.trends_path)
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
     print(f"badge json -> {badge_json_path}")
     print(f"badge svg -> {badge_svg_path}")
+    print(f"trends -> {config.trends_path} (entry @ {trend_entry['timestamp']})")
 
     # Compute metrics once and reuse for both the GH outputs and the step
     # summary so the two surfaces can never drift apart.

@@ -6,18 +6,39 @@
   Each node is colour-coded by its current formal status. Arrows go from a result to the lemmas it depends on.
 </p>
 
-<div class="graph-frame">
-  {% if has_svg %}
-    <object type="image/svg+xml" data="graph.svg" class="graph-svg">
-      Your browser does not support inline SVG.
-    </object>
-  {% else %}
+{% if has_svg %}
+  <div class="graph-toolbar" data-graph-filters>
+    <span class="graph-toolbar-label">Show formal status:</span>
+    {% for value in formal_status_values %}
+      <label class="graph-filter-pill">
+        <input
+          type="checkbox"
+          data-graph-formal="{{ value }}"
+          checked
+        />
+        <span class="graph-filter-swatch" style="background: {{ status_colors.get(value, '#9ca3af') }};" aria-hidden="true"></span>
+        <span>{{ value }}</span>
+      </label>
+    {% endfor %}
+    <button type="button" class="graph-filter-reset" data-graph-filters-reset>Reset</button>
+    <span class="graph-filter-count" data-graph-filters-count></span>
+  </div>
+  <div class="graph-frame" data-graph-host>
+    {{ svg_source|safe }}
+  </div>
+  <p class="graph-download">
+    <a href="graph.svg">Download SVG</a>
+    &middot; <a href="graph.dot">graph.dot</a>
+    &middot; <a href="graph.json">graph.json</a>
+  </p>
+{% else %}
+  <div class="graph-frame">
     <div class="callout warning">
       <p><strong>Graphviz is not installed.</strong> Showing raw DOT instead. Install <code>graphviz</code> on PATH to get an inline diagram.</p>
       <pre><code>{{ dot_source|e }}</code></pre>
     </div>
-  {% endif %}
-</div>
+  </div>
+{% endif %}
 
 <section>
   <h2>Dependency levels</h2>
@@ -49,3 +70,4 @@
   <p><a href="graph.dot">Download <code>graph.dot</code></a> &middot; <a href="graph.json">Download <code>graph.json</code></a></p>
 </details>
 {% endblock %}
+

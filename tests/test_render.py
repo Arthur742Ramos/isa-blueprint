@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
@@ -156,3 +158,94 @@ def test_base_layout_loads_filters_script(tmp_path: Path):
     render_site(_project(), tmp_path)
     body = (tmp_path / "status.html").read_text(encoding="utf-8")
     assert 'src="static/filters.js"' in body
+
+
+# ---------------------------------------------------------------------------
+# v0.8 graph filter + trends chart smoke coverage
+# ---------------------------------------------------------------------------
+
+
+def test_graph_page_contains_filter_toolbar(tmp_path: Path):
+    """The graph page must expose the formal-status filter UI hooks."""
+    render_site(_project(), tmp_path)
+    if not (tmp_path / "graph.svg").exists():
+        pytest.skip("graphviz not installed; filter toolbar is gated on inline SVG")
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert "data-graph-filters" in body
+    assert "data-graph-filters-reset" in body
+    assert "data-graph-filters-count" in body
+    # One pill per FormalStatus value.
+    for status in FormalStatus:
+        assert f'data-graph-formal="{status.value}"' in body
+
+
+def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
+    """Both new JS files ship with their expected DOM hooks."""
+    render_site(_project(), tmp_path)
+    graph_js = tmp_path / "static" / "graph.js"
+    trends_js = tmp_path / "static" / "trends.js"
+    assert graph_js.exists()
+    assert trends_js.exists()
+    graph_text = graph_js.read_text(encoding="utf-8")
+    trends_text = trends_js.read_text(encoding="utf-8")
+    assert "data-graph-formal" in graph_text
+    assert "is-hidden" in graph_text
+    assert "data-trend-chart-host" in trends_text
+
+
+def test_base_layout_loads_graph_and_trend_scripts(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert 'src="static/graph.js"' in body
+    assert 'src="static/trends.js"' in body
+
+
+def test_render_site_writes_trends_json_with_supplied_entries(tmp_path: Path):
+    """``trends`` kwarg flows through to the shipped ``trends.json``."""
+    entry = {
+        "timestamp": "2025-01-01T00:00:00Z",
+        "commit_sha": "deadbeef",
+        "branch": "main",
+        "coverage_percent": 50,
+        "node_count": 2,
+        "formal_target_count": 2,
+        "proved_count": 1,
+        "found_count": 1,
+        "problem_count": 0,
+        "stale_count": 0,
+        "has_cycles": False,
+    }
+    render_site(_project(), tmp_path, trends=[entry])
+    payload = json.loads((tmp_path / "trends.json").read_text(encoding="utf-8"))
+    assert payload["entries"] == [entry]
+
+
+def test_render_site_renders_trends_page(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "trends.html").read_text(encoding="utf-8")
+    # Empty-state callout when no trends are supplied.
+    assert "No trend history yet" in body
+    # Nav link is present.
+    assert "trends.html" in body
+
+
+def test_render_site_renders_trends_page_with_data(tmp_path: Path):
+    entry = {
+        "timestamp": "2025-01-01T00:00:00Z",
+        "commit_sha": "cafebabe",
+        "branch": "feature",
+        "coverage_percent": 75,
+        "node_count": 4,
+        "formal_target_count": 4,
+        "proved_count": 3,
+        "found_count": 4,
+        "problem_count": 1,
+        "stale_count": 0,
+        "has_cycles": False,
+    }
+    render_site(_project(), tmp_path, trends=[entry])
+    body = (tmp_path / "trends.html").read_text(encoding="utf-8")
+    assert "data-trend-chart-host" in body
+    # First 8 chars of the commit sha appear in the history table.
+    assert "cafebabe"[:8] in body
+    assert "feature" in body
