@@ -7,6 +7,7 @@ from pathlib import Path
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
     FactCheck,
+    _extract_proof_status,
     apply_check_report,
     run_check,
     write_report,
@@ -57,15 +58,23 @@ def test_generate_check_theory_minimum_shape():
     # Both fact antiquotations are present
     assert "@{thm Demo.foo}" in text
     assert "@{thm Other.bar}" in text
+    assert "Thm_Deps.has_skip_proof" in text
+    assert "ISABELLE_BLUEPRINT_FACT" in text
     # Node id should appear in the trailing comment for traceability
-    assert "(* a *)" in text
-    assert "(* b *)" in text
+    assert '"a"' in text
+    assert '"b"' in text
 
 
 def test_generate_check_theory_empty_project_uses_main():
     project = _proj()
     text = generate_check_theory(project)
     assert '"Main"' in text
+
+
+def test_generate_check_theory_can_session_qualify_parent_imports():
+    project = _proj(_node("a", "Demo.foo"))
+    text = generate_check_theory(project, default_import_session="Demo_Session")
+    assert '"Demo_Session.Demo"' in text
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +110,43 @@ def test_apply_check_report_found_when_exists_true():
     )
     apply_check_report(project, result)
     assert project.by_id()["a"].status.formal == FormalStatus.FOUND
+
+
+def test_apply_check_report_proved_when_proof_status_is_clean():
+    project = _proj(_node("a", "Demo.a"))
+    result = CheckResult(
+        ran=True,
+        return_code=0,
+        isabelle_available=True,
+        proof_checked=True,
+        facts=[FactCheck("a", "Demo.a", "Demo", exists=True, proof_status="proved")],
+    )
+    apply_check_report(project, result)
+    assert project.by_id()["a"].status.formal == FormalStatus.PROVED
+
+
+def test_apply_check_report_tainted_when_oracles_are_reported():
+    project = _proj(_node("a", "Demo.a"))
+    result = CheckResult(
+        ran=True,
+        return_code=0,
+        isabelle_available=True,
+        proof_checked=True,
+        facts=[
+            FactCheck(
+                "a",
+                "Demo.a",
+                "Demo",
+                exists=True,
+                proof_status="tainted",
+                oracles=["Pure.skip_proof"],
+            )
+        ],
+    )
+    apply_check_report(project, result)
+    node = project.by_id()["a"]
+    assert node.status.formal == FormalStatus.TAINTED
+    assert "Pure.skip_proof" in (node.status.check_error or "")
 
 
 def test_apply_check_report_not_found_when_explicitly_bad():
@@ -139,7 +185,8 @@ def test_check_result_to_dict_and_from_dict_round_trip():
         duration_seconds=1.5,
         stdout="ok",
         stderr="",
-        facts=[FactCheck("a", "Demo.a", "Demo", exists=True)],
+        proof_checked=True,
+        facts=[FactCheck("a", "Demo.a", "Demo", exists=True, proof_status="proved")],
     )
     d = original.to_dict()
     restored = CheckResult.from_dict(d)
@@ -149,6 +196,8 @@ def test_check_result_to_dict_and_from_dict_round_trip():
     assert len(restored.facts) == 1
     assert restored.facts[0].fact == "Demo.a"
     assert restored.facts[0].exists is True
+    assert restored.proof_checked is True
+    assert restored.facts[0].proof_status == "proved"
 
 
 def test_check_result_from_dict_tolerates_unknown_fields():
@@ -215,3 +264,18 @@ def test_write_report_round_trip(tmp_path: Path):
     # And it must round-trip back through from_dict.
     restored = CheckResult.from_dict(data)
     assert restored.facts[0].fact == "Demo.a"
+
+
+def test_extract_proof_status_markers_from_isabelle_output():
+    output = "\n".join(
+        [
+            "noise",
+            "ISABELLE_BLUEPRINT_FACT\ta\tDemo.a\tproved\t-",
+            "ISABELLE_BLUEPRINT_FACT\tb\tDemo.b\ttainted\tPure.skip_proof,Code_Generator.holds",
+        ]
+    )
+    statuses = _extract_proof_status(output)
+    assert statuses[("a", "Demo.a")]["status"] == "proved"
+    assert statuses[("a", "Demo.a")]["oracles"] == []
+    assert statuses[("b", "Demo.b")]["status"] == "tainted"
+    assert statuses[("b", "Demo.b")]["oracles"] == ["Pure.skip_proof", "Code_Generator.holds"]

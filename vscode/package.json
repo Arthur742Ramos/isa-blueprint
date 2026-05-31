@@ -1,0 +1,59 @@
+{
+  "name": "isabelle-blueprint-vscode",
+  "displayName": "IsabelleBlueprint",
+  "description": "Surface IsabelleBlueprint project status in VS Code.",
+  "version": "0.5.0",
+  "publisher": "isabelle-blueprint",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:isabelle-blueprint.toml",
+    "onCommand:isabelleBlueprint.refresh"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "isabelleBlueprint.refresh",
+        "title": "IsabelleBlueprint: Refresh"
+      },
+      {
+        "command": "isabelleBlueprint.openNode",
+        "title": "IsabelleBlueprint: Open Node"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "isabelleBlueprint.nodes",
+          "name": "Blueprint Nodes"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "IsabelleBlueprint",
+      "properties": {
+        "isabelleBlueprint.projectJson": {
+          "type": "string",
+          "default": "build/project.json",
+          "description": "Path to the generated IsabelleBlueprint project JSON, relative to each workspace folder."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.8.3"
+  }
+}

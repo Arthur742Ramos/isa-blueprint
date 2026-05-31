@@ -22,7 +22,7 @@ the fact exists in any session).
 
 ::: definition {#nat-add}
 title: Natural-number addition
-isabelle: Arith_Demo.add_def
+isabelle: Arith_Demo.add_def_def
 status:
   blueprint: written
   formal: missing
