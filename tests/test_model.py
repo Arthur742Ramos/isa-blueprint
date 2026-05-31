@@ -54,6 +54,19 @@ def test_self_cycle_detected():
     assert any("a" in c for c in report.cycles)
 
 
+def test_missing_dependency_suggests_close_match():
+    """A typo'd dependency id offers a 'did you mean?' suggestion."""
+    project = BlueprintProject.from_nodes(
+        "p",
+        [_node("add-zero-right"), _node("a", uses=["add-zero-rihgt"])],
+    )
+    report = project.validate()
+    assert ("a", "add-zero-rihgt") in report.missing_dependencies
+    assert "add-zero-right" in report.suggestions.get("add-zero-rihgt", [])
+    # The hint is surfaced in the human-readable issue text.
+    assert any("did you mean" in msg for msg in report.issues())
+
+
 def test_recompute_agent_status_ready_when_deps_complete():
     a = _node("a", formal=FormalStatus.FOUND, agent=AgentStatus.SOLVED)
     b = _node("b", uses=["a"])  # default BLOCKED

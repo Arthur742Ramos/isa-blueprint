@@ -8,6 +8,7 @@ import pytest
 from isabelle_blueprint.errors import ParseError
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
 from isabelle_blueprint.parser.markdown import parse_blueprint_text
+from isabelle_blueprint.scaffold import render_node_stub
 
 
 def _parse(text: str):
@@ -286,3 +287,164 @@ def test_parse_blueprint_file(tmp_blueprint):
 
     project = parse_blueprint_file(tmp_blueprint)
     assert {n.id for n in project.nodes} == {"def-even", "lem-sum-even"}
+
+
+# --- Lighter authoring grammar -------------------------------------------------
+
+
+def test_single_close_no_metadata():
+    """A node may omit metadata entirely and use one closing ``:::``."""
+    project = _parse(
+        """
+        ::: lemma {#add-comm}
+        The sum is commutative.
+        :::
+        """
+    )
+    assert len(project.nodes) == 1
+    node = project.nodes[0]
+    assert node.id == "add-comm"
+    assert "commutative" in node.statement
+
+
+def test_title_humanized_from_id_when_omitted():
+    """When no ``title:`` is given, derive a readable one from the id."""
+    project = _parse(
+        """
+        ::: lemma {#add-comm}
+        Body.
+        :::
+        """
+    )
+    assert project.nodes[0].title == "Add comm"
+
+
+def test_explicit_title_wins_over_humanized():
+    project = _parse(
+        """
+        ::: lemma {#add-comm}
+        title: Commutativity of addition
+
+        Body.
+        :::
+        """
+    )
+    assert project.nodes[0].title == "Commutativity of addition"
+
+
+def test_inline_metadata_then_blank_line():
+    """Inline ``key: value`` metadata is closed by a blank line, not ``:::``."""
+    project = _parse(
+        """
+        ::: lemma {#l-blank}
+        title: Blank separated
+        uses: [d1]
+
+        The body starts here.
+        :::
+        """
+    )
+    node = project.nodes[0]
+    assert node.title == "Blank separated"
+    assert node.uses == ["d1"]
+    assert "body starts here" in node.statement
+
+
+def test_frontmatter_metadata():
+    """``---`` fenced YAML frontmatter is accepted as metadata."""
+    project = _parse(
+        """
+        ::: theorem {#thm-fm}
+        ---
+        title: Frontmatter theorem
+        uses: [lem-a, lem-b]
+        ---
+        Statement body.
+        :::
+        """
+    )
+    node = project.nodes[0]
+    assert node.title == "Frontmatter theorem"
+    assert node.uses == ["lem-a", "lem-b"]
+    assert "Statement body" in node.statement
+
+
+def test_body_first_line_bullet_list():
+    """A body beginning with a bullet list is not mistaken for metadata."""
+    project = _parse(
+        """
+        ::: remark {#r-list}
+
+        - first point
+        - second point
+        :::
+        """
+    )
+    node = project.nodes[0]
+    assert "first point" in node.statement
+    assert "second point" in node.statement
+
+
+def test_body_starting_with_code_fence():
+    project = _parse(
+        """
+        ::: lemma {#l-fence}
+
+        ```isabelle
+        lemma foo: "x = x" by simp
+        ```
+        :::
+        """
+    )
+    node = project.nodes[0]
+    assert "lemma foo" in node.statement
+
+
+def test_status_defaults_to_written_with_body():
+    """A node with a real body but no explicit status is 'written', not 'stub'."""
+    project = _parse(
+        """
+        ::: lemma {#l-written}
+        Some real content.
+        :::
+        """
+    )
+    assert project.nodes[0].status.blueprint == BlueprintStatus.WRITTEN
+
+
+def test_explicit_status_overrides_written_default():
+    project = _parse(
+        """
+        ::: lemma {#l-stub}
+        status:
+          blueprint: stub
+        :::
+        Some content.
+        :::
+        """
+    )
+    assert project.nodes[0].status.blueprint == BlueprintStatus.STUB
+
+
+
+
+def test_render_node_stub_round_trips_through_parser():
+    """A generated stub must parse back into an equivalent node."""
+    text = render_node_stub("theorem", "thm:pythagoras", uses=["add-zero-right"])
+    project = _parse(text)
+    assert len(project.nodes) == 1
+    node = project.nodes[0]
+    assert node.id == "thm:pythagoras"
+    assert node.kind.value == "theorem"
+    assert node.title == "Pythagoras"
+    assert node.isabelle is not None and node.isabelle.fact == "pythagoras"
+    assert node.uses == ["add-zero-right"]
+    assert node.status.blueprint == BlueprintStatus.STUB
+
+
+def test_render_node_stub_without_fact_omits_isabelle():
+    text = render_node_stub("definition", "set-union", fact="")
+    project = _parse(text)
+    node = project.nodes[0]
+    assert node.title == "Set union"
+    assert node.isabelle is None or node.isabelle.fact is None

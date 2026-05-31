@@ -1,0 +1,69 @@
+{
+  "Blueprint theorem": {
+    "prefix": "bp-theorem",
+    "body": [
+      "::: theorem {#thm:${1:id}}",
+      "title: ${2:Title}",
+      "isabelle: ${3:fact_name}",
+      "uses:",
+      "  - ${4:dependency-id}",
+      "status: ${5|stub,sketch,proved|}",
+      "",
+      "${6:<!-- State the theorem here. -->}",
+      "",
+      "## Proof",
+      "",
+      "${7:<!-- Sketch the proof. -->}",
+      ":::"
+    ],
+    "description": "A blueprint theorem node (lighter grammar)."
+  },
+  "Blueprint lemma": {
+    "prefix": "bp-lemma",
+    "body": [
+      "::: lemma {#lem:${1:id}}",
+      "title: ${2:Title}",
+      "isabelle: ${3:fact_name}",
+      "uses:",
+      "  - ${4:dependency-id}",
+      "status: ${5|stub,sketch,proved|}",
+      "",
+      "${6:<!-- State the lemma here. -->}",
+      "",
+      "## Proof",
+      "",
+      "${7:<!-- Sketch the proof. -->}",
+      ":::"
+    ],
+    "description": "A blueprint lemma node (lighter grammar)."
+  },
+  "Blueprint definition": {
+    "prefix": "bp-definition",
+    "body": [
+      "::: definition {#def:${1:id}}",
+      "title: ${2:Title}",
+      "isabelle: ${3:fact_name}",
+      "status: ${4|stub,sketch,proved|}",
+      "",
+      "${5:<!-- Give the definition here. -->}",
+      ":::"
+    ],
+    "description": "A blueprint definition node (lighter grammar)."
+  },
+  "Blueprint frontmatter node": {
+    "prefix": "bp-node",
+    "body": [
+      "::: ${1|theorem,lemma,proposition,corollary,definition,remark|} {#${2:id}}",
+      "---",
+      "title: ${3:Title}",
+      "isabelle: ${4:fact_name}",
+      "uses: [${5:dep-a}, ${6:dep-b}]",
+      "status: ${7|stub,sketch,proved|}",
+      "---",
+      "",
+      "${8:<!-- Body. -->}",
+      ":::"
+    ],
+    "description": "A blueprint node using --- YAML frontmatter."
+  }
+}

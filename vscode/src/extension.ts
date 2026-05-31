@@ -65,6 +65,11 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
     return this.projects.map((loaded) => new ProjectItem(loaded));
   }
+
+  /** Every node known across all loaded projects, for editor completion. */
+  allNodes(): BlueprintNode[] {
+    return this.projects.flatMap((loaded) => loaded.project.nodes);
+  }
 }
 
 type TreeItem = ProjectItem | NodeItem | DependencyItem;
@@ -113,6 +118,49 @@ class DependencyItem extends vscode.TreeItem {
   }
 }
 
+/**
+ * Suggests known node ids after `uses:`/`- ` and known Isabelle facts after
+ * `isabelle:` while editing a blueprint Markdown file. Ids and facts are drawn
+ * from the most recently loaded project JSON, so completion improves after a
+ * `build`/`check` regenerates it.
+ */
+class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.CompletionItem[] {
+    const line = document.lineAt(position.line).text.slice(0, position.character);
+    const nodes = this.provider.allNodes();
+    if (nodes.length === 0) {
+      return [];
+    }
+
+    if (/(^\s*uses:\s*$)|(^\s*-\s*$)/.test(line)) {
+      return nodes.map((node) => {
+        const item = new vscode.CompletionItem(node.id, vscode.CompletionItemKind.Reference);
+        item.detail = `${node.kind} — ${node.title}`;
+        item.documentation = new vscode.MarkdownString(tooltipForNode(node));
+        return item;
+      });
+    }
+
+    if (/^\s*isabelle:\s*\S*$/.test(line)) {
+      return nodes
+        .filter((node) => node.isabelle && node.isabelle.fact)
+        .map((node) => {
+          const fact = node.isabelle.fact as string;
+          const item = new vscode.CompletionItem(fact, vscode.CompletionItemKind.Value);
+          item.detail = `fact of ${node.id}`;
+          return item;
+        });
+    }
+
+    return [];
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
   const provider = new BlueprintTreeProvider();
@@ -128,6 +176,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelleBlueprint.openNode", async (loaded: LoadedProject, node: BlueprintNode) => {
       await openNode(loaded, node);
     }),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      { language: "markdown", scheme: "file" },
+      new BlueprintCompletionProvider(provider),
+      ":",
+      " ",
+      "-",
+    ),
   );
 
   const watcher = vscode.workspace.createFileSystemWatcher("**/project.json");

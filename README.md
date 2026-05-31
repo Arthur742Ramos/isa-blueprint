@@ -36,7 +36,8 @@ This release covers the original roadmap end to end. It ships the planner, real 
 
 What works today:
 
-- ✅ Markdown blueprint parser (fenced `:::` blocks + YAML metadata)
+- ✅ Markdown blueprint parser (single-`:::` blocks, optional YAML metadata, humanised titles)
+- ✅ `new` stub generator + author-friendly snippets/completion in the VS Code extension
 - ✅ LaTeX blueprint parser for Lean Blueprint-style `\label`, `\lean`, `\uses`, and proof environments
 - ✅ Three-axis status model: blueprint × formal × agent
 - ✅ Dependency validation (cycles, missing references, duplicates)
@@ -100,7 +101,8 @@ isabelle-blueprint init my-project
 cd my-project
 
 # 2. Edit blueprint.md, adding your definitions, lemmas, and theorems.
-#    See examples/minimal/blueprint.md for the syntax.
+#    See examples/minimal/blueprint.md for the syntax — or scaffold a node:
+isabelle-blueprint new theorem my-headline-result --append
 
 # 3. Validate structure and (optionally) check Isabelle fact/proof status.
 #    (Requires Isabelle; see the note below before running on a live install.)
@@ -282,6 +284,7 @@ All subcommands take an optional positional `project_dir` (default `.`) and read
 | `web`      | Render the static HTML site (index, status, graph, tasks, per-node pages).                          | `site/index.html`, `site/nodes/*.html`, `site/graph.svg`          |
 | `tasks`    | Emit an AI-agent task pack — one JSON record per node, plus a Markdown overview and per-task prompts. | `build/tasks.json`, `build/tasks.md`, `build/prompts/*.md`        |
 | `report`   | Write JSON and Markdown summary reports of the project state.                                       | `build/project.json`, `build/report.md`, `build/summary.json`     |
+| `new`      | Print (or `--append`) a ready-to-edit node stub with a humanised title and a suggested Isabelle fact name. | stub on stdout, or appended to `blueprint.md`              |
 
 Flags worth knowing:
 
@@ -290,6 +293,7 @@ Flags worth knowing:
 - `isabelle-blueprint dump --from path/to/dump` — inspect an existing PIDE dump directory instead of invoking `isabelle dump`.
 - `isabelle-blueprint compat --strict` — exit non-zero on compatibility errors.
 - `isabelle-blueprint init --force` — overwrite existing scaffolded files.
+- `isabelle-blueprint new theorem my-id` — print a stub; add `--append` to drop it straight into `blueprint.md`.
 
 ---
 
@@ -329,7 +333,20 @@ stateDiagram-v2
 
 ## Blueprint syntax (Markdown)
 
-Each node is a fenced block. The opening fence carries the kind and id; the body is split into metadata (YAML) and free-form Markdown by a second `:::` line:
+A node is a fenced block opened with `::: <kind> {#id}` and closed with a single
+`:::`. Everything is optional except the opening fence — the parser fills in
+sensible defaults, so the smallest possible node is just:
+
+````markdown
+::: definition {#nat-add}
+Natural-number addition is the usual recursive definition on `nat`.
+:::
+````
+
+That alone gives you a node with id `nat-add`, kind `definition`, and a title
+**humanised from the id** ("Nat add"). Add metadata as you need it. Metadata is a
+short block of `key: value` lines at the top of the body, separated from the prose
+by **one blank line**:
 
 ````markdown
 ::: theorem {#sum-divides}
@@ -338,10 +355,7 @@ isabelle: Arith_Demo.sum_divides
 uses:
   - def-divides
   - lem-add-comm
-status:
-  blueprint: written
-  formal: named
-:::
+status: written
 
 If $a \mid b$ and $a \mid c$, then $a \mid (b + c)$.
 
@@ -351,10 +365,27 @@ Unfold the definition of divides and use commutativity of addition.
 :::
 ````
 
+### Cheat-sheet
+
+| You write… | You get… |
+|------------|----------|
+| `::: lemma {#add-zero}` | a `lemma` node, id `add-zero`, title *"Add zero"* |
+| *(omit `title:`)* | title is humanised from the id |
+| `status: written` | shorthand for `status: { blueprint: written }` |
+| `isabelle: Thy.fact` | a string fact ref (or use a `{theory:, fact:, session:}` map) |
+| `uses:` + `  - other-id` | a dependency edge to `other-id` |
+| `tags: [nat, identity]` | inline YAML list of tags |
+| a single `:::` to close | closes the node (the old two-`:::` form still parses) |
+| `--- … ---` at the top | optional YAML frontmatter instead of the blank-line block |
+
 - **Kinds** the parser understands: `definition`, `lemma`, `theorem`, `proposition`, `corollary`, `example`, `note`. Unknown kinds become `other`.
 - **`uses`** is a list of node ids — they drive the dependency graph and the topological order of agent tasks.
-- **`isabelle`** can be a string (`Theory.fact_name`) or a YAML mapping (`{theory: ..., fact: ..., session: ...}`).
+- **`isabelle`** can be a string (`Theory.fact_name`) or a YAML mapping (`{theory: ..., fact: ..., session: ...}`). Leaving it off keeps the node's formal status at `missing` until you add one.
 - Both fence styles are accepted: `::: theorem {#id}` *and* `::: {.theorem #id}`.
+- Don't want to hand-write the skeleton? Run `isabelle-blueprint new theorem my-id`
+  and it prints a filled-in stub (humanised title + a suggested `isabelle:` fact
+  name derived from the id). `check` is forgiving too — a typo'd `uses:` id gets a
+  *"did you mean …?"* suggestion instead of a bare error.
 
 See [`examples/minimal/blueprint.md`](examples/minimal/blueprint.md) for a complete working example.
 

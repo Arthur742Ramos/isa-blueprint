@@ -1,38 +1,56 @@
 """Parse a Markdown blueprint document into a :class:`BlueprintProject`.
 
-Supported block syntax
-----------------------
+Block syntax
+------------
 
-::
+The lightest node is just an opener, a body, and a closing ``:::``::
 
-    ::: theorem {#thm-id}
-    title: Pythagoras' theorem
-    isabelle: Pythagoras.pythagoras_thm
-    uses:
-      - def-triangle
-      - lem-right-angle
-    status:
-      blueprint: written
-      formal: missing
-    tags: [geometry, classic]
+    ::: lemma {#add-comm}
+    Addition on ``nat`` is commutative.
     :::
 
-    The statement is ...
+Metadata is optional. When you do want it, three equivalent styles are
+accepted; pick whichever reads best:
 
-    ## Proof
+1. *Inline metadata* — a run of ``key: value`` lines straight after the
+   opener, ended by a blank line::
 
-    The proof goes ...
+       ::: theorem {#pythagoras}
+       title: Pythagoras' theorem
+       isabelle: Pythagoras.pythagoras_thm
 
-    :::
+       The statement is ...
 
-Two ``:::`` markers per node: the first closes the YAML metadata header, and the
-trailing one closes the whole node. Code fences (``` ``` `` and ``~~~``) inside the
-body are respected so that ``:::`` lines appearing inside example code are not
-treated as directives.
+2. *YAML frontmatter* — fenced by ``---`` lines (handy when the body itself
+   starts with prose that looks like ``key: value``)::
+
+       ::: theorem {#pythagoras}
+       ---
+       title: Pythagoras' theorem
+       isabelle: Pythagoras.pythagoras_thm
+       ---
+       The statement is ...
+       :::
+
+3. *Legacy header* — the classic form where a ``:::`` line closes the metadata
+   header before the body. Still fully supported::
+
+       ::: theorem {#pythagoras}
+       title: Pythagoras' theorem
+       :::
+       The statement is ...
+       :::
+
+Code fences (``` ``` `` and ``~~~``) inside the body are respected so that
+``:::`` lines appearing inside example code are not treated as directives.
 
 Body parsing is intentionally lightweight: a Markdown heading of the form
 ``## Proof`` (or ``### Proof``) splits the body into ``statement`` and
 ``informal_proof``. Otherwise the entire body is stored as ``statement``.
+
+When ``title`` is omitted it is derived from the node id (``add-comm`` becomes
+``Add comm``); when ``status`` is omitted a node with a real body is treated as
+``written`` rather than ``stub``.
 """
 from __future__ import annotations
 
@@ -78,8 +96,20 @@ _DIRECTIVE_OPEN = re.compile(
 
 _DIRECTIVE_CLOSE = re.compile(r"^:::\s*$")
 
+# A ``---`` line on its own opens/closes a YAML frontmatter header.
+_FRONTMATTER_FENCE = re.compile(r"^---\s*$")
+
+# A single ``key:`` token at the start of a line — used as the heuristic to
+# decide whether the first line after an opener begins an inline-metadata run.
+_META_KEY_RE = re.compile(r"^\s*[A-Za-z_][\w-]*\s*:")
+
 _FENCE_RE = re.compile(r"^(?P<marker>```+|~~~+)")
 _PROOF_HEADING_RE = re.compile(r"^(#{2,4})\s+(?:proof|formal proof|isabelle proof)\s*$", re.IGNORECASE)
+
+
+def _looks_like_meta(line: str) -> bool:
+    """Return ``True`` if ``line`` looks like an inline-metadata ``key:`` line."""
+    return bool(_META_KEY_RE.match(line))
 
 
 # ---------------------------------------------------------------------------
@@ -137,14 +167,39 @@ def _scan_blocks(text: str, *, source: str) -> list[_RawBlock]:
     """Scan ``text`` for ``:::`` blocks.
 
     State machine:
-      OUTSIDE  -- looking for an opening directive line.
-      META     -- collecting YAML metadata; ends at the first ``:::``.
-      BODY     -- collecting body; ends at the next ``:::`` (respecting code fences).
+      OUTSIDE      -- looking for an opening directive line.
+      HEADER       -- first line after the opener; decides which metadata
+                      style (if any) the node uses.
+      META         -- collecting inline ``key: value`` metadata; ends at the
+                      first blank line or a ``:::`` (legacy header close).
+      FRONTMATTER  -- collecting ``---`` fenced YAML metadata; ends at ``---``.
+      BODY         -- collecting body; ends at the next ``:::`` (respecting
+                      code fences).
     """
     blocks: list[_RawBlock] = []
     current: _RawBlock | None = None
     state = "OUTSIDE"
     fence_marker: str | None = None  # the current code-fence marker, if any
+
+    def feed_body(line: str) -> None:
+        """Handle one body line: track code fences and the closing ``:::``."""
+        nonlocal fence_marker, current, state
+        assert current is not None
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group("marker")
+            if fence_marker is None:
+                fence_marker = marker[0]  # `` or ~
+            elif line.lstrip().startswith(fence_marker):
+                fence_marker = None
+            current.body_lines.append(line)
+            return
+        if fence_marker is None and _DIRECTIVE_CLOSE.match(line):
+            blocks.append(current)
+            current = None
+            state = "OUTSIDE"
+            return
+        current.body_lines.append(line)
 
     lines = text.splitlines()
     for idx, raw_line in enumerate(lines, start=1):
@@ -163,44 +218,73 @@ def _scan_blocks(text: str, *, source: str) -> list[_RawBlock]:
                     source_file=source,
                     source_line=idx,
                 )
-                state = "META"
+                fence_marker = None
+                state = "HEADER"
             # else: ignore preamble lines.
+            continue
+
+        assert current is not None
+
+        if state == "HEADER":
+            if _FRONTMATTER_FENCE.match(line):
+                state = "FRONTMATTER"
+                continue
+            if _DIRECTIVE_OPEN.match(line):
+                raise ParseError(
+                    "encountered new ':::' directive before the block body",
+                    source=source,
+                    line=idx,
+                )
+            if _DIRECTIVE_CLOSE.match(line):
+                # Legacy empty-metadata header close.
+                state = "BODY"
+                continue
+            if not line.strip():
+                # Blank line right after the opener: no metadata, start body.
+                state = "BODY"
+                continue
+            if _looks_like_meta(line):
+                current.metadata_lines.append(line)
+                state = "META"
+                continue
+            # First body line is prose/fence: no metadata at all.
+            state = "BODY"
+            feed_body(line)
             continue
 
         if state == "META":
             if _DIRECTIVE_CLOSE.match(line):
+                # Legacy header terminator.
                 state = "BODY"
                 continue
-            # Reject the (rare) attempt to nest another block while in metadata.
+            if not line.strip():
+                # Inline-metadata separator: consume the blank line, start body.
+                state = "BODY"
+                continue
             if _DIRECTIVE_OPEN.match(line):
                 raise ParseError(
                     "encountered new ':::' directive before metadata was closed",
                     source=source,
                     line=idx,
                 )
-            assert current is not None
+            current.metadata_lines.append(line)
+            continue
+
+        if state == "FRONTMATTER":
+            if _FRONTMATTER_FENCE.match(line):
+                state = "BODY"
+                continue
+            if _DIRECTIVE_OPEN.match(line):
+                raise ParseError(
+                    "encountered new ':::' directive inside '---' frontmatter",
+                    source=source,
+                    line=idx,
+                )
             current.metadata_lines.append(line)
             continue
 
         if state == "BODY":
-            assert current is not None
-            fence_match = _FENCE_RE.match(line)
-            if fence_match:
-                marker = fence_match.group("marker")
-                if fence_marker is None:
-                    fence_marker = marker[0]  # `` or ~
-                elif line.lstrip().startswith(fence_marker):
-                    fence_marker = None
-                current.body_lines.append(line)
-                continue
-
-            if fence_marker is None and _DIRECTIVE_CLOSE.match(line):
-                blocks.append(current)
-                current = None
-                state = "OUTSIDE"
-                continue
-
-            current.body_lines.append(line)
+            feed_body(line)
             continue
 
     if state != "OUTSIDE":
@@ -219,6 +303,17 @@ def _scan_blocks(text: str, *, source: str) -> list[_RawBlock]:
 # ---------------------------------------------------------------------------
 
 
+def _humanize_id(node_id: str) -> str:
+    """Derive a human-readable title from a node id.
+
+    ``add-comm`` -> ``Add comm``; ``thm:pythagoras`` -> ``Pythagoras``.
+    """
+    tail = node_id.split(":")[-1].replace("-", " ").replace("_", " ").strip()
+    if not tail:
+        return node_id
+    return tail[:1].upper() + tail[1:]
+
+
 def _block_to_node(block: _RawBlock) -> BlueprintNode:
     metadata = _parse_metadata("\n".join(block.metadata_lines), block.source_file, block.source_line)
     node_id = metadata.pop("id", None) or block.id_hint
@@ -231,7 +326,8 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
     kind_value = metadata.pop("kind", None) or block.kind_hint or "other"
     kind = NodeKind.parse(str(kind_value))
 
-    title = str(metadata.pop("title", node_id))
+    title_raw = metadata.pop("title", None)
+    title = str(title_raw) if title_raw is not None else _humanize_id(str(node_id))
     uses_raw = metadata.pop("uses", []) or []
     if isinstance(uses_raw, str):
         uses = [u.strip() for u in re.split(r"[,\s]+", uses_raw) if u.strip()]
@@ -245,9 +341,15 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
         tags = [str(t).strip() for t in tags_raw if str(t).strip()]
 
     isabelle_ref = _parse_isabelle_ref(metadata)
+    had_status = "status" in metadata
     status = _parse_status(metadata)
 
     statement, informal_proof = _split_body(block.body_lines)
+
+    # Authoring convenience: a node with a real body but no explicit status is
+    # treated as "written" rather than the bare "stub" placeholder default.
+    if not had_status and statement.strip():
+        status.blueprint = BlueprintStatus.WRITTEN
 
     return BlueprintNode(
         id=str(node_id),
