@@ -1,0 +1,26 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>Dependency graph</h1>
+
+<p class="lede">
+  Each node is colour-coded by its current formal status. Arrows go from a result to the lemmas it depends on.
+</p>
+
+<div class="graph-frame">
+  {% if has_svg %}
+    <object type="image/svg+xml" data="graph.svg" class="graph-svg">
+      Your browser does not support inline SVG.
+    </object>
+  {% else %}
+    <div class="callout warning">
+      <p><strong>Graphviz is not installed.</strong> Showing raw DOT instead. Install <code>graphviz</code> on PATH to get an inline diagram.</p>
+      <pre><code>{{ dot_source|e }}</code></pre>
+    </div>
+  {% endif %}
+</div>
+
+<details>
+  <summary>Raw DOT source</summary>
+  <p><a href="graph.dot">Download <code>graph.dot</code></a> &middot; <a href="graph.json">Download <code>graph.json</code></a></p>
+</details>
+{% endblock %}

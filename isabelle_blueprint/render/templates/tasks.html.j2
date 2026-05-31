@@ -1,0 +1,31 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>Agent-ready tasks</h1>
+
+{% if tasks %}
+  <p class="lede">
+    These nodes have every dependency already formalised. They are the next things an
+    Isabelle-aware coding agent can pick up.
+  </p>
+  <ol class="task-list">
+    {% for task in tasks %}
+      <li>
+        <h3><a href="nodes/{{ task.node_id }}.html">{{ task.title }}</a></h3>
+        <p>
+          <code>{{ task.node_id }}</code>
+          {% if task.target_fact %}&rarr; <code>{{ task.target_fact }}</code>{% endif %}
+        </p>
+        {% if task.dependencies %}
+          <p><strong>Uses:</strong>
+          {% for dep in task.dependencies %}
+            <code>{{ dep.id }}</code>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+          </p>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <p>No agent-ready tasks right now. Either every node is already formalised, or every unformalised node still has open dependencies.</p>
+{% endif %}
+{% endblock %}

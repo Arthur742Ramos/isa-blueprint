@@ -1,0 +1,4 @@
+session "Arith_Demo" = "HOL" +
+  description "Minimal IsabelleBlueprint demo session."
+  theories
+    Arith_Demo

@@ -1,0 +1,44 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>{{ project.name }}</h1>
+
+<p class="lede">
+  This blueprint tracks <strong>{{ project.nodes|length }}</strong> node{{ '' if project.nodes|length == 1 else 's' }}.
+  Use the graph to see dependencies, the status table to spot gaps, and the tasks page for what an agent can attempt next.
+</p>
+
+<section>
+  <h2>Formal status</h2>
+  <div class="status-grid">
+    {% for status, count in formal_counts.items() %}
+      <div class="status-card" style="border-left: 6px solid {{ status_colors.get(status, '#9ca3af') }};">
+        <div class="status-card-count">{{ count }}</div>
+        <div class="status-card-label">{{ status }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Recent nodes</h2>
+  <ul class="node-list">
+    {% for node in project.nodes %}
+      <li>
+        <a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a>
+        &mdash; <span class="node-kind">{{ node.kind.value }}</span>
+        &mdash; {{ node.title }}
+        <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section>
+  <h2>Reminder</h2>
+  <p>
+    IsabelleBlueprint deliberately distinguishes <em>"a fact with this name exists"</em>
+    from <em>"the proof is trusted"</em>. The colour next to each node reports only the
+    coarser "exists / does not exist" signal from <code>isabelle build</code>.
+  </p>
+</section>
+{% endblock %}

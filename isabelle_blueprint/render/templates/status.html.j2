@@ -1,0 +1,31 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>Status table</h1>
+
+<table class="status-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Kind</th>
+      <th>Title</th>
+      <th>Isabelle fact</th>
+      <th>Blueprint</th>
+      <th>Formal</th>
+      <th>Agent</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for node in project.nodes %}
+      <tr>
+        <td><a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a></td>
+        <td>{{ node.kind.value }}</td>
+        <td>{{ node.title }}</td>
+        <td><code>{{ node.isabelle.fact or '' }}</code></td>
+        <td>{{ node.status.blueprint.value }}</td>
+        <td><span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span></td>
+        <td>{{ node.status.agent.value }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

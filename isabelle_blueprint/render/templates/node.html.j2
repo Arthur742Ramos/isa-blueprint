@@ -1,0 +1,55 @@
+{% extends "base.html.j2" %}
+{% set static_prefix = '../static/' %}
+{% set home_prefix = '../' %}
+{% block content %}
+<p><a href="../index.html">&larr; back to overview</a></p>
+
+<h1>
+  <span class="node-kind">{{ node.kind.value }}</span>
+  {{ node.title }}
+</h1>
+
+<dl class="meta">
+  <dt>ID</dt><dd><code>{{ node.id }}</code></dd>
+  {% if node.isabelle.fact %}<dt>Isabelle fact</dt><dd><code>{{ node.isabelle.fact }}</code></dd>{% endif %}
+  {% if node.isabelle.theory %}<dt>Theory</dt><dd><code>{{ node.isabelle.theory }}</code></dd>{% endif %}
+  {% if node.isabelle.session %}<dt>Session</dt><dd><code>{{ node.isabelle.session }}</code></dd>{% endif %}
+  <dt>Blueprint status</dt><dd>{{ node.status.blueprint.value }}</dd>
+  <dt>Formal status</dt><dd><span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span></dd>
+  <dt>Agent status</dt><dd>{{ node.status.agent.value }}</dd>
+  {% if node.tags %}<dt>Tags</dt><dd>{% for t in node.tags %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+</dl>
+
+{% if node.statement %}
+  <h2>Statement</h2>
+  <div class="prose"><p>{{ node.statement|e|replace('\n\n', '</p><p>')|safe }}</p></div>
+{% endif %}
+
+{% if node.informal_proof %}
+  <h2>Informal proof</h2>
+  <div class="prose"><p>{{ node.informal_proof|e|replace('\n\n', '</p><p>')|safe }}</p></div>
+{% endif %}
+
+{% if dependencies %}
+  <h2>Depends on</h2>
+  <ul>
+    {% for dep in dependencies %}
+      <li><a href="{{ dep.id }}.html"><code>{{ dep.id }}</code></a> &mdash; {{ dep.title }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if downstream %}
+  <h2>Used by</h2>
+  <ul>
+    {% for d in downstream %}
+      <li><a href="{{ d.id }}.html"><code>{{ d.id }}</code></a> &mdash; {{ d.title }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if node.status.check_error %}
+  <h2>Last check error</h2>
+  <pre>{{ node.status.check_error }}</pre>
+{% endif %}
+{% endblock %}

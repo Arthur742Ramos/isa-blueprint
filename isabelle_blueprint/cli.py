@@ -1,0 +1,267 @@
+"""Command-line interface for IsabelleBlueprint."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from isabelle_blueprint import __version__
+from isabelle_blueprint.agents.tasks import write_tasks
+from isabelle_blueprint.config import BlueprintConfig, load_config
+from isabelle_blueprint.errors import BlueprintError, ValidationError
+from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
+from isabelle_blueprint.isabelle.checker import (
+    CheckResult,
+    apply_check_report,
+    run_check,
+    write_report,
+)
+from isabelle_blueprint.parser import parse_blueprint_file
+from isabelle_blueprint.render.site import render_site
+from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
+from isabelle_blueprint.report.markdown_report import write_markdown_report
+
+
+def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
+    config = load_config(project_dir)
+    if not config.blueprint_path.exists():
+        raise BlueprintError(
+            f"blueprint not found at {config.blueprint_path}; run `isabelle-blueprint init` first"
+        )
+    project = parse_blueprint_file(config.blueprint_path, project_name=config.project_name)
+    return config, project
+
+
+def _try_apply_check(project: "BlueprintProject", config: BlueprintConfig) -> None:  # noqa: F821
+    """Apply a previously stored check report if available - non-fatal."""
+    if not config.check_report_path.exists():
+        return
+    try:
+        report_data = json.loads(config.check_report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    result = CheckResult.from_dict(report_data)
+    apply_check_report(project, result)
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    project_dir.mkdir(parents=True, exist_ok=True)
+    blueprint_path = project_dir / "blueprint.md"
+    config_path = project_dir / "isabelle-blueprint.toml"
+    if blueprint_path.exists() and not args.force:
+        print(f"refusing to overwrite {blueprint_path}; pass --force to replace", file=sys.stderr)
+        return 1
+    blueprint_path.write_text(_DEFAULT_BLUEPRINT, encoding="utf-8")
+    if not config_path.exists() or args.force:
+        config_path.write_text(_DEFAULT_CONFIG, encoding="utf-8")
+    workflows = project_dir / ".github" / "workflows"
+    workflows.mkdir(parents=True, exist_ok=True)
+    workflow_file = workflows / "blueprint.yml"
+    if not workflow_file.exists() or args.force:
+        workflow_file.write_text(_DEFAULT_WORKFLOW, encoding="utf-8")
+    print(f"initialised IsabelleBlueprint project at {project_dir}")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    try:
+        project.validate().raise_if_failed()
+    except ValidationError as exc:
+        print(f"validation failed: {exc}", file=sys.stderr)
+        return 2
+
+    result = run_check(
+        project,
+        build_dir=config.build_dir,
+        session_name=config.isabelle_session,
+        isabelle_executable=args.isabelle or config.isabelle_executable,
+        extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
+    )
+    write_report(result, config.check_report_path)
+    apply_check_report(project, result)
+    write_project_report(project, config.project_json_path)
+
+    print(f"check report -> {config.check_report_path}")
+    if not result.isabelle_available:
+        print("note: Isabelle binary not found; per-fact existence not verified", file=sys.stderr)
+        if args.strict:
+            return 3
+    elif not result.ran:
+        print(f"note: {result.error}", file=sys.stderr)
+        if args.strict:
+            return 3
+    elif result.return_code != 0:
+        print(f"isabelle build failed with exit code {result.return_code}", file=sys.stderr)
+        return 4
+    return 0
+
+
+def cmd_graph(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    written = write_graph_artifacts(project, config.build_dir)
+    for name, path in written.items():
+        print(f"{name} -> {path}")
+    if "svg" not in written:
+        print("note: graphviz `dot` not found; install it for SVG output", file=sys.stderr)
+    return 0
+
+
+def cmd_web(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    index = render_site(project, config.site_dir)
+    print(f"site -> {index}")
+    return 0
+
+
+def cmd_tasks(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    written = write_tasks(project, config.build_dir)
+    for name, path in written.items():
+        print(f"{name} -> {path}")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    json_path = write_project_report(project, config.project_json_path)
+    md_path = write_markdown_report(project, config.build_dir / "report.md")
+    summary_path = write_summary_json(project, config.build_dir / "summary.json")
+    print(f"project json -> {json_path}")
+    print(f"markdown report -> {md_path}")
+    print(f"summary -> {summary_path}")
+    return 0
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="isabelle-blueprint", description="Isabelle-aware blueprint tooling.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
+    p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
+    p_init.add_argument("--force", action="store_true", help="overwrite existing files")
+    p_init.set_defaults(func=cmd_init)
+
+    p_check = sub.add_parser("check", help="validate blueprint and run Isabelle existence check")
+    p_check.add_argument("project_dir", nargs="?", default=".")
+    p_check.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_check.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero if Isabelle is unavailable or the build did not run",
+    )
+    p_check.set_defaults(func=cmd_check)
+
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG dependency graph")
+    p_graph.add_argument("project_dir", nargs="?", default=".")
+    p_graph.set_defaults(func=cmd_graph)
+
+    p_web = sub.add_parser("web", help="render the static HTML site")
+    p_web.add_argument("project_dir", nargs="?", default=".")
+    p_web.set_defaults(func=cmd_web)
+
+    p_tasks = sub.add_parser("tasks", help="generate agent-ready tasks and per-task prompts")
+    p_tasks.add_argument("project_dir", nargs="?", default=".")
+    p_tasks.set_defaults(func=cmd_tasks)
+
+    p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
+    p_report.add_argument("project_dir", nargs="?", default=".")
+    p_report.set_defaults(func=cmd_report)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except BlueprintError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+_DEFAULT_BLUEPRINT = """# My blueprint
+
+Welcome! Edit this file and replace the placeholder nodes below.
+
+::: definition {#example-def}
+title: Example definition
+isabelle: Main.True
+status:
+  blueprint: stub
+  formal: missing
+:::
+
+Describe what is being defined.
+:::
+
+::: theorem {#example-thm}
+title: Example theorem
+isabelle: My_Theory.example_lemma
+uses:
+  - example-def
+status:
+  blueprint: stub
+  formal: missing
+:::
+
+State the result.
+
+## Proof
+
+Sketch the proof.
+:::
+"""
+
+_DEFAULT_CONFIG = """[project]
+name = "My blueprint"
+blueprint = "blueprint.md"
+
+[isabelle]
+# session = "My_Session"
+# executable = "isabelle"
+
+[output]
+build_dir = "build"
+site_dir = "site"
+"""
+
+_DEFAULT_WORKFLOW = """name: blueprint
+on:
+  push:
+  pull_request:
+jobs:
+  blueprint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install isabelle-blueprint
+      - run: isabelle-blueprint check .
+      - run: isabelle-blueprint graph .
+      - run: isabelle-blueprint web .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-site
+          path: site
+"""
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
