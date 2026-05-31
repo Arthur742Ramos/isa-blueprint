@@ -57,7 +57,7 @@ What works today:
 - ✅ Real AFP integration example under [`examples/afp-gale-stewart/`](examples/afp-gale-stewart) — cross-session `check` proving Gale–Stewart determinacy against the published `GaleStewart_Games` entry
 - ✅ pytest suite + cross-platform CI (Ubuntu + Windows, Python 3.11/3.12/3.13)
 - ✅ **v0.6** — `check --incremental` (per-fact cache in `build/check-cache.json`) and `check --jobs N` (parallel session builds)
-- ✅ **v0.7** — Multi-blueprint projects via `[project].extra_blueprint_paths` with duplicate-id detection across sources
+- ✅ **v0.7** — Multi-blueprint projects via `[project].blueprints` with duplicate-id detection across sources
 - ✅ **v0.8** — Click-through formal-status filter on the dependency graph (`graph.html`) and bounded coverage/problem trend chart from `build/trends.json`
 - ✅ **v0.9** — Plugin API (`isabelle_blueprint.status_providers` entry-point group), plus `isabelle-blueprint comment` for idempotent PR status comments (urllib-only, no extra deps)
 
@@ -602,7 +602,7 @@ JSON, and GitHub Action contracts documented under [`docs/`](docs/).
 - ✅ **v0.6** — `check --incremental` (per-fact cache) and `check --jobs N` so
   large blueprints re-verify only the nodes whose inputs changed and upstream
   session builds parallelise.
-- ✅ **v0.7** — Multi-blueprint / multi-session projects: `[project].extra_blueprint_paths`
+- ✅ **v0.7** — Multi-blueprint / multi-session projects: `[project].blueprints`
   composes several blueprints into one dependency graph, with duplicate-id
   detection across sources and `new --append --blueprint <path>` to target a
   specific file.

@@ -33,12 +33,14 @@ The full node graph in machine-readable form.
         "session": "HOL-Algebra"
       },
       "status": {
-        "blueprint": "drafted",
+        "blueprint": "written",
         "formal": "found",
-        "agent": "idle",
+        "agent": "ready",
         "last_checked": "2026-05-31T12:00:00Z",
         "check_error": null
-      }
+      },
+      "tags": [],
+      "source": { "file": "blueprint.md", "line": 12 }
     }
   ]
 }
@@ -64,14 +66,16 @@ Each node object:
 | `uses` | array of strings | Node ids this one depends on. |
 | `isabelle` | object | `{ "fact": string\|null, "theory": string\|null, "session": string\|null }`. |
 | `status` | object | See below. |
+| `tags` | array of strings | Free-form tags from the blueprint block. Always present; may be empty. |
+| `source` | object | `{ "file": string\|null, "line": integer\|null }` pointing at the blueprint block this node was parsed from. Both subkeys may be `null` for synthesised nodes. |
 
 The `status` object:
 
 | Key | Type | Notes |
 | --- | --- | --- |
-| `blueprint` | string | One of `stub`, `drafted`, `complete`. |
-| `formal` | string | One of `missing`, `named`, `found`, `proved`, `tainted`, `failed_check`, `broken`, `not_found`. |
-| `agent` | string | One of `idle`, `claimed`, `working`, `done`. |
+| `blueprint` | string | One of `stub`, `written`, `reviewed`. |
+| `formal` | string | One of `missing`, `named`, `not_found`, `found`, `proved`, `tainted`, `stale`, `broken`, `failed_check`. |
+| `agent` | string | One of `blocked`, `ready`, `in_progress`, `attempted`, `solved`, `needs_human`. |
 | `last_checked` | string or null | ISO-8601 UTC timestamp of the most recent `check` / `dump`. |
 | `check_error` | string or null | Human-readable diagnostic when the most recent check failed. |
 
@@ -128,25 +132,37 @@ shields URL at.
 
 ## `build/trends.json`
 
-Bounded coverage / problem-count history. Added in v0.8. Newest entry first.
+Bounded coverage / problem-count history. Added in v0.8. The top-level value
+is an object containing an `entries` array; entries are appended in
+chronological order (oldest first, newest last).
 
 ```json
-[
-  {
-    "timestamp": "2026-05-31T12:00:00Z",
-    "commit_sha": "abc12345...",
-    "branch": "main",
-    "coverage_percent": 50.0,
-    "node_count": 10,
-    "formal_target_count": 4,
-    "proved_count": 2,
-    "found_count": 2,
-    "problem_count": 0,
-    "stale_count": 0,
-    "has_cycles": false
-  }
-]
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "timestamp": "2026-05-31T12:00:00Z",
+      "commit_sha": "abc12345...",
+      "branch": "main",
+      "coverage_percent": 50.0,
+      "node_count": 10,
+      "formal_target_count": 4,
+      "proved_count": 2,
+      "found_count": 2,
+      "problem_count": 0,
+      "stale_count": 0,
+      "has_cycles": false
+    }
+  ]
+}
 ```
+
+Top-level keys:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` in the v1 line. |
+| `entries` | array of entry objects | Oldest entry first, newest last. May be empty. |
 
 Per-entry keys:
 
@@ -173,9 +189,10 @@ Storage rules:
   history; this is intentional and consumers should not rely on entries
   surviving forever.
 
-The top-level shape is either a JSON array (the canonical form, used since
-v0.8) or an object with an `entries` array (tolerated by readers for forward
-compatibility); writers always emit the array form in the v1 line.
+Writers in the v1 line always emit the object form
+`{ "schema_version": 1, "entries": [...] }`. Readers also tolerate the
+legacy bare-array form (a top-level JSON array of entry objects, used by
+pre-1.0 builds) for backward compatibility.
 
 ---
 

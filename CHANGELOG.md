@@ -28,7 +28,7 @@ roadmap is shipped, plus the v0.6–v0.9 milestones added during the 1.0 push.
   Behaviour without either flag is byte-identical to v0.5.1.
 - **v0.7 — Multi-blueprint projects.** A project may now compose several
   blueprint files into one dependency graph:
-  - `isabelle-blueprint.toml` accepts `[project].extra_blueprint_paths = [...]`
+  - `isabelle-blueprint.toml` accepts `[project].blueprints = [...]`
     in addition to the existing `blueprint = "..."`. Every CLI command (check,
     graph, report, web, tasks, dump, comment) loads the union.
   - Duplicate node ids across blueprints fail loudly with a `BlueprintError`
@@ -39,10 +39,11 @@ roadmap is shipped, plus the v0.6–v0.9 milestones added during the 1.0 push.
 - **v0.8 — Graph filtering + trend charts.**
   - The dependency graph page (`graph.html`) ships an interactive sidebar that
     filters the SVG by formal status: blueprint-only, named, found, proved,
-    tainted, problem, etc. Non-matching nodes (and edges only touching them)
-    dim out; an "all" pill clears the filter. Implemented as a small vanilla
-    JS file (`static/graph.js`) with a no-op guard so non-graph pages and
-    CSP-strict deployments are unaffected.
+    tainted, problem, etc. Each status has its own checkbox; unchecking one
+    dims the matching nodes (and edges that only touch them), and a Reset
+    button re-checks every box to restore the full graph. Implemented as a
+    small vanilla JS file (`static/graph.js`) with a no-op guard so non-graph
+    pages and CSP-strict deployments are unaffected.
   - `isabelle-blueprint report` now appends a bounded (max 500) JSON history
     of every run to `build/trends.json`, keyed by `(commit_sha, branch)` so
     CI matrix re-runs replace rather than duplicate. The static site renders

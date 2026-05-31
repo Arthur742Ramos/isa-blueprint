@@ -6,8 +6,10 @@ coverage and the problem count are moving over time.
 
 The store is intentionally dumb:
 
-* JSON list, newest-first.
-* Bounded to 500 entries; older entries are dropped on insert.
+* JSON object ``{"schema_version": 1, "entries": [...]}``; ``entries`` are
+  appended in chronological order (oldest first, newest last). Readers also
+  tolerate the legacy bare-list form for backward compatibility.
+* Bounded to 500 entries; the oldest entries are dropped on insert.
 * Deduped by ``(commit_sha, branch)`` keeping the most recently observed run.
   This way a CI matrix that re-runs the same commit replaces rather than
   duplicates the entry.

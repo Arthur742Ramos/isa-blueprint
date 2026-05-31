@@ -314,7 +314,7 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
 
 .graph-frame { overflow: auto; }
 .graph-frame svg { max-width: 100%; height: auto; }
-.graph-frame g.is-hidden { opacity: 0.08; transition: opacity 0.15s ease; }
+.graph-frame g.is-dimmed { opacity: 0.08; transition: opacity 0.15s ease; }
 .graph-download { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
 
 /* Trend chart */

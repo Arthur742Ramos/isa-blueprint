@@ -81,7 +81,7 @@
       nodeGroups.forEach((el, nodeId) => {
         const status = statusById.get(nodeId) || "named";
         const visible = allowed.has(status);
-        el.classList.toggle("is-hidden", !visible);
+        el.classList.toggle("is-dimmed", !visible);
         if (visible) {
           visibleNodes += 1;
         }
@@ -90,7 +90,7 @@
         const srcStatus = statusById.get(source) || "named";
         const tgtStatus = statusById.get(target) || "named";
         const visible = allowed.has(srcStatus) && allowed.has(tgtStatus);
-        el.classList.toggle("is-hidden", !visible);
+        el.classList.toggle("is-dimmed", !visible);
       });
       if (countEl) {
         countEl.textContent =

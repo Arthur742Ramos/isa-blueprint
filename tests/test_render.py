@@ -189,7 +189,7 @@ def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
     graph_text = graph_js.read_text(encoding="utf-8")
     trends_text = trends_js.read_text(encoding="utf-8")
     assert "data-graph-formal" in graph_text
-    assert "is-hidden" in graph_text
+    assert "is-dimmed" in graph_text
     assert "data-trend-chart-host" in trends_text
 
 
