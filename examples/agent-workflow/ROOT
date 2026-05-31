@@ -1,0 +1,4 @@
+session "Sorting" = "HOL" +
+  description "List reversal and a verified insertion sort."
+  theories
+    Sorting

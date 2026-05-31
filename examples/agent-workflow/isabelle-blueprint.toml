@@ -1,0 +1,17 @@
+[project]
+name = "Verified insertion sort"
+blueprint = "blueprint.md"
+
+[isabelle]
+session = "Sorting"
+# Pin the toolchain so `isabelle-blueprint compat` can flag drift.
+version = "Isabelle2024"
+
+[afp]
+# Declare an Archive of Formal Proofs dependency.
+entry = "List-Index"
+required = true
+
+[output]
+build_dir = "build"
+site_dir = "site"

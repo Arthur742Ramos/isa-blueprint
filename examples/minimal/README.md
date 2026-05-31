@@ -1,6 +1,7 @@
 # Minimal IsabelleBlueprint example
 
-A three-node arithmetic demo. Run from the repo root:
+A four-node arithmetic demo (one definition plus three arithmetic facts).
+Run from the repo root:
 
 ```
 isabelle-blueprint check examples/minimal
