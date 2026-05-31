@@ -6,19 +6,34 @@ from pathlib import Path
 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report.metrics import build_status_metrics
 
 
 def render_markdown_report(project: BlueprintProject) -> str:
     counts = Counter(n.status.formal.value for n in project.nodes)
-    total = len(project.nodes)
-    proved = counts.get(FormalStatus.PROVED.value, 0) + counts.get(FormalStatus.FOUND.value, 0)
-    coverage = (proved / total * 100.0) if total else 0.0
+    metrics = build_status_metrics(project)
+    total = metrics.node_count
+    proved = metrics.proved_count
+    found = metrics.found_count
+    if metrics.coverage_percent is None:
+        coverage_line = (
+            "- Coverage (proved / formal targets): _no formal targets assigned yet_"
+        )
+    else:
+        coverage_line = (
+            f"- Coverage (proved / formal targets): **{metrics.coverage_percent}%** "
+            f"({proved}/{metrics.formal_target_count})"
+        )
 
     lines: list[str] = []
     lines.append(f"# {project.name} - blueprint status")
     lines.append("")
     lines.append(f"- Nodes: **{total}**")
-    lines.append(f"- Formalised (found or proved): **{proved}** ({coverage:.1f}%)")
+    lines.append(f"- Formal targets (with Isabelle ref): **{metrics.formal_target_count}**")
+    lines.append(f"- Proved: **{proved}**")
+    lines.append(f"- Found (exists, not yet trusted): **{found}**")
+    lines.append(f"- Problems (broken/not_found/tainted/failed_check): **{metrics.problem_count}**")
+    lines.append(coverage_line)
     lines.append("")
     if counts:
         lines.append("| Formal status | Count |")

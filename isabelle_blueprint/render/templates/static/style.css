@@ -211,3 +211,61 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
   font-size: 0.85rem;
   text-align: center;
 }
+
+.filters {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.filter-label {
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 6rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.filter-pill {
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: #1f2937;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.filter-pill:hover { background: #eef2ff; }
+.filter-pill.is-active {
+  background: var(--pill-accent, #1f2937);
+  color: white;
+  border-color: var(--pill-accent, #1f2937);
+}
+.filter-pill small { opacity: 0.85; }
+.filter-row-actions { justify-content: space-between; }
+.filter-clear {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.filter-clear:hover { color: #1f2937; border-color: #94a3b8; }
+.filter-count { color: var(--muted); font-size: 0.85rem; }
+.is-hidden { display: none !important; }

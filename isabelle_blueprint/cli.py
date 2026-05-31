@@ -26,8 +26,15 @@ from isabelle_blueprint.isabelle.dump import (
 )
 from isabelle_blueprint.parser import parse_blueprint_file
 from isabelle_blueprint.render.site import render_site
+from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.github_actions import (
+    build_summary_markdown,
+    emit_step_outputs,
+    emit_step_summary,
+)
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.markdown_report import write_markdown_report
+from isabelle_blueprint.report.metrics import build_status_metrics, output_values
 
 
 def _load(project_dir: Path) -> tuple[BlueprintConfig, "BlueprintProject"]:  # noqa: F821
@@ -222,9 +229,23 @@ def cmd_report(args: argparse.Namespace) -> int:
     json_path = write_project_report(project, config.project_json_path)
     md_path = write_markdown_report(project, config.build_dir / "report.md")
     summary_path = write_summary_json(project, config.build_dir / "summary.json")
+    badge_json_path = write_badge_endpoint(project, config.build_dir / "badge.json")
+    badge_svg_path = write_badge_svg(project, config.build_dir / "badge.svg")
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
+    print(f"badge json -> {badge_json_path}")
+    print(f"badge svg -> {badge_svg_path}")
+
+    # Compute metrics once and reuse for both the GH outputs and the step
+    # summary so the two surfaces can never drift apart.
+    metrics = build_status_metrics(project)
+    outputs = output_values(metrics)
+    if emit_step_outputs(outputs):
+        print("github outputs -> $GITHUB_OUTPUT")
+    summary_md = build_summary_markdown(project.name, metrics.to_dict())
+    if emit_step_summary(summary_md):
+        print("github summary -> $GITHUB_STEP_SUMMARY")
     return 0
 
 

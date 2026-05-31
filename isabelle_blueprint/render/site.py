@@ -24,6 +24,7 @@ from isabelle_blueprint.model.status import (
     BlueprintStatus,
     FormalStatus,
 )
+from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "templates" / "static"
@@ -111,6 +112,8 @@ def render_site(
         json.dumps({"tasks": [t.to_dict() for t in tasks]}, indent=2),
         encoding="utf-8",
     )
+    write_badge_endpoint(project, output_dir / "badge.json")
+    write_badge_svg(project, output_dir / "badge.svg")
 
     return output_dir / "index.html"
 

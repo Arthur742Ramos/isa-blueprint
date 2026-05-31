@@ -5,6 +5,7 @@
   <title>{{ project.name }} - {{ title or page|capitalize }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="{{ static_prefix or 'static/' }}style.css" />
+  <script defer src="{{ static_prefix or 'static/' }}filters.js"></script>
 </head>
 <body>
   <header class="site-header">
