@@ -88,6 +88,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         isabelle_executable=args.isabelle or config.isabelle_executable,
         extra_dirs=config.isabelle_dirs,
         project_root=config.project_root,
+        timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
     )
     write_report(result, config.check_report_path)
     apply_check_report(project, result)
@@ -139,6 +140,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
             isabelle_executable=args.isabelle or config.isabelle_executable,
             extra_dirs=config.isabelle_dirs,
             project_root=config.project_root,
+            timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
         )
     write_dump_report(result, config.dump_report_path)
     apply_dump_report(project, result)
@@ -208,6 +210,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("project_dir", nargs="?", default=".")
     p_check.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
     p_check.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="max seconds to wait for `isabelle build` before aborting (overrides [isabelle].timeout)",
+    )
+    p_check.add_argument(
         "--strict",
         action="store_true",
         help="exit non-zero if Isabelle is unavailable or the build did not run",
@@ -221,6 +229,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_dump = sub.add_parser("dump", help="run or inspect Isabelle PIDE dump output")
     p_dump.add_argument("project_dir", nargs="?", default=".")
     p_dump.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_dump.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="max seconds to wait for `isabelle dump` before aborting (overrides [isabelle].timeout)",
+    )
     p_dump.add_argument("--from", dest="from_dir", default=None, help="inspect an existing dump directory")
     p_dump.add_argument("--strict", action="store_true", help="exit non-zero if dump execution/inspection fails")
     p_dump.set_defaults(func=cmd_dump)
@@ -297,6 +311,7 @@ blueprint = "blueprint.md"
 # session = "My_Session"
 # executable = "isabelle"
 # version = "Isabelle2025-2"
+# timeout = 600  # max seconds for `isabelle build`/`dump`; omit to wait indefinitely
 
 [afp]
 # root = "/path/to/afp"
