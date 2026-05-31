@@ -22,6 +22,7 @@ class BlueprintConfig:
     isabelle_dirs: list[Path] = field(default_factory=list)
     isabelle_executable: str = "isabelle"
     isabelle_version: str | None = None
+    isabelle_timeout: float | None = None
     project_name: str = "Untitled IsabelleBlueprint project"
     afp_root: Path | None = None
     afp_entry: str | None = None
@@ -97,6 +98,8 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
     isabelle_dirs = [root / d for d in isabelle_section.get("dirs", [])]
     isabelle_executable = isabelle_section.get("executable", "isabelle")
     isabelle_version = isabelle_section.get("version")
+    isabelle_timeout_raw = isabelle_section.get("timeout")
+    isabelle_timeout = float(isabelle_timeout_raw) if isabelle_timeout_raw is not None else None
     project_name = project_section.get("name", "Untitled IsabelleBlueprint project")
     afp_root_raw = afp_section.get("root")
     afp_root = (root / afp_root_raw).resolve() if afp_root_raw else None
@@ -112,6 +115,7 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
         isabelle_dirs=isabelle_dirs,
         isabelle_executable=isabelle_executable,
         isabelle_version=isabelle_version,
+        isabelle_timeout=isabelle_timeout,
         project_name=project_name,
         afp_root=afp_root,
         afp_entry=afp_entry,

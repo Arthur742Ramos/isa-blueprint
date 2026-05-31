@@ -78,3 +78,29 @@ def test_apply_dump_report_preserves_status_when_report_failed(tmp_path: Path):
     assert by_id["tainted"].status.formal == FormalStatus.FOUND
     assert by_id["missing"].status.formal == FormalStatus.NAMED
     assert by_id["clean"].status.check_error == result.error
+
+
+def test_run_dump_timeout_is_graceful(tmp_path: Path, monkeypatch):
+    """A dump that exceeds the timeout must not propagate and must leave ran=False."""
+    import shutil
+    import subprocess
+
+    from isabelle_blueprint.isabelle import dump as dump_module
+
+    monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+    def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
+        raise subprocess.TimeoutExpired(cmd, timeout)
+
+    monkeypatch.setattr(dump_module, "run_capture", fake_run)
+    project = _project()
+    result = dump_module.run_dump(
+        project,
+        output_dir=tmp_path / "dump",
+        session_name="Demo",
+        timeout=5,
+    )
+    assert result.ran is False
+    assert "timed out" in (result.error or "").lower()
+    # Graceful degradation still attaches reference facts.
+    assert result.facts

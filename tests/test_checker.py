@@ -5,6 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 
+from isabelle_blueprint.isabelle._run import RunResult
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
     FactCheck,
@@ -272,14 +273,14 @@ def test_run_check_writes_root_with_per_node_session_deps(tmp_path: Path, monkey
 
     monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
 
-    def fake_run(cmd, cwd, capture_output, text, check):
+    def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
         root_text = (Path(cwd) / "ROOT").read_text(encoding="utf-8")
         assert "  sessions\n    \"Other_Session\"\n  theories\n" in root_text
         assert root_text.index("  sessions") < root_text.index("  theories")
         assert '"Base_Session"' in root_text
-        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return RunResult(args=cmd, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(checker_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
     project = _proj(
         _node("a", "Demo.a"),
         _node("b", "Other.b", session="Other_Session"),
@@ -287,6 +288,26 @@ def test_run_check_writes_root_with_per_node_session_deps(tmp_path: Path, monkey
     )
     result = run_check(project, build_dir=tmp_path, session_name="Base_Session")
     assert result.ran is True
+
+
+def test_run_check_timeout_is_graceful(tmp_path: Path, monkeypatch):
+    """A build that exceeds the timeout must not propagate and must leave ran=False."""
+    import shutil
+
+    from isabelle_blueprint.isabelle import checker as checker_module
+
+    monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+    def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
+        raise subprocess.TimeoutExpired(cmd, timeout)
+
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
+    project = _proj(_node("a", "Demo.a"))
+    result = run_check(project, build_dir=tmp_path, session_name="Base_Session", timeout=5)
+    assert result.ran is False
+    assert result.isabelle_available is True
+    assert "timed out" in (result.error or "").lower()
+    assert result.duration_seconds is not None
 
 
 def test_write_report_round_trip(tmp_path: Path):

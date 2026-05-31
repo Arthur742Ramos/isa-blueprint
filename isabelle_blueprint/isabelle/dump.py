@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 
@@ -90,6 +91,7 @@ def run_dump(
     project_root: Path | None = None,
     extra_dirs: list[Path] | None = None,
     aspects: str = "theory",
+    timeout: float | None = None,
 ) -> DumpResult:
     """Run ``isabelle dump`` and inspect the generated dump directory."""
     resolved_isabelle = shutil.which(isabelle_executable)
@@ -113,7 +115,16 @@ def run_dump(
 
     start = time.monotonic()
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        proc = run_capture(
+            cmd,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        result.error = (
+            f"isabelle dump timed out after {timeout:.0f}s; "
+            "increase [isabelle].timeout in isabelle-blueprint.toml or pass --timeout"
+        )
+        return _with_reference_facts(result, project)
     except OSError as exc:
         result.error = f"failed to invoke {isabelle_executable!r}: {exc}"
         result.isabelle_available = False

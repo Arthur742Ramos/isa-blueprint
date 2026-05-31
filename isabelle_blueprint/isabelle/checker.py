@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from isabelle_blueprint.errors import CheckerError
+from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.theory_gen import (
     generate_check_root,
     generate_check_theory,
@@ -167,6 +168,7 @@ def run_check(
     project_root: Path | None = None,
     write_theory: bool = True,
     proof_status: bool = True,
+    timeout: float | None = None,
 ) -> CheckResult:
     """Generate the check theory and (optionally) run ``isabelle build``.
 
@@ -248,13 +250,20 @@ def run_check(
 
     start = time.monotonic()
     try:
-        proc = subprocess.run(
+        proc = run_capture(
             cmd,
             cwd=str(build_dir),
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired:
+        # The build did not finish within the configured budget. Treat this as
+        # "verification did not complete" (ran stays False) so facts remain
+        # NAMED/unverified rather than being flipped to NOT_FOUND.
+        result.error = (
+            f"isabelle build timed out after {timeout:.0f}s; "
+            "increase [isabelle].timeout in isabelle-blueprint.toml or pass --timeout"
+        )
+        return result
     except OSError as exc:
         # Binary resolved on PATH but couldn't actually be launched (stale
         # shim, broken symlink, permission error, etc.). From the pipeline's
