@@ -62,3 +62,19 @@ def test_apply_dump_report_updates_project_status(tmp_path: Path):
     by_id = project.by_id()
     assert by_id["clean"].status.formal == FormalStatus.PROVED
     assert by_id["missing"].status.formal == FormalStatus.NOT_FOUND
+
+
+def test_apply_dump_report_preserves_status_when_report_failed(tmp_path: Path):
+    project = _project()
+    by_id = project.by_id()
+    by_id["clean"].status.formal = FormalStatus.PROVED
+    by_id["tainted"].status.formal = FormalStatus.FOUND
+    by_id["missing"].status.formal = FormalStatus.NAMED
+
+    result = inspect_dump_dir(project, tmp_path / "does-not-exist")
+    apply_dump_report(project, result)
+
+    assert by_id["clean"].status.formal == FormalStatus.PROVED
+    assert by_id["tainted"].status.formal == FormalStatus.FOUND
+    assert by_id["missing"].status.formal == FormalStatus.NAMED
+    assert by_id["clean"].status.check_error == result.error

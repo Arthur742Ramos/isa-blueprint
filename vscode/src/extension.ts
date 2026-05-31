@@ -130,7 +130,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/build/project.json");
+  const watcher = vscode.workspace.createFileSystemWatcher("**/project.json");
   context.subscriptions.push(watcher);
   context.subscriptions.push(watcher.onDidChange(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(watcher.onDidCreate(async () => refresh(provider, diagnostics)));
@@ -217,12 +217,16 @@ async function openNode(loaded: LoadedProject, node: BlueprintNode): Promise<voi
     return;
   }
   const absPath = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(loaded.folder.uri.fsPath, sourceFile);
-  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
-  const editor = await vscode.window.showTextDocument(document);
-  const line = Math.max(0, (node.source?.line ?? 1) - 1);
-  const position = new vscode.Position(line, 0);
-  editor.selection = new vscode.Selection(position, position);
-  editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
+    const editor = await vscode.window.showTextDocument(document);
+    const line = Math.max(0, (node.source?.line ?? 1) - 1);
+    const position = new vscode.Position(line, 0);
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+  } catch (error) {
+    void vscode.window.showWarningMessage(`Could not open IsabelleBlueprint source ${absPath}: ${String(error)}`);
+  }
 }
 
 function severityForStatus(status: string): vscode.DiagnosticSeverity | undefined {

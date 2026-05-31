@@ -175,6 +175,14 @@ def inspect_dump_dir(project: BlueprintProject, dump_dir: Path, *, ran: bool = F
 
 def apply_dump_report(project: BlueprintProject, result: DumpResult) -> None:
     """Update node formal statuses from a PIDE dump report."""
+    if result.error:
+        for node in project.nodes:
+            if node.isabelle.fact:
+                node.status.last_checked = result.timestamp
+                node.status.check_error = result.error
+        project.recompute_agent_status()
+        return
+
     by_fact = {fact.fact: fact for fact in result.facts if fact.fact}
     for node in project.nodes:
         fact = node.isabelle.fact

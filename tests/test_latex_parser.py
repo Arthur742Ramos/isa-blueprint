@@ -63,6 +63,22 @@ def test_parse_latex_accepts_isabelle_metadata_and_tags():
     assert node.status.formal == FormalStatus.NAMED
 
 
+def test_latex_ok_marker_without_fact_stays_missing():
+    project = _parse(
+        r"""
+        \begin{lemma}
+        \label{lem-no-fact}
+        \isabelleok
+        Body.
+        \end{lemma}
+        """
+    )
+
+    node = project.nodes[0]
+    assert node.isabelle.fact is None
+    assert node.status.formal == FormalStatus.MISSING
+
+
 def test_latex_node_without_label_is_rejected():
     with pytest.raises(ParseError, match="missing a \\\\label"):
         _parse(

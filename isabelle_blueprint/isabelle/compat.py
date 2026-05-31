@@ -184,7 +184,40 @@ def _check_afp(report: CompatibilityReport, config: BlueprintConfig) -> None:
 
 
 def _root_files(directory: Path) -> list[Path]:
-    return [path for path in (directory / "ROOT", directory / "ROOTS") if path.exists()]
+    roots: list[Path] = []
+    seen_dirs: set[Path] = set()
+    seen_roots: set[Path] = set()
+    _collect_root_files(directory, roots, seen_dirs, seen_roots)
+    return roots
+
+
+def _collect_root_files(directory: Path, roots: list[Path], seen_dirs: set[Path], seen_roots: set[Path]) -> None:
+    directory = directory.resolve()
+    if directory in seen_dirs:
+        return
+    seen_dirs.add(directory)
+
+    root = directory / "ROOT"
+    if root.exists():
+        resolved_root = root.resolve()
+        if resolved_root not in seen_roots:
+            roots.append(root)
+            seen_roots.add(resolved_root)
+
+    roots_file = directory / "ROOTS"
+    if not roots_file.exists():
+        return
+    try:
+        lines = roots_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        entry = line.split("#", 1)[0].strip()
+        if not entry:
+            continue
+        if len(entry) >= 2 and entry[0] in {"'", '"'} and entry[-1] == entry[0]:
+            entry = entry[1:-1]
+        _collect_root_files(directory / entry, roots, seen_dirs, seen_roots)
 
 
 __all__ = [

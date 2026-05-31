@@ -60,6 +60,31 @@ def test_compatibility_report_ok_for_matching_version_and_session(tmp_path: Path
     assert report.discovered_sessions == ["Demo"]
 
 
+def test_compatibility_report_follows_roots_indirection(tmp_path: Path, monkeypatch):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    (tmp_path / "ROOTS").write_text("sessions\n", encoding="utf-8")
+    (sessions / "ROOT").write_text('session "Demo" = "HOL" +\n', encoding="utf-8")
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        """
+        [isabelle]
+        session = "Demo"
+        version = "Isabelle2025-2"
+        """,
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("shutil.which", lambda _exe: "/fake/isabelle")
+
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(["isabelle", "version"], 0, stdout="Isabelle2025-2\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    report = check_compatibility(load_config(tmp_path))
+    assert report.ok
+    assert report.discovered_sessions == ["Demo"]
+
+
 def test_compatibility_report_errors_on_version_and_session_mismatch(tmp_path: Path, monkeypatch):
     (tmp_path / "ROOT").write_text('session "Other" = "HOL" +\n', encoding="utf-8")
     (tmp_path / "isabelle-blueprint.toml").write_text(

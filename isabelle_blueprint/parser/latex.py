@@ -142,7 +142,7 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
     statement = _clean_body(_COMMAND_LINE_RE.sub("", statement_source))
 
     formal = FormalStatus.NAMED if fact else FormalStatus.MISSING
-    if "\\leanok" in block.body or "\\isabelleok" in block.body:
+    if fact and ("\\leanok" in block.body or "\\isabelleok" in block.body):
         formal = FormalStatus.FOUND
 
     status = NodeStatus(
