@@ -184,24 +184,24 @@ def _dependency_levels(project: BlueprintProject) -> list[DependencyLevel]:
                 queue.append(dependent_id)
 
     levels: dict[int, list[BlueprintNode]] = {}
-    cyclic_nodes: list[BlueprintNode] = []
+    unlevelled_nodes: list[BlueprintNode] = []
     for node in project.nodes:
         if node.id in processed:
             levels.setdefault(level_by_id[node.id], []).append(node)
         else:
-            cyclic_nodes.append(node)
+            unlevelled_nodes.append(node)
 
     rows: list[DependencyLevel] = [
         {"label": f"Level {level}", "level": level, "nodes": nodes, "count": len(nodes), "is_cycle": False}
         for level, nodes in sorted(levels.items())
     ]
-    if cyclic_nodes:
+    if unlevelled_nodes:
         rows.append(
             {
                 "label": "Cycle",
                 "level": None,
-                "nodes": cyclic_nodes,
-                "count": len(cyclic_nodes),
+                "nodes": unlevelled_nodes,
+                "count": len(unlevelled_nodes),
                 "is_cycle": True,
             }
         )
@@ -215,7 +215,7 @@ def _dependency_stats(
     by_id = project.by_id()
     max_level = max(
         (int(row["level"]) for row in levels if row["level"] is not None),
-        default=0,
+        default=-1,
     )
     cycle_count = sum(int(row["count"]) for row in levels if row["is_cycle"])
     missing_dependency_count = sum(

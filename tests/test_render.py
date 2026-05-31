@@ -97,7 +97,10 @@ def test_graph_page_marks_cyclic_dependency_levels(tmp_path: Path):
     render_site(BlueprintProject.from_nodes("cycle", [a, b]), tmp_path)
     body = (tmp_path / "graph.html").read_text(encoding="utf-8")
     assert 'data-level="cycle"' in body
-    assert "Cycle detected" in body
+    assert "Cycle or cycle-dependent path detected" in body
+    index = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert '<div class="status-card-count">0</div>' in index
+    assert "cycle-blocked nodes" in index
 
 
 def test_status_page_includes_summary_and_filter_data(tmp_path: Path):
