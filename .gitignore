@@ -16,6 +16,10 @@ venv/
 env/
 .env
 
+# Node / VS Code extension
+node_modules/
+out/
+
 # IDE / editor
 .vscode/
 .idea/

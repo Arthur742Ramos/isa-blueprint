@@ -52,6 +52,7 @@ jobs:
       - name: Validate minimal example (check / graph / web / tasks / report)
         run: |
           isabelle-blueprint check  examples/minimal
+          isabelle-blueprint compat examples/minimal
           isabelle-blueprint graph  examples/minimal
           isabelle-blueprint web    examples/minimal
           isabelle-blueprint tasks  examples/minimal
@@ -62,4 +63,25 @@ jobs:
         with:
           name: minimal-example-site
           path: examples/minimal/site
+
+  vscode:
+    name: compile VS Code extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+
+      - name: Install extension dependencies
+        run: npm ci
+        working-directory: vscode
+
+      - name: Compile extension
+        run: npm run compile
+        working-directory: vscode
 

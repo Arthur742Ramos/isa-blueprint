@@ -11,11 +11,18 @@ from isabelle_blueprint.agents.tasks import write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.errors import BlueprintError, ValidationError
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
+from isabelle_blueprint.isabelle.compat import check_compatibility, write_compat_report
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
     apply_check_report,
     run_check,
     write_report,
+)
+from isabelle_blueprint.isabelle.dump import (
+    apply_dump_report,
+    inspect_dump_dir,
+    run_dump,
+    write_dump_report,
 )
 from isabelle_blueprint.parser import parse_blueprint_file
 from isabelle_blueprint.render.site import render_site
@@ -113,6 +120,48 @@ def cmd_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dump(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    try:
+        project.validate().raise_if_failed()
+    except ValidationError as exc:
+        print(f"validation failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.from_dir:
+        result = inspect_dump_dir(project, Path(args.from_dir))
+    else:
+        result = run_dump(
+            project,
+            output_dir=config.build_dir / "pide-dump",
+            session_name=config.isabelle_session,
+            isabelle_executable=args.isabelle or config.isabelle_executable,
+            extra_dirs=config.isabelle_dirs,
+            project_root=config.project_root,
+        )
+    write_dump_report(result, config.dump_report_path)
+    apply_dump_report(project, result)
+    write_project_report(project, config.project_json_path)
+    print(f"dump report -> {config.dump_report_path}")
+    if result.error:
+        print(f"note: {result.error}", file=sys.stderr)
+        return 3 if args.strict else 0
+    return 0
+
+
+def cmd_compat(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config = load_config(project_dir)
+    report = check_compatibility(config, isabelle_executable=args.isabelle or config.isabelle_executable)
+    write_compat_report(report, config.compat_report_path)
+    print(f"compat report -> {config.compat_report_path}")
+    for issue in report.issues:
+        stream = sys.stderr if issue.severity == "error" else sys.stdout
+        print(f"{issue.severity}: {issue.code}: {issue.message}", file=stream)
+    return 0 if report.ok or not args.strict else 5
+
+
 def cmd_web(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -168,6 +217,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.set_defaults(func=cmd_graph)
+
+    p_dump = sub.add_parser("dump", help="run or inspect Isabelle PIDE dump output")
+    p_dump.add_argument("project_dir", nargs="?", default=".")
+    p_dump.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_dump.add_argument("--from", dest="from_dir", default=None, help="inspect an existing dump directory")
+    p_dump.add_argument("--strict", action="store_true", help="exit non-zero if dump execution/inspection fails")
+    p_dump.set_defaults(func=cmd_dump)
+
+    p_compat = sub.add_parser("compat", help="check Isabelle/AFP version pins and session visibility")
+    p_compat.add_argument("project_dir", nargs="?", default=".")
+    p_compat.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_compat.add_argument("--strict", action="store_true", help="exit non-zero on compatibility errors")
+    p_compat.set_defaults(func=cmd_compat)
 
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
@@ -234,6 +296,12 @@ blueprint = "blueprint.md"
 [isabelle]
 # session = "My_Session"
 # executable = "isabelle"
+# version = "Isabelle2025-2"
+
+[afp]
+# root = "/path/to/afp"
+# entry = "My_AFP_Entry"
+# required = false
 
 [output]
 build_dir = "build"
@@ -254,8 +322,10 @@ jobs:
           python-version: "3.11"
       - run: pip install isabelle-blueprint
       - run: isabelle-blueprint check .
+      - run: isabelle-blueprint compat .
       - run: isabelle-blueprint graph .
       - run: isabelle-blueprint web .
+      - run: isabelle-blueprint report .
       - uses: actions/upload-artifact@v4
         with:
           name: blueprint-site

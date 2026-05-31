@@ -33,6 +33,16 @@ class FactCheck:
     theory: str | None
     exists: bool
     error: str | None = None
+    proof_status: str | None = None
+    oracles: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.oracles is None:
+            self.oracles = []
+
+    @property
+    def tainted(self) -> bool:
+        return self.proof_status == "tainted" or bool(self.oracles)
 
 
 @dataclass
@@ -49,6 +59,8 @@ class CheckResult:
     facts: list[FactCheck] = field(default_factory=list)
     error: str | None = None
     generated_theory_path: str | None = None
+    proof_checked: bool = False
+    proof_status_path: str | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
@@ -91,6 +103,8 @@ _FACT_ERROR_PATTERNS = [
     re.compile(r'Unknown fact\s*"?([^"\n]+)"?', re.IGNORECASE),
 ]
 
+_PROOF_STATUS_PREFIX = "ISABELLE_BLUEPRINT_FACT\t"
+
 
 def write_report(result: CheckResult, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -127,8 +141,16 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
             node.status.check_error = result.error
             continue
         if record.exists:
-            node.status.formal = FormalStatus.FOUND
-            node.status.check_error = None
+            if record.tainted:
+                node.status.formal = FormalStatus.TAINTED
+                oracle_text = ", ".join(record.oracles) if record.oracles else "detected theorem oracle"
+                node.status.check_error = f"fact depends on {oracle_text}"
+            elif result.proof_checked and record.proof_status == "proved":
+                node.status.formal = FormalStatus.PROVED
+                node.status.check_error = None
+            else:
+                node.status.formal = FormalStatus.FOUND
+                node.status.check_error = None
         else:
             node.status.formal = FormalStatus.NOT_FOUND
             node.status.check_error = record.error
@@ -144,6 +166,7 @@ def run_check(
     extra_dirs: list[Path] | None = None,
     project_root: Path | None = None,
     write_theory: bool = True,
+    proof_status: bool = True,
 ) -> CheckResult:
     """Generate the check theory and (optionally) run ``isabelle build``.
 
@@ -152,7 +175,15 @@ def run_check(
     raising. Each fact's per-node status is set to ``NAMED`` in that case.
     """
     build_dir.mkdir(parents=True, exist_ok=True)
-    theory_text = generate_check_theory(project)
+    proof_status_path = build_dir / "Blueprint_Proof_Status.tsv"
+    check_timestamp = datetime.now(timezone.utc).isoformat()
+    theory_text = generate_check_theory(
+        project,
+        emit_proof_status=proof_status,
+        default_import_session=session_name,
+        proof_status_file=proof_status_path.name,
+        generation_nonce=check_timestamp if proof_status and not proof_status_path.exists() else None,
+    )
     theory_path = build_dir / "Blueprint_Check.thy"
     if write_theory:
         theory_path.write_text(theory_text, encoding="utf-8")
@@ -164,11 +195,13 @@ def run_check(
         for ref in theory_refs
     ]
 
-    isabelle_available = shutil.which(isabelle_executable) is not None
+    resolved_isabelle = shutil.which(isabelle_executable)
+    isabelle_available = resolved_isabelle is not None
     result = CheckResult(
         ran=False,
         isabelle_available=isabelle_available,
         generated_theory_path=str(theory_path),
+        proof_status_path=str(proof_status_path),
         facts=references,
     )
 
@@ -197,7 +230,7 @@ def run_check(
         encoding="utf-8",
     )
 
-    cmd = [isabelle_executable, "build", "-d", str(build_dir)]
+    cmd = [resolved_isabelle or isabelle_executable, "build", "-d", str(build_dir)]
     if project_root is not None:
         cmd.extend(["-d", str(project_root)])
     for d in extra_dirs or []:
@@ -229,10 +262,21 @@ def run_check(
     result.stdout = proc.stdout
     result.stderr = proc.stderr
 
+    proof_status_text = ""
+    if proof_status_path.exists():
+        proof_status_text = proof_status_path.read_text(encoding="utf-8", errors="ignore")
+    proof_markers = _extract_proof_status(
+        proc.stdout + "\n" + proc.stderr + "\n" + proof_status_text
+    )
     bad_facts = _extract_bad_facts(proc.stderr + "\n" + proc.stdout)
     if proc.returncode == 0:
         for fc in result.facts:
             fc.exists = True
+            marker = proof_markers.get((fc.node_id, fc.fact))
+            if marker is not None:
+                fc.proof_status = marker["status"]
+                fc.oracles = marker["oracles"]
+        result.proof_checked = bool(proof_markers)
     else:
         for fc in result.facts:
             if fc.fact in bad_facts:
@@ -263,12 +307,28 @@ def _extract_bad_facts(stderr_text: str) -> dict[str, str]:
     return bad
 
 
+def _extract_proof_status(output_text: str) -> dict[tuple[str, str], dict[str, list[str] | str]]:
+    statuses: dict[tuple[str, str], dict[str, list[str] | str]] = {}
+    for line in output_text.splitlines():
+        if _PROOF_STATUS_PREFIX not in line:
+            continue
+        _, payload = line.split(_PROOF_STATUS_PREFIX, 1)
+        parts = payload.split("\t")
+        if len(parts) < 4:
+            continue
+        node_id, fact, status, oracle_text = parts[:4]
+        oracles = [] if oracle_text in {"", "-"} else [o for o in oracle_text.split(",") if o]
+        statuses[(node_id, fact)] = {"status": status, "oracles": oracles}
+    return statuses
+
+
 # Re-export for convenience.
 __all__ = [
     "CheckResult",
     "FactCheck",
     "CheckerError",
     "apply_check_report",
+    "_extract_proof_status",
     "run_check",
     "write_report",
 ]

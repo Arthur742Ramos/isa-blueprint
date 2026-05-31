@@ -21,11 +21,23 @@ class BlueprintConfig:
     isabelle_session: str | None = None
     isabelle_dirs: list[Path] = field(default_factory=list)
     isabelle_executable: str = "isabelle"
+    isabelle_version: str | None = None
     project_name: str = "Untitled IsabelleBlueprint project"
+    afp_root: Path | None = None
+    afp_entry: str | None = None
+    afp_required: bool = False
 
     @property
     def check_report_path(self) -> Path:
         return self.build_dir / "check_report.json"
+
+    @property
+    def dump_report_path(self) -> Path:
+        return self.build_dir / "dump_report.json"
+
+    @property
+    def compat_report_path(self) -> Path:
+        return self.build_dir / "compat_report.json"
 
     @property
     def project_json_path(self) -> Path:
@@ -75,6 +87,7 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
 
     project_section = raw.get("project", {})
     isabelle_section = raw.get("isabelle", {})
+    afp_section = raw.get("afp", {})
     output_section = raw.get("output", {})
 
     blueprint_path = root / project_section.get("blueprint", DEFAULT_BLUEPRINT_NAME)
@@ -83,7 +96,12 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
     isabelle_session = isabelle_section.get("session")
     isabelle_dirs = [root / d for d in isabelle_section.get("dirs", [])]
     isabelle_executable = isabelle_section.get("executable", "isabelle")
+    isabelle_version = isabelle_section.get("version")
     project_name = project_section.get("name", "Untitled IsabelleBlueprint project")
+    afp_root_raw = afp_section.get("root")
+    afp_root = (root / afp_root_raw).resolve() if afp_root_raw else None
+    afp_entry = afp_section.get("entry")
+    afp_required = bool(afp_section.get("required", False))
 
     return BlueprintConfig(
         project_root=root,
@@ -93,5 +111,9 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
         isabelle_session=isabelle_session,
         isabelle_dirs=isabelle_dirs,
         isabelle_executable=isabelle_executable,
+        isabelle_version=isabelle_version,
         project_name=project_name,
+        afp_root=afp_root,
+        afp_entry=afp_entry,
+        afp_required=afp_required,
     )
