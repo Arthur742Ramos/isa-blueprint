@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-31
+
+The first stable release. The CLI surface, JSON file shapes, and GitHub Action
+outputs documented under [`docs/`](docs/) are now frozen public contracts:
+breaking changes will only ship in a 2.0 line. Everything from the original
+roadmap is shipped, plus the v0.6–v0.9 milestones added during the 1.0 push.
+
+### Added
+
+- **v0.6 — Incremental + parallel `check`.** `isabelle-blueprint check` now
+  understands two new flags:
+  - `--incremental` writes a per-fact cache to `build/check-cache.json`. On
+    subsequent runs, facts whose blueprint inputs, theory/session pins, and
+    upstream dependencies haven't changed are skipped and replayed from the
+    cache, so re-verifying a large blueprint after a small edit no longer
+    re-ships the whole wrapper theory through `isabelle build`.
+  - `--jobs N` forwards `-j N` to `isabelle build` so upstream session builds
+    parallelise without changing the wrapper theory we ship per check.
+  Behaviour without either flag is byte-identical to v0.5.1.
+- **v0.7 — Multi-blueprint projects.** A project may now compose several
+  blueprint files into one dependency graph:
+  - `isabelle-blueprint.toml` accepts `[project].extra_blueprint_paths = [...]`
+    in addition to the existing `blueprint = "..."`. Every CLI command (check,
+    graph, report, web, tasks, dump, comment) loads the union.
+  - Duplicate node ids across blueprints fail loudly with a `BlueprintError`
+    that names both source files instead of silently letting the later
+    blueprint win.
+  - `isabelle-blueprint new ... --append --blueprint <path>` lets you pick
+    which blueprint receives the new stub when the project has more than one.
+- **v0.8 — Graph filtering + trend charts.**
+  - The dependency graph page (`graph.html`) ships an interactive sidebar that
+    filters the SVG by formal status: blueprint-only, named, found, proved,
+    tainted, problem, etc. Non-matching nodes (and edges only touching them)
+    dim out; an "all" pill clears the filter. Implemented as a small vanilla
+    JS file (`static/graph.js`) with a no-op guard so non-graph pages and
+    CSP-strict deployments are unaffected.
+  - `isabelle-blueprint report` now appends a bounded (max 500) JSON history
+    of every run to `build/trends.json`, keyed by `(commit_sha, branch)` so
+    CI matrix re-runs replace rather than duplicate. The static site renders
+    that history as a line chart of coverage / problem count via
+    `static/trends.js`.
+- **v0.9 — Plugin API + PR status comments.**
+  - `isabelle_blueprint.plugins` discovers entry-points in the
+    `isabelle_blueprint.status_providers` group. Providers receive the loaded
+    `BlueprintProject` and return an iterable of annotation dicts. Failures
+    (bad load, non-callable, exception during call, non-iterable result) are
+    caught and surfaced as warnings so a broken third-party plugin can never
+    break the CLI. Additional entry-point groups will be added in subsequent
+    minor releases; this one is the stable starting point.
+  - `isabelle_blueprint.report.pr_comment` posts (or updates, idempotently
+    via a hidden `<!-- isabelle-blueprint:status -->` marker) a Markdown
+    status comment on the current pull request. Reads PR number from
+    `GITHUB_EVENT_PATH`, token from `GITHUB_TOKEN`, repo from
+    `GITHUB_REPOSITORY`, and commit SHA from `GITHUB_SHA`. Uses only the
+    standard library (`urllib`); no new runtime dependency.
+  - New `isabelle-blueprint comment` subcommand. `--preview` writes the body
+    to `build/pr-comment.md` instead of posting (useful for local iteration);
+    `--strict` exits 6 when the PR context can't be resolved so CI can fail
+    loudly if wired by accident.
+- **`docs/cli-contract.md`** documenting every frozen subcommand and flag.
+- **`docs/json-contract.md`** documenting the frozen shapes of `project.json`,
+  `summary.json`, `badge.json`, and `trends.json`.
+
+### Changed
+
+- `pyproject.toml` classifier bumped from `Development Status :: 4 - Beta` to
+  `Development Status :: 5 - Production/Stable`.
+- README: dropped the pre-release install banner; updated the status section
+  for v1.0; documented the `comment` subcommand; marked all roadmap items
+  shipped.
+
 ## [0.5.1] - 2026-05-31
 
 ### Added
@@ -81,6 +152,7 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.1...v1.0.0
 [0.5.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/releases/tag/v0.5.0

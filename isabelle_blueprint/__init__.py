@@ -1,3 +1,3 @@
 """IsabelleBlueprint: planning, dependency tracking, and task orchestration for Isabelle projects."""
 
-__version__ = "0.5.1"
+__version__ = "1.0.0"

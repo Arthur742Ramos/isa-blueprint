@@ -4,7 +4,7 @@
 
 [![blueprint](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml/badge.svg)](https://github.com/Arthur742Ramos/isa-blueprint/actions/workflows/blueprint.yml)
 [![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
-[![status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#roadmap)
+[![status: stable](https://img.shields.io/badge/status-stable-brightgreen.svg)](#roadmap)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 IsabelleBlueprint lets you write a Markdown (or LaTeX) "blueprint" of the theorems, definitions, and lemmas you intend to formalize, link them to concrete Isabelle facts, validate the dependency graph, render a browsable HTML status site, and emit ready-to-execute prompts for AI agents working on the proofs.
@@ -30,9 +30,12 @@ human or an AI agent can start on it right now.
 
 ---
 
-## Status — v0.5
+## Status — v1.0
 
-This release covers the original roadmap end to end. It ships the planner, real Isabelle checks, LaTeX and Markdown blueprint ingestion, PIDE dump inspection, AFP/version-pin compatibility checks, a static status site, agent task generation, and a VS Code extension surface.
+This is the first **stable** release. Everything in the original roadmap, plus
+the v0.6–v0.9 follow-ups, is shipped. The CLI surface, JSON file shapes, and
+GitHub Action outputs are now frozen public contracts documented under
+[`docs/`](docs/) — breaking changes will only ship in a 2.0 line.
 
 What works today:
 
@@ -53,14 +56,14 @@ What works today:
 - ✅ Minimal end-to-end example under [`examples/minimal/`](examples/minimal)
 - ✅ Real AFP integration example under [`examples/afp-gale-stewart/`](examples/afp-gale-stewart) — cross-session `check` proving Gale–Stewart determinacy against the published `GaleStewart_Games` entry
 - ✅ pytest suite + cross-platform CI (Ubuntu + Windows, Python 3.11/3.12/3.13)
+- ✅ **v0.6** — `check --incremental` (per-fact cache in `build/check-cache.json`) and `check --jobs N` (parallel session builds)
+- ✅ **v0.7** — Multi-blueprint projects via `[project].extra_blueprint_paths` with duplicate-id detection across sources
+- ✅ **v0.8** — Click-through formal-status filter on the dependency graph (`graph.html`) and bounded coverage/problem trend chart from `build/trends.json`
+- ✅ **v0.9** — Plugin API (`isabelle_blueprint.status_providers` entry-point group), plus `isabelle-blueprint comment` for idempotent PR status comments (urllib-only, no extra deps)
 
 ---
 
 ## Install
-
-> **Pre-release:** until the first PyPI publish lands (see the roadmap), install
-> from a checkout. The published-package command below is the intended path once
-> `isabelle-blueprint` is on PyPI.
 
 ```bash
 pip install isabelle-blueprint
@@ -122,6 +125,10 @@ isabelle-blueprint tasks
 
 # 8. Produce JSON and Markdown status reports.
 isabelle-blueprint report
+
+# 9. Post (or update) a GitHub PR status comment.
+#    Use --preview to write build/pr-comment.md locally without touching GitHub.
+isabelle-blueprint comment --preview
 ```
 
 Try it on the bundled examples (no Isabelle required for `report` / `graph` / `tasks`):
@@ -585,28 +592,34 @@ Everything is optional — the defaults shown above are also what `init` writes 
 
 ## Roadmap
 
-Everything in the original roadmap is shipped:
+Everything is shipped — IsabelleBlueprint is now at **v1.0**, with frozen CLI,
+JSON, and GitHub Action contracts documented under [`docs/`](docs/).
 
 - ✅ **v0.2** — LaTeX blueprint parser for Lean Blueprint-style sources.
 - ✅ **v0.3** — PIDE / `dump` integration, true `proved` status, and `sorry` / oracle detection.
 - ✅ **v0.4** — AFP compatibility and version-pin checks.
 - ✅ **v0.5** — VS Code extension surfacing blueprint state inline in the editor.
-
-Where we are heading next:
-
-- 🔜 **v0.6** — Incremental + parallel `check` over the PIDE protocol, so large
-  blueprints re-verify only the nodes whose Isabelle sources changed.
-- 🔜 **v0.7** — Multi-blueprint / multi-session projects: compose several
-  blueprints into one dependency graph and one status site.
-- 🟡 **v0.8** — Richer web UI: ✅ shareable status badge (`badge.json` +
-  `badge.svg`) and ✅ interactive status table filters landed in v0.5.1;
-  click-through graph filtering and trend charts are still to come.
-- 🟡 **v0.9** — ✅ First-class GitHub Action outputs (`$GITHUB_OUTPUT` +
-  `$GITHUB_STEP_SUMMARY`) landed in v0.5.1; the full plugin API for custom
-  node kinds, status providers, and report renderers (plus PR status
-  comments) is still to come.
-- 🎯 **v1.0** — First stable PyPI release with a stable CLI/JSON contract,
-  semantic versioning guarantees, and end-to-end documentation.
+- ✅ **v0.6** — `check --incremental` (per-fact cache) and `check --jobs N` so
+  large blueprints re-verify only the nodes whose inputs changed and upstream
+  session builds parallelise.
+- ✅ **v0.7** — Multi-blueprint / multi-session projects: `[project].extra_blueprint_paths`
+  composes several blueprints into one dependency graph, with duplicate-id
+  detection across sources and `new --append --blueprint <path>` to target a
+  specific file.
+- ✅ **v0.8** — Richer web UI: shareable status badge (`badge.json` +
+  `badge.svg`), interactive status table filters, click-through formal-status
+  filter on the dependency graph (`graph.html`), and a coverage / problem-count
+  trend chart driven by `build/trends.json`.
+- ✅ **v0.9** — First-class GitHub Action outputs (`$GITHUB_OUTPUT` +
+  `$GITHUB_STEP_SUMMARY`), plus a plugin API
+  (`isabelle_blueprint.status_providers` entry-point group) and idempotent PR
+  status comments via `isabelle-blueprint comment` (urllib-only, no new
+  runtime deps).
+- ✅ **v1.0** — First stable release with the CLI surface, JSON file shapes,
+  and GitHub Action outputs all frozen as public contracts documented in
+  [`docs/cli-contract.md`](docs/cli-contract.md) and
+  [`docs/json-contract.md`](docs/json-contract.md). Future minor releases will
+  add features without breaking these surfaces.
 
 Have an idea? Open an issue on
 [GitHub](https://github.com/Arthur742Ramos/isa-blueprint/issues) — the roadmap
