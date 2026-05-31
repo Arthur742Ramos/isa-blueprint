@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+.env
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IsabelleBlueprint outputs
+site/
+build/
+
+# Isabelle
+.isabelle/
+*.heap

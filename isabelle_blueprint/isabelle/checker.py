@@ -1,0 +1,260 @@
+"""Run the Isabelle checker.
+
+This module is tolerant of a missing ``isabelle`` binary: it always produces a
+``check_report.json`` describing what happened, even when no actual build was
+attempted. That keeps the rest of the pipeline (graph colouring, web site, agent
+task generation) functional in dev environments without Isabelle installed.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import time
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+from isabelle_blueprint.errors import CheckerError
+from isabelle_blueprint.isabelle.theory_gen import (
+    generate_check_theory,
+    group_facts_by_theory,
+)
+from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import FormalStatus
+
+
+@dataclass
+class FactCheck:
+    node_id: str
+    fact: str
+    theory: str | None
+    exists: bool
+    error: str | None = None
+
+
+@dataclass
+class CheckResult:
+    """Outcome of running the Isabelle checker."""
+
+    ran: bool
+    invoked_command: list[str] = field(default_factory=list)
+    isabelle_available: bool = False
+    return_code: int | None = None
+    duration_seconds: float = 0.0
+    stdout: str = ""
+    stderr: str = ""
+    facts: list[FactCheck] = field(default_factory=list)
+    error: str | None = None
+    generated_theory_path: str | None = None
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["facts"] = [asdict(f) for f in self.facts]
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CheckResult":
+        """Reconstruct a :class:`CheckResult` from a previously-serialised dict.
+
+        Unknown fields in *data* are ignored; missing fields fall back to
+        dataclass defaults. This makes the round-trip resilient as new fields
+        are added.
+        """
+        from dataclasses import fields as dc_fields
+
+        known = {f.name for f in dc_fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known and k != "facts"}
+        facts_raw = data.get("facts") or []
+        fact_known = {f.name for f in dc_fields(FactCheck)}
+        facts = [
+            FactCheck(**{k: v for k, v in fc.items() if k in fact_known})
+            for fc in facts_raw
+        ]
+        result = cls(**kwargs)
+        result.facts = facts
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Pattern to recognise unresolved @{thm ...} errors.
+# Examples from Isabelle stderr:
+#   *** Undefined fact: "Foo.bar"
+#   *** Bad fact "Foo.bar"
+# ---------------------------------------------------------------------------
+_FACT_ERROR_PATTERNS = [
+    re.compile(r'Undefined fact:\s*"?([^"\n]+)"?', re.IGNORECASE),
+    re.compile(r'Bad fact\s*"?([^"\n]+)"?', re.IGNORECASE),
+    re.compile(r'Unknown fact\s*"?([^"\n]+)"?', re.IGNORECASE),
+]
+
+
+def write_report(result: CheckResult, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+
+
+def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
+    """Update each node's ``status.formal`` based on the check report.
+
+    When the checker did not actually run (no Isabelle on PATH, no session
+    configured, or invocation failed), every node with a declared fact name is
+    set to :attr:`FormalStatus.NAMED` — the user claimed a fact name but we
+    have not yet *confirmed* the fact exists in any session. Only an actual
+    successful build flips a node to :attr:`FormalStatus.FOUND`, and only a
+    failed build that explicitly named the fact flips a node to
+    :attr:`FormalStatus.NOT_FOUND`.
+    """
+    by_fact = {fc.fact: fc for fc in result.facts}
+    for node in project.nodes:
+        fact = node.isabelle.fact
+        if not fact:
+            node.status.formal = FormalStatus.MISSING
+            continue
+        node.status.last_checked = result.timestamp
+        if not result.ran:
+            # We never actually invoked the build; treat all named facts as
+            # claimed-but-unverified regardless of any default record content.
+            node.status.formal = FormalStatus.NAMED
+            node.status.check_error = result.error
+            continue
+        record = by_fact.get(fact)
+        if record is None:
+            node.status.formal = FormalStatus.NAMED
+            node.status.check_error = result.error
+            continue
+        if record.exists:
+            node.status.formal = FormalStatus.FOUND
+            node.status.check_error = None
+        else:
+            node.status.formal = FormalStatus.NOT_FOUND
+            node.status.check_error = record.error
+    project.recompute_agent_status()
+
+
+def run_check(
+    project: BlueprintProject,
+    *,
+    build_dir: Path,
+    session_name: str | None = None,
+    isabelle_executable: str = "isabelle",
+    extra_dirs: list[Path] | None = None,
+    write_theory: bool = True,
+) -> CheckResult:
+    """Generate the check theory and (optionally) run ``isabelle build``.
+
+    If ``session_name`` is ``None`` or the Isabelle binary is unavailable, we
+    skip the build step and return a report describing the situation without
+    raising. Each fact's per-node status is set to ``NAMED`` in that case.
+    """
+    build_dir.mkdir(parents=True, exist_ok=True)
+    theory_text = generate_check_theory(project)
+    theory_path = build_dir / "Blueprint_Check.thy"
+    if write_theory:
+        theory_path.write_text(theory_text, encoding="utf-8")
+
+    grouped = group_facts_by_theory(project)
+    references = [
+        FactCheck(node_id=ref.node_id, fact=ref.fact, theory=ref.theory, exists=False)
+        for theory_refs in grouped.values()
+        for ref in theory_refs
+    ]
+
+    isabelle_available = shutil.which(isabelle_executable) is not None
+    result = CheckResult(
+        ran=False,
+        isabelle_available=isabelle_available,
+        generated_theory_path=str(theory_path),
+        facts=references,
+    )
+
+    if not isabelle_available:
+        result.error = (
+            f"Isabelle executable {isabelle_executable!r} not found on PATH; "
+            "skipped build. Fact-existence is assumed unverified."
+        )
+        return result
+
+    if session_name is None:
+        result.error = (
+            "No Isabelle session configured (set [isabelle].session in "
+            "isabelle-blueprint.toml); skipped build."
+        )
+        return result
+
+    cmd = [isabelle_executable, "build", "-d", "."]
+    for d in extra_dirs or []:
+        cmd.extend(["-d", str(d)])
+    cmd.append(session_name)
+    result.invoked_command = cmd
+
+    start = time.monotonic()
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(build_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        # Binary resolved on PATH but couldn't actually be launched (stale
+        # shim, broken symlink, permission error, etc.). From the pipeline's
+        # point of view that's the same as "not available".
+        result.error = f"failed to invoke {isabelle_executable!r}: {exc}"
+        result.isabelle_available = False
+        return result
+    finally:
+        result.duration_seconds = time.monotonic() - start
+
+    result.ran = True
+    result.return_code = proc.returncode
+    result.stdout = proc.stdout
+    result.stderr = proc.stderr
+
+    bad_facts = _extract_bad_facts(proc.stderr + "\n" + proc.stdout)
+    fact_map = {fc.fact: fc for fc in result.facts}
+    if proc.returncode == 0:
+        for fc in result.facts:
+            fc.exists = True
+    else:
+        for fc in result.facts:
+            if fc.fact in bad_facts:
+                fc.exists = False
+                fc.error = bad_facts[fc.fact]
+            else:
+                # If the build failed but this particular fact wasn't named in
+                # the error, we can't tell whether it existed. Mark unknown.
+                fc.exists = False
+                fc.error = "build failed; existence unknown"
+        if not bad_facts:
+            result.error = (
+                f"isabelle build returned {proc.returncode} with no recognised fact errors"
+            )
+
+    return result
+
+
+def _extract_bad_facts(stderr_text: str) -> dict[str, str]:
+    bad: dict[str, str] = {}
+    for line in stderr_text.splitlines():
+        for pattern in _FACT_ERROR_PATTERNS:
+            m = pattern.search(line)
+            if m:
+                name = m.group(1).strip()
+                bad[name] = line.strip()
+                break
+    return bad
+
+
+# Re-export for convenience.
+__all__ = [
+    "CheckResult",
+    "FactCheck",
+    "CheckerError",
+    "apply_check_report",
+    "run_check",
+    "write_report",
+]
