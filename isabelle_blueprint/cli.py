@@ -35,6 +35,10 @@ from isabelle_blueprint.report.github_actions import (
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.markdown_report import write_markdown_report
 from isabelle_blueprint.report.metrics import build_status_metrics, output_values
+from isabelle_blueprint.report.pr_comment import (
+    post_or_update_pr_comment,
+    write_pr_comment_preview,
+)
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 
 
@@ -281,6 +285,25 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_comment(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    if args.preview:
+        preview_path = write_pr_comment_preview(project, config.build_dir / "pr-comment.md")
+        print(f"pr comment preview -> {preview_path}")
+        return 0
+    result = post_or_update_pr_comment(project)
+    if result.status == "skipped":
+        print(f"pr comment skipped: {result.reason}")
+        return 0 if not args.strict else 6
+    if result.url:
+        print(f"pr comment {result.status} -> {result.url}")
+    else:
+        print(f"pr comment {result.status}")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="isabelle-blueprint", description="Isabelle-aware blueprint tooling.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -356,6 +379,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
     p_report.set_defaults(func=cmd_report)
+
+    p_comment = sub.add_parser(
+        "comment",
+        help="post or update a GitHub PR status comment (or preview the body locally)",
+    )
+    p_comment.add_argument("project_dir", nargs="?", default=".")
+    p_comment.add_argument(
+        "--preview",
+        action="store_true",
+        help="write the comment body to build/pr-comment.md instead of posting",
+    )
+    p_comment.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero when the PR context (token, repo, PR number) cannot be resolved",
+    )
+    p_comment.set_defaults(func=cmd_comment)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
