@@ -203,30 +203,30 @@ request. Added in v0.9.
 - `--preview` writes the body to `build/pr-comment.md` instead of touching
   GitHub. Always exits 0.
 
-  ### `doctor`
+### `doctor`
 
-  ```text
-  isabelle-blueprint doctor [project_dir]
-                            [--isabelle PATH]
-                            [--json]
-                            [--output PATH]
-                            [--strict]
-  ```
+```text
+isabelle-blueprint doctor [project_dir]
+                          [--isabelle PATH]
+                          [--json]
+                          [--output PATH]
+                          [--strict]
+```
 
-  Diagnoses local setup: Python/package version, config loading, blueprint
-  validation, writable output directories, Graphviz, Isabelle, and AFP paths.
-  `--json` emits the structured report. `--strict` exits 7 when any diagnostic is
-  an error.
+Diagnoses local setup: Python/package version, config loading, blueprint
+validation, writable output directories, Graphviz, Isabelle, and AFP paths.
+`--json` emits the structured report. `--strict` exits 7 when any diagnostic is
+an error.
 
-  ### `schema`
+### `schema`
 
-  ```text
-  isabelle-blueprint schema [name] [--out DIR]
-  ```
+```text
+isabelle-blueprint schema [name] [--out DIR]
+```
 
-  Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
-  writes one/all schemas to `DIR`. Available names are `project`, `graph`,
-  `tasks`, `summary`, `config`, and `plugin-annotations`.
+Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
+writes one/all schemas to `DIR`. Available names are `project`, `graph`,
+`tasks`, `summary`, `config`, and `plugin-annotations`.
 
 ### `new`
 
