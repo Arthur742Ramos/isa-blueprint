@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.6.0. Subcommand names, flag names, default values,
+command-line tool as of v1.7.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -188,7 +188,13 @@ affect generated issue drafts and sync payloads. Sync plans also include
 ### `next`
 
 ```text
-isabelle-blueprint next [project_dir] [--node NODE_OR_TASK] [--json] [--output PATH]
+isabelle-blueprint next [project_dir]
+                        [--node NODE_OR_TASK]
+                        [--json]
+                        [--output PATH]
+                        [--kind KIND]
+                        [--priority high|medium|low]
+                        [--difficulty low|medium|high]
 ```
 
 Prints the Markdown prompt for the next ready proof task, using the same stable
@@ -199,15 +205,20 @@ read-only and does not require prompt files to have been generated first.
 - `--node` accepts either a task id such as `task-main` or a blueprint node id
   such as `main`. Exact task ids are resolved before node ids when names could
   overlap.
-- `--json` emits a clean payload with `task`, `prompt`, `prompt_path`, and
-  `message`. When no ready task exists, the command exits 0 with `task`,
-  `prompt`, and `prompt_path` set to `null`. Selecting an unknown or currently
-  blocked/proved node is a `BlueprintError` and exits 1.
+- `--json` emits a clean payload with `task`, `prompt`, `prompt_path`,
+  `message`, filter metadata, and ready-task counts. When no ready task exists,
+  the command exits 0 with `task`, `prompt`, and `prompt_path` set to `null`.
+  Selecting an unknown or currently blocked/proved node is a `BlueprintError`
+  and exits 1.
 - `--output PATH` (added in v1.5.2) writes the selected prompt to `PATH`,
   creating parent directories as needed. It does not write anything when no
   ready task exists or when selector validation fails. Text output still prints
   the prompt to stdout and reports the written path on stderr; JSON output
   records the absolute path in `prompt_path`.
+- `--kind`, `--priority`, and `--difficulty` (added in v1.7) are repeatable
+  filters for interactive selection. They narrow automatic selection and must
+  also match an explicit `--node` selector when one is supplied. They do not
+  rewrite `build/tasks.json`; use `tasks` for the full canonical queue.
 
 ### `attempt`
 
@@ -221,6 +232,9 @@ isabelle-blueprint attempt [project_dir]
                           [--timeout SECONDS]
                           [--incremental]
                           [--jobs N]
+                          [--kind KIND]
+                          [--priority high|medium|low]
+                          [--difficulty low|medium|high]
                           [--record-outcome OUTCOME]
                           [--summary TEXT]
                           [--details TEXT]
@@ -236,9 +250,13 @@ attempt. By default it writes the prompt to
 `next`. `--check` runs the normal `check` pipeline after writing the prompt.
 `--record-outcome` records post-attempt memory and requires a non-empty
 `--summary`; valid outcomes match the `memory --outcome` choices.
+`--kind`, `--priority`, and `--difficulty` (added in v1.7) select from the same
+filtered ready-task view as `next`.
 
-`--json` emits `task`, `prompt_path`, `check`, `memory`, and `message`. When no
-ready task exists, those object fields are `null` and the command exits 0.
+`--json` emits `task`, `prompt_path`, `check`, `memory`, `message`, filter
+metadata, and ready-task counts. When no ready task exists, those object fields
+are `null` and the command exits 0. If filters exclude existing ready tasks,
+`message` reports that filtered state instead of implying the project is empty.
 
 ### `report`
 
@@ -363,6 +381,9 @@ All artifact paths embedded in the payload are project-root-relative POSIX-style
 strings when the artifact lives under the project root. Existing `status`,
 `roadmap`, and `tasks` ordering and classification rules are reused rather than
 recomputed independently.
+Recommended command bundles include direct `attempt --check` guidance when a
+suggested task exists, plus the lower-level memory-recording command for
+post-attempt notes.
 
 ### `comment`
 

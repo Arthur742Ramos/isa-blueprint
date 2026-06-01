@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -59,6 +60,7 @@ from isabelle_blueprint.isabelle.theory_import import (
     render_imported_blueprint,
 )
 from isabelle_blueprint.model.node import NodeKind
+from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.render.site import render_site
@@ -98,6 +100,27 @@ from isabelle_blueprint.templates import (
 
 if TYPE_CHECKING:
     from isabelle_blueprint.model.project import BlueprintProject
+
+READY_TASK_PRIORITIES = ("high", "medium", "low")
+READY_TASK_DIFFICULTIES = ("low", "medium", "high")
+
+
+@dataclass(frozen=True)
+class ReadyTaskFilters:
+    kinds: tuple[str, ...] = ()
+    priorities: tuple[str, ...] = ()
+    difficulties: tuple[str, ...] = ()
+
+    @property
+    def active(self) -> bool:
+        return bool(self.kinds or self.priorities or self.difficulties)
+
+    def to_dict(self) -> dict[str, list[str]]:
+        return {
+            "kind": list(self.kinds),
+            "priority": list(self.priorities),
+            "difficulty": list(self.difficulties),
+        }
 
 
 def _load(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:
@@ -163,6 +186,73 @@ def _roadmap_filters_from_args(args: argparse.Namespace) -> RoadmapFilters:
         stages=_dedupe_int(getattr(args, "stage", None)),
         kinds=_dedupe(getattr(args, "kind", None)),
     )
+
+
+def _ready_task_filters_from_args(args: argparse.Namespace) -> ReadyTaskFilters:
+    return ReadyTaskFilters(
+        kinds=_dedupe(getattr(args, "kind", None)),
+        priorities=_dedupe(getattr(args, "priority", None)),
+        difficulties=_dedupe(getattr(args, "difficulty", None)),
+    )
+
+
+def _filter_ready_tasks(tasks: list[AgentTask], filters: ReadyTaskFilters) -> list[AgentTask]:
+    if not filters.active:
+        return tasks
+    return [task for task in tasks if _task_matches_filters(task, filters)]
+
+
+def _task_matches_filters(task: AgentTask, filters: ReadyTaskFilters) -> bool:
+    if filters.kinds and task.kind not in filters.kinds:
+        return False
+    metadata = task.metadata
+    if filters.priorities and (
+        metadata is None or metadata.priority not in filters.priorities
+    ):
+        return False
+    if filters.difficulties and (
+        metadata is None or metadata.difficulty not in filters.difficulties
+    ):
+        return False
+    return True
+
+
+def _selection_metadata(
+    filters: ReadyTaskFilters,
+    *,
+    ready_task_count: int,
+    filtered_ready_task_count: int,
+) -> dict[str, object]:
+    return {
+        "filters": filters.to_dict(),
+        "ready_task_count": ready_task_count,
+        "filtered_ready_task_count": filtered_ready_task_count,
+    }
+
+
+def _format_ready_task_filters(filters: ReadyTaskFilters) -> str:
+    parts: list[str] = []
+    if filters.kinds:
+        parts.append(f"kind={','.join(filters.kinds)}")
+    if filters.priorities:
+        parts.append(f"priority={','.join(filters.priorities)}")
+    if filters.difficulties:
+        parts.append(f"difficulty={','.join(filters.difficulties)}")
+    return "; ".join(parts)
+
+
+def _no_ready_task_message(ready_task_count: int, filters: ReadyTaskFilters) -> str:
+    if filters.active and ready_task_count:
+        excluded = (
+            "1 ready task was excluded"
+            if ready_task_count == 1
+            else f"{ready_task_count} ready tasks were excluded"
+        )
+        return (
+            "No ready tasks match the requested filters "
+            f"({_format_ready_task_filters(filters)}); {excluded}."
+        )
+    return "No ready tasks are currently available."
 
 
 def _validate_roadmap_filters(roadmap_stage_count: int, filters: RoadmapFilters) -> None:
@@ -573,10 +663,23 @@ def cmd_next(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
-    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-    task = _select_ready_task(ready_tasks, args.node, project)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    task = _select_ready_task(
+        ready_tasks,
+        args.node,
+        project,
+        filters=filters,
+        unfiltered_ready_tasks=all_ready_tasks,
+    )
     if task is None:
-        message = "No ready tasks are currently available."
+        message = _no_ready_task_message(len(all_ready_tasks), filters)
+        metadata = _selection_metadata(
+            filters,
+            ready_task_count=len(all_ready_tasks),
+            filtered_ready_task_count=len(ready_tasks),
+        )
         if args.json:
             print(
                 json.dumps(
@@ -585,6 +688,7 @@ def cmd_next(args: argparse.Namespace) -> int:
                         "prompt": None,
                         "prompt_path": None,
                         "message": message,
+                        **metadata,
                     },
                     indent=2,
                 )
@@ -595,6 +699,11 @@ def cmd_next(args: argparse.Namespace) -> int:
 
     prompt = render_task_prompt(task)
     prompt_path = _write_next_prompt(prompt, args.output)
+    metadata = _selection_metadata(
+        filters,
+        ready_task_count=len(all_ready_tasks),
+        filtered_ready_task_count=len(ready_tasks),
+    )
     if args.json:
         print(
             json.dumps(
@@ -603,6 +712,7 @@ def cmd_next(args: argparse.Namespace) -> int:
                     "prompt": prompt,
                     "prompt_path": str(prompt_path) if prompt_path is not None else None,
                     "message": f"Selected {task.id}.",
+                    **metadata,
                 },
                 indent=2,
             )
@@ -620,15 +730,29 @@ def cmd_attempt(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
-    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-    task = _select_ready_task(ready_tasks, args.node, project)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    task = _select_ready_task(
+        ready_tasks,
+        args.node,
+        project,
+        filters=filters,
+        unfiltered_ready_tasks=all_ready_tasks,
+    )
     if task is None:
+        message = _no_ready_task_message(len(all_ready_tasks), filters)
         no_task_payload: dict[str, object] = {
             "task": None,
             "prompt_path": None,
             "check": None,
             "memory": None,
-            "message": "No ready tasks are currently available.",
+            "message": message,
+            **_selection_metadata(
+                filters,
+                ready_task_count=len(all_ready_tasks),
+                filtered_ready_task_count=len(ready_tasks),
+            ),
         }
         if args.json:
             print(json.dumps(no_task_payload, indent=2))
@@ -665,6 +789,11 @@ def cmd_attempt(args: argparse.Namespace) -> int:
         "check": check_payload,
         "memory": memory_payload,
         "message": f"Prepared {task.id}.",
+        **_selection_metadata(
+            filters,
+            ready_task_count=len(all_ready_tasks),
+            filtered_ready_task_count=len(ready_tasks),
+        ),
     }
     if args.json:
         print(json.dumps(payload, indent=2))
@@ -725,11 +854,16 @@ def _select_ready_task(
     ready_tasks: list[AgentTask],
     selector: str | None,
     project: BlueprintProject,
+    *,
+    filters: ReadyTaskFilters | None = None,
+    unfiltered_ready_tasks: list[AgentTask] | None = None,
 ) -> AgentTask | None:
     if selector is None:
         # Keep `next`, `roadmap`, and `agent-context` aligned on the same ordering.
         return ready_tasks[0] if ready_tasks else None
 
+    filters = filters or ReadyTaskFilters()
+    unfiltered_ready_tasks = unfiltered_ready_tasks or ready_tasks
     for task in ready_tasks:
         if task.id == selector:
             return task
@@ -737,21 +871,62 @@ def _select_ready_task(
         if task.node_id == selector:
             return task
 
+    for task in unfiltered_ready_tasks:
+        if task.id == selector or task.node_id == selector:
+            raise BlueprintError(_filter_mismatch_message(task, filters))
+
     by_id = project.by_id()
     candidate_node_id = selector.removeprefix("task-") if selector.startswith("task-") else selector
     if selector in by_id:
-        node = by_id[selector]
-        raise BlueprintError(
-            f"node {selector!r} is not currently ready for a task "
-            f"(formal status: {node.status.formal.value})"
-        )
+        raise BlueprintError(_not_ready_node_message(selector, project))
     if candidate_node_id in by_id:
-        node = by_id[candidate_node_id]
-        raise BlueprintError(
-            f"node {candidate_node_id!r} is not currently ready for a task "
-            f"(formal status: {node.status.formal.value})"
-        )
+        raise BlueprintError(_not_ready_node_message(candidate_node_id, project))
     raise BlueprintError(f"unknown ready task or node {selector!r}")
+
+
+def _filter_mismatch_message(task: AgentTask, filters: ReadyTaskFilters) -> str:
+    mismatches: list[str] = []
+    if filters.kinds and task.kind not in filters.kinds:
+        mismatches.append(f"kind={task.kind} does not match --kind={','.join(filters.kinds)}")
+    metadata = task.metadata
+    priority = metadata.priority if metadata is not None else None
+    difficulty = metadata.difficulty if metadata is not None else None
+    if filters.priorities and priority not in filters.priorities:
+        actual = priority or "unknown"
+        mismatches.append(f"priority={actual} does not match --priority={','.join(filters.priorities)}")
+    if filters.difficulties and difficulty not in filters.difficulties:
+        actual = difficulty or "unknown"
+        mismatches.append(f"difficulty={actual} does not match --difficulty={','.join(filters.difficulties)}")
+    detail = "; ".join(mismatches) if mismatches else _format_ready_task_filters(filters)
+    return f"ready task {task.id!r} was excluded by filters ({detail})"
+
+
+def _not_ready_node_message(node_id: str, project: BlueprintProject) -> str:
+    node = project.by_id()[node_id]
+    details = [f"formal status: {node.status.formal.value}"]
+    blockers = _readiness_blockers(node_id, project)
+    if blockers:
+        details.append(f"blocked by {_format_readiness_blockers(blockers)}")
+    return f"node {node_id!r} is not currently ready for a task ({'; '.join(details)})"
+
+
+def _readiness_blockers(node_id: str, project: BlueprintProject) -> list[str]:
+    by_id = project.by_id()
+    node = by_id[node_id]
+    blockers: list[str] = []
+    for dep_id in node.uses:
+        dependency = by_id.get(dep_id)
+        if dependency is None:
+            blockers.append(f"{dep_id} (missing dependency)")
+        elif dependency.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+            blockers.append(f"{dep_id} (formal status: {dependency.status.formal.value})")
+    return blockers
+
+
+def _format_readiness_blockers(blockers: list[str]) -> str:
+    shown = blockers[:5]
+    suffix = "" if len(blockers) <= len(shown) else f", and {len(blockers) - len(shown)} more"
+    return ", ".join(shown) + suffix
 
 
 def _completed_node_ids(project: BlueprintProject) -> set[str]:
@@ -1067,6 +1242,24 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
     p_next.add_argument("--output", default=None, metavar="PATH", help="also write the selected prompt to PATH")
+    p_next.add_argument(
+        "--kind",
+        action="append",
+        choices=tuple(kind.value for kind in NodeKind),
+        help="only consider ready tasks of this node kind; repeat to include multiple kinds",
+    )
+    p_next.add_argument(
+        "--priority",
+        action="append",
+        choices=READY_TASK_PRIORITIES,
+        help="only consider ready tasks with this priority; repeat to include multiple priorities",
+    )
+    p_next.add_argument(
+        "--difficulty",
+        action="append",
+        choices=READY_TASK_DIFFICULTIES,
+        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
+    )
     p_next.set_defaults(func=cmd_next)
 
     p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
@@ -1089,6 +1282,24 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_attempt.add_argument("--timeout", type=float, default=None, help="timeout for --check")
     p_attempt.add_argument("--incremental", action="store_true", help="use check-cache.json during --check")
     p_attempt.add_argument("--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check")
+    p_attempt.add_argument(
+        "--kind",
+        action="append",
+        choices=tuple(kind.value for kind in NodeKind),
+        help="only consider ready tasks of this node kind; repeat to include multiple kinds",
+    )
+    p_attempt.add_argument(
+        "--priority",
+        action="append",
+        choices=READY_TASK_PRIORITIES,
+        help="only consider ready tasks with this priority; repeat to include multiple priorities",
+    )
+    p_attempt.add_argument(
+        "--difficulty",
+        action="append",
+        choices=READY_TASK_DIFFICULTIES,
+        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
+    )
     p_attempt.add_argument(
         "--record-outcome",
         choices=sorted(VALID_OUTCOMES),

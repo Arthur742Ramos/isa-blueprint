@@ -310,6 +310,56 @@ def test_cli_next_can_select_by_node_id_or_task_id(tmp_path: Path, capsys):
     assert "# Task: HELPER" in helper_prompt
 
 
+def test_cli_next_filters_ready_tasks_by_kind_priority_and_difficulty(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc_kind = cli_main(["next", str(tmp_path), "--kind", "lemma", "--json"])
+    kind_payload = json.loads(capsys.readouterr().out)
+    rc_priority = cli_main(["next", str(tmp_path), "--priority", "high", "--json"])
+    priority_payload = json.loads(capsys.readouterr().out)
+    rc_difficulty = cli_main(["next", str(tmp_path), "--difficulty", "medium", "--json"])
+    difficulty_payload = json.loads(capsys.readouterr().out)
+
+    assert rc_kind == 0
+    assert kind_payload["task"]["id"] == "task-helper"
+    assert kind_payload["filters"]["kind"] == ["lemma"]
+    assert kind_payload["ready_task_count"] == 2
+    assert kind_payload["filtered_ready_task_count"] == 1
+    assert rc_priority == 0
+    assert priority_payload["task"]["id"] == "task-main"
+    assert priority_payload["filters"]["priority"] == ["high"]
+    assert rc_difficulty == 0
+    assert difficulty_payload["task"]["id"] == "task-main"
+    assert difficulty_payload["filtered_ready_task_count"] == 2
+
+
+def test_cli_next_filter_no_match_reports_excluded_ready_tasks(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["next", str(tmp_path), "--difficulty", "low", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"] is None
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 0
+    assert data["filters"]["difficulty"] == ["low"]
+    assert "No ready tasks match the requested filters" in data["message"]
+    assert "2 ready tasks were excluded" in data["message"]
+
+
+def test_cli_next_reports_filter_mismatch_for_explicit_selector(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["next", str(tmp_path), "--node", "helper", "--kind", "theorem"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "ready task 'task-helper' was excluded by filters" in captured.err
+    assert "kind=lemma does not match --kind=theorem" in captured.err
+
+
 def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):
     project = BlueprintProject.from_nodes("done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
     _write_next_project(tmp_path, project)
@@ -324,6 +374,20 @@ def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):
     assert "No ready tasks" in data["message"]
 
 
+def test_cli_attempt_filters_default_ready_task(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["attempt", str(tmp_path), "--kind", "lemma", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"]["id"] == "task-helper"
+    assert data["filters"]["kind"] == ["lemma"]
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 1
+    assert Path(data["prompt_path"]).name == "task-helper.md"
+
+
 def test_cli_next_reports_known_but_blocked_node(tmp_path: Path, capsys):
     _write_next_project(tmp_path, _next_project())
 
@@ -333,6 +397,7 @@ def test_cli_next_reports_known_but_blocked_node(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "node 'later' is not currently ready" in captured.err
+    assert "blocked by main (formal status: named)" in captured.err
 
 
 def _next_project() -> BlueprintProject:
