@@ -131,12 +131,21 @@ def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
 def test_write_tasks_can_emit_github_issue_drafts(tmp_path: Path):
     project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", statement="stmt")])
 
-    paths = write_tasks(project, tmp_path, github_issues=True)
+    paths = write_tasks(
+        project,
+        tmp_path,
+        github_issues=True,
+        github_issue_labels=["proof-review"],
+        github_issue_assignees=["alice"],
+    )
 
     issue_path = paths["github_issues"]
     data = json.loads(issue_path.read_text(encoding="utf-8"))
     assert data["issues"][0]["title"] == "Formalize A"
     assert "agent-task" in data["issues"][0]["labels"]
+    assert "difficulty:low" in data["issues"][0]["labels"]
+    assert "proof-review" in data["issues"][0]["labels"]
+    assert data["issues"][0]["assignees"] == ["alice"]
 
 
 def test_cli_next_prints_suggested_prompt(tmp_path: Path, capsys):
@@ -223,6 +232,68 @@ def test_cli_next_output_is_not_written_when_selector_is_rejected(tmp_path: Path
     assert captured.out == ""
     assert "node 'later' is not currently ready" in captured.err
     assert not output.exists()
+
+
+def test_cli_attempt_writes_default_prompt_and_json(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["attempt", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"]["id"] == "task-main"
+    assert data["check"] is None
+    prompt_path = Path(data["prompt_path"])
+    assert prompt_path.name == "task-main.md"
+    assert prompt_path.exists()
+    assert "Task: MAIN" in prompt_path.read_text(encoding="utf-8")
+
+
+def test_cli_attempt_records_memory_when_requested(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(
+        [
+            "attempt",
+            str(tmp_path),
+            "--node",
+            "main",
+            "--record-outcome",
+            "failed",
+            "--summary",
+            "simp looped",
+            "--json",
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["memory"]["outcome"] == "failed"
+    memory = json.loads((tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(encoding="utf-8"))
+    assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp looped"
+
+
+def test_cli_attempt_rejects_blank_memory_summary(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(
+        [
+            "attempt",
+            str(tmp_path),
+            "--node",
+            "main",
+            "--record-outcome",
+            "failed",
+            "--summary",
+            "   ",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--summary is required" in captured.err
+    assert not (tmp_path / ".isabelle-blueprint" / "agent-memory.json").exists()
 
 
 def test_cli_next_can_select_by_node_id_or_task_id(tmp_path: Path, capsys):

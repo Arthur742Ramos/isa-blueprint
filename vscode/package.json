@@ -2,7 +2,7 @@
   "name": "isabelle-blueprint-vscode",
   "displayName": "IsabelleBlueprint",
   "description": "Surface IsabelleBlueprint project status in VS Code.",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "publisher": "isabelle-blueprint",
   "license": "MIT",
   "homepage": "https://github.com/Arthur742Ramos/isa-blueprint#readme",
@@ -29,6 +29,8 @@
     "onCommand:isabelleBlueprint.runAgentContext",
     "onCommand:isabelleBlueprint.openNextTaskPrompt",
     "onCommand:isabelleBlueprint.previewTaskPrompt",
+    "onCommand:isabelleBlueprint.explainNode",
+    "onCommand:isabelleBlueprint.recordMemory",
     "onLanguage:markdown",
     "onLanguage:latex"
   ],
@@ -80,6 +82,14 @@
       {
         "command": "isabelleBlueprint.previewTaskPrompt",
         "title": "IsabelleBlueprint: Preview Task Prompt"
+      },
+      {
+        "command": "isabelleBlueprint.explainNode",
+        "title": "IsabelleBlueprint: Explain Node"
+      },
+      {
+        "command": "isabelleBlueprint.recordMemory",
+        "title": "IsabelleBlueprint: Record Node Memory"
       }
     ],
     "menus": {
@@ -88,6 +98,16 @@
           "command": "isabelleBlueprint.previewTaskPrompt",
           "when": "view == isabelleBlueprint.nodes && viewItem == isabelleBlueprintNode",
           "group": "inline"
+        },
+        {
+          "command": "isabelleBlueprint.explainNode",
+          "when": "view == isabelleBlueprint.nodes && viewItem == isabelleBlueprintNode",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelleBlueprint.recordMemory",
+          "when": "view == isabelleBlueprint.nodes && viewItem == isabelleBlueprintNode",
+          "group": "navigation"
         }
       ]
     },

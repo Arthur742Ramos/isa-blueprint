@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
@@ -96,6 +97,39 @@ def build_comment_body(
     if metrics.has_problems:
         lines.append("")
         lines.append("> ❌ One or more formal targets are in a problem state.")
+    ready_tasks = generate_tasks(project)
+    if ready_tasks:
+        lines.extend(
+            [
+                "",
+                "<details>",
+                "<summary>Ready proof tasks</summary>",
+                "",
+            ]
+        )
+        for task in ready_tasks[:8]:
+            metadata = task.metadata
+            detail = ""
+            if metadata is not None:
+                detail = f" — {metadata.priority} priority, {metadata.difficulty} difficulty"
+            fact = f" (`{task.target_fact}`)" if task.target_fact else ""
+            lines.append(f"- `{task.node_id}`: {task.title}{fact}{detail}")
+        if len(ready_tasks) > 8:
+            lines.append(f"- …and {len(ready_tasks) - 8} more ready task(s).")
+        lines.extend(["", "</details>"])
+    problem_nodes = [
+        node
+        for node in project.nodes
+        if node.status.formal.value in {"not_found", "broken", "failed_check", "tainted"}
+    ]
+    if problem_nodes:
+        lines.extend(["", "<details>", "<summary>Problem nodes</summary>", ""])
+        for node in problem_nodes[:8]:
+            error = f" — {node.status.check_error}" if node.status.check_error else ""
+            lines.append(f"- `{node.id}`: {node.status.formal.value}{error}")
+        if len(problem_nodes) > 8:
+            lines.append(f"- …and {len(problem_nodes) - 8} more problem node(s).")
+        lines.extend(["", "</details>"])
     if commit_sha:
         lines.append("")
         lines.append(f"<sub>commit `{commit_sha[:8]}`</sub>")

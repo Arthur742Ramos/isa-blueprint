@@ -23,6 +23,8 @@ class GitHubSyncAction:
     issue_number: int | None = None
     url: str | None = None
     reason: str | None = None
+    labels: list[str] | None = None
+    assignees: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -34,6 +36,8 @@ class GitHubIssueClient(Protocol):
     def create_issue(self, repo: str, draft: dict[str, Any]) -> dict[str, Any]: ...
 
     def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]: ...
+
+    def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
 
 
 class GitHubApiClient:
@@ -52,6 +56,13 @@ class GitHubApiClient:
 
     def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]:
         return self._request("PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft))
+
+    def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]:
+        return self._request(
+            "PATCH",
+            f"/repos/{repo}/issues/{issue_number}",
+            {"state": "closed", "state_reason": "completed"},
+        )
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -85,6 +96,7 @@ def sync_github_issues(
     token_env: str = "GITHUB_TOKEN",
     confirm: bool = False,
     client: GitHubIssueClient | None = None,
+    completed_node_ids: set[str] | None = None,
 ) -> list[GitHubSyncAction]:
     """Create/update one issue per task draft.
 
@@ -92,17 +104,32 @@ def sync_github_issues(
     """
 
     state = _load_state(state_path)
+    completed_node_ids = set(completed_node_ids or set())
+    draft_node_ids = {str(draft["node_id"]) for draft in drafts}
     if not confirm:
-        return [
+        dry_run_actions = [
             GitHubSyncAction(
                 node_id=str(draft["node_id"]),
                 action="would_update" if str(draft["node_id"]) in state else "would_create",
                 issue_number=state.get(str(draft["node_id"])),
                 title=str(draft["title"]),
                 reason="dry-run; pass --github-sync-confirm to call GitHub",
+                labels=[str(label) for label in draft.get("labels", [])],
+                assignees=[str(assignee) for assignee in draft.get("assignees", [])],
             )
             for draft in drafts
         ]
+        dry_run_actions.extend(
+            GitHubSyncAction(
+                node_id=node_id,
+                action="would_close",
+                issue_number=state[node_id],
+                title=f"Close completed task {node_id}",
+                reason="node is complete and no ready-task draft remains",
+            )
+            for node_id in sorted(completed_node_ids & set(state) - draft_node_ids)
+        )
+        return dry_run_actions
 
     if not repo:
         raise BlueprintError("--repo is required for --github-sync-confirm (or set GITHUB_REPOSITORY)")
@@ -136,8 +163,25 @@ def sync_github_issues(
                 issue_number=number,
                 title=str(draft["title"]),
                 url=result.get("html_url"),
+                labels=[str(label) for label in draft.get("labels", [])],
+                assignees=[str(assignee) for assignee in draft.get("assignees", [])],
             )
         )
+
+    for node_id in sorted(completed_node_ids & set(state) - draft_node_ids):
+        issue_number = state[node_id]
+        result = active_client.close_issue(repo, issue_number)
+        actions.append(
+            GitHubSyncAction(
+                node_id=node_id,
+                action="closed",
+                issue_number=issue_number,
+                title=f"Close completed task {node_id}",
+                url=result.get("html_url"),
+                reason="node is complete and no ready-task draft remains",
+            )
+        )
+        del state[node_id]
 
     _write_state(state_path, state)
     return actions
@@ -151,11 +195,15 @@ def body_with_marker(body: str, node_id: str) -> str:
 
 
 def _issue_payload(draft: dict[str, Any]) -> dict[str, Any]:
-    return {
+    payload = {
         "title": draft["title"],
         "body": draft["body"],
         "labels": list(draft.get("labels", [])),
     }
+    assignees = list(draft.get("assignees", []))
+    if assignees:
+        payload["assignees"] = assignees
+    return payload
 
 
 def _load_state(path: Path) -> dict[str, int]:

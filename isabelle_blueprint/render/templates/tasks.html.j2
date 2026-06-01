@@ -53,6 +53,7 @@
             blocks <code>{{ task.metadata.blocking_count }}</code>
           {% endif %}
         </p>
+        <button type="button" class="copy-button" data-copy-text="isabelle-blueprint next . --node {{ task.node_id }} --output build/prompts/{{ task.id }}.md">Copy handoff command</button>
         {% if task.metadata and task.metadata.suggested_facts %}
           <p><strong>Nearby facts:</strong>
           {% for fact in task.metadata.suggested_facts %}

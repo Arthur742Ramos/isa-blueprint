@@ -38,7 +38,7 @@ def _project():
 def test_render_site_produces_expected_pages(tmp_path: Path):
     index = render_site(_project(), tmp_path)
     assert index.exists()
-    for name in ("index.html", "graph.html", "status.html", "tasks.html"):
+    for name in ("index.html", "graph.html", "status.html", "tasks.html", "roadmap.html"):
         assert (tmp_path / name).exists(), f"missing {name}"
     # Per-node pages.
     assert (tmp_path / "nodes" / "def-a.html").exists()
@@ -48,6 +48,8 @@ def test_render_site_produces_expected_pages(tmp_path: Path):
     assert project_data["name"] == "smoke"
     tasks_data = json.loads((tmp_path / "tasks.json").read_text(encoding="utf-8"))
     assert isinstance(tasks_data["tasks"], list)
+    roadmap_data = json.loads((tmp_path / "roadmap.json").read_text(encoding="utf-8"))
+    assert roadmap_data["summary"]["node_count"] == 2
     # DOT + JSON graph artifacts.
     assert (tmp_path / "graph.dot").exists()
     assert (tmp_path / "graph.json").exists()
@@ -277,6 +279,16 @@ def test_render_site_renders_trends_page_with_data(tmp_path: Path):
     # First 8 chars of the commit sha appear in the history table.
     assert "cafebabe"[:8] in body
     assert "feature" in body
+
+
+def test_render_site_renders_roadmap_page(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "roadmap.html").read_text(encoding="utf-8")
+
+    assert "Roadmap" in body
+    assert "roadmap-swimlanes" in body
+    assert "data-filter-scope=\"roadmap\"" in body
+    assert "Copy handoff command" in body
 
 
 def test_tasks_page_renders_task_board_and_memory(tmp_path: Path):

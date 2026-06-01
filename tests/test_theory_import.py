@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from isabelle_blueprint.isabelle.theory_import import import_theory_file, render_imported_blueprint
+from isabelle_blueprint.isabelle.theory_import import (
+    import_theory_file,
+    imported_theory_review,
+    render_imported_blueprint,
+)
 
 
 def test_import_theory_finds_top_level_declarations(tmp_path: Path):
@@ -59,3 +63,24 @@ def test_render_imported_blueprint_contains_review_banner(tmp_path: Path):
     assert "# Demo import" in text
     assert "best-effort import" in text
     assert "isabelle: Demo.real" in text
+
+
+def test_import_theory_suggests_dependencies_from_earlier_fact_mentions(tmp_path: Path):
+    thy = tmp_path / "Demo.thy"
+    thy.write_text(
+        """
+theory Demo imports Main begin
+lemma base_fact: "True" by simp
+lemma later_fact: "True" using base_fact by simp
+end
+""",
+        encoding="utf-8",
+    )
+
+    facts = import_theory_file(thy)
+    text = render_imported_blueprint(facts)
+    review = imported_theory_review(facts)
+
+    assert facts[1].uses == (facts[0].node_id,)
+    assert f"  - {facts[0].node_id}" in text
+    assert review["facts"][1]["suggested_uses"] == [facts[0].node_id]
