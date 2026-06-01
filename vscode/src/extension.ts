@@ -42,6 +42,12 @@ interface LoadedProject {
   project: BlueprintProject;
 }
 
+interface NextTaskPayload {
+  task?: { id?: string; title?: string } | null;
+  prompt?: string | null;
+  message?: string | null;
+}
+
 class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private readonly changeEmitter = new vscode.EventEmitter<TreeItem | undefined | null | void>();
   readonly onDidChangeTreeData = this.changeEmitter.event;
@@ -329,6 +335,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.openNextTaskPrompt", async () => {
+      await openNextTaskPrompt(output, running);
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand(
       "isabelleBlueprint.previewTaskPrompt",
       async (loaded?: LoadedProject, node?: BlueprintNode) => {
@@ -443,6 +454,57 @@ async function runBlueprintCommand(
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(message);
     void vscode.window.showErrorMessage(`IsabelleBlueprint ${command} failed. See output for details.`);
+  } finally {
+    running.delete(key);
+  }
+}
+
+async function openNextTaskPrompt(
+  output: vscode.OutputChannel,
+  running: Set<string>,
+): Promise<void> {
+  const folder = await pickWorkspaceFolder();
+  if (!folder) {
+    return;
+  }
+  const command = "next";
+  const key = `${folder.uri.fsPath}:${command}`;
+  if (running.has(key)) {
+    void vscode.window.showInformationMessage("IsabelleBlueprint next task is already running.");
+    return;
+  }
+  running.add(key);
+  const cliPath = vscode.workspace
+    .getConfiguration("isabelleBlueprint", folder.uri)
+    .get<string>("cliPath", "isabelle-blueprint");
+  output.show(true);
+  output.appendLine(`> ${cliPath} next ${folder.uri.fsPath} --json`);
+  try {
+    const { stdout, stderr } = await execFilePromise(
+      cliPath,
+      ["next", folder.uri.fsPath, "--json"],
+      folder.uri.fsPath,
+    );
+    if (stderr.trim()) {
+      output.appendLine(stderr.trimEnd());
+    }
+    const payload = JSON.parse(stdout) as NextTaskPayload;
+    if (!payload.prompt) {
+      void vscode.window.showInformationMessage(payload.message ?? "No ready IsabelleBlueprint tasks are available.");
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument({
+      content: payload.prompt,
+      language: "markdown",
+    });
+    await vscode.window.showTextDocument(document, { preview: true });
+    void vscode.commands.executeCommand("markdown.showPreview", document.uri);
+    const suffix = payload.task?.id ? ` (${payload.task.id})` : "";
+    void vscode.window.showInformationMessage(`IsabelleBlueprint next task prompt opened${suffix}.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(message);
+    void vscode.window.showErrorMessage("IsabelleBlueprint next task failed. See output for details.");
   } finally {
     running.delete(key);
   }

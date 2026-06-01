@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-01
+
 ### Added
 
+- Added `isabelle-blueprint next`, a direct handoff command that prints the
+  highest-priority ready task prompt or emits the same task/prompt bundle as
+  JSON, with `--node` for selecting a specific ready node or task id.
+- Added a VS Code `IsabelleBlueprint: Open Next Task Prompt` command that uses
+  the CLI's next-task selection and opens the generated Markdown prompt without
+  requiring pre-generated prompt files.
 - Added automatic PyPI and GitHub Release publishing when the project version is
   bumped on `main`.
 
@@ -265,7 +273,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...v1.4.0

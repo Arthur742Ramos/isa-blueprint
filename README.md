@@ -266,6 +266,7 @@ already justify.
 | `new` | Markdown or LaTeX node stubs | Adding theorem/lemma/definition skeletons quickly. |
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
+| `next` | Markdown or JSON prompt for the next ready task | Copy-ready proof handoffs without writing files. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
@@ -374,10 +375,14 @@ artifacts:
 ```bash
 isabelle-blueprint status .
 isabelle-blueprint status . --json
+isabelle-blueprint next .
+isabelle-blueprint next . --node main-theorem --json
 ```
 
 It reports coverage, problem/stale counts, cycle status, ready-task count, and
-the next suggested proof task. Use `roadmap` when you want the staged plan:
+the next suggested proof task. Use `next` when you want the selected ready-task
+prompt directly on stdout without first generating `build/prompts/`. Use
+`roadmap` when you want the staged plan:
 
 ```bash
 isabelle-blueprint roadmap .
@@ -445,6 +450,7 @@ and adds:
 - refresh/watch support,
 - dependency navigation and quick fixes.
 - commands to run `report`, `check`, `tasks`, `roadmap`, and `agent-context`,
+- next-task prompt preview directly from the CLI,
 - task prompt preview from generated `build/prompts/`.
 
 ## Project status
@@ -459,7 +465,8 @@ site, live preview, task packs, project templates, fact suggestions, JSON
 Schemas, plugin API, PR comments, GitHub Release automation, VS Code extension
 support, agent memory, status explanations, theory import bootstrap, and
 dry-run GitHub issue synchronization, plus fast `status` and staged `roadmap`
-planning commands and one-shot `agent-context` handoff bundles.
+planning commands, direct `next` prompt handoffs, and one-shot `agent-context`
+bundles.
 
 Community docs:
 
