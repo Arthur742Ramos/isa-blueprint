@@ -153,14 +153,28 @@ Equivalent to `web --watch --serve`, but clearer for local live-preview use.
 isabelle-blueprint tasks [project_dir]
                          [--github-issues]
                          [--github-issues-file FILENAME]
+                         [--github-sync]
+                         [--github-sync-confirm]
+                         [--repo OWNER/REPO]
+                         [--token-env ENVVAR]
+                         [--github-sync-state PATH]
 ```
 
 Emits agent-ready task artefacts under `build/`: `tasks.json`, `tasks.md`,
 and one `prompts/<id>.md` prompt per actionable obligation. v1.1 adds task
 metadata under `metadata` (`priority`, `difficulty`, dependency depth,
 downstream blocking count, suggested order, and nearby fact suggestions) plus
-top-level `suggested_next_task`. `--github-issues` writes issue drafts to
-`build/github-issues.json` without calling GitHub.
+top-level `suggested_next_task`. v1.2 adds optional per-task `memory`
+summaries read from `.isabelle-blueprint/agent-memory.json`.
+
+`--github-issues` writes issue drafts to `build/github-issues.json` without
+calling GitHub. `--github-sync` writes `build/github-sync-plan.json`; by
+default this is a dry-run and performs no network calls. Passing
+`--github-sync-confirm` creates or updates issues using the token from
+`--token-env` (default `GITHUB_TOKEN`) and the repo from `--repo` or
+`GITHUB_REPOSITORY`. The sync is idempotent: issue bodies carry a hidden
+`isabelle-blueprint:task` marker and the persistent mapping defaults to
+`.isabelle-blueprint/github-sync.json`.
 
 ### `report`
 
@@ -181,6 +195,13 @@ Writes the machine-readable status payload:
   v0.8, capped at 500 entries, deduped per `(commit_sha, branch)`)
 - `build/fact-suggestions.json` — nearby fact names for unresolved formal
   targets, when suggestions are available (added in v1.1)
+- `build/plugin-annotations.json` — status-provider annotations, when plugins
+  emit any (wired into report in v1.2)
+
+v1.2 also invokes experimental report-renderer plugins from the
+`isabelle_blueprint.report_renderers` entry-point group. Renderers receive
+`(project, build_dir)` and may return artifact paths/dicts; failures are
+warnings and do not break the built-in report.
 
 When `$GITHUB_OUTPUT` is set, the stable scalar keys
 (`coverage_percent`, `node_count`, `formal_target_count`, `proved_count`,
@@ -218,6 +239,56 @@ validation, writable output directories, Graphviz, Isabelle, and AFP paths.
 `--json` emits the structured report. `--strict` exits 7 when any diagnostic is
 an error.
 
+### `memory`
+
+```text
+isabelle-blueprint memory [project_dir]
+                          [--node NODE_ID]
+                          [--memory-file PATH]
+                          [--record]
+                          [--outcome note|blocked|failed|succeeded|needs_human]
+                          [--summary TEXT]
+                          [--details TEXT]
+                          [--next-step TEXT]
+                          [--actor TEXT]
+                          [--tool TEXT]
+                          [--max-attempts N]
+                          [--json]
+```
+
+Records or lists persistent proof-attempt memory. Without `--record`, the
+command lists attempts from `.isabelle-blueprint/agent-memory.json` (or
+`--memory-file`). With `--record`, `--node` and a non-empty `--summary` are
+required. The command stores a hash of the node's current task inputs so later
+task prompts can mark stale attempt notes.
+
+### `explain`
+
+```text
+isabelle-blueprint explain [project_dir] [--node NODE_ID] [--json]
+```
+
+Explains why nodes are in their current status. This command is intentionally
+node-focused: `doctor` diagnoses the local environment, while `explain`
+diagnoses blueprint/status issues such as missing dependencies, cycles,
+unresolved facts, stale cache entries, tainted proofs, and check failures.
+
+### `import-theory`
+
+```text
+isabelle-blueprint import-theory THEORY.thy [THEORY.thy ...]
+                                      [--project-name NAME]
+                                      [--output PATH]
+                                      [--force]
+```
+
+Scans Isabelle theory files for top-level `lemma`, `theorem`, `corollary`,
+`proposition`, and `definition` declarations and emits reviewable Markdown
+blueprint stubs. This importer is best-effort and intentionally conservative:
+it strips nested `(* ... *)` comments and supports common top-level declaration
+forms, but generated statements, dependencies, and proof sketches must be
+reviewed by a human.
+
 ### `schema`
 
 ```text
@@ -226,7 +297,7 @@ isabelle-blueprint schema [name] [--out DIR]
 
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
-`tasks`, `summary`, `config`, and `plugin-annotations`.
+`tasks`, `summary`, `config`, `plugin-annotations`, and `agent-memory`.
 
 ### `new`
 
@@ -252,8 +323,8 @@ blueprint file receives the stub when the project has multiple blueprints.
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `serve`, `tasks`, `report`, `comment`, `doctor`, `schema`, `new`) will not
-   be renamed or removed.
+   `serve`, `tasks`, `report`, `comment`, `doctor`, `memory`, `explain`,
+   `import-theory`, `schema`, `new`) will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.
 3. **Exit codes** for documented conditions will not change.

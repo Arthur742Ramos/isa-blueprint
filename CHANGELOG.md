@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added persistent agent memory under `.isabelle-blueprint/agent-memory.json`
+  plus `isabelle-blueprint memory` for recording and listing per-node proof
+  attempts, blockers, next steps, and stale attempt context.
+- Added `isabelle-blueprint explain` for node-level status diagnostics covering
+  missing dependencies, cycles, unchecked names, unresolved facts, stale cache
+  entries, tainted proofs, and check failures.
+- Added `isabelle-blueprint import-theory`, a best-effort bootstrapper that
+  scans Isabelle `.thy` declarations and emits reviewable Markdown blueprint
+  stubs.
+- Added dry-run-by-default GitHub issue synchronization for generated proof
+  tasks via `tasks --github-sync`; confirmed sync uses stable hidden markers
+  and `.isabelle-blueprint/github-sync.json` to avoid duplicate issues.
+- Added agent-memory summaries to `tasks.json`, task prompts, and the static
+  site's task board.
+- Added experimental plugin entry-point helpers for node-kind providers and
+  report renderers, and wired status-provider annotations plus renderer
+  artifacts into `report`.
+- Added VS Code commands for running `report`, `check`, and `tasks`, plus task
+  prompt preview from the Blueprint Nodes tree.
+- Added an `agent-memory` JSON Schema.
+
 ## [1.1.0] - 2026-06-01
 
 ### Added

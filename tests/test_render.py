@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, add_memory_attempt
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
@@ -276,3 +277,24 @@ def test_render_site_renders_trends_page_with_data(tmp_path: Path):
     # First 8 chars of the commit sha appear in the history table.
     assert "cafebabe"[:8] in body
     assert "feature" in body
+
+
+def test_tasks_page_renders_task_board_and_memory(tmp_path: Path):
+    memory = AgentMemory()
+    add_memory_attempt(
+        memory,
+        "def-a",
+        AgentMemoryAttempt(
+            timestamp="2026-01-01T00:00:00Z",
+            outcome="blocked",
+            summary="needs helper",
+            next_step="split the goal",
+        ),
+    )
+
+    render_site(_project(), tmp_path, memory=memory)
+    body = (tmp_path / "tasks.html").read_text(encoding="utf-8")
+
+    assert "Task board" in body
+    assert "split the goal" in body
+    assert "task-column-ready" in body

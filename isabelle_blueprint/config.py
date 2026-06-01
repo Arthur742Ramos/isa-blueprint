@@ -84,6 +84,16 @@ class BlueprintConfig:
         """JSON file storing coverage / problem counts across runs (v0.8)."""
         return self.build_dir / "trends.json"
 
+    @property
+    def agent_memory_path(self) -> Path:
+        """Persistent human/agent attempt history for proof tasks."""
+        return self.project_root / ".isabelle-blueprint" / "agent-memory.json"
+
+    @property
+    def github_sync_state_path(self) -> Path:
+        """Persistent node-id to GitHub issue mapping used by task sync."""
+        return self.project_root / ".isabelle-blueprint" / "github-sync.json"
+
 
 DEFAULT_CONFIG_NAME = "isabelle-blueprint.toml"
 DEFAULT_BLUEPRINT_NAME = "blueprint.md"

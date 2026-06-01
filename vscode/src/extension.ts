@@ -1,3 +1,4 @@
+import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as vscode from "vscode";
@@ -272,8 +273,11 @@ class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
   const provider = new BlueprintTreeProvider();
+  const output = vscode.window.createOutputChannel("IsabelleBlueprint");
+  const running = new Set<string>();
 
   context.subscriptions.push(diagnostics);
+  context.subscriptions.push(output);
   context.subscriptions.push(vscode.window.registerTreeDataProvider("isabelleBlueprint.nodes", provider));
   context.subscriptions.push(
     vscode.commands.registerCommand("isabelleBlueprint.refresh", async () => {
@@ -284,6 +288,29 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelleBlueprint.openNode", async (loaded: LoadedProject, node: BlueprintNode) => {
       await openNode(loaded, node);
     }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runReport", async () => {
+      await runBlueprintCommand("report", provider, diagnostics, output, running);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runCheck", async () => {
+      await runBlueprintCommand("check", provider, diagnostics, output, running);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runTasks", async () => {
+      await runBlueprintCommand("tasks", provider, diagnostics, output, running);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "isabelleBlueprint.previewTaskPrompt",
+      async (loaded?: LoadedProject, node?: BlueprintNode) => {
+        await previewTaskPrompt(loaded, node, provider);
+      },
+    ),
   );
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -352,6 +379,75 @@ async function refresh(
   for (const loaded of projects) {
     applyDiagnostics(loaded, diagnostics);
   }
+}
+
+async function runBlueprintCommand(
+  command: "report" | "check" | "tasks",
+  provider: BlueprintTreeProvider,
+  diagnostics: vscode.DiagnosticCollection,
+  output: vscode.OutputChannel,
+  running: Set<string>,
+): Promise<void> {
+  const folder = await pickWorkspaceFolder();
+  if (!folder) {
+    return;
+  }
+  const key = `${folder.uri.fsPath}:${command}`;
+  if (running.has(key)) {
+    void vscode.window.showInformationMessage(`IsabelleBlueprint ${command} is already running.`);
+    return;
+  }
+  running.add(key);
+  const cliPath = vscode.workspace
+    .getConfiguration("isabelleBlueprint", folder.uri)
+    .get<string>("cliPath", "isabelle-blueprint");
+  output.show(true);
+  output.appendLine(`> ${cliPath} ${command} ${folder.uri.fsPath}`);
+  try {
+    const { stdout, stderr } = await execFilePromise(cliPath, [command, folder.uri.fsPath], folder.uri.fsPath);
+    if (stdout.trim()) {
+      output.appendLine(stdout.trimEnd());
+    }
+    if (stderr.trim()) {
+      output.appendLine(stderr.trimEnd());
+    }
+    await refresh(provider, diagnostics);
+    void vscode.window.showInformationMessage(`IsabelleBlueprint ${command} completed.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(message);
+    void vscode.window.showErrorMessage(`IsabelleBlueprint ${command} failed. See output for details.`);
+  } finally {
+    running.delete(key);
+  }
+}
+
+async function pickWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefined> {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 0) {
+    void vscode.window.showWarningMessage("Open a workspace folder before running IsabelleBlueprint.");
+    return undefined;
+  }
+  if (folders.length === 1) {
+    return folders[0];
+  }
+  return vscode.window.showWorkspaceFolderPick();
+}
+
+function execFilePromise(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 8 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`${error.message}\n${stdout}${stderr}`));
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
 }
 
 async function readProject(jsonPath: string): Promise<BlueprintProject | undefined> {
@@ -425,6 +521,40 @@ async function openNode(loaded: LoadedProject, node: BlueprintNode): Promise<voi
     editor.revealRange(location.range, vscode.TextEditorRevealType.InCenter);
   } catch (error) {
     void vscode.window.showWarningMessage(`Could not open IsabelleBlueprint source ${location.uri.fsPath}: ${String(error)}`);
+  }
+}
+
+async function previewTaskPrompt(
+  loaded: LoadedProject | undefined,
+  node: BlueprintNode | undefined,
+  provider: BlueprintTreeProvider,
+): Promise<void> {
+  let target = loaded && node ? { loaded, node } : undefined;
+  if (!target) {
+    const items = provider.allNodes().map((candidate) => ({
+      label: candidate.title,
+      description: candidate.id,
+      node: candidate,
+    }));
+    const picked = await vscode.window.showQuickPick(items, { placeHolder: "Pick a blueprint node" });
+    if (!picked) {
+      return;
+    }
+    const found = provider.findNode(picked.node.id);
+    if (!found) {
+      void vscode.window.showWarningMessage(`Could not find node '${picked.node.id}'.`);
+      return;
+    }
+    target = found;
+  }
+  const promptPath = path.join(path.dirname(target.loaded.jsonPath), "prompts", `task-${target.node.id}.md`);
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(promptPath));
+    await vscode.window.showTextDocument(document, { preview: true });
+  } catch {
+    void vscode.window.showWarningMessage(
+      `No prompt found for '${target.node.id}'. Run "IsabelleBlueprint: Generate Tasks" first.`,
+    );
   }
 }
 

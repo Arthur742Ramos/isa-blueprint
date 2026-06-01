@@ -124,3 +124,27 @@ def test_run_status_providers_skips_none():
     plugin = plugins_mod.LoadedPlugin(name="empty", dist=None, callable_=empty)
     out = plugins_mod.run_status_providers(_project(), [plugin])
     assert out == []
+
+
+def test_run_report_renderers_collects_artifacts(tmp_path):
+    def renderer(project, output_dir):
+        path = output_dir / "custom.html"
+        path.write_text(project.name, encoding="utf-8")
+        return path
+
+    plugin = plugins_mod.LoadedPlugin(name="html", dist=None, callable_=renderer)
+
+    artifacts = plugins_mod.run_report_renderers(_project(), tmp_path, [plugin])
+
+    assert artifacts == [{"path": str(tmp_path / "custom.html"), "plugin": "html"}]
+
+
+def test_run_node_kind_plugins_collects_kinds():
+    def provider():
+        return [{"name": "exercise"}]
+
+    plugin = plugins_mod.LoadedPlugin(name="kinds", dist=None, callable_=provider)
+
+    kinds = plugins_mod.run_node_kind_plugins([plugin])
+
+    assert kinds == [{"name": "exercise", "plugin": "kinds"}]
