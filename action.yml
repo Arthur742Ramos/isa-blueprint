@@ -111,4 +111,6 @@ runs:
     - name: Publish pull request comment
       if: inputs.run-comment == 'true'
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: isabelle-blueprint comment "${{ inputs.project_dir }}"
