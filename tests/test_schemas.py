@@ -23,6 +23,7 @@ def test_schema_command_lists_names(capsys) -> None:
     assert "project" in out
     assert "tasks" in out
     assert "status" in out
+    assert "roadmap" in out
 
 
 def test_write_schemas_exports_files(tmp_path: Path) -> None:

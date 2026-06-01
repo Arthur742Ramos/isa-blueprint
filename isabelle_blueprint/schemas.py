@@ -12,6 +12,7 @@ SCHEMA_NAMES = (
     "tasks",
     "summary",
     "status",
+    "roadmap",
     "config",
     "plugin-annotations",
     "agent-memory",

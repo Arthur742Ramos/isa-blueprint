@@ -59,6 +59,7 @@ from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
 )
+from isabelle_blueprint.report.roadmap import build_roadmap, render_roadmap, write_roadmap
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -408,6 +409,29 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_roadmap(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    roadmap = build_roadmap(project, ready_tasks)
+    written: dict[str, Path] = {}
+    if args.write:
+        output_dir = Path(args.out).resolve() if args.out else config.build_dir
+        written = write_roadmap(roadmap, output_dir)
+    if args.json:
+        print(json.dumps(roadmap.to_dict(), indent=2))
+        stream = sys.stderr
+    else:
+        print(render_roadmap(roadmap), end="")
+        stream = sys.stdout
+    for name, path in written.items():
+        print(f"roadmap {name} -> {path}", file=stream)
+    return 0
+
+
 def cmd_comment(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -680,6 +704,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_status.add_argument("project_dir", nargs="?", default=".")
     p_status.add_argument("--json", action="store_true", help="emit machine-readable status JSON")
     p_status.set_defaults(func=cmd_status)
+
+    p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")
+    p_roadmap.add_argument("project_dir", nargs="?", default=".")
+    p_roadmap.add_argument("--json", action="store_true", help="emit machine-readable roadmap JSON")
+    p_roadmap.add_argument(
+        "--write",
+        action="store_true",
+        help="write build/roadmap.json and build/roadmap.md artifacts",
+    )
+    p_roadmap.add_argument(
+        "--out",
+        default=None,
+        help="directory for --write artifacts (default: configured build_dir)",
+    )
+    p_roadmap.set_defaults(func=cmd_roadmap)
 
     p_comment = sub.add_parser(
         "comment",
