@@ -9,7 +9,7 @@ import pytest
 from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, add_memory_attempt
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
 from isabelle_blueprint.render.site import render_site
 
 
@@ -298,3 +298,16 @@ def test_tasks_page_renders_task_board_and_memory(tmp_path: Path):
     assert "Task board" in body
     assert "split the goal" in body
     assert "task-column-ready" in body
+
+
+def test_tasks_page_renders_attempted_agent_status_separately(tmp_path: Path):
+    project = _project()
+    project.nodes[0].status.agent = AgentStatus.ATTEMPTED
+    project.nodes[0].status.formal = FormalStatus.FOUND
+
+    render_site(project, tmp_path)
+    body = (tmp_path / "tasks.html").read_text(encoding="utf-8")
+
+    assert "Attempted" in body
+    assert "task-column-attempted" in body
+    assert '<article class="task-column task-column-blocked">\n        <h3>Blocked <span>0</span></h3>' in body

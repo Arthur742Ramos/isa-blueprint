@@ -161,28 +161,30 @@ def render_site(
 def _task_board(project: BlueprintProject, tasks) -> list[dict[str, object]]:
     ready_ids = {task.node_id for task in tasks}
     columns = {
-        "ready": [],
-        "in_progress": [],
-        "needs_human": [],
-        "blocked": [],
-        "solved": [],
+        AgentStatus.READY.value: [],
+        AgentStatus.IN_PROGRESS.value: [],
+        AgentStatus.ATTEMPTED.value: [],
+        AgentStatus.NEEDS_HUMAN.value: [],
+        AgentStatus.BLOCKED.value: [],
+        AgentStatus.SOLVED.value: [],
     }
     for node in project.nodes:
         agent_status = node.status.agent.value
         if node.id in ready_ids:
-            columns["ready"].append(node)
+            columns[AgentStatus.READY.value].append(node)
         elif agent_status in columns:
             columns[agent_status].append(node)
         else:
-            columns["blocked"].append(node)
+            columns[AgentStatus.BLOCKED.value].append(node)
     return [
         {"id": key, "title": title, "nodes": nodes, "count": len(nodes)}
         for key, title, nodes in [
-            ("ready", "Ready", columns["ready"]),
-            ("in_progress", "In progress", columns["in_progress"]),
-            ("needs_human", "Needs human", columns["needs_human"]),
-            ("blocked", "Blocked", columns["blocked"]),
-            ("solved", "Solved", columns["solved"]),
+            (AgentStatus.READY.value, "Ready", columns[AgentStatus.READY.value]),
+            (AgentStatus.IN_PROGRESS.value, "In progress", columns[AgentStatus.IN_PROGRESS.value]),
+            (AgentStatus.ATTEMPTED.value, "Attempted", columns[AgentStatus.ATTEMPTED.value]),
+            (AgentStatus.NEEDS_HUMAN.value, "Needs human", columns[AgentStatus.NEEDS_HUMAN.value]),
+            (AgentStatus.BLOCKED.value, "Blocked", columns[AgentStatus.BLOCKED.value]),
+            (AgentStatus.SOLVED.value, "Solved", columns[AgentStatus.SOLVED.value]),
         ]
     ]
 
