@@ -60,6 +60,35 @@
         "suggested_order": { "type": ["integer", "null"], "minimum": 0 }
       },
       "additionalProperties": true
+    },
+    "top_ready_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "node_id",
+          "title",
+          "kind",
+          "target_fact",
+          "priority",
+          "difficulty",
+          "blocking_count",
+          "suggested_order"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "title": { "type": "string" },
+          "kind": { "type": "string" },
+          "target_fact": { "type": ["string", "null"] },
+          "priority": { "type": ["string", "null"] },
+          "difficulty": { "type": ["string", "null"] },
+          "blocking_count": { "type": ["integer", "null"], "minimum": 0 },
+          "suggested_order": { "type": ["integer", "null"], "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
     }
   },
   "additionalProperties": true

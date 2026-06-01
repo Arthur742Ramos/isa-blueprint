@@ -484,7 +484,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
     ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-    overview = build_status_overview(project, ready_tasks)
+    overview = build_status_overview(project, ready_tasks, top_task_count=args.top_tasks)
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
     else:
@@ -1110,6 +1110,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_status = sub.add_parser("status", help="print a concise project health summary")
     p_status.add_argument("project_dir", nargs="?", default=".")
     p_status.add_argument("--json", action="store_true", help="emit machine-readable status JSON")
+    p_status.add_argument(
+        "--top-tasks",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="include the first N ready-task summaries in output",
+    )
     p_status.set_defaults(func=cmd_status)
 
     p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")

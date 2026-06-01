@@ -47,31 +47,43 @@ class StatusOverview:
     metrics: StatusMetrics
     ready_task_count: int
     next_task: NextTaskOverview | None
+    top_ready_tasks: tuple[NextTaskOverview, ...] | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "project": self.project,
             "health": self.health,
             "metrics": self.metrics.to_dict(),
             "ready_task_count": self.ready_task_count,
             "next_task": self.next_task.to_dict() if self.next_task is not None else None,
         }
+        if self.top_ready_tasks is not None:
+            payload["top_ready_tasks"] = [task.to_dict() for task in self.top_ready_tasks]
+        return payload
 
 
 def build_status_overview(
     project: BlueprintProject,
     ready_tasks: Sequence[AgentTask],
+    *,
+    top_task_count: int | None = None,
 ) -> StatusOverview:
     """Build the read-only summary used by ``isabelle-blueprint status``."""
 
     metrics = build_status_metrics(project)
     next_task = NextTaskOverview.from_task(ready_tasks[0]) if ready_tasks else None
+    top_ready_tasks = (
+        tuple(NextTaskOverview.from_task(task) for task in ready_tasks[:top_task_count])
+        if top_task_count is not None
+        else None
+    )
     return StatusOverview(
         project=project.name,
         health=_health(metrics, ready_tasks),
         metrics=metrics,
         ready_task_count=len(ready_tasks),
         next_task=next_task,
+        top_ready_tasks=top_ready_tasks,
     )
 
 
@@ -96,6 +108,15 @@ def render_status_overview(overview: StatusOverview) -> str:
         lines.append("Next task: none")
     else:
         lines.append("Next task: " + _next_task_text(overview.next_task))
+    if overview.top_ready_tasks is not None:
+        if overview.top_ready_tasks:
+            lines.append("Top ready tasks:")
+            lines.extend(
+                f"  {index}. {_next_task_text(task)}"
+                for index, task in enumerate(overview.top_ready_tasks, start=1)
+            )
+        else:
+            lines.append("Top ready tasks: none")
     return "\n".join(lines) + "\n"
 
 
