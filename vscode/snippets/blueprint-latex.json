@@ -1,0 +1,60 @@
+{
+  "Blueprint LaTeX theorem": {
+    "prefix": "bp-theorem",
+    "body": [
+      "\\begin{theorem}[${1:Title}]",
+      "\\label{thm:${2:id}}",
+      "\\isabelle{${3:fact_name}}",
+      "\\uses{${4:dependency-id}}",
+      "\\status{${5|stub,written,reviewed|}}",
+      "",
+      "${6:% State the theorem here.}",
+      "",
+      "\\begin{proof}",
+      "${7:% Sketch the proof.}",
+      "\\end{proof}",
+      "\\end{theorem}"
+    ],
+    "description": "A blueprint theorem node in a LaTeX theorem environment."
+  },
+  "Blueprint LaTeX lemma": {
+    "prefix": "bp-lemma",
+    "body": [
+      "\\begin{lemma}[${1:Title}]",
+      "\\label{lem:${2:id}}",
+      "\\isabelle{${3:fact_name}}",
+      "\\uses{${4:dependency-id}}",
+      "\\status{${5|stub,written,reviewed|}}",
+      "",
+      "${6:% State the lemma here.}",
+      "",
+      "\\begin{proof}",
+      "${7:% Sketch the proof.}",
+      "\\end{proof}",
+      "\\end{lemma}"
+    ],
+    "description": "A blueprint lemma node in a LaTeX theorem environment."
+  },
+  "Blueprint LaTeX definition": {
+    "prefix": "bp-definition",
+    "body": [
+      "\\begin{definition}[${1:Title}]",
+      "\\label{def:${2:id}}",
+      "\\isabelle{${3:fact_name}}",
+      "\\status{${4|stub,written,reviewed|}}",
+      "",
+      "${5:% Give the definition here.}",
+      "\\end{definition}"
+    ],
+    "description": "A blueprint definition node in a LaTeX theorem environment."
+  },
+  "Blueprint LaTeX status axes": {
+    "prefix": "bp-status",
+    "body": [
+      "\\blueprintstatus{${1|stub,written,reviewed|}}",
+      "\\formalstatus{${2|missing,named,found,proved,tainted,stale,broken,not_found,failed_check|}}",
+      "\\agentstatus{${3|blocked,ready,in_progress,attempted,solved,needs_human|}}"
+    ],
+    "description": "Explicit IsabelleBlueprint status axes for LaTeX nodes."
+  }
+}

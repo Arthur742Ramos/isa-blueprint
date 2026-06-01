@@ -141,10 +141,10 @@ class DependencyItem extends vscode.TreeItem {
 }
 
 /**
- * Suggests known node ids after `uses:`/`- ` and known Isabelle facts after
- * `isabelle:` while editing a blueprint Markdown file. Ids and facts are drawn
- * from the most recently loaded project JSON, so completion improves after a
- * `build`/`check` regenerates it.
+ * Suggests known node ids after Markdown `uses:`/LaTeX `\uses{...}` and known
+ * Isabelle facts after Markdown `isabelle:`/LaTeX `\isabelle{...}`. Ids and
+ * facts are drawn from the most recently loaded project JSON, so completion
+ * improves after a `build`/`check` regenerates it.
  */
 class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
   constructor(private readonly provider: BlueprintTreeProvider) {}
@@ -168,7 +168,7 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
       });
     }
 
-    if (/^\s*isabelle:\s*\S*$/.test(line)) {
+    if (this.isIsabelleContext(document, line)) {
       return nodes
         .filter((node) => node.isabelle && node.isabelle.fact)
         .map((node) => {
@@ -193,6 +193,9 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
     position: vscode.Position,
     line: string,
   ): boolean {
+    if (isLatexDocument(document)) {
+      return /\\uses\{[^}]*$/.test(line);
+    }
     if (/^\s*uses:\s*$/.test(line)) {
       return true;
     }
@@ -216,6 +219,13 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
       return false;
     }
     return false;
+  }
+
+  private isIsabelleContext(document: vscode.TextDocument, line: string): boolean {
+    if (isLatexDocument(document)) {
+      return /\\isabelle\{[^}]*$/.test(line);
+    }
+    return /^\s*isabelle:\s*\S*$/.test(line);
   }
 }
 
@@ -275,6 +285,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const provider = new BlueprintTreeProvider();
   const output = vscode.window.createOutputChannel("IsabelleBlueprint");
   const running = new Set<string>();
+  const blueprintDocuments: vscode.DocumentSelector = [
+    { language: "markdown", scheme: "file" },
+    { language: "latex", scheme: "file" },
+  ];
 
   context.subscriptions.push(diagnostics);
   context.subscriptions.push(output);
@@ -324,22 +338,24 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
-      { language: "markdown", scheme: "file" },
+      blueprintDocuments,
       new BlueprintCompletionProvider(provider),
       ":",
       " ",
       "-",
+      "{",
+      ",",
     ),
   );
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(
-      { language: "markdown", scheme: "file" },
+      blueprintDocuments,
       new BlueprintDefinitionProvider(provider),
     ),
   );
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
-      { language: "markdown", scheme: "file" },
+      blueprintDocuments,
       new BlueprintCodeActionProvider(provider),
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
     ),
@@ -580,15 +596,31 @@ async function createMissingDependency(
   }
   const document = await vscode.workspace.openTextDocument(uri);
   const edit = new vscode.WorkspaceEdit();
-  const lastLine = document.lineAt(document.lineCount - 1);
-  const insertAt = new vscode.Position(document.lineCount - 1, lastLine.text.length);
-  edit.insert(document.uri, insertAt, renderNodeStub(missingId, document.getText().endsWith("\n") ? "\n" : "\n\n"));
+  const latex = isLatexDocument(document);
+  const insertAt = latex ? latexInsertPosition(document) : endOfDocument(document);
+  const prefix = latex ? "\n" : document.getText().endsWith("\n") ? "\n" : "\n\n";
+  const stub = latex ? renderLatexNodeStub(missingId, prefix) : renderNodeStub(missingId, prefix);
+  edit.insert(document.uri, insertAt, stub);
   const applied = await vscode.workspace.applyEdit(edit);
   if (!applied) {
     void vscode.window.showWarningMessage(`Could not insert missing blueprint node '${missingId}'.`);
     return;
   }
   await document.save();
+}
+
+function endOfDocument(document: vscode.TextDocument): vscode.Position {
+  const lastLine = document.lineAt(document.lineCount - 1);
+  return new vscode.Position(document.lineCount - 1, lastLine.text.length);
+}
+
+function latexInsertPosition(document: vscode.TextDocument): vscode.Position {
+  for (let line = document.lineCount - 1; line >= 0; line--) {
+    if (/\\end\{document\}/.test(document.lineAt(line).text)) {
+      return new vscode.Position(line, 0);
+    }
+  }
+  return endOfDocument(document);
 }
 
 function renderNodeStub(nodeId: string, prefix: string): string {
@@ -606,6 +638,27 @@ status: stub
 <!-- TODO: sketch the proof. -->
 :::
 `;
+}
+
+function renderLatexNodeStub(nodeId: string, prefix: string): string {
+  const title = humanizeId(nodeId);
+  const fact = suggestFact(nodeId);
+  return `${prefix}\\begin{lemma}[${title}]
+\\label{${nodeId}}
+\\isabelle{${fact}}
+\\status{stub}
+
+% TODO: state the lemma here.
+
+\\begin{proof}
+% TODO: sketch the proof.
+\\end{proof}
+\\end{lemma}
+`;
+}
+
+function isLatexDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === "latex" || document.uri.fsPath.toLowerCase().endsWith(".tex");
 }
 
 function humanizeId(nodeId: string): string {

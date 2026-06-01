@@ -13,6 +13,9 @@ Features:
 - Commands to run `isabelle-blueprint report`, `check`, and `tasks` from the
   active workspace.
 - Task prompt preview from the generated `build/prompts/task-<node>.md` files.
+- Markdown and LaTeX authoring assistance: snippets, dependency/fact
+  completions, go-to-definition for node ids, and quick fixes for missing
+  dependencies.
 
 Configuration:
 

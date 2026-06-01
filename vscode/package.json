@@ -26,7 +26,8 @@
     "onCommand:isabelleBlueprint.runCheck",
     "onCommand:isabelleBlueprint.runTasks",
     "onCommand:isabelleBlueprint.previewTaskPrompt",
-    "onLanguage:markdown"
+    "onLanguage:markdown",
+    "onLanguage:latex"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -34,6 +35,10 @@
       {
         "language": "markdown",
         "path": "./snippets/blueprint.json"
+      },
+      {
+        "language": "latex",
+        "path": "./snippets/blueprint-latex.json"
       }
     ],
     "commands": [

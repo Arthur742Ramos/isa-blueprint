@@ -61,7 +61,12 @@ from isabelle_blueprint.report.pr_comment import (
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
-from isabelle_blueprint.templates import TEMPLATES
+from isabelle_blueprint.templates import (
+    TEMPLATES,
+    blueprint_filename,
+    render_template_blueprint,
+    render_template_config,
+)
 
 if TYPE_CHECKING:
     from isabelle_blueprint.model.project import BlueprintProject
@@ -101,14 +106,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     template = TEMPLATES[args.template]
     project_dir.mkdir(parents=True, exist_ok=True)
-    blueprint_path = project_dir / "blueprint.md"
+    blueprint_path = project_dir / blueprint_filename(args.format)
     config_path = project_dir / "isabelle-blueprint.toml"
     if blueprint_path.exists() and not args.force:
         print(f"refusing to overwrite {blueprint_path}; pass --force to replace", file=sys.stderr)
         return 1
-    blueprint_path.write_text(template.blueprint, encoding="utf-8")
+    blueprint_path.write_text(render_template_blueprint(template, format=args.format), encoding="utf-8")
     if not config_path.exists() or args.force:
-        config_path.write_text(template.config, encoding="utf-8")
+        config_path.write_text(render_template_config(template, format=args.format), encoding="utf-8")
     workflows = project_dir / ".github" / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
     workflow_file = workflows / "blueprint.yml"
@@ -119,17 +124,11 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    from isabelle_blueprint.scaffold import render_node_stub
+    from isabelle_blueprint.scaffold import render_latex_node_stub, render_node_stub
 
     fact = "" if args.no_fact else args.fact
-    stub = render_node_stub(
-        args.kind,
-        args.id,
-        title=args.title,
-        fact=fact,
-        uses=args.uses or [],
-        status=args.status,
-    )
+    path: Path | None = None
+    format = args.format or "markdown"
 
     if args.append:
         project_dir = Path(args.project_dir).resolve()
@@ -156,13 +155,47 @@ def cmd_new(args: argparse.Namespace) -> int:
             raise BlueprintError(
                 f"blueprint not found at {path}; run `isabelle-blueprint init` first"
             )
+        target_format = _blueprint_format(path)
+        if args.format is not None and args.format != target_format:
+            raise BlueprintError(
+                f"--format {args.format!r} does not match target blueprint {path.name!r} "
+                f"(expected {target_format!r})"
+            )
+        format = target_format
+
+    renderer = render_latex_node_stub if format == "latex" else render_node_stub
+    stub = renderer(
+        args.kind,
+        args.id,
+        title=args.title,
+        fact=fact,
+        uses=args.uses or [],
+        status=args.status,
+    )
+
+    if path is not None:
         existing = path.read_text(encoding="utf-8")
-        separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
-        path.write_text(existing + separator + stub, encoding="utf-8")
+        path.write_text(_append_stub(existing, stub, format=format), encoding="utf-8")
         print(f"appended {args.kind} {args.id!r} to {path}")
     else:
         sys.stdout.write(stub)
     return 0
+
+
+def _blueprint_format(path: Path) -> str:
+    return "latex" if path.suffix.lower() == ".tex" else "markdown"
+
+
+def _append_stub(existing: str, stub: str, *, format: str) -> str:
+    if format == "latex":
+        marker = r"\end{document}"
+        marker_at = existing.rfind(marker)
+        if marker_at != -1:
+            before = existing[:marker_at].rstrip()
+            after = existing[marker_at:].lstrip()
+            return f"{before}\n\n{stub.rstrip()}\n\n{after}"
+    separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
+    return existing + separator + stub
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -503,6 +536,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
     p_init.add_argument("--force", action="store_true", help="overwrite existing files")
     p_init.add_argument(
+        "--format",
+        choices=("markdown", "latex"),
+        default="markdown",
+        help="blueprint authoring format to scaffold (default: markdown)",
+    )
+    p_init.add_argument(
         "--template",
         choices=sorted(TEMPLATES),
         default="minimal",
@@ -688,6 +727,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--no-fact", action="store_true", help="omit the isabelle: line entirely")
     p_new.add_argument("--uses", nargs="*", default=None, metavar="ID", help="dependency node ids")
     p_new.add_argument("--status", default="stub", help="initial blueprint status (default: stub)")
+    p_new.add_argument(
+        "--format",
+        choices=("markdown", "latex"),
+        default=None,
+        help="stub format (default: target suffix with --append, otherwise markdown)",
+    )
     p_new.add_argument(
         "--append",
         action="store_true",

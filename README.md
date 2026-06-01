@@ -97,6 +97,15 @@ isabelle-blueprint web
 isabelle-blueprint serve
 ```
 
+Prefer LaTeX? Use the same templates with `--format latex`; `new --append`
+will then add valid theorem environments to `blueprint.tex` instead of Markdown
+blocks:
+
+```bash
+isabelle-blueprint init my-formalization --template agent-ready --format latex
+isabelle-blueprint new theorem my-main-result --append
+```
+
 When Isabelle is available, add the real proof checks:
 
 ```bash
@@ -173,10 +182,23 @@ LaTeX projects can use theorem environments instead:
 \label{thm:sum-divides}
 \isabelle{Arith_Demo.sum_divides}
 \uses{def-divides, lem-add-comm}
+\blueprintstatus{written}
+\formalstatus{named}
+\agentstatus{ready}
 
 If $a \mid b$ and $a \mid c$, then $a \mid (b + c)$.
+\begin{proof}
+Unfold the definition of divides and use commutativity of addition.
+\end{proof}
 \end{theorem}
 ```
+
+The LaTeX path has the same core metadata as Markdown: `\label` is the node id,
+`\isabelle` maps to a fact, `\uses` records dependencies, `\tags` records
+free-form labels, `\status{...}` is a single-axis shorthand, and
+`\blueprintstatus` / `\formalstatus` / `\agentstatus` expose the full
+three-axis status model. `\isabelletheory` and `\isabellesession` are available
+when a fact name needs explicit context.
 
 ## Visual showcase
 
@@ -238,8 +260,8 @@ already justify.
 
 | Command | Output | Use it for |
 | --- | --- | --- |
-| `init` | `blueprint.md`, `isabelle-blueprint.toml`, CI workflow | Starting a clean project. |
-| `new` | Node stubs | Adding theorem/lemma/definition skeletons quickly. |
+| `init` | `blueprint.md` or `blueprint.tex`, `isabelle-blueprint.toml`, CI workflow | Starting a clean project. |
+| `new` | Markdown or LaTeX node stubs | Adding theorem/lemma/definition skeletons quickly. |
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
 | `web` / `serve` | Static HTML site | Public progress pages and local preview. |
@@ -297,6 +319,7 @@ one place:
 [project]
 name = "My formalization"
 blueprint = "blueprint.md"
+# or: blueprint = "blueprint.tex"
 
 [isabelle]
 session = "My_Session"

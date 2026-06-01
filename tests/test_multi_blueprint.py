@@ -241,3 +241,73 @@ def test_cli_new_append_single_blueprint_still_works(
     )
     assert rc == 0
     assert "lem-beta" in (tmp_path / "blueprint.md").read_text(encoding="utf-8")
+
+
+def test_cli_new_append_writes_latex_stub_to_tex_blueprint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(
+        tmp_path,
+        blueprints="blueprint.tex",
+        files={
+            "blueprint.tex": r"""\documentclass{article}
+\newtheorem{lemma}{Lemma}
+\newcommand{\isabelle}[1]{}
+\newcommand{\status}[1]{}
+\begin{document}
+\begin{lemma}
+\label{lem-alpha}
+Alpha.
+\end{lemma}
+\end{document}
+""",
+        },
+    )
+    rc = cli_main(
+        [
+            "new",
+            "lemma",
+            "lem-beta",
+            str(tmp_path),
+            "--append",
+            "--no-fact",
+        ]
+    )
+
+    assert rc == 0
+    text = (tmp_path / "blueprint.tex").read_text(encoding="utf-8")
+    assert r"\begin{lemma}[Lem beta]" in text
+    assert r"\label{lem-beta}" in text
+    assert "::: lemma" not in text
+    assert text.index(r"\label{lem-beta}") < text.index(r"\end{document}")
+
+
+def test_cli_new_append_rejects_format_mismatch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(
+        tmp_path,
+        blueprints="blueprint.tex",
+        files={
+            "blueprint.tex": r"""\documentclass{article}
+\newtheorem{lemma}{Lemma}
+\begin{document}
+\end{document}
+""",
+        },
+    )
+    rc = cli_main(
+        [
+            "new",
+            "lemma",
+            "lem-beta",
+            str(tmp_path),
+            "--append",
+            "--format",
+            "markdown",
+            "--no-fact",
+        ]
+    )
+
+    assert rc != 0
+    assert "does not match target blueprint" in capsys.readouterr().err
