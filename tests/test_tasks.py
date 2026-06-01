@@ -163,7 +163,66 @@ def test_cli_next_json_includes_task_and_prompt(tmp_path: Path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["task"]["id"] == "task-main"
     assert data["prompt"] == expected
+    assert data["prompt_path"] is None
     assert data["message"] == "Selected task-main."
+
+
+def test_cli_next_output_writes_selected_prompt(tmp_path: Path, capsys):
+    project = _next_project()
+    _write_next_project(tmp_path, project)
+    expected = render_task_prompt(generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0])
+    output = tmp_path / "handoff" / "next.md"
+
+    rc = cli_main(["next", str(tmp_path), "--output", str(output)])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.out == expected
+    assert captured.err == f"next prompt -> {output.resolve()}\n"
+    assert output.read_text(encoding="utf-8") == expected
+
+
+def test_cli_next_output_json_includes_prompt_path(tmp_path: Path, capsys):
+    project = _next_project()
+    _write_next_project(tmp_path, project)
+    output = tmp_path / "handoff" / "next.md"
+
+    rc = cli_main(["next", str(tmp_path), "--output", str(output), "--json"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    data = json.loads(captured.out)
+    assert data["prompt_path"] == str(output.resolve())
+    assert output.read_text(encoding="utf-8") == data["prompt"]
+
+
+def test_cli_next_output_is_not_written_when_no_task_exists(tmp_path: Path, capsys):
+    project = BlueprintProject.from_nodes("done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
+    _write_next_project(tmp_path, project)
+    output = tmp_path / "handoff" / "next.md"
+
+    rc = cli_main(["next", str(tmp_path), "--output", str(output), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"] is None
+    assert data["prompt"] is None
+    assert data["prompt_path"] is None
+    assert not output.exists()
+
+
+def test_cli_next_output_is_not_written_when_selector_is_rejected(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+    output = tmp_path / "handoff" / "next.md"
+
+    rc = cli_main(["next", str(tmp_path), "--node", "later", "--output", str(output)])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "node 'later' is not currently ready" in captured.err
+    assert not output.exists()
 
 
 def test_cli_next_can_select_by_node_id_or_task_id(tmp_path: Path, capsys):
@@ -190,6 +249,7 @@ def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["task"] is None
     assert data["prompt"] is None
+    assert data["prompt_path"] is None
     assert "No ready tasks" in data["message"]
 
 

@@ -14,7 +14,8 @@ Features:
   `agent-context` from the active workspace.
 - Command to open the CLI-selected next ready task prompt without generating
   prompt files first.
-- Task prompt preview from the generated `build/prompts/task-<node>.md` files.
+- Task prompt preview from generated `build/prompts/task-<node>.md` files, with
+  live CLI fallback for ready nodes when prompt files have not been generated.
 - Markdown and LaTeX authoring assistance: snippets, dependency/fact
   completions, go-to-definition for node ids, and quick fixes for missing
   dependencies.
