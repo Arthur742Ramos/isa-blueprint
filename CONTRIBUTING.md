@@ -35,6 +35,23 @@ cd vscode
 npm run compile
 ```
 
+## Releases
+
+To publish a new release, update both version declarations in the same commit:
+
+- `pyproject.toml` `[project].version`
+- `isabelle_blueprint/__init__.py` `__version__`
+
+When that commit reaches `main`, the `publish` workflow detects the
+`pyproject.toml` version change, runs the release quality gates, creates the
+matching `vX.Y.Z` tag with `GITHUB_TOKEN`, publishes to PyPI through the `pypi`
+trusted-publishing environment, and creates or updates the GitHub Release with
+the built distributions.
+
+Manual `vX.Y.Z` tag pushes are still supported, but the tag version must match
+`pyproject.toml`. The PyPI trusted publisher must allow this repository's
+`.github/workflows/publish.yml` workflow and the `pypi` environment.
+
 ## Compatibility expectations
 
 The v1.0 CLI surface, generated JSON file shapes, and GitHub Action output keys
@@ -53,4 +70,3 @@ Please keep pull requests focused and include:
 - Tests or fixtures for behavior changes.
 - Confirmation that ruff, mypy, and pytest pass locally.
 - Notes for any intentional compatibility impact.
-
