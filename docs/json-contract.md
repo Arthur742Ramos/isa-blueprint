@@ -1,7 +1,7 @@
 # JSON contract
 
 This document is the **frozen public surface** of the JSON files
-`isabelle-blueprint` writes under `build/` as of v1.1.0. Keys, value types,
+`isabelle-blueprint` writes under `build/` as of v1.2.0. Keys, value types,
 and value semantics listed here will not change without a major version bump.
 New keys may be added in minor releases; consumers should ignore unknown
 keys.
