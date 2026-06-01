@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/status.schema.json",
+  "title": "IsabelleBlueprint status overview",
+  "type": "object",
+  "required": ["project", "health", "metrics", "ready_task_count", "next_task"],
+  "properties": {
+    "project": { "type": "string" },
+    "health": {
+      "type": "string",
+      "enum": ["complete", "ready", "blocked", "problem", "stale", "unstarted"]
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "node_count",
+        "formal_target_count",
+        "proved_count",
+        "found_count",
+        "problem_count",
+        "stale_count",
+        "has_cycles",
+        "coverage_percent"
+      ],
+      "properties": {
+        "node_count": { "type": "integer", "minimum": 0 },
+        "formal_target_count": { "type": "integer", "minimum": 0 },
+        "proved_count": { "type": "integer", "minimum": 0 },
+        "found_count": { "type": "integer", "minimum": 0 },
+        "problem_count": { "type": "integer", "minimum": 0 },
+        "stale_count": { "type": "integer", "minimum": 0 },
+        "has_cycles": { "type": "boolean" },
+        "coverage_percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 }
+      },
+      "additionalProperties": true
+    },
+    "ready_task_count": { "type": "integer", "minimum": 0 },
+    "next_task": {
+      "type": ["object", "null"],
+      "properties": {
+        "id": { "type": "string" },
+        "node_id": { "type": "string" },
+        "title": { "type": "string" },
+        "kind": { "type": "string" },
+        "target_fact": { "type": ["string", "null"] },
+        "priority": { "type": ["string", "null"] },
+        "difficulty": { "type": ["string", "null"] },
+        "blocking_count": { "type": ["integer", "null"], "minimum": 0 },
+        "suggested_order": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

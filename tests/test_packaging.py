@@ -44,6 +44,7 @@ def test_json_schemas_are_packaged():
 
     assert "schemas/*.schema.json" in package_data
     assert (root / "isabelle_blueprint" / "schemas" / "tasks.schema.json").exists()
+    assert (root / "isabelle_blueprint" / "schemas" / "status.schema.json").exists()
 
 
 def test_pyproject_declares_changelog_url():

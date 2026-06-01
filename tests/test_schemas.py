@@ -22,6 +22,7 @@ def test_schema_command_lists_names(capsys) -> None:
     out = capsys.readouterr().out
     assert "project" in out
     assert "tasks" in out
+    assert "status" in out
 
 
 def test_write_schemas_exports_files(tmp_path: Path) -> None:
@@ -37,4 +38,3 @@ def test_schema_package_data_declared() -> None:
     package_data = data["tool"]["setuptools"]["package-data"]["isabelle_blueprint"]
 
     assert "schemas/*.schema.json" in package_data
-

@@ -11,6 +11,7 @@ SCHEMA_NAMES = (
     "graph",
     "tasks",
     "summary",
+    "status",
     "config",
     "plugin-annotations",
     "agent-memory",

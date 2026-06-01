@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.2.0. Subcommand names, flag names, default values,
+command-line tool as of v1.3.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in minor releases provided the
 existing ones keep behaving the same way.
@@ -209,6 +209,18 @@ When `$GITHUB_OUTPUT` is set, the stable scalar keys
 `found_count`, `problem_count`, `has_cycles`) are emitted to it. When
 `$GITHUB_STEP_SUMMARY` is set, a compact Markdown summary is appended to it.
 
+### `status`
+
+```text
+isabelle-blueprint status [project_dir] [--json]
+```
+
+Prints a read-only project health overview without writing report artifacts.
+The text form includes the project health classification, coverage, node/problem
+counts, cycle status, ready-task count, and the next suggested task when one is
+available. `--json` emits the same payload documented by the packaged
+`status` JSON Schema.
+
 ### `comment`
 
 ```text
@@ -298,7 +310,8 @@ isabelle-blueprint schema [name] [--out DIR]
 
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
-`tasks`, `summary`, `config`, `plugin-annotations`, and `agent-memory`.
+`tasks`, `summary`, `status`, `config`, `plugin-annotations`, and
+`agent-memory`.
 
 ### `new`
 
@@ -328,7 +341,7 @@ target suffix selects Markdown or LaTeX automatically. Passing a mismatched
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `serve`, `tasks`, `report`, `comment`, `doctor`, `memory`, `explain`,
+   `serve`, `tasks`, `report`, `status`, `comment`, `doctor`, `memory`, `explain`,
    `import-theory`, `schema`, `new`) will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.
