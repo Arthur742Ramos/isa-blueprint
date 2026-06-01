@@ -39,3 +39,16 @@ def test_schema_package_data_declared() -> None:
     package_data = data["tool"]["setuptools"]["package-data"]["isabelle_blueprint"]
 
     assert "schemas/*.schema.json" in package_data
+
+
+def test_roadmap_schema_places_optional_keys_at_root() -> None:
+    payload = json.loads(read_schema("roadmap"))
+    root_properties = payload["properties"]
+    stage_schema = root_properties["stages"]["items"]
+
+    assert "filters" in root_properties
+    assert "diff" in root_properties
+    assert "$defs" in payload
+    assert "filters" not in stage_schema["properties"]
+    assert "diff" not in stage_schema["properties"]
+    assert "$defs" not in stage_schema
