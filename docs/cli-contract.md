@@ -53,12 +53,13 @@ exit `0`.
 ### `init`
 
 ```text
-isabelle-blueprint init [project_dir] [--force] [--template NAME]
+isabelle-blueprint init [project_dir] [--force] [--format markdown|latex] [--template NAME]
 ```
 
-Scaffolds a fresh blueprint project: `blueprint.md`, `isabelle-blueprint.toml`,
-and a GitHub Actions workflow. Fails if any target file already exists unless
-`--force` is given. `--template` (added in v1.1) accepts `minimal`, `afp`,
+Scaffolds a fresh blueprint project: `blueprint.md` (or `blueprint.tex` with
+`--format latex`), `isabelle-blueprint.toml`, and a GitHub Actions workflow.
+Fails if any target file already exists unless `--force` is given. `--format`
+defaults to `markdown`. `--template` (added in v1.1) accepts `minimal`, `afp`,
 `research-paper`, `course-notes`, or `agent-ready`.
 
 ### `check`
@@ -308,6 +309,7 @@ isabelle-blueprint new <kind> <id>
                        [--fact FACT | --no-fact]
                        [--uses ID ...]
                        [--status STATUS]
+                       [--format markdown|latex]
                        [--append]
                        [--blueprint PATH]
 ```
@@ -315,6 +317,9 @@ isabelle-blueprint new <kind> <id>
 Prints a ready-to-edit node stub to stdout, or appends it to the project
 blueprint with `--append`. `--blueprint PATH` (added in v0.7) selects which
 blueprint file receives the stub when the project has multiple blueprints.
+Without `--append`, `--format` defaults to `markdown`; with `--append`, the
+target suffix selects Markdown or LaTeX automatically. Passing a mismatched
+`--format` for the selected blueprint is rejected.
 
 ---
 

@@ -4,6 +4,9 @@ The parser is intentionally conservative: it recognises theorem-like LaTeX
 environments and the metadata commands commonly used by Lean Blueprint sources
 (``\label{...}``, ``\lean{...}``, ``\uses{...}``, ``\leanok``). Isabelle
 projects can use the same shape with ``\isabelle{...}`` and ``\isabelleok``.
+LaTeX-specific macros such as ``\blueprintstatus{...}``,
+``\formalstatus{...}``, and ``\agentstatus{...}`` expose the same status axes
+as Markdown metadata without requiring a LaTeX toolchain.
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ _ENV_KINDS = [
     "remark",
     "example",
     "note",
+    "other",
 ]
 
 _ENV_RE = re.compile(
@@ -42,11 +46,17 @@ _ENV_RE = re.compile(
 _LABEL_RE = re.compile(r"\\label\{(?P<value>[^{}]+)\}")
 _LEAN_RE = re.compile(r"\\lean\{(?P<value>[^{}]+)\}")
 _ISABELLE_RE = re.compile(r"\\isabelle\{(?P<value>[^{}]+)\}")
+_ISABELLE_THEORY_RE = re.compile(r"\\isabelletheory\{(?P<value>[^{}]+)\}")
+_ISABELLE_SESSION_RE = re.compile(r"\\isabellesession\{(?P<value>[^{}]+)\}")
 _USES_RE = re.compile(r"\\uses\{(?P<value>[^{}]*)\}")
 _TAGS_RE = re.compile(r"\\tags\{(?P<value>[^{}]*)\}")
+_STATUS_RE = re.compile(r"\\status\{(?P<value>[^{}]+)\}")
+_BLUEPRINT_STATUS_RE = re.compile(r"\\blueprintstatus\{(?P<value>[^{}]+)\}")
+_FORMAL_STATUS_RE = re.compile(r"\\formalstatus\{(?P<value>[^{}]+)\}")
+_AGENT_STATUS_RE = re.compile(r"\\agentstatus\{(?P<value>[^{}]+)\}")
 _PROOF_RE = re.compile(r"\\begin\{proof\}(?P<body>.*?)\\end\{proof\}", re.DOTALL)
 _COMMAND_LINE_RE = re.compile(
-    r"^\s*\\(?:label|lean|isabelle|uses|tags)\{[^{}]*\}\s*$",
+    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|uses|tags|status|blueprintstatus|formalstatus|agentstatus)\{[^{}]*\}\s*$",
     re.MULTILINE,
 )
 
@@ -107,6 +117,72 @@ def render_markdown_blueprint(project: BlueprintProject) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
+def render_latex_blueprint(project: BlueprintProject) -> str:
+    """Render parsed nodes to a standalone LaTeX blueprint document."""
+    parts: list[str] = [
+        r"\documentclass{article}",
+        "",
+        r"\usepackage{amsthm}",
+        r"\newtheorem{definition}{Definition}",
+        r"\newtheorem{lemma}{Lemma}",
+        r"\newtheorem{theorem}{Theorem}",
+        r"\newtheorem{proposition}{Proposition}",
+        r"\newtheorem{corollary}{Corollary}",
+        r"\newtheorem{construction}{Construction}",
+        r"\newtheorem{remark}{Remark}",
+        r"\newtheorem{example}{Example}",
+        r"\newtheorem{note}{Note}",
+        r"\newtheorem{other}{Other}",
+        "",
+        r"\newcommand{\isabelle}[1]{}",
+        r"\newcommand{\isabelletheory}[1]{}",
+        r"\newcommand{\isabellesession}[1]{}",
+        r"\newcommand{\uses}[1]{}",
+        r"\newcommand{\tags}[1]{}",
+        r"\newcommand{\status}[1]{}",
+        r"\newcommand{\blueprintstatus}[1]{}",
+        r"\newcommand{\formalstatus}[1]{}",
+        r"\newcommand{\agentstatus}[1]{}",
+        "",
+        r"\begin{document}",
+        "",
+        rf"\title{{{project.name}}}",
+        r"\maketitle",
+        "",
+    ]
+    for node in project.nodes:
+        title = f"[{node.title}]" if node.title else ""
+        parts.append(rf"\begin{{{node.kind.value}}}{title}")
+        parts.append(rf"\label{{{node.id}}}")
+        if node.isabelle.fact:
+            parts.append(rf"\isabelle{{{node.isabelle.fact}}}")
+            if node.isabelle.theory and not node.isabelle.fact.startswith(f"{node.isabelle.theory}."):
+                parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")
+        elif node.isabelle.theory:
+            parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")
+        if node.isabelle.session:
+            parts.append(rf"\isabellesession{{{node.isabelle.session}}}")
+        if node.uses:
+            parts.append(rf"\uses{{{', '.join(node.uses)}}}")
+        if node.tags:
+            parts.append(rf"\tags{{{', '.join(node.tags)}}}")
+        parts.append(rf"\blueprintstatus{{{node.status.blueprint.value}}}")
+        parts.append(rf"\formalstatus{{{node.status.formal.value}}}")
+        parts.append(rf"\agentstatus{{{node.status.agent.value}}}")
+        parts.append("")
+        if node.statement.strip():
+            parts.append(node.statement.strip())
+            parts.append("")
+        if node.informal_proof.strip():
+            parts.append(r"\begin{proof}")
+            parts.append(node.informal_proof.strip())
+            parts.append(r"\end{proof}")
+        parts.append(rf"\end{{{node.kind.value}}}")
+        parts.append("")
+    parts.append(r"\end{document}")
+    return "\n".join(parts).rstrip() + "\n"
+
+
 def _scan_latex_blocks(text: str, *, source: str) -> list[_LatexBlock]:
     blocks: list[_LatexBlock] = []
     for match in _ENV_RE.finditer(text):
@@ -133,6 +209,8 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
         )
 
     fact = _first(_ISABELLE_RE, block.body) or _first(_LEAN_RE, block.body)
+    theory = _first(_ISABELLE_THEORY_RE, block.body)
+    session = _first(_ISABELLE_SESSION_RE, block.body)
     uses = _split_csv(_first(_USES_RE, block.body) or "")
     tags = _split_csv(_first(_TAGS_RE, block.body) or "")
     proof_match = _PROOF_RE.search(block.body)
@@ -140,15 +218,13 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
     statement_source = _PROOF_RE.sub("", block.body)
     statement = _clean_body(_COMMAND_LINE_RE.sub("", statement_source))
 
-    formal = FormalStatus.NAMED if fact else FormalStatus.MISSING
-    if fact and ("\\leanok" in block.body or "\\isabelleok" in block.body):
-        formal = FormalStatus.FOUND
-
-    status = NodeStatus(
-        blueprint=BlueprintStatus.WRITTEN if statement else BlueprintStatus.STUB,
-        formal=formal,
-        agent=AgentStatus.BLOCKED,
-    )
+    status, explicit = _parse_latex_status(block.body)
+    if not explicit["blueprint"] and statement:
+        status.blueprint = BlueprintStatus.WRITTEN
+    if not explicit["formal"]:
+        status.formal = FormalStatus.NAMED if fact else FormalStatus.MISSING
+        if fact and ("\\leanok" in block.body or "\\isabelleok" in block.body):
+            status.formal = FormalStatus.FOUND
 
     return BlueprintNode(
         id=label,
@@ -157,7 +233,11 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
         statement=statement,
         informal_proof=proof,
         uses=uses,
-        isabelle=IsabelleRef(fact=fact.strip()) if fact else IsabelleRef(),
+        isabelle=IsabelleRef(
+            fact=fact.strip() if fact else None,
+            theory=theory.strip() if theory else None,
+            session=session.strip() if session else None,
+        ),
         status=status,
         tags=tags,
         source_file=block.source_file,
@@ -173,6 +253,56 @@ def _first(pattern: re.Pattern[str], text: str) -> str | None:
 
 def _split_csv(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[, \n]+", text) if part.strip()]
+
+
+def _parse_latex_status(text: str) -> tuple[NodeStatus, dict[str, bool]]:
+    status = NodeStatus()
+    explicit = {"blueprint": False, "formal": False, "agent": False}
+    shorthand = _first(_STATUS_RE, text)
+    if shorthand:
+        axis = _apply_status_token(status, shorthand)
+        if axis:
+            explicit[axis] = True
+
+    blueprint = _first(_BLUEPRINT_STATUS_RE, text)
+    if blueprint:
+        status.blueprint = BlueprintStatus(blueprint.strip().lower())
+        explicit["blueprint"] = True
+    formal = _first(_FORMAL_STATUS_RE, text)
+    if formal:
+        status.formal = FormalStatus(formal.strip().lower())
+        explicit["formal"] = True
+    agent = _first(_AGENT_STATUS_RE, text)
+    if agent:
+        status.agent = AgentStatus(agent.strip().lower())
+        explicit["agent"] = True
+    return status, explicit
+
+
+def _apply_status_token(status: NodeStatus, raw: str) -> str | None:
+    token = raw.strip().lower()
+    if token in {"stub", "written", "reviewed"}:
+        status.blueprint = BlueprintStatus(token)
+        return "blueprint"
+    if token == "planned":
+        status.blueprint = BlueprintStatus.WRITTEN
+        return "blueprint"
+    if token in {
+        "proved",
+        "found",
+        "missing",
+        "not_found",
+        "tainted",
+        "stale",
+        "broken",
+        "failed_check",
+    }:
+        status.formal = FormalStatus(token)
+        return "formal"
+    if token in {"ready", "blocked", "solved", "attempted", "needs_human", "in_progress"}:
+        status.agent = AgentStatus(token)
+        return "agent"
+    return None
 
 
 def _title_from_label(label: str) -> str:
@@ -195,5 +325,6 @@ def _clean_text(text: str | None) -> str:
 __all__ = [
     "parse_latex_file",
     "parse_latex_text",
+    "render_latex_blueprint",
     "render_markdown_blueprint",
 ]

@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from isabelle_blueprint.parser.latex import render_latex_blueprint
+from isabelle_blueprint.parser.markdown import parse_blueprint_text
+
 
 @dataclass(frozen=True)
 class ProjectTemplate:
@@ -13,6 +16,37 @@ class ProjectTemplate:
     blueprint: str
     config: str
     workflow: str
+
+
+def blueprint_filename(format: str) -> str:
+    """Return the default blueprint filename for an authoring format."""
+    return "blueprint.tex" if format == "latex" else "blueprint.md"
+
+
+def render_template_blueprint(template: ProjectTemplate, *, format: str = "markdown") -> str:
+    """Render ``template`` in Markdown or LaTeX authoring syntax."""
+    if format == "latex":
+        project = parse_blueprint_text(
+            template.blueprint,
+            source=f"{template.name}-template.md",
+            project_name=_template_title(template.blueprint),
+        )
+        return render_latex_blueprint(project)
+    return template.blueprint
+
+
+def render_template_config(template: ProjectTemplate, *, format: str = "markdown") -> str:
+    """Render the template config with the matching blueprint filename."""
+    if format == "latex":
+        return template.config.replace('blueprint = "blueprint.md"', 'blueprint = "blueprint.tex"')
+    return template.config
+
+
+def _template_title(markdown: str) -> str:
+    for line in markdown.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return "My blueprint"
 
 
 _BASE_WORKFLOW = """name: blueprint
@@ -300,4 +334,3 @@ TEMPLATES: dict[str, ProjectTemplate] = {
         workflow=_AGENT_WORKFLOW,
     ),
 }
-

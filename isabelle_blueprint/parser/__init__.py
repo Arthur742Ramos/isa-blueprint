@@ -9,6 +9,7 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.parser.latex import (
     parse_latex_file,
     parse_latex_text,
+    render_latex_blueprint,
     render_markdown_blueprint,
 )
 from isabelle_blueprint.parser.markdown import (
@@ -73,5 +74,6 @@ __all__ = [
     "parse_latex_text",
     "parse_markdown_file",
     "parse_markdown_text",
+    "render_latex_blueprint",
     "render_markdown_blueprint",
 ]
