@@ -37,6 +37,17 @@
     "ready_task_count": { "type": "integer", "minimum": 0 },
     "next_task": {
       "type": ["object", "null"],
+      "required": [
+        "id",
+        "node_id",
+        "title",
+        "kind",
+        "target_fact",
+        "priority",
+        "difficulty",
+        "blocking_count",
+        "suggested_order"
+      ],
       "properties": {
         "id": { "type": "string" },
         "node_id": { "type": "string" },
