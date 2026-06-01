@@ -29,9 +29,17 @@ flowchart LR
     C --> R["Reports + badges<br/>Markdown / JSON / CI outputs"]
     C --> W["HTML site<br/>search / filters / node pages"]
     C --> T["Agent tasks<br/>ready prompts / blocked work"]
-    style B fill:#eff6ff,stroke:#3b82f6
-    style C fill:#ecfdf5,stroke:#10b981
-    style T fill:#fef3c7,stroke:#f59e0b
+    classDef blueprint fill:#dbeafe,stroke:#1d4ed8,color:#111827;
+    classDef dependency fill:#f8fafc,stroke:#475569,color:#111827;
+    classDef checks fill:#dcfce7,stroke:#15803d,color:#111827;
+    classDef output fill:#f1f5f9,stroke:#334155,color:#111827;
+    classDef tasks fill:#fef3c7,stroke:#b45309,color:#111827;
+    class B blueprint;
+    class D dependency;
+    class C checks;
+    class G,R,W output;
+    class T tasks;
+    linkStyle default stroke:#64748b;
 ```
 
 ## Why Isabelle users reach for it
