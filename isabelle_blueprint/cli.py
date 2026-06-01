@@ -148,6 +148,15 @@ def _dedupe_int(values: list[int] | None) -> tuple[int, ...]:
     return tuple(dict.fromkeys(values or []))
 
 
+def _render_template_catalog() -> str:
+    width = max(len(name) for name in TEMPLATES)
+    lines = ["Available templates:"]
+    for name in sorted(TEMPLATES):
+        template = TEMPLATES[name]
+        lines.append(f"  {name.ljust(width)}  {template.description}")
+    return "\n".join(lines) + "\n"
+
+
 def _roadmap_filters_from_args(args: argparse.Namespace) -> RoadmapFilters:
     return RoadmapFilters(
         statuses=_dedupe(getattr(args, "status", None)),
@@ -168,6 +177,10 @@ def _validate_roadmap_filters(roadmap_stage_count: int, filters: RoadmapFilters)
 
 
 def cmd_init(args: argparse.Namespace) -> int:
+    if args.list_templates:
+        print(_render_template_catalog(), end="")
+        return 0
+
     project_dir = Path(args.project_dir).resolve()
     template = TEMPLATES[args.template]
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -892,13 +905,25 @@ def cmd_import_theory(args: argparse.Namespace) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="isabelle-blueprint", description="Isabelle-aware blueprint tooling.")
+    parser = argparse.ArgumentParser(
+        prog="isabelle-blueprint",
+        description="Isabelle-aware blueprint tooling.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""common workflows:
+  isabelle-blueprint init my-formalization --template agent-ready
+  isabelle-blueprint check . --strict
+  isabelle-blueprint roadmap . --write
+  isabelle-blueprint web . --serve
+
+Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
     p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
     p_init.add_argument("--force", action="store_true", help="overwrite existing files")
+    p_init.add_argument("--list-templates", action="store_true", help="list starter templates and exit")
     p_init.add_argument(
         "--format",
         choices=("markdown", "latex"),
