@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import time
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
 from isabelle_blueprint.agents.tasks import write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
+from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
 from isabelle_blueprint.isabelle.checker import (
@@ -24,6 +29,10 @@ from isabelle_blueprint.isabelle.dump import (
     inspect_dump_dir,
     run_dump,
     write_dump_report,
+)
+from isabelle_blueprint.isabelle.suggestions import (
+    suggest_missing_facts,
+    write_fact_suggestions,
 )
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.render.site import render_site
@@ -41,6 +50,8 @@ from isabelle_blueprint.report.pr_comment import (
     write_pr_comment_preview,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
+from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
+from isabelle_blueprint.templates import TEMPLATES
 
 if TYPE_CHECKING:
     from isabelle_blueprint.model.project import BlueprintProject
@@ -78,21 +89,22 @@ def _try_apply_check(project: BlueprintProject, config: BlueprintConfig) -> None
 
 def cmd_init(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
+    template = TEMPLATES[args.template]
     project_dir.mkdir(parents=True, exist_ok=True)
     blueprint_path = project_dir / "blueprint.md"
     config_path = project_dir / "isabelle-blueprint.toml"
     if blueprint_path.exists() and not args.force:
         print(f"refusing to overwrite {blueprint_path}; pass --force to replace", file=sys.stderr)
         return 1
-    blueprint_path.write_text(_DEFAULT_BLUEPRINT, encoding="utf-8")
+    blueprint_path.write_text(template.blueprint, encoding="utf-8")
     if not config_path.exists() or args.force:
-        config_path.write_text(_DEFAULT_CONFIG, encoding="utf-8")
+        config_path.write_text(template.config, encoding="utf-8")
     workflows = project_dir / ".github" / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
     workflow_file = workflows / "blueprint.yml"
     if not workflow_file.exists() or args.force:
-        workflow_file.write_text(_DEFAULT_WORKFLOW, encoding="utf-8")
-    print(f"initialised IsabelleBlueprint project at {project_dir}")
+        workflow_file.write_text(template.workflow, encoding="utf-8")
+    print(f"initialised {args.template} IsabelleBlueprint project at {project_dir}")
     return 0
 
 
@@ -241,20 +253,32 @@ def cmd_compat(args: argparse.Namespace) -> int:
 
 
 def cmd_web(args: argparse.Namespace) -> int:
+    if args.watch or args.serve:
+        return _watch_web(args)
     project_dir = Path(args.project_dir).resolve()
-    config, project = _load(project_dir)
-    _try_apply_check(project, config)
-    trends = load_trends(config.trends_path)
-    index = render_site(project, config.site_dir, trends=trends)
+    index = _render_web_once(project_dir)
     print(f"site -> {index}")
     return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    args.watch = True
+    args.serve = True
+    return _watch_web(args)
 
 
 def cmd_tasks(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    written = write_tasks(project, config.build_dir)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    written = write_tasks(
+        project,
+        config.build_dir,
+        fact_suggestions=fact_suggestions,
+        github_issues=args.github_issues,
+        github_issues_name=args.github_issues_file,
+    )
     for name, path in written.items():
         print(f"{name} -> {path}")
     return 0
@@ -270,6 +294,10 @@ def cmd_report(args: argparse.Namespace) -> int:
     badge_json_path = write_badge_endpoint(project, config.build_dir / "badge.json")
     badge_svg_path = write_badge_svg(project, config.build_dir / "badge.svg")
     trend_entry = append_trend_entry(project, config.trends_path)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    if fact_suggestions:
+        suggestions_path = write_fact_suggestions(fact_suggestions, config.build_dir / "fact-suggestions.json")
+        print(f"fact suggestions -> {suggestions_path}")
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
@@ -308,6 +336,41 @@ def cmd_comment(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    report = run_doctor(
+        Path(args.project_dir),
+        isabelle_executable=args.isabelle,
+    )
+    if args.json:
+        output = report.to_json()
+        if args.output:
+            path = Path(args.output).resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(output, encoding="utf-8")
+            print(f"doctor json -> {path}")
+        else:
+            print(output)
+    else:
+        for check in report.checks:
+            print(f"[{check.status}] {check.name}: {check.message}")
+    return 7 if args.strict and report.has_errors else 0
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    if args.out:
+        names = [args.name] if args.name else None
+        written = write_schemas(Path(args.out).resolve(), names=names)
+        for name, path in written.items():
+            print(f"{name} -> {path}")
+        return 0
+    if args.name:
+        print(read_schema(args.name))
+        return 0
+    for name in available_schemas():
+        print(name)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="isabelle-blueprint", description="Isabelle-aware blueprint tooling.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -316,6 +379,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
     p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
     p_init.add_argument("--force", action="store_true", help="overwrite existing files")
+    p_init.add_argument(
+        "--template",
+        choices=sorted(TEMPLATES),
+        default="minimal",
+        help="starter template to write (default: minimal)",
+    )
     p_init.set_defaults(func=cmd_init)
 
     p_check = sub.add_parser("check", help="validate blueprint and run Isabelle existence check")
@@ -374,10 +443,34 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
+    p_web.add_argument("--watch", action="store_true", help="re-render when blueprint inputs change")
+    p_web.add_argument("--serve", action="store_true", help="serve the rendered site while watching")
+    p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
+    p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
+    p_web.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_web.add_argument("--allow-ci", action="store_true", help="allow --serve when CI=true")
     p_web.set_defaults(func=cmd_web)
+
+    p_serve = sub.add_parser("serve", help="serve and live-rebuild the static HTML site")
+    p_serve.add_argument("project_dir", nargs="?", default=".")
+    p_serve.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
+    p_serve.add_argument("--port", type=int, default=8000, help="port to bind (default: 8000)")
+    p_serve.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
+    p_serve.set_defaults(func=cmd_serve)
 
     p_tasks = sub.add_parser("tasks", help="generate agent-ready tasks and per-task prompts")
     p_tasks.add_argument("project_dir", nargs="?", default=".")
+    p_tasks.add_argument(
+        "--github-issues",
+        action="store_true",
+        help="also write build/github-issues.json with issue drafts; does not call GitHub",
+    )
+    p_tasks.add_argument(
+        "--github-issues-file",
+        default="github-issues.json",
+        help="filename under build_dir for --github-issues output",
+    )
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
@@ -400,6 +493,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="exit non-zero when the PR context (token, repo, PR number) cannot be resolved",
     )
     p_comment.set_defaults(func=cmd_comment)
+
+    p_doctor = sub.add_parser("doctor", help="diagnose local IsabelleBlueprint setup")
+    p_doctor.add_argument("project_dir", nargs="?", default=".")
+    p_doctor.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_doctor.add_argument("--json", action="store_true", help="emit machine-readable diagnostics")
+    p_doctor.add_argument("--output", default=None, help="write --json output to a file")
+    p_doctor.add_argument("--strict", action="store_true", help="exit non-zero when an error is found")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_schema = sub.add_parser("schema", help="print or export packaged JSON Schemas")
+    p_schema.add_argument("name", nargs="?", choices=available_schemas())
+    p_schema.add_argument("--out", default=None, help="write selected/all schemas to a directory")
+    p_schema.set_defaults(func=cmd_schema)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
@@ -425,6 +531,87 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _render_web_once(project_dir: Path) -> Path:
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    trends = load_trends(config.trends_path)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    return render_site(
+        project,
+        config.site_dir,
+        trends=trends,
+        fact_suggestions=fact_suggestions,
+    )
+
+
+def _watch_web(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    if args.serve and os.environ.get("CI", "").lower() == "true" and not args.allow_ci:
+        print("refusing to serve in CI; pass --allow-ci to override", file=sys.stderr)
+        return 8
+    index = _render_web_once(project_dir)
+    print(f"site -> {index}")
+    server = _start_site_server(index.parent, args.host, args.port) if args.serve else None
+    if server is not None:
+        print(f"serving -> http://{args.host}:{args.port}/")
+    snapshot = _snapshot(_watch_paths(project_dir))
+    try:
+        while True:
+            time.sleep(max(args.interval, 0.1))
+            paths = _watch_paths(project_dir)
+            current = _snapshot(paths)
+            if current != snapshot:
+                index = _render_web_once(project_dir)
+                print(f"updated -> {index}")
+                snapshot = current
+    except KeyboardInterrupt:
+        print("stopped")
+        return 0
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+
+
+def _start_site_server(site_dir: Path, host: str, port: int) -> ThreadingHTTPServer:
+    handler = partial(SimpleHTTPRequestHandler, directory=str(site_dir))
+    server = ThreadingHTTPServer((host, port), handler)
+    server.daemon_threads = True
+    import threading
+
+    thread = threading.Thread(target=server.serve_forever, name="isabelle-blueprint-serve", daemon=True)
+    thread.start()
+    return server
+
+
+def _watch_paths(project_dir: Path) -> list[Path]:
+    paths = [project_dir / "isabelle-blueprint.toml"]
+    try:
+        config = load_config(project_dir)
+    except (OSError, ValueError):
+        return paths
+    paths.extend(config.blueprint_paths)
+    paths.extend(
+        [
+            config.check_report_path,
+            config.dump_report_path,
+            config.trends_path,
+            config.project_json_path,
+        ]
+    )
+    return paths
+
+
+def _snapshot(paths: list[Path]) -> dict[str, int | None]:
+    snapshot: dict[str, int | None] = {}
+    for path in paths:
+        try:
+            snapshot[str(path)] = path.stat().st_mtime_ns
+        except OSError:
+            snapshot[str(path)] = None
+    return snapshot
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -433,79 +620,6 @@ def main(argv: list[str] | None = None) -> int:
     except BlueprintError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-
-
-_DEFAULT_BLUEPRINT = """# My blueprint
-
-Welcome! Edit this file and replace the placeholder nodes below.
-Tip: run `isabelle-blueprint new theorem my-id` to scaffold more nodes.
-
-::: definition {#example-def}
-title: Example definition
-isabelle: Main.True
-status: stub
-
-Describe what is being defined.
-:::
-
-::: theorem {#example-thm}
-title: Example theorem
-isabelle: My_Theory.example_lemma
-uses:
-  - example-def
-status: stub
-
-State the result.
-
-## Proof
-
-Sketch the proof.
-:::
-"""
-
-_DEFAULT_CONFIG = """[project]
-name = "My blueprint"
-blueprint = "blueprint.md"
-
-[isabelle]
-# session = "My_Session"
-# executable = "isabelle"
-# version = "Isabelle2025-2"
-# timeout = 600  # max seconds for `isabelle build`/`dump`; omit to wait indefinitely
-
-[afp]
-# root = "/path/to/afp"
-# entry = "My_AFP_Entry"
-# required = false
-
-[output]
-build_dir = "build"
-site_dir = "site"
-"""
-
-_DEFAULT_WORKFLOW = """name: blueprint
-on:
-  push:
-  pull_request:
-jobs:
-  blueprint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install isabelle-blueprint
-      - run: isabelle-blueprint check .
-      - run: isabelle-blueprint compat .
-      - run: isabelle-blueprint graph .
-      - run: isabelle-blueprint web .
-      - run: isabelle-blueprint report .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: blueprint-site
-          path: site
-"""
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,13 +1,13 @@
 # JSON contract
 
 This document is the **frozen public surface** of the JSON files
-`isabelle-blueprint` writes under `build/` as of v1.0.0. Keys, value types,
+`isabelle-blueprint` writes under `build/` as of v1.1.0. Keys, value types,
 and value semantics listed here will not change without a major version bump.
 New keys may be added in minor releases; consumers should ignore unknown
 keys.
 
-All four files are written by `isabelle-blueprint report`. They are always
-UTF-8, indent-2 pretty-printed JSON.
+Report files are always UTF-8, indent-2 pretty-printed JSON. Packaged JSON
+Schemas for the public payloads are available via `isabelle-blueprint schema`.
 
 ---
 
@@ -193,6 +193,70 @@ Writers in the v1 line always emit the object form
 `{ "schema_version": 1, "entries": [...] }`. Readers also tolerate the
 legacy bare-array form (a top-level JSON array of entry objects, used by
 pre-1.0 builds) for backward compatibility.
+
+---
+
+## `build/tasks.json`
+
+Agent-ready tasks written by `isabelle-blueprint tasks` and mirrored into the
+static site by `isabelle-blueprint web`.
+
+```json
+{
+  "tasks": [
+    {
+      "id": "task-main-theorem",
+      "node_id": "main-theorem",
+      "title": "Main theorem",
+      "kind": "theorem",
+      "target_fact": "Demo.main_theorem",
+      "target_theory": "Demo",
+      "informal_statement": "...",
+      "informal_proof": "...",
+      "dependencies": [
+        {
+          "id": "technical-lemma",
+          "title": "Technical lemma",
+          "fact": "Demo.technical_lemma",
+          "theory": "Demo"
+        }
+      ],
+      "acceptance_criteria": ["..."],
+      "metadata": {
+        "priority": "high",
+        "difficulty": "medium",
+        "dependency_depth": 2,
+        "blocking_count": 0,
+        "suggested_order": 1,
+        "suggested_facts": []
+      }
+    }
+  ],
+  "suggested_next_task": "task-main-theorem"
+}
+```
+
+v1.1 adds the optional `metadata` object and top-level
+`suggested_next_task`. Existing task keys remain unchanged.
+
+---
+
+## `build/fact-suggestions.json`
+
+Written by `report` when unresolved formal targets have nearby known fact
+names.
+
+```json
+{
+  "suggestions": [
+    {
+      "node_id": "main-theorem",
+      "target_fact": "Demo.main_theorm",
+      "suggestions": ["Demo.main_theorem"]
+    }
+  ]
+}
+```
 
 ---
 

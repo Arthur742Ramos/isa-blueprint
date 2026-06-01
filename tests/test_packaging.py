@@ -37,6 +37,15 @@ def test_static_assets_are_packaged():
     assert (static_dir / "filters.js").exists()
 
 
+def test_json_schemas_are_packaged():
+    root = Path(__file__).resolve().parents[1]
+    data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data = data["tool"]["setuptools"]["package-data"]["isabelle_blueprint"]
+
+    assert "schemas/*.schema.json" in package_data
+    assert (root / "isabelle_blueprint" / "schemas" / "tasks.schema.json").exists()
+
+
 def test_pyproject_declares_changelog_url():
     """v1.0 prep: PyPI shows the Changelog link prominently, so make sure
     the URL is wired in pyproject.toml and not silently dropped."""

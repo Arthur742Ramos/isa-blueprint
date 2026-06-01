@@ -32,12 +32,12 @@ human or an AI agent can start on it right now.
 
 ---
 
-## Status — v1.0
+## Status — v1.1
 
-This is the first **stable** release. Everything in the original roadmap, plus
-the v0.6–v0.9 follow-ups, is shipped. The CLI surface, JSON file shapes, and
-GitHub Action outputs are now frozen public contracts documented under
-[`docs/`](docs/) — breaking changes will only ship in a 2.0 line.
+This is the stable v1 line. Everything in the original roadmap, plus the
+v0.6–v1.1 follow-ups, is shipped. The CLI surface, JSON file shapes, and GitHub
+Action outputs are frozen public contracts documented under [`docs/`](docs/) —
+breaking changes will only ship in a 2.0 line.
 
 Project community docs: [Contributing](CONTRIBUTING.md),
 [Security policy](SECURITY.md), and [Code of conduct](CODE_OF_CONDUCT.md).
@@ -57,7 +57,7 @@ What works today:
 - ✅ Agent task pack (`tasks.json`, `tasks.md`, per-task Markdown prompts)
 - ✅ JSON / Markdown status reports
 - ✅ VS Code extension under [`vscode/`](vscode/) for explorer status and inline diagnostics
-- ✅ `init` scaffolder with default config and GitHub Actions workflow
+- ✅ `init` scaffolder with project templates and GitHub Actions workflow
 - ✅ Minimal end-to-end example under [`examples/minimal/`](examples/minimal)
 - ✅ Real AFP integration example under [`examples/afp-gale-stewart/`](examples/afp-gale-stewart) — cross-session `check` proving Gale–Stewart determinacy against the published `GaleStewart_Games` entry
 - ✅ pytest suite + cross-platform CI (Ubuntu + Windows, Python 3.11/3.12/3.13)
@@ -65,6 +65,10 @@ What works today:
 - ✅ **v0.7** — Multi-blueprint projects via `[project].blueprints` with duplicate-id detection across sources
 - ✅ **v0.8** — Click-through formal-status filter on the dependency graph (`graph.html`) and bounded coverage/problem trend chart from `build/trends.json`
 - ✅ **v0.9** — Plugin API (`isabelle_blueprint.status_providers` entry-point group), plus `isabelle-blueprint comment` for idempotent PR status comments (urllib-only, no extra deps)
+- ✅ **v1.1** — Release dry-runs, GitHub Release automation, `doctor`,
+  live web preview, JSON Schemas, smarter task metadata, fact suggestions,
+  site search, richer dashboard deltas, project templates, and VS Code
+  dependency quick fixes/navigation
 
 ---
 
@@ -125,8 +129,14 @@ isabelle-blueprint graph
 # 6. Render the static HTML site to ./site
 isabelle-blueprint web
 
+#    Or live-preview it while editing
+isabelle-blueprint serve
+
 # 7. Generate ready-to-execute agent tasks and per-task prompts.
 isabelle-blueprint tasks
+
+#    Include GitHub issue drafts for those tasks without touching GitHub
+isabelle-blueprint tasks --github-issues
 
 # 8. Produce JSON and Markdown status reports.
 isabelle-blueprint report
@@ -134,6 +144,10 @@ isabelle-blueprint report
 # 9. Post (or update) a GitHub PR status comment.
 #    Use --preview to write build/pr-comment.md locally without touching GitHub.
 isabelle-blueprint comment --preview
+
+# 10. Diagnose local tooling and export JSON Schemas.
+isabelle-blueprint doctor
+isabelle-blueprint schema --out schemas
 ```
 
 Try it on the bundled examples (no Isabelle required for `report` / `graph` / `tasks`):
@@ -597,7 +611,7 @@ Everything is optional — the defaults shown above are also what `init` writes 
 
 ## Roadmap
 
-Everything is shipped — IsabelleBlueprint is now at **v1.0**, with frozen CLI,
+Everything is shipped — IsabelleBlueprint is now in the **v1** line, with frozen CLI,
 JSON, and GitHub Action contracts documented under [`docs/`](docs/).
 
 - ✅ **v0.2** — LaTeX blueprint parser for Lean Blueprint-style sources.
@@ -625,6 +639,9 @@ JSON, and GitHub Action contracts documented under [`docs/`](docs/).
   [`docs/cli-contract.md`](docs/cli-contract.md) and
   [`docs/json-contract.md`](docs/json-contract.md). Future minor releases will
   add features without breaking these surfaces.
+- ✅ **v1.1** — Release dry-runs and GitHub Release automation, `doctor`,
+  live web preview, packaged JSON Schemas, richer task metadata, Isabelle fact
+  suggestions, project templates, and VS Code dependency quick fixes/navigation.
 
 Have an idea? Open an issue on
 [GitHub](https://github.com/Arthur742Ramos/isa-blueprint/issues) — the roadmap

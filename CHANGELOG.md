@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-01
+
 ### Added
 
+- Added a manual TestPyPI dry-run workflow for trusted-publishing release rehearsals.
+- Added GitHub Release automation for tagged PyPI releases, including built
+  distribution artifacts.
+- Added `isabelle-blueprint doctor` for local setup diagnostics.
+- Added `isabelle-blueprint web --watch`, `web --serve`, and `serve` for live
+  static-site preview.
+- Added `isabelle-blueprint schema` plus packaged JSON Schemas for project,
+  graph, tasks, summary, normalized config, and plugin annotations.
+- Added smarter agent task metadata: priority, difficulty, dependency depth,
+  downstream blocking count, suggested ordering, suggested next task, and
+  optional GitHub issue draft JSON.
+- Added fuzzy Isabelle fact suggestions for unresolved formal targets.
+- Added site search, next-action cards, and trend deltas since the previous
+  report.
+- Added `init --template` starters for `minimal`, `afp`, `research-paper`,
+  `course-notes`, and `agent-ready` projects.
+- Added VS Code quick fixes for missing dependencies and go-to-definition
+  navigation for node IDs.
 - Added ruff and mypy as first-class CI gates alongside the existing pytest,
   smoke, and VS Code extension checks.
 - Added trusted PyPI publishing workflow scaffolding for signed tag releases.
@@ -164,7 +184,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.1...v1.0.0
 [0.5.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/releases/tag/v0.5.0

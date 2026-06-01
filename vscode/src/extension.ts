@@ -70,6 +70,20 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   allNodes(): BlueprintNode[] {
     return this.projects.flatMap((loaded) => loaded.project.nodes);
   }
+
+  loadedProjects(): LoadedProject[] {
+    return this.projects;
+  }
+
+  findNode(id: string): { loaded: LoadedProject; node: BlueprintNode } | undefined {
+    for (const loaded of this.projects) {
+      const node = loaded.project.nodes.find((candidate) => candidate.id === id);
+      if (node) {
+        return { loaded, node };
+      }
+    }
+    return undefined;
+  }
 }
 
 type TreeItem = ProjectItem | NodeItem | DependencyItem;
@@ -105,16 +119,23 @@ class NodeItem extends vscode.TreeItem {
       return [];
     }
     const byId = new Map(this.loaded.project.nodes.map((node) => [node.id, node]));
-    return this.node.uses.map((id) => new DependencyItem(id, byId.get(id)));
+    return this.node.uses.map((id) => new DependencyItem(this.loaded, id, byId.get(id)));
   }
 }
 
 class DependencyItem extends vscode.TreeItem {
-  constructor(id: string, node: BlueprintNode | undefined) {
+  constructor(loaded: LoadedProject, id: string, node: BlueprintNode | undefined) {
     super(node ? `${id}: ${node.title}` : id, vscode.TreeItemCollapsibleState.None);
     this.description = node ? `${node.status.formal} dependency` : "missing dependency";
     this.iconPath = new vscode.ThemeIcon(node ? iconForStatus(node.status.formal) : "error");
     this.contextValue = "isabelleBlueprintDependency";
+    if (node) {
+      this.command = {
+        command: "isabelleBlueprint.openNode",
+        title: "Open Dependency",
+        arguments: [loaded, node],
+      };
+    }
   }
 }
 
@@ -197,6 +218,57 @@ class BlueprintCompletionProvider implements vscode.CompletionItemProvider {
   }
 }
 
+class BlueprintDefinitionProvider implements vscode.DefinitionProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideDefinition(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Definition | undefined {
+    const range = document.getWordRangeAtPosition(position, /[\w.\-/:]+/);
+    if (!range) {
+      return undefined;
+    }
+    const word = document.getText(range);
+    const found = this.provider.findNode(word);
+    if (!found) {
+      return undefined;
+    }
+    return locationForNode(found.loaded, found.node);
+  }
+}
+
+class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideCodeActions(
+    document: vscode.TextDocument,
+    _range: vscode.Range,
+    context: vscode.CodeActionContext,
+  ): vscode.CodeAction[] {
+    const actions: vscode.CodeAction[] = [];
+    for (const diagnostic of context.diagnostics) {
+      const code = typeof diagnostic.code === "string" ? diagnostic.code : "";
+      if (!code.startsWith("missing-dependency:")) {
+        continue;
+      }
+      const missingId = code.slice("missing-dependency:".length);
+      const action = new vscode.CodeAction(
+        `Create missing blueprint node '${missingId}'`,
+        vscode.CodeActionKind.QuickFix,
+      );
+      action.diagnostics = [diagnostic];
+      action.command = {
+        command: "isabelleBlueprint.createMissingDependency",
+        title: "Create Missing Blueprint Node",
+        arguments: [document.uri, missingId, this.provider.loadedProjects()],
+      };
+      actions.push(action);
+    }
+    return actions;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
   const provider = new BlueprintTreeProvider();
@@ -213,6 +285,15 @@ export function activate(context: vscode.ExtensionContext): void {
       await openNode(loaded, node);
     }),
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "isabelleBlueprint.createMissingDependency",
+      async (uri: vscode.Uri, missingId: string, projects: LoadedProject[]) => {
+        await createMissingDependency(uri, missingId, projects);
+        await refresh(provider, diagnostics);
+      },
+    ),
+  );
 
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
@@ -221,6 +302,19 @@ export function activate(context: vscode.ExtensionContext): void {
       ":",
       " ",
       "-",
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(
+      { language: "markdown", scheme: "file" },
+      new BlueprintDefinitionProvider(provider),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { language: "markdown", scheme: "file" },
+      new BlueprintCodeActionProvider(provider),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
     ),
   );
 
@@ -278,11 +372,8 @@ async function readProject(jsonPath: string): Promise<BlueprintProject | undefin
 
 function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticCollection): void {
   const byFile = new Map<string, vscode.Diagnostic[]>();
+  const byId = new Map(loaded.project.nodes.map((node) => [node.id, node]));
   for (const node of loaded.project.nodes) {
-    const severity = severityForStatus(node.status.formal);
-    if (severity === undefined) {
-      continue;
-    }
     const sourceFile = node.source?.file;
     if (!sourceFile) {
       continue;
@@ -290,14 +381,31 @@ function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticC
     const absPath = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(loaded.folder.uri.fsPath, sourceFile);
     const line = Math.max(0, (node.source?.line ?? 1) - 1);
     const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
-    const message = `${node.id}: formal=${node.status.formal}, agent=${node.status.agent}${
-      node.status.check_error ? ` (${node.status.check_error})` : ""
-    }`;
-    const diagnostic = new vscode.Diagnostic(range, message, severity);
-    diagnostic.source = "IsabelleBlueprint";
-    diagnostic.code = node.id;
     const existing = byFile.get(absPath) ?? [];
-    existing.push(diagnostic);
+    const severity = severityForStatus(node.status.formal);
+    if (severity !== undefined) {
+      const message = `${node.id}: formal=${node.status.formal}, agent=${node.status.agent}${
+        node.status.check_error ? ` (${node.status.check_error})` : ""
+      }`;
+      const diagnostic = new vscode.Diagnostic(range, message, severity);
+      diagnostic.source = "IsabelleBlueprint";
+      diagnostic.code = node.id;
+      existing.push(diagnostic);
+    }
+
+    for (const depId of node.uses ?? []) {
+      if (byId.has(depId)) {
+        continue;
+      }
+      const depDiagnostic = new vscode.Diagnostic(
+        range,
+        `${node.id}: missing dependency '${depId}'`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      depDiagnostic.source = "IsabelleBlueprint";
+      depDiagnostic.code = `missing-dependency:${depId}`;
+      existing.push(depDiagnostic);
+    }
     byFile.set(absPath, existing);
   }
   for (const [file, fileDiagnostics] of byFile) {
@@ -306,21 +414,78 @@ function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticC
 }
 
 async function openNode(loaded: LoadedProject, node: BlueprintNode): Promise<void> {
-  const sourceFile = node.source?.file;
-  if (!sourceFile) {
+  const location = locationForNode(loaded, node);
+  if (!location) {
     return;
   }
-  const absPath = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(loaded.folder.uri.fsPath, sourceFile);
   try {
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
+    const document = await vscode.workspace.openTextDocument(location.uri);
     const editor = await vscode.window.showTextDocument(document);
-    const line = Math.max(0, (node.source?.line ?? 1) - 1);
-    const position = new vscode.Position(line, 0);
-    editor.selection = new vscode.Selection(position, position);
-    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+    editor.selection = new vscode.Selection(location.range.start, location.range.start);
+    editor.revealRange(location.range, vscode.TextEditorRevealType.InCenter);
   } catch (error) {
-    void vscode.window.showWarningMessage(`Could not open IsabelleBlueprint source ${absPath}: ${String(error)}`);
+    void vscode.window.showWarningMessage(`Could not open IsabelleBlueprint source ${location.uri.fsPath}: ${String(error)}`);
   }
+}
+
+function locationForNode(loaded: LoadedProject, node: BlueprintNode): vscode.Location | undefined {
+  const sourceFile = node.source?.file;
+  if (!sourceFile) {
+    return undefined;
+  }
+  const absPath = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(loaded.folder.uri.fsPath, sourceFile);
+  const line = Math.max(0, (node.source?.line ?? 1) - 1);
+  const position = new vscode.Position(line, 0);
+  return new vscode.Location(vscode.Uri.file(absPath), new vscode.Range(position, position));
+}
+
+async function createMissingDependency(
+  uri: vscode.Uri,
+  missingId: string,
+  projects: LoadedProject[],
+): Promise<void> {
+  if (projects.some((loaded) => loaded.project.nodes.some((node) => node.id === missingId))) {
+    void vscode.window.showInformationMessage(`Blueprint node '${missingId}' already exists.`);
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(uri);
+  const edit = new vscode.WorkspaceEdit();
+  const lastLine = document.lineAt(document.lineCount - 1);
+  const insertAt = new vscode.Position(document.lineCount - 1, lastLine.text.length);
+  edit.insert(document.uri, insertAt, renderNodeStub(missingId, document.getText().endsWith("\n") ? "\n" : "\n\n"));
+  const applied = await vscode.workspace.applyEdit(edit);
+  if (!applied) {
+    void vscode.window.showWarningMessage(`Could not insert missing blueprint node '${missingId}'.`);
+    return;
+  }
+  await document.save();
+}
+
+function renderNodeStub(nodeId: string, prefix: string): string {
+  const title = humanizeId(nodeId);
+  const fact = suggestFact(nodeId);
+  return `${prefix}::: lemma {#${nodeId}}
+title: ${title}
+isabelle: ${fact}
+status: stub
+
+<!-- TODO: state the lemma here. -->
+
+## Proof
+
+<!-- TODO: sketch the proof. -->
+:::
+`;
+}
+
+function humanizeId(nodeId: string): string {
+  const tail = nodeId.split(":").pop()?.replace(/[-_]+/g, " ").trim() || nodeId;
+  return tail.charAt(0).toUpperCase() + tail.slice(1);
+}
+
+function suggestFact(nodeId: string): string {
+  const tail = nodeId.split(":").pop() || nodeId;
+  return tail.replace(/[^0-9A-Za-z_]+/g, "_").replace(/^_+|_+$/g, "") || nodeId;
 }
 
 function severityForStatus(status: string): vscode.DiagnosticSeverity | undefined {

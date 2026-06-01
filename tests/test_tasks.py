@@ -77,6 +77,9 @@ def test_generated_task_contains_acceptance_criteria_and_deps():
     assert len(task.dependencies) == 1
     assert task.dependencies[0].id == "a"
     assert task.dependencies[0].fact == "Demo.a"
+    assert task.metadata is not None
+    assert task.metadata.priority in {"low", "medium", "high"}
+    assert task.metadata.dependency_depth == 1
 
 
 def test_write_tasks_produces_json_md_and_prompts(tmp_path: Path):
@@ -92,6 +95,8 @@ def test_write_tasks_produces_json_md_and_prompts(tmp_path: Path):
     data = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert len(data["tasks"]) == 1
     assert data["tasks"][0]["node_id"] == "b"
+    assert data["suggested_next_task"] == "task-b"
+    assert data["tasks"][0]["metadata"]["difficulty"] == "medium"
     # Prompt file is written for each task.
     prompt_file = paths["prompts"] / "task-b.md"
     assert prompt_file.exists()
@@ -109,3 +114,15 @@ def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
     assert "No ready tasks" in md_text
     data = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert data["tasks"] == []
+    assert data["suggested_next_task"] is None
+
+
+def test_write_tasks_can_emit_github_issue_drafts(tmp_path: Path):
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", statement="stmt")])
+
+    paths = write_tasks(project, tmp_path, github_issues=True)
+
+    issue_path = paths["github_issues"]
+    data = json.loads(issue_path.read_text(encoding="utf-8"))
+    assert data["issues"][0]["title"] == "Formalize A"
+    assert "agent-task" in data["issues"][0]["labels"]

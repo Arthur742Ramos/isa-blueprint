@@ -228,6 +228,19 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
   align-items: center;
   gap: 0.4rem;
 }
+.search-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.search-box input {
+  flex: 1 1 18rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+}
 .filter-label {
   font-weight: 600;
   color: var(--muted);
