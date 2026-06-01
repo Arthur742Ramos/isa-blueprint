@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/roadmap.schema.json",
+  "title": "IsabelleBlueprint roadmap",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "summary",
+    "metrics",
+    "suggested_next_task",
+    "suggested_path",
+    "cycles",
+    "stages"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "project": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "node_count",
+        "complete_count",
+        "ready_count",
+        "blocked_count",
+        "problem_count",
+        "stale_count",
+        "stage_count"
+      ],
+      "properties": {
+        "node_count": { "type": "integer", "minimum": 0 },
+        "complete_count": { "type": "integer", "minimum": 0 },
+        "ready_count": { "type": "integer", "minimum": 0 },
+        "blocked_count": { "type": "integer", "minimum": 0 },
+        "problem_count": { "type": "integer", "minimum": 0 },
+        "stale_count": { "type": "integer", "minimum": 0 },
+        "stage_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "suggested_next_task": { "type": ["string", "null"] },
+    "suggested_path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cycles": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "items"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 1 },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "node_id",
+                "title",
+                "kind",
+                "stage",
+                "status",
+                "formal_status",
+                "agent_status",
+                "target_fact",
+                "blocked_by",
+                "blocks",
+                "task_id",
+                "priority",
+                "difficulty",
+                "suggested_order"
+              ],
+              "properties": {
+                "node_id": { "type": "string" },
+                "title": { "type": "string" },
+                "kind": { "type": "string" },
+                "stage": { "type": "integer", "minimum": 0 },
+                "status": {
+                  "type": "string",
+                  "enum": ["complete", "ready", "blocked", "problem", "stale"]
+                },
+                "formal_status": { "type": "string" },
+                "agent_status": { "type": "string" },
+                "target_fact": { "type": ["string", "null"] },
+                "blocked_by": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "title", "status", "formal_status", "reason"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "title": { "type": ["string", "null"] },
+                      "status": { "type": "string" },
+                      "formal_status": { "type": ["string", "null"] },
+                      "reason": { "type": "string" }
+                    },
+                    "additionalProperties": true
+                  }
+                },
+                "blocks": { "type": "integer", "minimum": 0 },
+                "task_id": { "type": ["string", "null"] },
+                "priority": { "type": ["string", "null"] },
+                "difficulty": { "type": ["string", "null"] },
+                "suggested_order": { "type": ["integer", "null"], "minimum": 0 }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

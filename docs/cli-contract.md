@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.3.0. Subcommand names, flag names, default values,
+command-line tool as of v1.4.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in minor releases provided the
 existing ones keep behaving the same way.
@@ -221,6 +221,30 @@ counts, cycle status, ready-task count, and the next suggested task when one is
 available. `--json` emits the same payload documented by the packaged
 `status` JSON Schema.
 
+### `roadmap`
+
+```text
+isabelle-blueprint roadmap [project_dir] [--json] [--write] [--out DIR]
+```
+
+Prints a staged proof-work roadmap without modifying the project by default.
+The roadmap groups nodes into topological dependency stages, classifies each
+node as `complete`, `ready`, `blocked`, `problem`, or `stale`, includes blocker
+details, and surfaces dependency cycles instead of hiding them.
+
+- `--json` emits the same payload documented by the packaged `roadmap` JSON
+  Schema.
+- `--write` writes `roadmap.json` and `roadmap.md` under the configured
+  `build_dir`.
+- `--out DIR` changes the directory used by `--write`.
+
+`suggested_next_task` follows the same stable task ordering as `tasks`: priority
+(`high`, `medium`, `low`), then difficulty (`low`, `medium`, `high`), then
+dependency depth, then node id. `suggested_path` starts from that task when one
+is ready; otherwise it starts from the first incomplete node by stage and id. It
+then follows the longest incomplete downstream chain, breaking ties by the total
+number of downstream nodes blocked and then by node id.
+
 ### `comment`
 
 ```text
@@ -310,7 +334,7 @@ isabelle-blueprint schema [name] [--out DIR]
 
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
-`tasks`, `summary`, `status`, `config`, `plugin-annotations`, and
+`tasks`, `summary`, `status`, `roadmap`, `config`, `plugin-annotations`, and
 `agent-memory`.
 
 ### `new`
@@ -341,8 +365,9 @@ target suffix selects Markdown or LaTeX automatically. Passing a mismatched
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `serve`, `tasks`, `report`, `status`, `comment`, `doctor`, `memory`, `explain`,
-   `import-theory`, `schema`, `new`) will not be renamed or removed.
+   `serve`, `tasks`, `report`, `status`, `roadmap`, `comment`, `doctor`,
+   `memory`, `explain`, `import-theory`, `schema`, `new`) will not be renamed or
+   removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.
 3. **Exit codes** for documented conditions will not change.

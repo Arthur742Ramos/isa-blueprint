@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-01
+
+### Added
+
+- Added `isabelle-blueprint roadmap`, a staged proof-work planner that groups
+  nodes into topological stages, classifies each node as complete, ready,
+  blocked, stale, or problem, surfaces cycles, and prints a deterministic
+  suggested path through the next useful work.
+- Added `roadmap --json` for machine-readable planning output and
+  `roadmap --write` for shareable `build/roadmap.json` and `build/roadmap.md`
+  artifacts.
+- Added a packaged `roadmap` JSON Schema for roadmap integrations.
+
 ## [1.3.0] - 2026-06-01
 
 ### Added
@@ -218,7 +231,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.0.0...v1.1.0

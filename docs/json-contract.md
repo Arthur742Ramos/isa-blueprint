@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.3.0. Keys, value types, and value semantics listed here will not change
+v1.4.0. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in minor releases;
 consumers should ignore unknown keys.
 
@@ -296,6 +296,94 @@ A read-only project health overview printed to stdout by
 | `metrics` | object | Same scalar status metrics used by badges and GitHub Actions outputs. `coverage_percent` is `null` when no formal targets exist. |
 | `ready_task_count` | integer | Number of currently actionable proof tasks. |
 | `next_task` | object or null | Summary of the first suggested task, or `null` when no task is ready. |
+
+---
+
+## `roadmap --json` / `build/roadmap.json`
+
+Roadmap payloads are printed by `isabelle-blueprint roadmap --json` and written
+to `build/roadmap.json` by `isabelle-blueprint roadmap --write`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "Group theory demo",
+  "summary": {
+    "node_count": 10,
+    "complete_count": 5,
+    "ready_count": 2,
+    "blocked_count": 2,
+    "problem_count": 1,
+    "stale_count": 0,
+    "stage_count": 4
+  },
+  "metrics": {
+    "node_count": 10,
+    "formal_target_count": 7,
+    "proved_count": 3,
+    "found_count": 2,
+    "problem_count": 1,
+    "stale_count": 0,
+    "has_cycles": false,
+    "coverage_percent": 43
+  },
+  "suggested_next_task": "task-main-theorem",
+  "suggested_path": ["main-theorem", "final-corollary"],
+  "cycles": [],
+  "stages": [
+    {
+      "index": 1,
+      "items": [
+        {
+          "node_id": "group",
+          "title": "Group",
+          "kind": "definition",
+          "stage": 1,
+          "status": "complete",
+          "formal_status": "proved",
+          "agent_status": "solved",
+          "target_fact": "Group.group_def",
+          "blocked_by": [],
+          "blocks": 3,
+          "task_id": null,
+          "priority": null,
+          "difficulty": null,
+          "suggested_order": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+Top-level keys:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 roadmap shape. |
+| `project` | string | Project name from `[project].name`. |
+| `summary` | object | Roadmap classification counts: `node_count`, `complete_count`, `ready_count`, `blocked_count`, `problem_count`, `stale_count`, and `stage_count`. |
+| `metrics` | object | Same scalar status metrics used by badges and GitHub Actions outputs. |
+| `suggested_next_task` | string or null | The first ready task from the same stable ordering used by `tasks`, or `null`. |
+| `suggested_path` | array of strings | A deterministic heuristic path through incomplete downstream work. It starts from `suggested_next_task` when available, otherwise from the first incomplete node by stage and id; ties choose the longest path, then the most downstream blocked nodes, then lexicographic node id. |
+| `cycles` | array of string arrays | Dependency cycles reported by validation. Nodes in cycles are classified as `problem`. |
+| `stages` | array | Topological dependency stages. Nodes that participate in cycles are placed in the final stage. |
+
+Roadmap item statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `complete` | The node's formal status is `found` or `proved`. |
+| `ready` | The node is not complete and every dependency is `found` or `proved`; it has a matching generated task. |
+| `blocked` | The node is incomplete and at least one dependency is incomplete or missing. |
+| `problem` | The node is in a dependency cycle or has formal status `not_found`, `broken`, `failed_check`, or `tainted`. |
+| `stale` | The node's formal status is exactly `stale`. |
+
+Each `blocked_by` entry includes `id`, nullable `title`, the dependency's
+roadmap `status` (or `missing` for an undefined dependency), nullable
+`formal_status`, and a `reason` such as
+`missing_dependency`, `incomplete_dependency`, `problem_dependency`,
+`stale_dependency`, or `cycle_dependency`.
 
 ---
 

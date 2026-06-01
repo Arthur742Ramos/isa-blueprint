@@ -21,6 +21,16 @@ from isabelle_blueprint.report.metrics import (
     output_values,
     stable_output_keys,
 )
+from isabelle_blueprint.report.roadmap import (
+    RoadmapBlocker,
+    RoadmapItem,
+    RoadmapOverview,
+    RoadmapStage,
+    RoadmapSummary,
+    build_roadmap,
+    render_roadmap,
+    write_roadmap,
+)
 from isabelle_blueprint.report.status_overview import (
     NextTaskOverview,
     StatusOverview,
@@ -31,8 +41,14 @@ from isabelle_blueprint.report.status_overview import (
 __all__ = [
     "StatusMetrics",
     "NextTaskOverview",
+    "RoadmapBlocker",
+    "RoadmapItem",
+    "RoadmapOverview",
+    "RoadmapStage",
+    "RoadmapSummary",
     "StatusOverview",
     "build_endpoint_payload",
+    "build_roadmap",
     "build_status_metrics",
     "build_status_overview",
     "build_summary_markdown",
@@ -42,10 +58,12 @@ __all__ = [
     "emit_step_summary",
     "output_values",
     "render_badge_svg",
+    "render_roadmap",
     "render_status_overview",
     "stable_output_keys",
     "write_badge_endpoint",
     "write_badge_svg",
     "write_markdown_report",
     "write_project_report",
+    "write_roadmap",
 ]
