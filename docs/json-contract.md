@@ -237,7 +237,21 @@ static site by `isabelle-blueprint web`.
 ```
 
 v1.1 adds the optional `metadata` object and top-level
-`suggested_next_task`. Existing task keys remain unchanged.
+`suggested_next_task`. v1.2 adds the optional `memory` object:
+
+```json
+{
+  "attempt_count": 2,
+  "last_outcome": "failed",
+  "last_summary": "simp looped on the induction hypothesis",
+  "last_timestamp": "2026-06-01T12:00:00Z",
+  "next_step": "try induction on n",
+  "stale": false
+}
+```
+
+`stale` is `true` when the latest attempt was recorded against older task
+inputs. Existing task keys remain unchanged.
 
 ---
 
@@ -257,6 +271,38 @@ names.
   ]
 }
 ```
+
+---
+
+## `.isabelle-blueprint/agent-memory.json`
+
+Persistent per-node proof-attempt memory. This file is intentionally outside
+`build/` so teams can commit it or share it across agent runs.
+
+```json
+{
+  "schema_version": 1,
+  "nodes": {
+    "main-theorem": {
+      "attempts": [
+        {
+          "timestamp": "2026-06-01T12:00:00Z",
+          "outcome": "failed",
+          "summary": "simp loops after unfolding the definition",
+          "actor": "alice",
+          "tool": "sledgehammer",
+          "details": "",
+          "next_step": "prove the monotonicity helper first",
+          "input_hash": "..."
+        }
+      ]
+    }
+  }
+}
+```
+
+Attempts are capped by the `memory --max-attempts` value when recording
+(default 20 per node). Readers should ignore unknown keys.
 
 ---
 

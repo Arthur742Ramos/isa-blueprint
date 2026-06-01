@@ -11,6 +11,7 @@ from typing import Any, TypeAlias
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from isabelle_blueprint.agents.memory import AgentMemory, summaries_by_node
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.graph.graphviz_render import (
     render_dot,
@@ -50,6 +51,7 @@ def render_site(
     graphviz_executable: str = "dot",
     trends: list[dict[str, Any]] | None = None,
     fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
 ) -> Path:
     """Render the project to a static HTML site under ``output_dir``.
 
@@ -73,7 +75,8 @@ def render_site(
 
     fact_suggestions = fact_suggestions or []
     fact_suggestions_by_node = suggestions_by_node(fact_suggestions)
-    tasks = generate_tasks(project, fact_suggestions=fact_suggestions)
+    tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    memory_summaries = summaries_by_node(memory, project.nodes) if memory is not None else {}
     formal_counts = Counter(n.status.formal.value for n in project.nodes)
     blueprint_counts = Counter(n.status.blueprint.value for n in project.nodes)
     agent_counts = Counter(n.status.agent.value for n in project.nodes)
@@ -99,7 +102,9 @@ def render_site(
         "has_svg": svg is not None,
         "svg_source": _inline_svg(svg),
         "tasks": tasks,
+        "task_board": _task_board(project, tasks),
         "suggested_next_task": tasks[0] if tasks else None,
+        "memory_summaries": memory_summaries,
         "page_count": len(project.nodes),
         "dot_source": dot_source,
         "formal_status_values": [s.value for s in FormalStatus],
@@ -151,6 +156,37 @@ def render_site(
     write_badge_svg(project, output_dir / "badge.svg")
 
     return output_dir / "index.html"
+
+
+def _task_board(project: BlueprintProject, tasks) -> list[dict[str, object]]:
+    ready_ids = {task.node_id for task in tasks}
+    columns = {
+        AgentStatus.READY.value: [],
+        AgentStatus.IN_PROGRESS.value: [],
+        AgentStatus.ATTEMPTED.value: [],
+        AgentStatus.NEEDS_HUMAN.value: [],
+        AgentStatus.BLOCKED.value: [],
+        AgentStatus.SOLVED.value: [],
+    }
+    for node in project.nodes:
+        agent_status = node.status.agent.value
+        if node.id in ready_ids:
+            columns[AgentStatus.READY.value].append(node)
+        elif agent_status in columns:
+            columns[agent_status].append(node)
+        else:
+            columns[AgentStatus.BLOCKED.value].append(node)
+    return [
+        {"id": key, "title": title, "nodes": nodes, "count": len(nodes)}
+        for key, title, nodes in [
+            (AgentStatus.READY.value, "Ready", columns[AgentStatus.READY.value]),
+            (AgentStatus.IN_PROGRESS.value, "In progress", columns[AgentStatus.IN_PROGRESS.value]),
+            (AgentStatus.ATTEMPTED.value, "Attempted", columns[AgentStatus.ATTEMPTED.value]),
+            (AgentStatus.NEEDS_HUMAN.value, "Needs human", columns[AgentStatus.NEEDS_HUMAN.value]),
+            (AgentStatus.BLOCKED.value, "Blocked", columns[AgentStatus.BLOCKED.value]),
+            (AgentStatus.SOLVED.value, "Solved", columns[AgentStatus.SOLVED.value]),
+        ]
+    ]
 
 
 _SVG_PROLOG_RE = re.compile(r"<\?xml[^>]*\?>\s*", re.IGNORECASE)

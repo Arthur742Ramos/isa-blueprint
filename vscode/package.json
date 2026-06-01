@@ -2,9 +2,17 @@
   "name": "isabelle-blueprint-vscode",
   "displayName": "IsabelleBlueprint",
   "description": "Surface IsabelleBlueprint project status in VS Code.",
-  "version": "0.6.0",
+  "version": "1.2.0",
   "publisher": "isabelle-blueprint",
   "license": "MIT",
+  "homepage": "https://github.com/Arthur742Ramos/isa-blueprint#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arthur742Ramos/isa-blueprint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Arthur742Ramos/isa-blueprint/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -14,6 +22,10 @@
   "activationEvents": [
     "workspaceContains:isabelle-blueprint.toml",
     "onCommand:isabelleBlueprint.refresh",
+    "onCommand:isabelleBlueprint.runReport",
+    "onCommand:isabelleBlueprint.runCheck",
+    "onCommand:isabelleBlueprint.runTasks",
+    "onCommand:isabelleBlueprint.previewTaskPrompt",
     "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
@@ -32,8 +44,33 @@
       {
         "command": "isabelleBlueprint.openNode",
         "title": "IsabelleBlueprint: Open Node"
+      },
+      {
+        "command": "isabelleBlueprint.runReport",
+        "title": "IsabelleBlueprint: Run Report"
+      },
+      {
+        "command": "isabelleBlueprint.runCheck",
+        "title": "IsabelleBlueprint: Run Check"
+      },
+      {
+        "command": "isabelleBlueprint.runTasks",
+        "title": "IsabelleBlueprint: Generate Tasks"
+      },
+      {
+        "command": "isabelleBlueprint.previewTaskPrompt",
+        "title": "IsabelleBlueprint: Preview Task Prompt"
       }
     ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "isabelleBlueprint.previewTaskPrompt",
+          "when": "view == isabelleBlueprint.nodes && viewItem == isabelleBlueprintNode",
+          "group": "inline"
+        }
+      ]
+    },
     "views": {
       "explorer": [
         {
@@ -49,6 +86,11 @@
           "type": "string",
           "default": "build/project.json",
           "description": "Path to the generated IsabelleBlueprint project JSON, relative to each workspace folder."
+        },
+        "isabelleBlueprint.cliPath": {
+          "type": "string",
+          "default": "isabelle-blueprint",
+          "description": "Path to the IsabelleBlueprint CLI executable used by Run Report/Check/Tasks commands."
         }
       }
     }
@@ -56,6 +98,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
+    "package": "npm run compile",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

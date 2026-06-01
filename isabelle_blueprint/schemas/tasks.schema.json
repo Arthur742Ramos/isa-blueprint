@@ -51,6 +51,18 @@
               }
             },
             "additionalProperties": true
+          },
+          "memory": {
+            "type": ["object", "null"],
+            "properties": {
+              "attempt_count": { "type": "integer" },
+              "last_outcome": { "type": ["string", "null"] },
+              "last_summary": { "type": ["string", "null"] },
+              "last_timestamp": { "type": ["string", "null"] },
+              "next_step": { "type": ["string", "null"] },
+              "stale": { "type": "boolean" }
+            },
+            "additionalProperties": true
           }
         },
         "additionalProperties": true

@@ -16,6 +16,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from isabelle_blueprint.agents.memory import AgentMemory, NodeMemorySummary, summaries_by_node
 from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
@@ -53,6 +54,7 @@ class AgentTask:
     dependencies: list[AgentTaskDependency] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
     metadata: AgentTaskMetadata | None = None
+    memory: NodeMemorySummary | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -77,12 +79,14 @@ def generate_tasks(
     project: BlueprintProject,
     *,
     fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
 ) -> list[AgentTask]:
     tasks: list[AgentTask] = []
     by_id = project.by_id()
     depths = _dependency_depths(project)
     blocking_counts = _blocking_counts(project)
     suggestion_index = suggestions_by_node(fact_suggestions or [])
+    memory_summaries = summaries_by_node(memory, project.nodes) if memory is not None else {}
     for node in project.nodes:
         if not _is_ready(node, project):
             continue
@@ -122,6 +126,7 @@ def generate_tasks(
                     suggested_order=0,
                     suggested_facts=suggested_facts,
                 ),
+                memory=memory_summaries.get(node.id),
             )
         )
     tasks.sort(key=_task_sort_key)
@@ -151,12 +156,13 @@ def write_tasks(
     md_name: str = "tasks.md",
     prompt_dir_name: str = "prompts",
     fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
     github_issues: bool = False,
     github_issues_name: str = "github-issues.json",
 ) -> dict[str, Path]:
     """Write ``tasks.json``, ``tasks.md`` and ``prompts/<task-id>.md`` files."""
     build_dir.mkdir(parents=True, exist_ok=True)
-    tasks = generate_tasks(project, fact_suggestions=fact_suggestions)
+    tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
 
     json_path = build_dir / json_name
     md_path = build_dir / md_name
@@ -227,6 +233,15 @@ def _render_prompt(task: AgentTask) -> str:
                 "- **Suggested nearby facts**: "
                 + ", ".join(f"`{fact}`" for fact in task.metadata.suggested_facts)
             )
+    if task.memory is not None:
+        parts.append(f"- **Previous attempts**: `{task.memory.attempt_count}`")
+        if task.memory.last_outcome:
+            stale = " (from an older task input)" if task.memory.stale else ""
+            parts.append(f"- **Last outcome**: `{task.memory.last_outcome}`{stale}")
+        if task.memory.last_summary:
+            parts.append(f"- **Last note**: {task.memory.last_summary}")
+        if task.memory.next_step:
+            parts.append(f"- **Suggested next step**: {task.memory.next_step}")
     parts.append("")
     parts.append("## Informal statement")
     parts.append("")
@@ -257,12 +272,25 @@ def _render_prompt(task: AgentTask) -> str:
 def write_github_issue_drafts(tasks: list[AgentTask], path: Path) -> Path:
     """Write GitHub issue drafts for ready tasks without touching the network."""
 
-    issues = []
+    issues = github_issue_drafts(tasks)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"issues": issues}, indent=2), encoding="utf-8")
+    return path
+
+
+def github_issue_drafts(tasks: list[AgentTask]) -> list[dict[str, object]]:
+    """Return GitHub issue draft dictionaries for ``tasks``."""
+
+    issues: list[dict[str, object]] = []
     for task in tasks:
         body = _render_prompt(task)
         if len(body) > 60000:
             body = body[:59900] + "\n\n_(Prompt truncated to stay under GitHub issue limits.)_\n"
-        labels = ["isabelle-blueprint", "agent-task", f"priority:{task.metadata.priority if task.metadata else 'medium'}"]
+        labels = [
+            "isabelle-blueprint",
+            "agent-task",
+            f"priority:{task.metadata.priority if task.metadata else 'medium'}",
+        ]
         issues.append(
             {
                 "title": f"Formalize {task.title}",
@@ -272,9 +300,7 @@ def write_github_issue_drafts(tasks: list[AgentTask], path: Path) -> Path:
                 "task_id": task.id,
             }
         )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"issues": issues}, indent=2), encoding="utf-8")
-    return path
+    return issues
 
 
 def _dependency_depths(project: BlueprintProject) -> dict[str, int]:

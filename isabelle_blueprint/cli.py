@@ -12,10 +12,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
+from isabelle_blueprint.agents.github_sync import sync_github_issues
+from isabelle_blueprint.agents.memory import (
+    VALID_OUTCOMES,
+    load_agent_memory,
+    node_input_hash,
+    record_memory_attempt,
+)
 from isabelle_blueprint.agents.tasks import write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
+from isabelle_blueprint.explain import explain_project, render_explanations
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
@@ -34,7 +42,9 @@ from isabelle_blueprint.isabelle.suggestions import (
     suggest_missing_facts,
     write_fact_suggestions,
 )
+from isabelle_blueprint.isabelle.theory_import import import_theory_file, render_imported_blueprint
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
+from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.github_actions import (
@@ -272,13 +282,35 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
     written = write_tasks(
         project,
         config.build_dir,
         fact_suggestions=fact_suggestions,
+        memory=memory,
         github_issues=args.github_issues,
         github_issues_name=args.github_issues_file,
     )
+    if args.github_sync:
+        from isabelle_blueprint.agents.tasks import generate_tasks, github_issue_drafts
+
+        tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+        drafts = github_issue_drafts(tasks)
+        actions = sync_github_issues(
+            drafts,
+            repo=args.repo or os.environ.get("GITHUB_REPOSITORY"),
+            state_path=Path(args.github_sync_state).resolve()
+            if args.github_sync_state
+            else config.github_sync_state_path,
+            token_env=args.token_env,
+            confirm=args.github_sync_confirm,
+        )
+        sync_path = config.build_dir / "github-sync-plan.json"
+        sync_path.write_text(
+            json.dumps({"actions": [action.to_dict() for action in actions]}, indent=2),
+            encoding="utf-8",
+        )
+        written["github_sync"] = sync_path
     for name, path in written.items():
         print(f"{name} -> {path}")
     return 0
@@ -298,6 +330,16 @@ def cmd_report(args: argparse.Namespace) -> int:
     if fact_suggestions:
         suggestions_path = write_fact_suggestions(fact_suggestions, config.build_dir / "fact-suggestions.json")
         print(f"fact suggestions -> {suggestions_path}")
+    plugin_annotations = run_status_providers(project)
+    if plugin_annotations:
+        plugin_path = config.build_dir / "plugin-annotations.json"
+        plugin_path.write_text(json.dumps({"annotations": plugin_annotations}, indent=2), encoding="utf-8")
+        print(f"plugin annotations -> {plugin_path}")
+    for artifact in run_report_renderers(project, config.build_dir):
+        if "path" in artifact:
+            print(f"plugin renderer {artifact['plugin']} -> {artifact['path']}")
+        else:
+            print(f"plugin renderer {artifact.get('plugin', 'unknown')} -> {artifact}")
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
@@ -368,6 +410,87 @@ def cmd_schema(args: argparse.Namespace) -> int:
         return 0
     for name in available_schemas():
         print(name)
+    return 0
+
+
+def cmd_memory(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    memory_path = Path(args.memory_file).resolve() if args.memory_file else config.agent_memory_path
+    by_id = project.by_id()
+    if args.record:
+        if not args.node:
+            raise BlueprintError("--node is required when recording memory")
+        node = by_id.get(args.node)
+        if node is None:
+            raise BlueprintError(f"unknown node id {args.node!r}")
+        attempt = record_memory_attempt(
+            memory_path,
+            args.node,
+            outcome=args.outcome,
+            summary=args.summary,
+            actor=args.actor,
+            tool=args.tool,
+            details=args.details or "",
+            next_step=args.next_step,
+            input_hash=node_input_hash(node),
+            max_attempts=args.max_attempts,
+        )
+        print(f"memory recorded -> {memory_path} ({args.node} @ {attempt.timestamp})")
+        return 0
+
+    memory = load_agent_memory(memory_path, strict=True)
+    selected = [args.node] if args.node else sorted(memory.nodes)
+    rows = []
+    for node_id in selected:
+        attempts = memory.nodes.get(node_id)
+        if attempts is None:
+            continue
+        for attempt in attempts.attempts:
+            rows.append({"node_id": node_id, **attempt.to_dict()})
+    if args.json:
+        print(json.dumps({"memory_file": str(memory_path), "attempts": rows}, indent=2))
+    elif not rows:
+        print("No agent memory recorded yet.")
+    else:
+        for row in rows:
+            print(
+                f"{row['node_id']} {row['timestamp']} {row['outcome']}: "
+                f"{row['summary']}"
+            )
+            if row.get("next_step"):
+                print(f"  next: {row['next_step']}")
+    return 0
+
+
+def cmd_explain(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    explanations = explain_project(project, node_id=args.node, fact_suggestions=fact_suggestions)
+    if args.json:
+        print(json.dumps({"explanations": [item.to_dict() for item in explanations]}, indent=2))
+    else:
+        print(render_explanations(explanations), end="")
+    return 0
+
+
+def cmd_import_theory(args: argparse.Namespace) -> int:
+    facts = []
+    for theory_path in args.theory:
+        facts.extend(import_theory_file(Path(theory_path).resolve()))
+    blueprint = render_imported_blueprint(facts, project_name=args.project_name)
+    if args.output:
+        output = Path(args.output).resolve()
+        if output.exists() and not args.force:
+            raise BlueprintError(f"refusing to overwrite {output}; pass --force")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(blueprint, encoding="utf-8")
+        print(f"imported {len(facts)} declaration(s) -> {output}")
+    else:
+        sys.stdout.write(blueprint)
     return 0
 
 
@@ -471,6 +594,27 @@ def _build_parser() -> argparse.ArgumentParser:
         default="github-issues.json",
         help="filename under build_dir for --github-issues output",
     )
+    p_tasks.add_argument(
+        "--github-sync",
+        action="store_true",
+        help="write a GitHub issue sync plan; dry-run unless --github-sync-confirm is passed",
+    )
+    p_tasks.add_argument(
+        "--github-sync-confirm",
+        action="store_true",
+        help="actually create/update GitHub issues for --github-sync",
+    )
+    p_tasks.add_argument("--repo", default=None, help="GitHub repo for sync, e.g. owner/repo")
+    p_tasks.add_argument(
+        "--token-env",
+        default="GITHUB_TOKEN",
+        help="environment variable containing the GitHub token for confirmed sync",
+    )
+    p_tasks.add_argument(
+        "--github-sync-state",
+        default=None,
+        help="path to persistent node-to-issue mapping (default: .isabelle-blueprint/github-sync.json)",
+    )
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
@@ -507,6 +651,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p_schema.add_argument("--out", default=None, help="write selected/all schemas to a directory")
     p_schema.set_defaults(func=cmd_schema)
 
+    p_memory = sub.add_parser("memory", help="record or list per-node proof attempt memory")
+    p_memory.add_argument("project_dir", nargs="?", default=".")
+    p_memory.add_argument("--node", default=None, help="node id to record/list")
+    p_memory.add_argument("--memory-file", default=None, help="override agent memory JSON path")
+    p_memory.add_argument("--record", action="store_true", help="record a new memory attempt")
+    p_memory.add_argument("--outcome", choices=sorted(VALID_OUTCOMES), default="note")
+    p_memory.add_argument("--summary", default="", help="short attempt summary (required with --record)")
+    p_memory.add_argument("--details", default="", help="longer notes for the attempt")
+    p_memory.add_argument("--next-step", default=None, help="recommended next action")
+    p_memory.add_argument("--actor", default=None, help="person or agent that made the attempt")
+    p_memory.add_argument("--tool", default=None, help="tool/model used for the attempt")
+    p_memory.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
+    p_memory.add_argument("--json", action="store_true", help="list memory as JSON")
+    p_memory.set_defaults(func=cmd_memory)
+
+    p_explain = sub.add_parser("explain", help="explain status and dependency problems for blueprint nodes")
+    p_explain.add_argument("project_dir", nargs="?", default=".")
+    p_explain.add_argument("--node", default=None, help="only explain one node id")
+    p_explain.add_argument("--json", action="store_true", help="emit machine-readable explanations")
+    p_explain.set_defaults(func=cmd_explain)
+
+    p_import = sub.add_parser("import-theory", help="bootstrap a blueprint from Isabelle .thy declarations")
+    p_import.add_argument("theory", nargs="+", help="Isabelle theory file(s) to scan")
+    p_import.add_argument("--project-name", default=None, help="title for the generated blueprint")
+    p_import.add_argument("--output", default=None, help="write generated blueprint to this file")
+    p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
+    p_import.set_defaults(func=cmd_import_theory)
+
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
@@ -536,11 +708,13 @@ def _render_web_once(project_dir: Path) -> Path:
     _try_apply_check(project, config)
     trends = load_trends(config.trends_path)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
     return render_site(
         project,
         config.site_dir,
         trends=trends,
         fact_suggestions=fact_suggestions,
+        memory=memory,
     )
 
 

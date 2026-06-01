@@ -236,10 +236,12 @@ already justify.
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
 | `web` / `serve` | Static HTML site | Public progress pages and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
+| `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
 | `dump` | PIDE-derived status | Deeper proof inspection from Isabelle dump output. |
 | `compat` | Isabelle/AFP diagnostics | Reproducible session and version setup. |
 | `comment` | Idempotent PR status comments | Pull-request automation. |
+| `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files | Debugging and onboarding existing Isabelle projects. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 
 The CLI, JSON output, and GitHub Action outputs are stable public contracts:
@@ -323,6 +325,38 @@ Inside GitHub Actions, `report` also writes stable scalar outputs to
 `comment --preview` renders the PR comment body locally; without `--preview`, it
 updates the matching PR comment idempotently.
 
+For proof-work queues, `tasks --github-sync` now writes a dry-run issue sync
+plan. Add `--github-sync-confirm --repo OWNER/REPO` when you intentionally want
+to create or update GitHub issues; sync uses hidden node markers plus
+`.isabelle-blueprint/github-sync.json` to avoid duplicates.
+
+## Agent memory and status explanations
+
+Use `memory` to preserve what a human or agent already tried:
+
+```bash
+isabelle-blueprint memory . --node main-theorem --record \
+  --outcome failed \
+  --summary "simp loops after unfolding the definition" \
+  --next-step "prove the monotonicity helper first"
+```
+
+The next `tasks` or `web` run includes that memory in prompts and the static task
+board. Use `explain` when a node is blocked or red:
+
+```bash
+isabelle-blueprint explain . --node main-theorem
+```
+
+Existing Isabelle projects can bootstrap an initial blueprint from theory files:
+
+```bash
+isabelle-blueprint import-theory src/Demo.thy --output blueprint.md
+```
+
+The importer is best-effort; review generated statements, dependencies, and
+proof sketches before relying on the result.
+
 ## VS Code extension
 
 The companion extension under [`vscode/`](vscode/) reads `build/project.json`
@@ -333,6 +367,8 @@ and adds:
 - source navigation,
 - refresh/watch support,
 - dependency navigation and quick fixes.
+- commands to run `report`, `check`, and `tasks`,
+- task prompt preview from generated `build/prompts/`.
 
 ## Project status
 

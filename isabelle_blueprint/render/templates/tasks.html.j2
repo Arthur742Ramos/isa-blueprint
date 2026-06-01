@@ -2,6 +2,38 @@
 {% block content %}
 <h1>Agent-ready tasks</h1>
 
+<section class="task-board">
+  <h2>Task board</h2>
+  <p class="lede">A static snapshot of proof work by agent state. Ready cards include remembered attempt context when available.</p>
+  <div class="task-columns">
+    {% for column in task_board %}
+      <article class="task-column task-column-{{ column.id }}">
+        <h3>{{ column.title }} <span>{{ column.count }}</span></h3>
+        {% if column.nodes %}
+          <ul>
+            {% for node in column.nodes %}
+              <li>
+                <a href="nodes/{{ node.id }}.html">{{ node.title }}</a>
+                <code>{{ node.id }}</code>
+                {% set memory = memory_summaries.get(node.id) %}
+                {% if memory %}
+                  <p class="task-memory">
+                    {{ memory.attempt_count }} attempt{{ '' if memory.attempt_count == 1 else 's' }};
+                    last {{ memory.last_outcome }}{% if memory.stale %} (stale){% endif %}.
+                    {% if memory.next_step %}<br />Next: {{ memory.next_step }}{% endif %}
+                  </p>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty">No nodes.</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
 {% if tasks %}
   <p class="lede">
     These nodes have every dependency already formalised. They are the next things an
@@ -26,6 +58,15 @@
           {% for fact in task.metadata.suggested_facts %}
             <code>{{ fact }}</code>{% if not loop.last %}, {% endif %}
           {% endfor %}
+          </p>
+        {% endif %}
+        {% if task.memory %}
+          <p class="task-memory">
+            <strong>Memory:</strong>
+            {{ task.memory.attempt_count }} attempt{{ '' if task.memory.attempt_count == 1 else 's' }};
+            last outcome <code>{{ task.memory.last_outcome }}</code>{% if task.memory.stale %} from an older task input{% endif %}.
+            {% if task.memory.last_summary %}<br />{{ task.memory.last_summary }}{% endif %}
+            {% if task.memory.next_step %}<br /><strong>Next:</strong> {{ task.memory.next_step }}{% endif %}
           </p>
         {% endif %}
         {% if task.dependencies %}

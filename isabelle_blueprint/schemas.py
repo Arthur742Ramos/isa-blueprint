@@ -13,6 +13,7 @@ SCHEMA_NAMES = (
     "summary",
     "config",
     "plugin-annotations",
+    "agent-memory",
 )
 
 
@@ -45,4 +46,3 @@ def write_schemas(output_dir: Path, names: list[str] | None = None) -> dict[str,
         path.write_text(text, encoding="utf-8")
         written[name] = path
     return written
-
