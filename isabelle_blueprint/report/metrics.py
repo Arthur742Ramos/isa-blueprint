@@ -63,7 +63,11 @@ class StatusMetrics:
         }
 
 
-def build_status_metrics(project: BlueprintProject) -> StatusMetrics:
+def build_status_metrics(
+    project: BlueprintProject,
+    *,
+    has_cycles: bool | None = None,
+) -> StatusMetrics:
     """Compute the status metrics for ``project``.
 
     "Formal targets" are nodes that have been assigned an Isabelle reference
@@ -87,7 +91,8 @@ def build_status_metrics(project: BlueprintProject) -> StatusMetrics:
     else:
         coverage_percent = round(proved / formal_target_count * 100)
 
-    has_cycles = bool(project.validate().cycles)
+    if has_cycles is None:
+        has_cycles = bool(project.validate().cycles)
 
     return StatusMetrics(
         node_count=node_count,

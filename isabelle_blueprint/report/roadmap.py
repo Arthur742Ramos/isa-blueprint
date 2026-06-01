@@ -175,7 +175,7 @@ def build_roadmap(project: BlueprintProject, ready_tasks: Sequence[AgentTask]) -
         schema_version=ROADMAP_SCHEMA_VERSION,
         project=project.name,
         summary=summary,
-        metrics=build_status_metrics(project),
+        metrics=build_status_metrics(project, has_cycles=bool(cycles)),
         suggested_next_task=ready_tasks[0].id if ready_tasks else None,
         suggested_path=_suggested_path(project, ready_tasks, items_by_id),
         cycles=cycles,
@@ -357,20 +357,26 @@ def _blocker(dep: BlueprintNode, *, status: str, reason: str) -> RoadmapBlocker:
 def _downstream_incomplete_counts(project: BlueprintProject) -> dict[str, int]:
     graph = build_graph(project)
     by_id = project.by_id()
-    counts: dict[str, int] = {}
-    for node in project.nodes:
-        seen: set[str] = set()
-        stack = list(graph.reverse_edges.get(node.id, []))
-        while stack:
-            current = stack.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            current_node = by_id.get(current)
-            if current_node and current_node.status.formal not in COMPLETE_FORMAL_STATUSES:
-                counts[node.id] = counts.get(node.id, 0) + 1
-            stack.extend(graph.reverse_edges.get(current, []))
-    return counts
+    memo: dict[str, set[str]] = {}
+    visiting: set[str] = set()
+
+    def incomplete_descendants(node_id: str) -> set[str]:
+        if node_id in memo:
+            return memo[node_id]
+        if node_id in visiting:
+            return set()
+        visiting.add(node_id)
+        descendants: set[str] = set()
+        for child_id in graph.reverse_edges.get(node_id, []):
+            child = by_id.get(child_id)
+            if child and child.status.formal not in COMPLETE_FORMAL_STATUSES:
+                descendants.add(child_id)
+            descendants.update(incomplete_descendants(child_id))
+        visiting.discard(node_id)
+        memo[node_id] = descendants
+        return descendants
+
+    return {node.id: len(incomplete_descendants(node.id)) for node in project.nodes}
 
 
 def _summary(items: Iterable[RoadmapItem], *, stage_count: int) -> RoadmapSummary:
