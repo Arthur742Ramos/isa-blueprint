@@ -3,17 +3,16 @@ from __future__ import annotations
 
 import json
 import shutil
-from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
-from isabelle_blueprint.isabelle import check_cache, checker as checker_module
+from isabelle_blueprint.isabelle import check_cache
+from isabelle_blueprint.isabelle import checker as checker_module
 from isabelle_blueprint.isabelle._run import RunResult
-from isabelle_blueprint.isabelle.checker import FactCheck, run_check
+from isabelle_blueprint.isabelle.checker import run_check
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-
 
 # ---------------------------------------------------------------------------
 # helpers (mirror tests/test_checker.py style)

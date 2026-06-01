@@ -35,6 +35,10 @@ dependencies = [
 dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "types-PyYAML",
+  "build",
 ]
 
 [project.scripts]
@@ -64,3 +68,32 @@ isabelle_blueprint = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["examples", "vscode"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B"]
+# E501 (line length): codebase predates the 100-col target; a formatting pass is
+# deferred to a future release to keep this change additive.
+# UP042 (str+Enum -> StrEnum): the status/kind enums are serialized into the frozen
+# v1.0 JSON contracts; migrating changes f-string formatting, so it is deferred.
+ignore = ["E501", "UP042"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["isabelle_blueprint"]
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = [
+  "isabelle_blueprint.isabelle._run",
+  "isabelle_blueprint.isabelle.dump",
+  "isabelle_blueprint.isabelle.checker",
+  "isabelle_blueprint.render.site",
+]
+ignore_errors = true

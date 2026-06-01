@@ -1,10 +1,11 @@
 """Blueprint parsers."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from isabelle_blueprint.errors import BlueprintError
+from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.parser.latex import (
     parse_latex_file,
     parse_latex_text,
@@ -16,7 +17,6 @@ from isabelle_blueprint.parser.markdown import (
 from isabelle_blueprint.parser.markdown import (
     parse_blueprint_text as parse_markdown_text,
 )
-from isabelle_blueprint.model.project import BlueprintProject
 
 
 def parse_blueprint_file(path: Path | str, *, project_name: str | None = None) -> BlueprintProject:

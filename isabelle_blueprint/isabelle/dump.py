@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from isabelle_blueprint.isabelle._run import run_capture
@@ -44,7 +44,7 @@ class DumpResult:
     stderr: str = ""
     facts: list[DumpFact] = field(default_factory=list)
     error: str | None = None
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def ok(self) -> bool:
@@ -56,7 +56,7 @@ class DumpResult:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DumpResult":
+    def from_dict(cls, data: dict) -> DumpResult:
         from dataclasses import fields as dc_fields
 
         known = {f.name for f in dc_fields(cls)}

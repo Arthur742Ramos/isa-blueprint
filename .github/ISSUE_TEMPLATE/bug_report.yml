@@ -1,0 +1,49 @@
+name: Bug report
+description: Report something that is broken or surprising.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include commands, blueprint snippets, and relevant files when possible.
+      placeholder: |
+        1. Run `isabelle-blueprint ...`
+        2. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: IsabelleBlueprint version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12"
+  - type: input
+    id: isabelle
+    attributes:
+      label: Isabelle version
+      placeholder: "Isabelle2024"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      render: text
+

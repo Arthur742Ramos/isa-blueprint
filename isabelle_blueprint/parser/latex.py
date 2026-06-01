@@ -16,7 +16,6 @@ from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
 
-
 _ENV_KINDS = [
     "definition",
     "lemma",

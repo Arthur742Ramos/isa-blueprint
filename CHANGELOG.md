@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added ruff and mypy as first-class CI gates alongside the existing pytest,
+  smoke, and VS Code extension checks.
+- Added trusted PyPI publishing workflow scaffolding for signed tag releases.
+- Added a composite GitHub Action wrapper that installs IsabelleBlueprint and
+  forwards the stable v1.0 report outputs.
+- Added community-health files: contribution guide, security policy, code of
+  conduct, pull request template, issue forms, Dependabot config, and funding
+  placeholder.
+
 ## [1.0.0] - 2026-05-31
 
 The first stable release. The CLI surface, JSON file shapes, and GitHub Action

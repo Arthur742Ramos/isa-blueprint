@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import difflib
 import json
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Iterator
 
 from isabelle_blueprint.errors import ValidationError
 from isabelle_blueprint.model.node import BlueprintNode
@@ -182,7 +182,7 @@ class BlueprintProject:
         path.write_text(self.to_json(), encoding="utf-8")
 
     @classmethod
-    def from_nodes(cls, name: str, nodes: Iterable[BlueprintNode], sources: Iterable[str] = ()) -> "BlueprintProject":
+    def from_nodes(cls, name: str, nodes: Iterable[BlueprintNode], sources: Iterable[str] = ()) -> BlueprintProject:
         return cls(name=name, nodes=list(nodes), source_files=list(sources))
 
 

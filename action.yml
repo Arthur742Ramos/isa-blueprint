@@ -1,0 +1,116 @@
+name: IsabelleBlueprint
+description: Validate Isabelle/HOL blueprint projects and publish report metrics.
+author: Arthur742Ramos
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  project_dir:
+    description: Directory containing the blueprint project.
+    default: .
+  python-version:
+    description: Python version used to run IsabelleBlueprint.
+    default: '3.12'
+  isabelle-blueprint-version:
+    description: Optional PyPI version to install instead of the action checkout.
+    default: ''
+  run-check:
+    description: Run `isabelle-blueprint check`.
+    default: 'true'
+  run-graph:
+    description: Run `isabelle-blueprint graph`.
+    default: 'true'
+  run-web:
+    description: Run `isabelle-blueprint web`.
+    default: 'false'
+  run-tasks:
+    description: Run `isabelle-blueprint tasks`.
+    default: 'true'
+  run-report:
+    description: Run `isabelle-blueprint report` and expose metrics as action outputs.
+    default: 'true'
+  run-comment:
+    description: Run `isabelle-blueprint comment`.
+    default: 'false'
+
+outputs:
+  coverage_percent:
+    description: Percent of formal targets proved or found.
+    value: ${{ steps.report.outputs.coverage_percent }}
+  node_count:
+    description: Number of blueprint nodes.
+    value: ${{ steps.report.outputs.node_count }}
+  formal_target_count:
+    description: Number of formal targets tracked by the report.
+    value: ${{ steps.report.outputs.formal_target_count }}
+  proved_count:
+    description: Number of targets verified as proved.
+    value: ${{ steps.report.outputs.proved_count }}
+  found_count:
+    description: Number of targets found in Isabelle.
+    value: ${{ steps.report.outputs.found_count }}
+  problem_count:
+    description: Number of report problems.
+    value: ${{ steps.report.outputs.problem_count }}
+  has_cycles:
+    description: Whether the blueprint dependency graph has cycles.
+    value: ${{ steps.report.outputs.has_cycles }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ${{ github.action_path }}/pyproject.toml
+
+    - name: Install IsabelleBlueprint from PyPI
+      if: inputs.isabelle-blueprint-version != ''
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "isabelle-blueprint==${{ inputs.isabelle-blueprint-version }}"
+
+    - name: Install IsabelleBlueprint from the action checkout
+      if: inputs.isabelle-blueprint-version == ''
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "${{ github.action_path }}"
+
+    - name: Check blueprint against Isabelle
+      if: inputs.run-check == 'true'
+      shell: bash
+      run: isabelle-blueprint check "${{ inputs.project_dir }}"
+
+    - name: Generate dependency graph
+      if: inputs.run-graph == 'true'
+      shell: bash
+      run: isabelle-blueprint graph "${{ inputs.project_dir }}"
+
+    - name: Generate static site
+      if: inputs.run-web == 'true'
+      shell: bash
+      run: isabelle-blueprint web "${{ inputs.project_dir }}"
+
+    - name: Generate agent tasks
+      if: inputs.run-tasks == 'true'
+      shell: bash
+      run: isabelle-blueprint tasks "${{ inputs.project_dir }}"
+
+    - name: Generate report
+      id: report
+      if: inputs.run-report == 'true'
+      shell: bash
+      run: isabelle-blueprint report "${{ inputs.project_dir }}"
+
+    - name: Publish pull request comment
+      if: inputs.run-comment == 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: isabelle-blueprint comment "${{ inputs.project_dir }}"

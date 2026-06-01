@@ -55,9 +55,9 @@ When ``title`` is omitted it is derived from the node id (``add-comm`` becomes
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -65,7 +65,6 @@ from isabelle_blueprint.errors import ParseError
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
-
 
 # ---------------------------------------------------------------------------
 # Regex helpers

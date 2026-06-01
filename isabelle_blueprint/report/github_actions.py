@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Iterable
 
 GITHUB_OUTPUT_ENV = "GITHUB_OUTPUT"
 GITHUB_STEP_SUMMARY_ENV = "GITHUB_STEP_SUMMARY"
