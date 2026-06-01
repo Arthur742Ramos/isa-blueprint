@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added automatic PyPI and GitHub Release publishing when the project version is
+  bumped on `main`.
+
 ## [1.5.0] - 2026-06-01
 
 ### Added
