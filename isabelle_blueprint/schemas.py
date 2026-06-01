@@ -13,6 +13,7 @@ SCHEMA_NAMES = (
     "summary",
     "status",
     "roadmap",
+    "agent-context",
     "config",
     "plugin-annotations",
     "agent-memory",

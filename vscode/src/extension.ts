@@ -324,6 +324,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runAgentContext", async () => {
+      await runBlueprintCommand("agent-context", provider, diagnostics, output, running);
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand(
       "isabelleBlueprint.previewTaskPrompt",
       async (loaded?: LoadedProject, node?: BlueprintNode) => {
@@ -403,7 +408,7 @@ async function refresh(
 }
 
 async function runBlueprintCommand(
-  command: "report" | "check" | "tasks" | "roadmap",
+  command: "report" | "check" | "tasks" | "roadmap" | "agent-context",
   provider: BlueprintTreeProvider,
   diagnostics: vscode.DiagnosticCollection,
   output: vscode.OutputChannel,

@@ -90,8 +90,9 @@ isabelle-blueprint status
 isabelle-blueprint roadmap
 isabelle-blueprint graph
 
-# 4. See exactly which proof tasks are unblocked.
+# 4. See exactly which proof tasks are unblocked, or hand the whole context to an agent.
 isabelle-blueprint tasks
+isabelle-blueprint agent-context --write
 
 # 5. Publish a local HTML dashboard.
 isabelle-blueprint web
@@ -266,6 +267,7 @@ already justify.
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
+| `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
 | `web` / `serve` | Static HTML site | Public progress pages and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
@@ -364,7 +366,7 @@ plan. Add `--github-sync-confirm --repo OWNER/REPO` when you intentionally want
 to create or update GitHub issues; sync uses hidden node markers plus
 `.isabelle-blueprint/github-sync.json` to avoid duplicates.
 
-## Status overview, roadmaps, agent memory, and explanations
+## Status overview, roadmaps, agent context, memory, and explanations
 
 Use `status` when you want a quick read on a project without writing report
 artifacts:
@@ -391,6 +393,21 @@ suggests a deterministic path through the next useful proof work, filters large
 plans for handoff views, compares against a previous roadmap, and can fail CI
 with `--strict` when cycles, problem nodes, stale nodes, or missing dependencies
 need attention.
+
+Use `agent-context` when an AI agent needs the whole working brief in one stable
+payload:
+
+```bash
+isabelle-blueprint agent-context . --json
+isabelle-blueprint agent-context . --write
+isabelle-blueprint agent-context . --write --max-tasks 10
+```
+
+It combines the status health, roadmap suggestion, warning codes, conventional
+artifact paths, recommended follow-up commands, and bounded ready-task summaries
+with prompt paths. With `--write`, it also refreshes `project.json`,
+`tasks.json`, `tasks.md`, `build/prompts/`, `roadmap.json`, `roadmap.md`,
+`agent-context.json`, and `agent-context.md`.
 Use `memory` to preserve what a human or agent
 already tried:
 
@@ -427,7 +444,7 @@ and adds:
 - source navigation,
 - refresh/watch support,
 - dependency navigation and quick fixes.
-- commands to run `report`, `check`, and `tasks`,
+- commands to run `report`, `check`, `tasks`, `roadmap`, and `agent-context`,
 - task prompt preview from generated `build/prompts/`.
 
 ## Project status
@@ -436,13 +453,13 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.4 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.5 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz output, static
 site, live preview, task packs, project templates, fact suggestions, JSON
 Schemas, plugin API, PR comments, GitHub Release automation, VS Code extension
 support, agent memory, status explanations, theory import bootstrap, and
 dry-run GitHub issue synchronization, plus fast `status` and staged `roadmap`
-planning commands.
+planning commands and one-shot `agent-context` handoff bundles.
 
 Community docs:
 

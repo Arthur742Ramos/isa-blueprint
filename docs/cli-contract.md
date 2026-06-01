@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.4.1. Subcommand names, flag names, default values,
+command-line tool as of v1.5.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in minor releases provided the
 existing ones keep behaving the same way.
@@ -266,6 +266,36 @@ dependency depth, then node id. `suggested_path` starts from that task when one
 is ready; otherwise it starts from the first incomplete node by stage and id. It
 then follows the longest incomplete downstream chain, breaking ties by the total
 number of downstream nodes blocked and then by node id.
+
+### `agent-context`
+
+```text
+isabelle-blueprint agent-context [project_dir]
+                                  [--json]
+                                  [--write]
+                                  [--max-tasks N]
+```
+
+Builds an AI-agent handoff bundle that projects existing status, roadmap, task,
+and memory data into one stable context surface. The command is read-only by
+default and prints a Markdown brief to stdout.
+
+- `--json` emits the payload documented by the packaged `agent-context` JSON
+  Schema. It does not write files unless `--write` is also supplied.
+- `--write` refreshes `build/project.json`, `build/tasks.json`,
+  `build/tasks.md`, `build/prompts/<task-id>.md`, `build/roadmap.json`,
+  `build/roadmap.md`, `build/agent-context.json`, and
+  `build/agent-context.md`. When combined with `--json`, artifact path messages
+  are written to stderr so stdout remains valid JSON.
+- `--max-tasks N` caps how many ready-task summaries are embedded in the
+  context payload (default 5). `ready_task_count` always reports the full number
+  of ready tasks, and `ready_tasks_truncated` tells consumers whether to read
+  `build/tasks.json` for the complete queue.
+
+All artifact paths embedded in the payload are project-root-relative POSIX-style
+strings when the artifact lives under the project root. Existing `status`,
+`roadmap`, and `tasks` ordering and classification rules are reused rather than
+recomputed independently.
 
 ### `comment`
 

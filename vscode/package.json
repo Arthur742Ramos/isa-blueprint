@@ -2,7 +2,7 @@
   "name": "isabelle-blueprint-vscode",
   "displayName": "IsabelleBlueprint",
   "description": "Surface IsabelleBlueprint project status in VS Code.",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "publisher": "isabelle-blueprint",
   "license": "MIT",
   "homepage": "https://github.com/Arthur742Ramos/isa-blueprint#readme",
@@ -26,6 +26,7 @@
     "onCommand:isabelleBlueprint.runCheck",
     "onCommand:isabelleBlueprint.runTasks",
     "onCommand:isabelleBlueprint.runRoadmap",
+    "onCommand:isabelleBlueprint.runAgentContext",
     "onCommand:isabelleBlueprint.previewTaskPrompt",
     "onLanguage:markdown",
     "onLanguage:latex"
@@ -66,6 +67,10 @@
       {
         "command": "isabelleBlueprint.runRoadmap",
         "title": "IsabelleBlueprint: Run Roadmap"
+      },
+      {
+        "command": "isabelleBlueprint.runAgentContext",
+        "title": "IsabelleBlueprint: Generate Agent Context"
       },
       {
         "command": "isabelleBlueprint.previewTaskPrompt",
