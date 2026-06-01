@@ -19,7 +19,7 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
-from isabelle_blueprint.agents.tasks import write_tasks
+from isabelle_blueprint.agents.tasks import generate_tasks, write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
@@ -59,6 +59,7 @@ from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
 )
+from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
 from isabelle_blueprint.templates import (
@@ -392,6 +393,21 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    overview = build_status_overview(project, ready_tasks)
+    if args.json:
+        print(json.dumps(overview.to_dict(), indent=2))
+    else:
+        print(render_status_overview(overview), end="")
+    return 0
+
+
 def cmd_comment(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -659,6 +675,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
     p_report.set_defaults(func=cmd_report)
+
+    p_status = sub.add_parser("status", help="print a concise project health summary")
+    p_status.add_argument("project_dir", nargs="?", default=".")
+    p_status.add_argument("--json", action="store_true", help="emit machine-readable status JSON")
+    p_status.set_defaults(func=cmd_status)
 
     p_comment = sub.add_parser(
         "comment",

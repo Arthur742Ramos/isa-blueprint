@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-01
+
+### Added
+
+- Added `isabelle-blueprint status`, a read-only terminal/JSON health overview
+  that combines coverage, problem/stale counts, cycle state, ready-task count,
+  and the next suggested proof task without writing report artifacts.
+- Added a packaged `status` JSON Schema for `status --json` integrations.
+
 ## [1.2.0] - 2026-06-01
 
 ### Added
@@ -209,7 +218,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v0.5.1...v1.0.0

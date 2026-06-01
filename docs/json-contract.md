@@ -1,10 +1,10 @@
 # JSON contract
 
 This document is the **frozen public surface** of the JSON files
-`isabelle-blueprint` writes under `build/` as of v1.2.0. Keys, value types,
-and value semantics listed here will not change without a major version bump.
-New keys may be added in minor releases; consumers should ignore unknown
-keys.
+`isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
+v1.3.0. Keys, value types, and value semantics listed here will not change
+without a major version bump. New keys may be added in minor releases;
+consumers should ignore unknown keys.
 
 Report files are always UTF-8, indent-2 pretty-printed JSON. Packaged JSON
 Schemas for the public payloads are available via `isabelle-blueprint schema`.
@@ -252,6 +252,50 @@ v1.1 adds the optional `metadata` object and top-level
 
 `stale` is `true` when the latest attempt was recorded against older task
 inputs. Existing task keys remain unchanged.
+
+---
+
+## `status --json`
+
+A read-only project health overview printed to stdout by
+`isabelle-blueprint status --json`.
+
+```json
+{
+  "project": "Group theory demo",
+  "health": "ready",
+  "metrics": {
+    "node_count": 10,
+    "formal_target_count": 4,
+    "proved_count": 2,
+    "found_count": 2,
+    "problem_count": 0,
+    "stale_count": 0,
+    "has_cycles": false,
+    "coverage_percent": 50
+  },
+  "ready_task_count": 1,
+  "next_task": {
+    "id": "task-main-theorem",
+    "node_id": "main-theorem",
+    "title": "Main theorem",
+    "kind": "theorem",
+    "target_fact": "Demo.main_theorem",
+    "priority": "high",
+    "difficulty": "high",
+    "blocking_count": 3,
+    "suggested_order": 1
+  }
+}
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `project` | string | Project name from `[project].name`. |
+| `health` | string | One of `complete`, `ready`, `blocked`, `problem`, `stale`, or `unstarted`. |
+| `metrics` | object | Same scalar status metrics used by badges and GitHub Actions outputs. `coverage_percent` is `null` when no formal targets exist. |
+| `ready_task_count` | integer | Number of currently actionable proof tasks. |
+| `next_task` | object or null | Summary of the first suggested task, or `null` when no task is ready. |
 
 ---
 

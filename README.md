@@ -86,6 +86,7 @@ isabelle-blueprint new theorem my-main-result --append
 
 # 3. Validate the blueprint and dependency graph.
 isabelle-blueprint report
+isabelle-blueprint status
 isabelle-blueprint graph
 
 # 4. See exactly which proof tasks are unblocked.
@@ -262,6 +263,7 @@ already justify.
 | `init` | `blueprint.md` or `blueprint.tex`, `isabelle-blueprint.toml`, CI workflow | Starting a clean project. |
 | `new` | Markdown or LaTeX node stubs | Adding theorem/lemma/definition skeletons quickly. |
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
+| `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
 | `web` / `serve` | Static HTML site | Public progress pages and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
@@ -360,9 +362,19 @@ plan. Add `--github-sync-confirm --repo OWNER/REPO` when you intentionally want
 to create or update GitHub issues; sync uses hidden node markers plus
 `.isabelle-blueprint/github-sync.json` to avoid duplicates.
 
-## Agent memory and status explanations
+## Status overview, agent memory, and explanations
 
-Use `memory` to preserve what a human or agent already tried:
+Use `status` when you want a quick read on a project without writing report
+artifacts:
+
+```bash
+isabelle-blueprint status .
+isabelle-blueprint status . --json
+```
+
+It reports coverage, problem/stale counts, cycle status, ready-task count, and
+the next suggested proof task. Use `memory` to preserve what a human or agent
+already tried:
 
 ```bash
 isabelle-blueprint memory . --node main-theorem --record \
@@ -406,12 +418,12 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.2 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.3 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz output, static
 site, live preview, task packs, project templates, fact suggestions, JSON
 Schemas, plugin API, PR comments, GitHub Release automation, VS Code extension
 support, agent memory, status explanations, theory import bootstrap, and
-dry-run GitHub issue synchronization.
+dry-run GitHub issue synchronization, plus the fast `status` overview command.
 
 Community docs:
 
