@@ -17,6 +17,7 @@ from isabelle_blueprint.graph.graphviz_render import (
     render_json,
     render_svg,
 )
+from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import (
@@ -48,6 +49,7 @@ def render_site(
     *,
     graphviz_executable: str = "dot",
     trends: list[dict[str, Any]] | None = None,
+    fact_suggestions: list[FactSuggestion] | None = None,
 ) -> Path:
     """Render the project to a static HTML site under ``output_dir``.
 
@@ -69,7 +71,9 @@ def render_site(
     if svg is not None:
         (output_dir / "graph.svg").write_text(svg, encoding="utf-8")
 
-    tasks = generate_tasks(project)
+    fact_suggestions = fact_suggestions or []
+    fact_suggestions_by_node = suggestions_by_node(fact_suggestions)
+    tasks = generate_tasks(project, fact_suggestions=fact_suggestions)
     formal_counts = Counter(n.status.formal.value for n in project.nodes)
     blueprint_counts = Counter(n.status.blueprint.value for n in project.nodes)
     agent_counts = Counter(n.status.agent.value for n in project.nodes)
@@ -95,10 +99,13 @@ def render_site(
         "has_svg": svg is not None,
         "svg_source": _inline_svg(svg),
         "tasks": tasks,
+        "suggested_next_task": tasks[0] if tasks else None,
         "page_count": len(project.nodes),
         "dot_source": dot_source,
         "formal_status_values": [s.value for s in FormalStatus],
         "trends": trends_data,
+        "trend_delta": _trend_delta(trends_data),
+        "fact_suggestions_by_node": fact_suggestions_by_node,
     }
 
     _render_page(env, "index.html.j2", output_dir / "index.html", page="index", **common)
@@ -126,9 +133,20 @@ def render_site(
     _write_static(output_dir)
     (output_dir / "project.json").write_text(project.to_json(), encoding="utf-8")
     (output_dir / "tasks.json").write_text(
-        json.dumps({"tasks": [t.to_dict() for t in tasks]}, indent=2),
+        json.dumps(
+            {
+                "tasks": [t.to_dict() for t in tasks],
+                "suggested_next_task": tasks[0].id if tasks else None,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
+    if fact_suggestions:
+        (output_dir / "fact-suggestions.json").write_text(
+            json.dumps({"suggestions": [s.to_dict() for s in fact_suggestions]}, indent=2),
+            encoding="utf-8",
+        )
     write_badge_endpoint(project, output_dir / "badge.json")
     write_badge_svg(project, output_dir / "badge.svg")
 
@@ -264,4 +282,27 @@ def _dependency_stats(
         "max_level": max_level,
         "cycle_count": cycle_count,
         "missing_dependency_count": missing_dependency_count,
+    }
+
+
+def _trend_delta(entries: list[dict[str, Any]]) -> dict[str, object] | None:
+    if len(entries) < 2:
+        return None
+    previous = entries[-2]
+    current = entries[-1]
+
+    def delta(key: str) -> int | None:
+        prev = previous.get(key)
+        cur = current.get(key)
+        if isinstance(prev, int) and isinstance(cur, int):
+            return cur - prev
+        return None
+
+    return {
+        "previous_timestamp": previous.get("timestamp"),
+        "current_timestamp": current.get("timestamp"),
+        "coverage_percent": delta("coverage_percent"),
+        "problem_count": delta("problem_count"),
+        "proved_count": delta("proved_count"),
+        "node_count": delta("node_count"),
     }

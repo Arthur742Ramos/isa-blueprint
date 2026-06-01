@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/summary.schema.json",
+  "title": "IsabelleBlueprint summary report",
+  "type": "object",
+  "required": ["name", "node_count", "formal_status_counts"],
+  "properties": {
+    "name": { "type": "string" },
+    "node_count": { "type": "integer", "minimum": 0 },
+    "formal_status_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    }
+  },
+  "additionalProperties": true
+}

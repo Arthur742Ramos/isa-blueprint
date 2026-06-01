@@ -14,7 +14,20 @@
         <p>
           <code>{{ task.node_id }}</code>
           {% if task.target_fact %}&rarr; <code>{{ task.target_fact }}</code>{% endif %}
+          {% if task.metadata %}
+            &mdash; priority <code>{{ task.metadata.priority }}</code>,
+            difficulty <code>{{ task.metadata.difficulty }}</code>,
+            depth <code>{{ task.metadata.dependency_depth }}</code>,
+            blocks <code>{{ task.metadata.blocking_count }}</code>
+          {% endif %}
         </p>
+        {% if task.metadata and task.metadata.suggested_facts %}
+          <p><strong>Nearby facts:</strong>
+          {% for fact in task.metadata.suggested_facts %}
+            <code>{{ fact }}</code>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+          </p>
+        {% endif %}
         {% if task.dependencies %}
           <p><strong>Uses:</strong>
           {% for dep in task.dependencies %}

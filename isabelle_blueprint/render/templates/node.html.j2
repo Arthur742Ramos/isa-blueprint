@@ -52,4 +52,14 @@
   <h2>Last check error</h2>
   <pre>{{ node.status.check_error }}</pre>
 {% endif %}
+
+{% if fact_suggestions_by_node.get(node.id) %}
+  <h2>Nearby Isabelle facts</h2>
+  <p>These fact names are similar to <code>{{ fact_suggestions_by_node[node.id].target_fact }}</code>:</p>
+  <ul>
+    {% for fact in fact_suggestions_by_node[node.id].suggestions %}
+      <li><code>{{ fact }}</code></li>
+    {% endfor %}
+  </ul>
+{% endif %}
 {% endblock %}

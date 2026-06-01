@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/config.schema.json",
+  "title": "IsabelleBlueprint normalized configuration",
+  "description": "Schema for the JSON-shaped configuration object produced from isabelle-blueprint.toml sections. It documents accepted keys but is not a raw TOML validator.",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "blueprint": { "type": "string" },
+        "blueprints": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "isabelle": {
+      "type": "object",
+      "properties": {
+        "session": { "type": "string" },
+        "executable": { "type": "string" },
+        "version": { "type": "string" },
+        "timeout": { "type": "number", "minimum": 0 },
+        "dirs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "afp": {
+      "type": "object",
+      "properties": {
+        "root": { "type": "string" },
+        "entry": { "type": "string" },
+        "required": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "build_dir": { "type": "string" },
+        "site_dir": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

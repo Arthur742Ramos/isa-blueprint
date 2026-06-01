@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.0.0. Subcommand names, flag names, default values,
+command-line tool as of v1.1.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in minor releases provided the
 existing ones keep behaving the same way.
@@ -39,6 +39,8 @@ valid `isabelle-blueprint.toml`.
 | `1` | A `BlueprintError` reached `main()` (e.g. parser/validator error, missing config) |
 | `2` | argparse usage error |
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `check --strict` couldn't run Isabelle; `comment --strict` couldn't resolve the PR context) |
+| `7` | `doctor --strict` found a setup error |
+| `8` | Live serving was requested in CI without `--allow-ci` |
 
 `--strict` is opt-in for every subcommand that exposes it. Without `--strict`,
 a missing external dependency is downgraded to an informational message and
@@ -51,12 +53,13 @@ exit `0`.
 ### `init`
 
 ```text
-isabelle-blueprint init [project_dir] [--force]
+isabelle-blueprint init [project_dir] [--force] [--template NAME]
 ```
 
 Scaffolds a fresh blueprint project: `blueprint.md`, `isabelle-blueprint.toml`,
 and a GitHub Actions workflow. Fails if any target file already exists unless
-`--force` is given.
+`--force` is given. `--template` (added in v1.1) accepts `minimal`, `afp`,
+`research-paper`, `course-notes`, or `agent-ready`.
 
 ### `check`
 
@@ -119,19 +122,45 @@ reports any session-visibility or version-pin mismatches.
 
 ```text
 isabelle-blueprint web [project_dir]
+                    [--watch]
+                    [--serve]
+                    [--host HOST]
+                    [--port PORT]
+                    [--interval SECONDS]
+                    [--allow-ci]
 ```
 
 Renders the static HTML site under `site/`: index, per-node pages, dependency
-graph viewer, status table, tasks view, and trend chart.
+graph viewer, status table, tasks view, and trend chart. `--watch` (added in
+v1.1) re-renders when blueprint/check/report inputs change. `--serve` also
+starts a local HTTP server on `127.0.0.1:8000` by default.
+
+### `serve`
+
+```text
+isabelle-blueprint serve [project_dir]
+                         [--host HOST]
+                         [--port PORT]
+                         [--interval SECONDS]
+                         [--allow-ci]
+```
+
+Equivalent to `web --watch --serve`, but clearer for local live-preview use.
 
 ### `tasks`
 
 ```text
 isabelle-blueprint tasks [project_dir]
+                         [--github-issues]
+                         [--github-issues-file FILENAME]
 ```
 
 Emits agent-ready task artefacts under `build/`: `tasks.json`, `tasks.md`,
-and one `tasks/<id>.md` prompt per actionable obligation.
+and one `prompts/<id>.md` prompt per actionable obligation. v1.1 adds task
+metadata under `metadata` (`priority`, `difficulty`, dependency depth,
+downstream blocking count, suggested order, and nearby fact suggestions) plus
+top-level `suggested_next_task`. `--github-issues` writes issue drafts to
+`build/github-issues.json` without calling GitHub.
 
 ### `report`
 
@@ -150,6 +179,8 @@ Writes the machine-readable status payload:
 - `build/badge.svg` — self-contained flat SVG badge
 - `build/trends.json` — bounded coverage / problem-count history (added in
   v0.8, capped at 500 entries, deduped per `(commit_sha, branch)`)
+- `build/fact-suggestions.json` — nearby fact names for unresolved formal
+  targets, when suggestions are available (added in v1.1)
 
 When `$GITHUB_OUTPUT` is set, the stable scalar keys
 (`coverage_percent`, `node_count`, `formal_target_count`, `proved_count`,
@@ -171,6 +202,31 @@ request. Added in v0.9.
   prints `pr comment skipped: <reason>` and exits 0 (or 6 with `--strict`).
 - `--preview` writes the body to `build/pr-comment.md` instead of touching
   GitHub. Always exits 0.
+
+  ### `doctor`
+
+  ```text
+  isabelle-blueprint doctor [project_dir]
+                            [--isabelle PATH]
+                            [--json]
+                            [--output PATH]
+                            [--strict]
+  ```
+
+  Diagnoses local setup: Python/package version, config loading, blueprint
+  validation, writable output directories, Graphviz, Isabelle, and AFP paths.
+  `--json` emits the structured report. `--strict` exits 7 when any diagnostic is
+  an error.
+
+  ### `schema`
+
+  ```text
+  isabelle-blueprint schema [name] [--out DIR]
+  ```
+
+  Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
+  writes one/all schemas to `DIR`. Available names are `project`, `graph`,
+  `tasks`, `summary`, `config`, and `plugin-annotations`.
 
 ### `new`
 
@@ -196,7 +252,8 @@ blueprint file receives the stub when the project has multiple blueprints.
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `tasks`, `report`, `comment`, `new`) will not be renamed or removed.
+   `serve`, `tasks`, `report`, `comment`, `doctor`, `schema`, `new`) will not
+   be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.
 3. **Exit codes** for documented conditions will not change.
