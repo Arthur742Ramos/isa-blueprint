@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isabelle-blueprint"
-version = "1.0.0"
+version = "1.1.0"
 description = "Project planning, dependency tracking, and AI-task orchestration for Isabelle formalization projects."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -61,6 +61,7 @@ exclude = ["tests*", "examples*"]
 isabelle_blueprint = [
   "render/templates/*.j2",
   "render/templates/static/*",
+  "schemas/*.schema.json",
   "py.typed",
 ]
 

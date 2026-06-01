@@ -18,6 +18,9 @@ Each `definition` / `lemma` / `theorem` environment becomes a node:
 \isabelle{Relations.eq_equivalence}  % the Isabelle fact it maps to
 \isabelleok                     % upgrades "named" -> "found"
 \uses{equivalence}              % dependencies (comma/space separated)
+\blueprintstatus{written}
+\formalstatus{found}
+\agentstatus{ready}
 \tags{examples}
 The equality relation is an equivalence relation on $A$.
 \begin{proof}                   % becomes the informal proof
@@ -30,9 +33,12 @@ Reflexivity, symmetry, and transitivity of $=$ are immediate.
 | --- | --- |
 | `\label{id}` | Node id (**required**). |
 | `\isabelle{fact}` | The Isabelle fact this node formalises. |
+| `\isabelletheory{Theory}` / `\isabellesession{Session}` | Optional explicit Isabelle context when the fact name is not fully qualified. |
 | `\isabelleok` | Marks the fact as checked → formal status `found`. |
 | `\uses{a, b}` | Dependencies on other node ids. |
 | `\tags{...}` | Free-form tags. |
+| `\status{...}` | Single-axis shorthand such as `stub`, `found`, or `ready`. |
+| `\blueprintstatus{...}` / `\formalstatus{...}` / `\agentstatus{...}` | Explicit three-axis status metadata, matching Markdown `status:` blocks. |
 | `\begin{proof}…\end{proof}` | Informal proof text. |
 
 ## Try it
@@ -40,6 +46,14 @@ Reflexivity, symmetry, and transitivity of $=$ are immediate.
 ```bash
 isabelle-blueprint report examples/latex-blueprint
 isabelle-blueprint graph  examples/latex-blueprint
+```
+
+To start a new LaTeX-first project, pass `--format latex` to any starter
+template:
+
+```bash
+isabelle-blueprint init my-project --template agent-ready --format latex
+isabelle-blueprint new theorem main-result my-project --append
 ```
 
 `report` shows 8 nodes at 50% formalised — the three definitions carrying

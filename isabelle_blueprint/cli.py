@@ -3,14 +3,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import time
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
+from isabelle_blueprint.agents.github_sync import sync_github_issues
+from isabelle_blueprint.agents.memory import (
+    VALID_OUTCOMES,
+    load_agent_memory,
+    node_input_hash,
+    record_memory_attempt,
+)
 from isabelle_blueprint.agents.tasks import write_tasks
 from isabelle_blueprint.config import BlueprintConfig, load_config
+from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
+from isabelle_blueprint.explain import explain_project, render_explanations
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
@@ -25,7 +38,13 @@ from isabelle_blueprint.isabelle.dump import (
     run_dump,
     write_dump_report,
 )
+from isabelle_blueprint.isabelle.suggestions import (
+    suggest_missing_facts,
+    write_fact_suggestions,
+)
+from isabelle_blueprint.isabelle.theory_import import import_theory_file, render_imported_blueprint
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
+from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.github_actions import (
@@ -41,6 +60,13 @@ from isabelle_blueprint.report.pr_comment import (
     write_pr_comment_preview,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
+from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
+from isabelle_blueprint.templates import (
+    TEMPLATES,
+    blueprint_filename,
+    render_template_blueprint,
+    render_template_config,
+)
 
 if TYPE_CHECKING:
     from isabelle_blueprint.model.project import BlueprintProject
@@ -78,36 +104,31 @@ def _try_apply_check(project: BlueprintProject, config: BlueprintConfig) -> None
 
 def cmd_init(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
+    template = TEMPLATES[args.template]
     project_dir.mkdir(parents=True, exist_ok=True)
-    blueprint_path = project_dir / "blueprint.md"
+    blueprint_path = project_dir / blueprint_filename(args.format)
     config_path = project_dir / "isabelle-blueprint.toml"
     if blueprint_path.exists() and not args.force:
         print(f"refusing to overwrite {blueprint_path}; pass --force to replace", file=sys.stderr)
         return 1
-    blueprint_path.write_text(_DEFAULT_BLUEPRINT, encoding="utf-8")
+    blueprint_path.write_text(render_template_blueprint(template, format=args.format), encoding="utf-8")
     if not config_path.exists() or args.force:
-        config_path.write_text(_DEFAULT_CONFIG, encoding="utf-8")
+        config_path.write_text(render_template_config(template, format=args.format), encoding="utf-8")
     workflows = project_dir / ".github" / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
     workflow_file = workflows / "blueprint.yml"
     if not workflow_file.exists() or args.force:
-        workflow_file.write_text(_DEFAULT_WORKFLOW, encoding="utf-8")
-    print(f"initialised IsabelleBlueprint project at {project_dir}")
+        workflow_file.write_text(template.workflow, encoding="utf-8")
+    print(f"initialised {args.template} IsabelleBlueprint project at {project_dir}")
     return 0
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    from isabelle_blueprint.scaffold import render_node_stub
+    from isabelle_blueprint.scaffold import render_latex_node_stub, render_node_stub
 
     fact = "" if args.no_fact else args.fact
-    stub = render_node_stub(
-        args.kind,
-        args.id,
-        title=args.title,
-        fact=fact,
-        uses=args.uses or [],
-        status=args.status,
-    )
+    path: Path | None = None
+    format = args.format or "markdown"
 
     if args.append:
         project_dir = Path(args.project_dir).resolve()
@@ -134,13 +155,47 @@ def cmd_new(args: argparse.Namespace) -> int:
             raise BlueprintError(
                 f"blueprint not found at {path}; run `isabelle-blueprint init` first"
             )
+        target_format = _blueprint_format(path)
+        if args.format is not None and args.format != target_format:
+            raise BlueprintError(
+                f"--format {args.format!r} does not match target blueprint {path.name!r} "
+                f"(expected {target_format!r})"
+            )
+        format = target_format
+
+    renderer = render_latex_node_stub if format == "latex" else render_node_stub
+    stub = renderer(
+        args.kind,
+        args.id,
+        title=args.title,
+        fact=fact,
+        uses=args.uses or [],
+        status=args.status,
+    )
+
+    if path is not None:
         existing = path.read_text(encoding="utf-8")
-        separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
-        path.write_text(existing + separator + stub, encoding="utf-8")
+        path.write_text(_append_stub(existing, stub, format=format), encoding="utf-8")
         print(f"appended {args.kind} {args.id!r} to {path}")
     else:
         sys.stdout.write(stub)
     return 0
+
+
+def _blueprint_format(path: Path) -> str:
+    return "latex" if path.suffix.lower() == ".tex" else "markdown"
+
+
+def _append_stub(existing: str, stub: str, *, format: str) -> str:
+    if format == "latex":
+        marker = r"\end{document}"
+        marker_at = existing.rfind(marker)
+        if marker_at != -1:
+            before = existing[:marker_at].rstrip()
+            after = existing[marker_at:].lstrip()
+            return f"{before}\n\n{stub.rstrip()}\n\n{after}"
+    separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
+    return existing + separator + stub
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -241,20 +296,54 @@ def cmd_compat(args: argparse.Namespace) -> int:
 
 
 def cmd_web(args: argparse.Namespace) -> int:
+    if args.watch or args.serve:
+        return _watch_web(args)
     project_dir = Path(args.project_dir).resolve()
-    config, project = _load(project_dir)
-    _try_apply_check(project, config)
-    trends = load_trends(config.trends_path)
-    index = render_site(project, config.site_dir, trends=trends)
+    index = _render_web_once(project_dir)
     print(f"site -> {index}")
     return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    args.watch = True
+    args.serve = True
+    return _watch_web(args)
 
 
 def cmd_tasks(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    written = write_tasks(project, config.build_dir)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    written = write_tasks(
+        project,
+        config.build_dir,
+        fact_suggestions=fact_suggestions,
+        memory=memory,
+        github_issues=args.github_issues,
+        github_issues_name=args.github_issues_file,
+    )
+    if args.github_sync:
+        from isabelle_blueprint.agents.tasks import generate_tasks, github_issue_drafts
+
+        tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+        drafts = github_issue_drafts(tasks)
+        actions = sync_github_issues(
+            drafts,
+            repo=args.repo or os.environ.get("GITHUB_REPOSITORY"),
+            state_path=Path(args.github_sync_state).resolve()
+            if args.github_sync_state
+            else config.github_sync_state_path,
+            token_env=args.token_env,
+            confirm=args.github_sync_confirm,
+        )
+        sync_path = config.build_dir / "github-sync-plan.json"
+        sync_path.write_text(
+            json.dumps({"actions": [action.to_dict() for action in actions]}, indent=2),
+            encoding="utf-8",
+        )
+        written["github_sync"] = sync_path
     for name, path in written.items():
         print(f"{name} -> {path}")
     return 0
@@ -270,6 +359,20 @@ def cmd_report(args: argparse.Namespace) -> int:
     badge_json_path = write_badge_endpoint(project, config.build_dir / "badge.json")
     badge_svg_path = write_badge_svg(project, config.build_dir / "badge.svg")
     trend_entry = append_trend_entry(project, config.trends_path)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    if fact_suggestions:
+        suggestions_path = write_fact_suggestions(fact_suggestions, config.build_dir / "fact-suggestions.json")
+        print(f"fact suggestions -> {suggestions_path}")
+    plugin_annotations = run_status_providers(project)
+    if plugin_annotations:
+        plugin_path = config.build_dir / "plugin-annotations.json"
+        plugin_path.write_text(json.dumps({"annotations": plugin_annotations}, indent=2), encoding="utf-8")
+        print(f"plugin annotations -> {plugin_path}")
+    for artifact in run_report_renderers(project, config.build_dir):
+        if "path" in artifact:
+            print(f"plugin renderer {artifact['plugin']} -> {artifact['path']}")
+        else:
+            print(f"plugin renderer {artifact.get('plugin', 'unknown')} -> {artifact}")
     print(f"project json -> {json_path}")
     print(f"markdown report -> {md_path}")
     print(f"summary -> {summary_path}")
@@ -308,6 +411,122 @@ def cmd_comment(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    report = run_doctor(
+        Path(args.project_dir),
+        isabelle_executable=args.isabelle,
+    )
+    if args.json:
+        output = report.to_json()
+        if args.output:
+            path = Path(args.output).resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(output, encoding="utf-8")
+            print(f"doctor json -> {path}")
+        else:
+            print(output)
+    else:
+        for check in report.checks:
+            print(f"[{check.status}] {check.name}: {check.message}")
+    return 7 if args.strict and report.has_errors else 0
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    if args.out:
+        names = [args.name] if args.name else None
+        written = write_schemas(Path(args.out).resolve(), names=names)
+        for name, path in written.items():
+            print(f"{name} -> {path}")
+        return 0
+    if args.name:
+        print(read_schema(args.name))
+        return 0
+    for name in available_schemas():
+        print(name)
+    return 0
+
+
+def cmd_memory(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    memory_path = Path(args.memory_file).resolve() if args.memory_file else config.agent_memory_path
+    by_id = project.by_id()
+    if args.record:
+        if not args.node:
+            raise BlueprintError("--node is required when recording memory")
+        node = by_id.get(args.node)
+        if node is None:
+            raise BlueprintError(f"unknown node id {args.node!r}")
+        attempt = record_memory_attempt(
+            memory_path,
+            args.node,
+            outcome=args.outcome,
+            summary=args.summary,
+            actor=args.actor,
+            tool=args.tool,
+            details=args.details or "",
+            next_step=args.next_step,
+            input_hash=node_input_hash(node),
+            max_attempts=args.max_attempts,
+        )
+        print(f"memory recorded -> {memory_path} ({args.node} @ {attempt.timestamp})")
+        return 0
+
+    memory = load_agent_memory(memory_path, strict=True)
+    selected = [args.node] if args.node else sorted(memory.nodes)
+    rows = []
+    for node_id in selected:
+        attempts = memory.nodes.get(node_id)
+        if attempts is None:
+            continue
+        for attempt in attempts.attempts:
+            rows.append({"node_id": node_id, **attempt.to_dict()})
+    if args.json:
+        print(json.dumps({"memory_file": str(memory_path), "attempts": rows}, indent=2))
+    elif not rows:
+        print("No agent memory recorded yet.")
+    else:
+        for row in rows:
+            print(
+                f"{row['node_id']} {row['timestamp']} {row['outcome']}: "
+                f"{row['summary']}"
+            )
+            if row.get("next_step"):
+                print(f"  next: {row['next_step']}")
+    return 0
+
+
+def cmd_explain(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    explanations = explain_project(project, node_id=args.node, fact_suggestions=fact_suggestions)
+    if args.json:
+        print(json.dumps({"explanations": [item.to_dict() for item in explanations]}, indent=2))
+    else:
+        print(render_explanations(explanations), end="")
+    return 0
+
+
+def cmd_import_theory(args: argparse.Namespace) -> int:
+    facts = []
+    for theory_path in args.theory:
+        facts.extend(import_theory_file(Path(theory_path).resolve()))
+    blueprint = render_imported_blueprint(facts, project_name=args.project_name)
+    if args.output:
+        output = Path(args.output).resolve()
+        if output.exists() and not args.force:
+            raise BlueprintError(f"refusing to overwrite {output}; pass --force")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(blueprint, encoding="utf-8")
+        print(f"imported {len(facts)} declaration(s) -> {output}")
+    else:
+        sys.stdout.write(blueprint)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="isabelle-blueprint", description="Isabelle-aware blueprint tooling.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -316,6 +535,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
     p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
     p_init.add_argument("--force", action="store_true", help="overwrite existing files")
+    p_init.add_argument(
+        "--format",
+        choices=("markdown", "latex"),
+        default="markdown",
+        help="blueprint authoring format to scaffold (default: markdown)",
+    )
+    p_init.add_argument(
+        "--template",
+        choices=sorted(TEMPLATES),
+        default="minimal",
+        help="starter template to write (default: minimal)",
+    )
     p_init.set_defaults(func=cmd_init)
 
     p_check = sub.add_parser("check", help="validate blueprint and run Isabelle existence check")
@@ -374,10 +605,55 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
+    p_web.add_argument("--watch", action="store_true", help="re-render when blueprint inputs change")
+    p_web.add_argument("--serve", action="store_true", help="serve the rendered site while watching")
+    p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
+    p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
+    p_web.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_web.add_argument("--allow-ci", action="store_true", help="allow --serve when CI=true")
     p_web.set_defaults(func=cmd_web)
+
+    p_serve = sub.add_parser("serve", help="serve and live-rebuild the static HTML site")
+    p_serve.add_argument("project_dir", nargs="?", default=".")
+    p_serve.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
+    p_serve.add_argument("--port", type=int, default=8000, help="port to bind (default: 8000)")
+    p_serve.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
+    p_serve.set_defaults(func=cmd_serve)
 
     p_tasks = sub.add_parser("tasks", help="generate agent-ready tasks and per-task prompts")
     p_tasks.add_argument("project_dir", nargs="?", default=".")
+    p_tasks.add_argument(
+        "--github-issues",
+        action="store_true",
+        help="also write build/github-issues.json with issue drafts; does not call GitHub",
+    )
+    p_tasks.add_argument(
+        "--github-issues-file",
+        default="github-issues.json",
+        help="filename under build_dir for --github-issues output",
+    )
+    p_tasks.add_argument(
+        "--github-sync",
+        action="store_true",
+        help="write a GitHub issue sync plan; dry-run unless --github-sync-confirm is passed",
+    )
+    p_tasks.add_argument(
+        "--github-sync-confirm",
+        action="store_true",
+        help="actually create/update GitHub issues for --github-sync",
+    )
+    p_tasks.add_argument("--repo", default=None, help="GitHub repo for sync, e.g. owner/repo")
+    p_tasks.add_argument(
+        "--token-env",
+        default="GITHUB_TOKEN",
+        help="environment variable containing the GitHub token for confirmed sync",
+    )
+    p_tasks.add_argument(
+        "--github-sync-state",
+        default=None,
+        help="path to persistent node-to-issue mapping (default: .isabelle-blueprint/github-sync.json)",
+    )
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
@@ -401,6 +677,47 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_comment.set_defaults(func=cmd_comment)
 
+    p_doctor = sub.add_parser("doctor", help="diagnose local IsabelleBlueprint setup")
+    p_doctor.add_argument("project_dir", nargs="?", default=".")
+    p_doctor.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_doctor.add_argument("--json", action="store_true", help="emit machine-readable diagnostics")
+    p_doctor.add_argument("--output", default=None, help="write --json output to a file")
+    p_doctor.add_argument("--strict", action="store_true", help="exit non-zero when an error is found")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_schema = sub.add_parser("schema", help="print or export packaged JSON Schemas")
+    p_schema.add_argument("name", nargs="?", choices=available_schemas())
+    p_schema.add_argument("--out", default=None, help="write selected/all schemas to a directory")
+    p_schema.set_defaults(func=cmd_schema)
+
+    p_memory = sub.add_parser("memory", help="record or list per-node proof attempt memory")
+    p_memory.add_argument("project_dir", nargs="?", default=".")
+    p_memory.add_argument("--node", default=None, help="node id to record/list")
+    p_memory.add_argument("--memory-file", default=None, help="override agent memory JSON path")
+    p_memory.add_argument("--record", action="store_true", help="record a new memory attempt")
+    p_memory.add_argument("--outcome", choices=sorted(VALID_OUTCOMES), default="note")
+    p_memory.add_argument("--summary", default="", help="short attempt summary (required with --record)")
+    p_memory.add_argument("--details", default="", help="longer notes for the attempt")
+    p_memory.add_argument("--next-step", default=None, help="recommended next action")
+    p_memory.add_argument("--actor", default=None, help="person or agent that made the attempt")
+    p_memory.add_argument("--tool", default=None, help="tool/model used for the attempt")
+    p_memory.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
+    p_memory.add_argument("--json", action="store_true", help="list memory as JSON")
+    p_memory.set_defaults(func=cmd_memory)
+
+    p_explain = sub.add_parser("explain", help="explain status and dependency problems for blueprint nodes")
+    p_explain.add_argument("project_dir", nargs="?", default=".")
+    p_explain.add_argument("--node", default=None, help="only explain one node id")
+    p_explain.add_argument("--json", action="store_true", help="emit machine-readable explanations")
+    p_explain.set_defaults(func=cmd_explain)
+
+    p_import = sub.add_parser("import-theory", help="bootstrap a blueprint from Isabelle .thy declarations")
+    p_import.add_argument("theory", nargs="+", help="Isabelle theory file(s) to scan")
+    p_import.add_argument("--project-name", default=None, help="title for the generated blueprint")
+    p_import.add_argument("--output", default=None, help="write generated blueprint to this file")
+    p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
+    p_import.set_defaults(func=cmd_import_theory)
+
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
@@ -410,6 +727,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--no-fact", action="store_true", help="omit the isabelle: line entirely")
     p_new.add_argument("--uses", nargs="*", default=None, metavar="ID", help="dependency node ids")
     p_new.add_argument("--status", default="stub", help="initial blueprint status (default: stub)")
+    p_new.add_argument(
+        "--format",
+        choices=("markdown", "latex"),
+        default=None,
+        help="stub format (default: target suffix with --append, otherwise markdown)",
+    )
     p_new.add_argument(
         "--append",
         action="store_true",
@@ -425,6 +748,89 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _render_web_once(project_dir: Path) -> Path:
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    trends = load_trends(config.trends_path)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    return render_site(
+        project,
+        config.site_dir,
+        trends=trends,
+        fact_suggestions=fact_suggestions,
+        memory=memory,
+    )
+
+
+def _watch_web(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    if args.serve and os.environ.get("CI", "").lower() == "true" and not args.allow_ci:
+        print("refusing to serve in CI; pass --allow-ci to override", file=sys.stderr)
+        return 8
+    index = _render_web_once(project_dir)
+    print(f"site -> {index}")
+    server = _start_site_server(index.parent, args.host, args.port) if args.serve else None
+    if server is not None:
+        print(f"serving -> http://{args.host}:{args.port}/")
+    snapshot = _snapshot(_watch_paths(project_dir))
+    try:
+        while True:
+            time.sleep(max(args.interval, 0.1))
+            paths = _watch_paths(project_dir)
+            current = _snapshot(paths)
+            if current != snapshot:
+                index = _render_web_once(project_dir)
+                print(f"updated -> {index}")
+                snapshot = current
+    except KeyboardInterrupt:
+        print("stopped")
+        return 0
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+
+
+def _start_site_server(site_dir: Path, host: str, port: int) -> ThreadingHTTPServer:
+    handler = partial(SimpleHTTPRequestHandler, directory=str(site_dir))
+    server = ThreadingHTTPServer((host, port), handler)
+    server.daemon_threads = True
+    import threading
+
+    thread = threading.Thread(target=server.serve_forever, name="isabelle-blueprint-serve", daemon=True)
+    thread.start()
+    return server
+
+
+def _watch_paths(project_dir: Path) -> list[Path]:
+    paths = [project_dir / "isabelle-blueprint.toml"]
+    try:
+        config = load_config(project_dir)
+    except (OSError, ValueError):
+        return paths
+    paths.extend(config.blueprint_paths)
+    paths.extend(
+        [
+            config.check_report_path,
+            config.dump_report_path,
+            config.trends_path,
+            config.project_json_path,
+        ]
+    )
+    return paths
+
+
+def _snapshot(paths: list[Path]) -> dict[str, int | None]:
+    snapshot: dict[str, int | None] = {}
+    for path in paths:
+        try:
+            snapshot[str(path)] = path.stat().st_mtime_ns
+        except OSError:
+            snapshot[str(path)] = None
+    return snapshot
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -433,79 +839,6 @@ def main(argv: list[str] | None = None) -> int:
     except BlueprintError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-
-
-_DEFAULT_BLUEPRINT = """# My blueprint
-
-Welcome! Edit this file and replace the placeholder nodes below.
-Tip: run `isabelle-blueprint new theorem my-id` to scaffold more nodes.
-
-::: definition {#example-def}
-title: Example definition
-isabelle: Main.True
-status: stub
-
-Describe what is being defined.
-:::
-
-::: theorem {#example-thm}
-title: Example theorem
-isabelle: My_Theory.example_lemma
-uses:
-  - example-def
-status: stub
-
-State the result.
-
-## Proof
-
-Sketch the proof.
-:::
-"""
-
-_DEFAULT_CONFIG = """[project]
-name = "My blueprint"
-blueprint = "blueprint.md"
-
-[isabelle]
-# session = "My_Session"
-# executable = "isabelle"
-# version = "Isabelle2025-2"
-# timeout = 600  # max seconds for `isabelle build`/`dump`; omit to wait indefinitely
-
-[afp]
-# root = "/path/to/afp"
-# entry = "My_AFP_Entry"
-# required = false
-
-[output]
-build_dir = "build"
-site_dir = "site"
-"""
-
-_DEFAULT_WORKFLOW = """name: blueprint
-on:
-  push:
-  pull_request:
-jobs:
-  blueprint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install isabelle-blueprint
-      - run: isabelle-blueprint check .
-      - run: isabelle-blueprint compat .
-      - run: isabelle-blueprint graph .
-      - run: isabelle-blueprint web .
-      - run: isabelle-blueprint report .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: blueprint-site
-          path: site
-"""
 
 
 if __name__ == "__main__":  # pragma: no cover

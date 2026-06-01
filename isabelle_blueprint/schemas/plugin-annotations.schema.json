@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/plugin-annotations.schema.json",
+  "title": "IsabelleBlueprint plugin annotations",
+  "type": "object",
+  "required": ["annotations"],
+  "properties": {
+    "annotations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["node_id", "plugin"],
+        "properties": {
+          "node_id": { "type": "string" },
+          "plugin": { "type": "string" },
+          "data": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

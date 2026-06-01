@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/project.schema.json",
+  "title": "IsabelleBlueprint project report",
+  "type": "object",
+  "required": ["name", "source_files", "nodes"],
+  "properties": {
+    "name": { "type": "string" },
+    "source_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["id", "kind", "title", "statement", "informal_proof", "uses", "isabelle", "status", "tags", "source"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string" },
+        "title": { "type": "string" },
+        "statement": { "type": "string" },
+        "informal_proof": { "type": "string" },
+        "uses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "isabelle": { "$ref": "#/$defs/isabelle_ref" },
+        "status": { "$ref": "#/$defs/status" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "file": { "type": ["string", "null"] },
+            "line": { "type": ["integer", "null"], "minimum": 1 }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "isabelle_ref": {
+      "type": "object",
+      "required": ["fact", "theory", "session"],
+      "properties": {
+        "fact": { "type": ["string", "null"] },
+        "theory": { "type": ["string", "null"] },
+        "session": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "object",
+      "required": ["blueprint", "formal", "agent", "last_checked", "check_error"],
+      "properties": {
+        "blueprint": { "type": "string" },
+        "formal": { "type": "string" },
+        "agent": { "type": "string" },
+        "last_checked": { "type": ["string", "null"] },
+        "check_error": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

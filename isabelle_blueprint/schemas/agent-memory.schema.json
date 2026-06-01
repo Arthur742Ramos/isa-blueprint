@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/agent-memory.schema.json",
+  "title": "IsabelleBlueprint agent memory",
+  "type": "object",
+  "required": ["schema_version", "nodes"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "nodes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["attempts"],
+        "properties": {
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["timestamp", "outcome", "summary"],
+              "properties": {
+                "timestamp": { "type": "string" },
+                "outcome": {
+                  "type": "string",
+                  "enum": ["note", "blocked", "failed", "succeeded", "needs_human"]
+                },
+                "summary": { "type": "string" },
+                "actor": { "type": ["string", "null"] },
+                "tool": { "type": ["string", "null"] },
+                "details": { "type": "string" },
+                "next_step": { "type": ["string", "null"] },
+                "input_hash": { "type": ["string", "null"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

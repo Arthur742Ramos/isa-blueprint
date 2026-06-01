@@ -44,6 +44,47 @@
 </section>
 
 <section>
+  <h2>Next action</h2>
+  {% if suggested_next_task %}
+    <div class="callout">
+      <strong>Smallest high-value unblocked task:</strong>
+      <a href="nodes/{{ suggested_next_task.node_id }}.html">{{ suggested_next_task.title }}</a>
+      (<code>{{ suggested_next_task.node_id }}</code>)
+      {% if suggested_next_task.metadata %}
+        — priority <code>{{ suggested_next_task.metadata.priority }}</code>,
+        difficulty <code>{{ suggested_next_task.metadata.difficulty }}</code>.
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="lede">No unblocked agent task is available right now.</p>
+  {% endif %}
+</section>
+
+{% if trend_delta %}
+<section>
+  <h2>Changed since last report</h2>
+  <div class="status-grid">
+    <div class="status-card">
+      <div class="status-card-count">{{ trend_delta.coverage_percent if trend_delta.coverage_percent is not none else 'n/a' }}</div>
+      <div class="status-card-label">coverage delta</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-count">{{ trend_delta.proved_count if trend_delta.proved_count is not none else 'n/a' }}</div>
+      <div class="status-card-label">proved delta</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-count">{{ trend_delta.problem_count if trend_delta.problem_count is not none else 'n/a' }}</div>
+      <div class="status-card-label">problem delta</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-count">{{ trend_delta.node_count if trend_delta.node_count is not none else 'n/a' }}</div>
+      <div class="status-card-label">node delta</div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section>
   <h2>Recent nodes</h2>
   <ul class="node-list">
     {% for node in project.nodes %}

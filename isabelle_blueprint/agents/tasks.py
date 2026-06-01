@@ -16,6 +16,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from isabelle_blueprint.agents.memory import AgentMemory, NodeMemorySummary, summaries_by_node
+from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
@@ -30,6 +32,16 @@ class AgentTaskDependency:
 
 
 @dataclass
+class AgentTaskMetadata:
+    priority: str
+    difficulty: str
+    dependency_depth: int
+    blocking_count: int
+    suggested_order: int
+    suggested_facts: list[str] = field(default_factory=list)
+
+
+@dataclass
 class AgentTask:
     id: str
     node_id: str
@@ -41,6 +53,8 @@ class AgentTask:
     informal_proof: str
     dependencies: list[AgentTaskDependency] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
+    metadata: AgentTaskMetadata | None = None
+    memory: NodeMemorySummary | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -61,9 +75,18 @@ def _is_ready(node: BlueprintNode, project: BlueprintProject) -> bool:
     return True
 
 
-def generate_tasks(project: BlueprintProject) -> list[AgentTask]:
+def generate_tasks(
+    project: BlueprintProject,
+    *,
+    fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
+) -> list[AgentTask]:
     tasks: list[AgentTask] = []
     by_id = project.by_id()
+    depths = _dependency_depths(project)
+    blocking_counts = _blocking_counts(project)
+    suggestion_index = suggestions_by_node(fact_suggestions or [])
+    memory_summaries = summaries_by_node(memory, project.nodes) if memory is not None else {}
     for node in project.nodes:
         if not _is_ready(node, project):
             continue
@@ -78,6 +101,11 @@ def generate_tasks(project: BlueprintProject) -> list[AgentTask]:
             if dep_id in by_id
         ]
         criteria = _acceptance_criteria(node)
+        suggested_facts = (
+            suggestion_index[node.id].suggestions
+            if node.id in suggestion_index
+            else []
+        )
         tasks.append(
             AgentTask(
                 id=f"task-{node.id}",
@@ -90,8 +118,21 @@ def generate_tasks(project: BlueprintProject) -> list[AgentTask]:
                 informal_proof=node.informal_proof,
                 dependencies=deps,
                 acceptance_criteria=criteria,
+                metadata=AgentTaskMetadata(
+                    priority=_priority_for(node, blocking_counts.get(node.id, 0)),
+                    difficulty=_difficulty_for(node),
+                    dependency_depth=depths.get(node.id, 0),
+                    blocking_count=blocking_counts.get(node.id, 0),
+                    suggested_order=0,
+                    suggested_facts=suggested_facts,
+                ),
+                memory=memory_summaries.get(node.id),
             )
         )
+    tasks.sort(key=_task_sort_key)
+    for index, task in enumerate(tasks, start=1):
+        if task.metadata is not None:
+            task.metadata.suggested_order = index
     return tasks
 
 
@@ -114,10 +155,14 @@ def write_tasks(
     json_name: str = "tasks.json",
     md_name: str = "tasks.md",
     prompt_dir_name: str = "prompts",
+    fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
+    github_issues: bool = False,
+    github_issues_name: str = "github-issues.json",
 ) -> dict[str, Path]:
     """Write ``tasks.json``, ``tasks.md`` and ``prompts/<task-id>.md`` files."""
     build_dir.mkdir(parents=True, exist_ok=True)
-    tasks = generate_tasks(project)
+    tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
 
     json_path = build_dir / json_name
     md_path = build_dir / md_name
@@ -125,7 +170,13 @@ def write_tasks(
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
     json_path.write_text(
-        json.dumps({"tasks": [t.to_dict() for t in tasks]}, indent=2),
+        json.dumps(
+            {
+                "tasks": [t.to_dict() for t in tasks],
+                "suggested_next_task": tasks[0].id if tasks else None,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     md_path.write_text(_render_tasks_index(tasks), encoding="utf-8")
@@ -133,16 +184,30 @@ def write_tasks(
     for task in tasks:
         (prompts_dir / f"{task.id}.md").write_text(_render_prompt(task), encoding="utf-8")
 
-    return {"json": json_path, "md": md_path, "prompts": prompts_dir}
+    written = {"json": json_path, "md": md_path, "prompts": prompts_dir}
+    if github_issues:
+        issues_path = build_dir / github_issues_name
+        write_github_issue_drafts(tasks, issues_path)
+        written["github_issues"] = issues_path
+    return written
 
 
 def _render_tasks_index(tasks: list[AgentTask]) -> str:
     if not tasks:
         return "# Agent tasks\n\nNo ready tasks - every node is either complete or blocked.\n"
     lines = ["# Agent tasks", ""]
+    lines.append(f"Suggested next task: `{tasks[0].id}`.")
+    lines.append("")
     for task in tasks:
         target = task.target_fact or "(no Isabelle ref)"
-        lines.append(f"- **{task.title}** (`{task.node_id}`) -> `{target}`")
+        metadata = task.metadata
+        detail = ""
+        if metadata is not None:
+            detail = (
+                f" — priority `{metadata.priority}`, difficulty `{metadata.difficulty}`, "
+                f"depth `{metadata.dependency_depth}`, blocks `{metadata.blocking_count}`"
+            )
+        lines.append(f"- **{task.title}** (`{task.node_id}`) -> `{target}`{detail}")
     lines.append("")
     lines.append(f"Total: {len(tasks)} ready task(s).")
     return "\n".join(lines) + "\n"
@@ -158,6 +223,25 @@ def _render_prompt(task: AgentTask) -> str:
         parts.append(f"- **Target Isabelle fact**: `{task.target_fact}`")
     if task.target_theory:
         parts.append(f"- **Theory**: `{task.target_theory}`")
+    if task.metadata is not None:
+        parts.append(f"- **Priority**: `{task.metadata.priority}`")
+        parts.append(f"- **Difficulty**: `{task.metadata.difficulty}`")
+        parts.append(f"- **Dependency depth**: `{task.metadata.dependency_depth}`")
+        parts.append(f"- **Blocks**: `{task.metadata.blocking_count}` downstream node(s)")
+        if task.metadata.suggested_facts:
+            parts.append(
+                "- **Suggested nearby facts**: "
+                + ", ".join(f"`{fact}`" for fact in task.metadata.suggested_facts)
+            )
+    if task.memory is not None:
+        parts.append(f"- **Previous attempts**: `{task.memory.attempt_count}`")
+        if task.memory.last_outcome:
+            stale = " (from an older task input)" if task.memory.stale else ""
+            parts.append(f"- **Last outcome**: `{task.memory.last_outcome}`{stale}")
+        if task.memory.last_summary:
+            parts.append(f"- **Last note**: {task.memory.last_summary}")
+        if task.memory.next_step:
+            parts.append(f"- **Suggested next step**: {task.memory.next_step}")
     parts.append("")
     parts.append("## Informal statement")
     parts.append("")
@@ -183,3 +267,114 @@ def _render_prompt(task: AgentTask) -> str:
     parts.append("Do not modify other theories unless required by the change.")
     parts.append("")
     return "\n".join(parts)
+
+
+def write_github_issue_drafts(tasks: list[AgentTask], path: Path) -> Path:
+    """Write GitHub issue drafts for ready tasks without touching the network."""
+
+    issues = github_issue_drafts(tasks)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"issues": issues}, indent=2), encoding="utf-8")
+    return path
+
+
+def github_issue_drafts(tasks: list[AgentTask]) -> list[dict[str, object]]:
+    """Return GitHub issue draft dictionaries for ``tasks``."""
+
+    issues: list[dict[str, object]] = []
+    for task in tasks:
+        body = _render_prompt(task)
+        if len(body) > 60000:
+            body = body[:59900] + "\n\n_(Prompt truncated to stay under GitHub issue limits.)_\n"
+        labels = [
+            "isabelle-blueprint",
+            "agent-task",
+            f"priority:{task.metadata.priority if task.metadata else 'medium'}",
+        ]
+        issues.append(
+            {
+                "title": f"Formalize {task.title}",
+                "body": body,
+                "labels": labels,
+                "node_id": task.node_id,
+                "task_id": task.id,
+            }
+        )
+    return issues
+
+
+def _dependency_depths(project: BlueprintProject) -> dict[str, int]:
+    by_id = project.by_id()
+    memo: dict[str, int] = {}
+    visiting: set[str] = set()
+
+    def depth(node_id: str) -> int:
+        if node_id in memo:
+            return memo[node_id]
+        if node_id in visiting:
+            return 0
+        visiting.add(node_id)
+        node = by_id.get(node_id)
+        if node is None or not node.uses:
+            value = 0
+        else:
+            value = 1 + max((depth(dep_id) for dep_id in node.uses if dep_id in by_id), default=-1)
+        visiting.discard(node_id)
+        memo[node_id] = value
+        return value
+
+    return {node.id: depth(node.id) for node in project.nodes}
+
+
+def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
+    by_id = project.by_id()
+    reverse: dict[str, list[str]] = {node.id: [] for node in project.nodes}
+    for node in project.nodes:
+        for dep_id in node.uses:
+            if dep_id in reverse:
+                reverse[dep_id].append(node.id)
+    counts: dict[str, int] = {}
+    for node in project.nodes:
+        seen: set[str] = set()
+        stack = list(reverse[node.id])
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            current_node = by_id.get(current)
+            if current_node and current_node.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+                counts[node.id] = counts.get(node.id, 0) + 1
+            stack.extend(reverse.get(current, []))
+    return counts
+
+
+def _priority_for(node: BlueprintNode, blocking_count: int) -> str:
+    if blocking_count >= 3 or node.kind.value in {"theorem", "corollary"}:
+        return "high"
+    if blocking_count >= 1 or node.kind.value in {"lemma", "proposition"}:
+        return "medium"
+    return "low"
+
+
+def _difficulty_for(node: BlueprintNode) -> str:
+    body_size = len(node.statement) + len(node.informal_proof)
+    if len(node.uses) >= 3 or body_size > 1600:
+        return "high"
+    if len(node.uses) >= 1 or body_size > 400:
+        return "medium"
+    return "low"
+
+
+def _task_sort_key(task: AgentTask) -> tuple[int, int, int, str]:
+    priority_rank = {"high": 0, "medium": 1, "low": 2}
+    difficulty_rank = {"low": 0, "medium": 1, "high": 2}
+    metadata = task.metadata
+    if metadata is None:
+        return (1, 1, 0, task.node_id)
+    return (
+        priority_rank.get(metadata.priority, 1),
+        difficulty_rank.get(metadata.difficulty, 1),
+        metadata.dependency_depth,
+        task.node_id,
+    )

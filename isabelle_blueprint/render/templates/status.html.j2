@@ -36,6 +36,10 @@
 </section>
 
 <section class="filters" aria-label="Filter status table">
+  <label class="search-box">
+    <span class="filter-label">Search</span>
+    <input type="search" data-filter-search placeholder="Search id, title, fact, tags..." />
+  </label>
   <div class="filter-row">
     <span class="filter-label">Blueprint</span>
     {% for item in blueprint_breakdown if item.count > 0 %}
@@ -74,7 +78,7 @@
   </thead>
   <tbody>
     {% for node in project.nodes %}
-      <tr data-blueprint="{{ node.status.blueprint.value }}" data-formal="{{ node.status.formal.value }}" data-agent="{{ node.status.agent.value }}">
+      <tr data-blueprint="{{ node.status.blueprint.value }}" data-formal="{{ node.status.formal.value }}" data-agent="{{ node.status.agent.value }}" data-search="{{ (node.id ~ ' ' ~ node.title ~ ' ' ~ node.kind.value ~ ' ' ~ (node.isabelle.fact or '') ~ ' ' ~ (node.tags|join(' ')))|lower }}">
         <td><a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a></td>
         <td>{{ node.kind.value }}</td>
         <td>{{ node.title }}</td>

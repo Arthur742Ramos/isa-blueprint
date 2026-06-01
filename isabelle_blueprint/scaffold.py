@@ -1,9 +1,9 @@
-"""Generate ready-to-edit blueprint node stubs in the lighter Markdown grammar.
+"""Generate ready-to-edit blueprint node stubs.
 
 This powers the ``isabelle-blueprint new`` command. The goal is to remove the
 "blank page" problem: a single command emits a node skeleton with a humanised
 title, a suggested Isabelle fact name, and (for proof-carrying kinds) a
-``## Proof`` section, so the author only has to fill in the prose.
+proof section, so the author only has to fill in the prose.
 """
 from __future__ import annotations
 
@@ -62,4 +62,36 @@ def render_node_stub(
         lines.append("")
         lines.append("<!-- TODO: sketch the proof. -->")
     lines.append(":::")
+    return "\n".join(lines) + "\n"
+
+
+def render_latex_node_stub(
+    kind: str,
+    node_id: str,
+    *,
+    title: str | None = None,
+    fact: str | None = None,
+    uses: list[str] | None = None,
+    status: str | None = "stub",
+) -> str:
+    """Return a blueprint node stub as a LaTeX theorem-like environment."""
+    title = title if title is not None else _humanize_id(node_id)
+    fact = fact if fact is not None else suggest_fact(node_id)
+
+    lines = [f"\\begin{{{kind}}}[{title}]", f"\\label{{{node_id}}}"]
+    if fact:
+        lines.append(f"\\isabelle{{{fact}}}")
+    if uses:
+        lines.append(f"\\uses{{{', '.join(uses)}}}")
+    if status:
+        lines.append(f"\\status{{{status}}}")
+
+    lines.append("")
+    lines.append(f"% TODO: state the {kind} here.")
+    if kind in _PROOF_KINDS:
+        lines.append("")
+        lines.append(r"\begin{proof}")
+        lines.append("% TODO: sketch the proof.")
+        lines.append(r"\end{proof}")
+    lines.append(f"\\end{{{kind}}}")
     return "\n".join(lines) + "\n"

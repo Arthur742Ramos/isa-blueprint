@@ -31,6 +31,7 @@
       filters.querySelectorAll("button[data-filter-dim][data-filter-value]")
     );
     var clearButton = filters.querySelector("button[data-filter-clear]");
+    var searchInput = filters.querySelector("input[data-filter-search]");
     var matchCount = filters.querySelector("[data-filter-count]");
     var totalCount = rows.length;
 
@@ -48,6 +49,10 @@
             visible = false;
             break;
           }
+        }
+        if (visible && searchInput && searchInput.value.trim()) {
+          var haystack = row.getAttribute("data-search") || row.textContent || "";
+          visible = haystack.toLowerCase().indexOf(searchInput.value.trim().toLowerCase()) !== -1;
         }
         row.classList.toggle("is-hidden", !visible);
       });
@@ -90,8 +95,15 @@
       clearButton.addEventListener("click", function (event) {
         event.preventDefault();
         active = Object.create(null);
+        if (searchInput) {
+          searchInput.value = "";
+        }
         apply();
       });
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener("input", apply);
     }
 
     apply();

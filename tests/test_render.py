@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, add_memory_attempt
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
 from isabelle_blueprint.render.site import render_site
 
 
@@ -123,6 +124,8 @@ def test_status_page_includes_interactive_filter_pills(tmp_path: Path):
     # guard to actually wire up.
     assert "data-filter-clear" in body
     assert "data-filter-count" in body
+    assert "data-filter-search" in body
+    assert "data-search=" in body
 
 
 def test_render_site_emits_badge_artifacts(tmp_path: Path):
@@ -220,6 +223,31 @@ def test_render_site_writes_trends_json_with_supplied_entries(tmp_path: Path):
     assert payload["entries"] == [entry]
 
 
+def test_render_site_shows_next_task_and_trend_delta(tmp_path: Path):
+    entries = [
+        {
+            "timestamp": "2025-01-01T00:00:00Z",
+            "coverage_percent": 0,
+            "node_count": 2,
+            "proved_count": 0,
+            "problem_count": 2,
+        },
+        {
+            "timestamp": "2025-01-02T00:00:00Z",
+            "coverage_percent": 50,
+            "node_count": 3,
+            "proved_count": 1,
+            "problem_count": 1,
+        },
+    ]
+    render_site(_project(), tmp_path, trends=entries)
+
+    body = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert "Next action" in body
+    assert "Changed since last report" in body
+    assert "coverage delta" in body
+
+
 def test_render_site_renders_trends_page(tmp_path: Path):
     render_site(_project(), tmp_path)
     body = (tmp_path / "trends.html").read_text(encoding="utf-8")
@@ -249,3 +277,37 @@ def test_render_site_renders_trends_page_with_data(tmp_path: Path):
     # First 8 chars of the commit sha appear in the history table.
     assert "cafebabe"[:8] in body
     assert "feature" in body
+
+
+def test_tasks_page_renders_task_board_and_memory(tmp_path: Path):
+    memory = AgentMemory()
+    add_memory_attempt(
+        memory,
+        "def-a",
+        AgentMemoryAttempt(
+            timestamp="2026-01-01T00:00:00Z",
+            outcome="blocked",
+            summary="needs helper",
+            next_step="split the goal",
+        ),
+    )
+
+    render_site(_project(), tmp_path, memory=memory)
+    body = (tmp_path / "tasks.html").read_text(encoding="utf-8")
+
+    assert "Task board" in body
+    assert "split the goal" in body
+    assert "task-column-ready" in body
+
+
+def test_tasks_page_renders_attempted_agent_status_separately(tmp_path: Path):
+    project = _project()
+    project.nodes[0].status.agent = AgentStatus.ATTEMPTED
+    project.nodes[0].status.formal = FormalStatus.FOUND
+
+    render_site(project, tmp_path)
+    body = (tmp_path / "tasks.html").read_text(encoding="utf-8")
+
+    assert "Attempted" in body
+    assert "task-column-attempted" in body
+    assert '<article class="task-column task-column-blocked">\n        <h3>Blocked <span>0</span></h3>' in body
