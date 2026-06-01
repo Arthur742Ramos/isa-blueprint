@@ -23,6 +23,9 @@ class FakeClient:
         self.updated.append((repo, issue_number, draft))
         return {"number": issue_number, "html_url": f"https://example/{issue_number}"}
 
+    def close_issue(self, repo: str, issue_number: int):
+        return {"number": issue_number, "html_url": f"https://example/{issue_number}"}
+
 
 def _draft(node_id="a"):
     return {"node_id": node_id, "task_id": f"task-{node_id}", "title": "Formalize A", "body": "body", "labels": []}
@@ -96,3 +99,22 @@ def test_github_sync_recovers_by_search_when_state_missing(tmp_path: Path, monke
 
     assert actions[0].action == "updated"
     assert client.updated[0][1] == 8
+
+
+def test_github_sync_dry_run_surfaces_completed_issue_close_hint(tmp_path: Path):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({"schema_version": 1, "nodes": {"done": {"issue_number": 7}}}),
+        encoding="utf-8",
+    )
+
+    actions = sync_github_issues(
+        [],
+        repo="owner/repo",
+        state_path=state_path,
+        confirm=False,
+        completed_node_ids={"done"},
+    )
+
+    assert actions[0].action == "would_close"
+    assert actions[0].issue_number == 7

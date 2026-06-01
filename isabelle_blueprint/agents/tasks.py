@@ -159,6 +159,8 @@ def write_tasks(
     memory: AgentMemory | None = None,
     github_issues: bool = False,
     github_issues_name: str = "github-issues.json",
+    github_issue_labels: list[str] | None = None,
+    github_issue_assignees: list[str] | None = None,
 ) -> dict[str, Path]:
     """Write ``tasks.json``, ``tasks.md`` and ``prompts/<task-id>.md`` files."""
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -187,7 +189,12 @@ def write_tasks(
     written = {"json": json_path, "md": md_path, "prompts": prompts_dir}
     if github_issues:
         issues_path = build_dir / github_issues_name
-        write_github_issue_drafts(tasks, issues_path)
+        write_github_issue_drafts(
+            tasks,
+            issues_path,
+            extra_labels=github_issue_labels,
+            assignees=github_issue_assignees,
+        )
         written["github_issues"] = issues_path
     return written
 
@@ -271,19 +278,32 @@ def render_task_prompt(task: AgentTask) -> str:
     return "\n".join(parts)
 
 
-def write_github_issue_drafts(tasks: list[AgentTask], path: Path) -> Path:
+def write_github_issue_drafts(
+    tasks: list[AgentTask],
+    path: Path,
+    *,
+    extra_labels: list[str] | None = None,
+    assignees: list[str] | None = None,
+) -> Path:
     """Write GitHub issue drafts for ready tasks without touching the network."""
 
-    issues = github_issue_drafts(tasks)
+    issues = github_issue_drafts(tasks, extra_labels=extra_labels, assignees=assignees)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"issues": issues}, indent=2), encoding="utf-8")
     return path
 
 
-def github_issue_drafts(tasks: list[AgentTask]) -> list[dict[str, object]]:
+def github_issue_drafts(
+    tasks: list[AgentTask],
+    *,
+    extra_labels: list[str] | None = None,
+    assignees: list[str] | None = None,
+) -> list[dict[str, object]]:
     """Return GitHub issue draft dictionaries for ``tasks``."""
 
     issues: list[dict[str, object]] = []
+    clean_extra_labels = [label for label in dict.fromkeys(extra_labels or []) if label]
+    clean_assignees = [assignee for assignee in dict.fromkeys(assignees or []) if assignee]
     for task in tasks:
         body = render_task_prompt(task)
         if len(body) > 60000:
@@ -292,16 +312,18 @@ def github_issue_drafts(tasks: list[AgentTask]) -> list[dict[str, object]]:
             "isabelle-blueprint",
             "agent-task",
             f"priority:{task.metadata.priority if task.metadata else 'medium'}",
+            f"difficulty:{task.metadata.difficulty if task.metadata else 'medium'}",
         ]
-        issues.append(
-            {
-                "title": f"Formalize {task.title}",
-                "body": body,
-                "labels": labels,
-                "node_id": task.node_id,
-                "task_id": task.id,
-            }
-        )
+        issue: dict[str, object] = {
+            "title": f"Formalize {task.title}",
+            "body": body,
+            "labels": list(dict.fromkeys(labels + clean_extra_labels)),
+            "node_id": task.node_id,
+            "task_id": task.id,
+        }
+        if clean_assignees:
+            issue["assignees"] = clean_assignees
+        issues.append(issue)
     return issues
 
 

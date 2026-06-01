@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.5.2. Subcommand names, flag names, default values,
+command-line tool as of v1.6.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -133,9 +133,10 @@ isabelle-blueprint web [project_dir]
 ```
 
 Renders the static HTML site under `site/`: index, per-node pages, dependency
-graph viewer, status table, tasks view, and trend chart. `--watch` (added in
-v1.1) re-renders when blueprint/check/report inputs change. `--serve` also
-starts a local HTTP server on `127.0.0.1:8000` by default.
+graph viewer, status table, tasks view, roadmap page, roadmap JSON, and trend
+chart. `--watch` (added in v1.1) re-renders when blueprint/check/report inputs
+change. `--serve` also starts a local HTTP server on `127.0.0.1:8000` by
+default.
 
 ### `serve`
 
@@ -160,6 +161,8 @@ isabelle-blueprint tasks [project_dir]
                          [--repo OWNER/REPO]
                          [--token-env ENVVAR]
                          [--github-sync-state PATH]
+                         [--github-label LABEL]
+                         [--github-assignee USER]
 ```
 
 Emits agent-ready task artefacts under `build/`: `tasks.json`, `tasks.md`,
@@ -177,6 +180,10 @@ default this is a dry-run and performs no network calls. Passing
 `GITHUB_REPOSITORY`. The sync is idempotent: issue bodies carry a hidden
 `isabelle-blueprint:task` marker and the persistent mapping defaults to
 `.isabelle-blueprint/github-sync.json`.
+
+`--github-label` and `--github-assignee` (added in v1.6) are repeatable and
+affect generated issue drafts and sync payloads. Sync plans also include
+`would_close` actions for completed nodes that still have a tracked issue.
 
 ### `next`
 
@@ -201,6 +208,37 @@ read-only and does not require prompt files to have been generated first.
   ready task exists or when selector validation fails. Text output still prints
   the prompt to stdout and reports the written path on stderr; JSON output
   records the absolute path in `prompt_path`.
+
+### `attempt`
+
+```text
+isabelle-blueprint attempt [project_dir]
+                          [--node NODE_OR_TASK]
+                          [--output PATH]
+                          [--json]
+                          [--check]
+                          [--isabelle PATH]
+                          [--timeout SECONDS]
+                          [--incremental]
+                          [--jobs N]
+                          [--record-outcome OUTCOME]
+                          [--summary TEXT]
+                          [--details TEXT]
+                          [--next-step TEXT]
+                          [--actor TEXT]
+                          [--tool TEXT]
+                          [--max-attempts N]
+```
+
+Added in v1.6. Prepares a selected ready proof task for a human or agent proof
+attempt. By default it writes the prompt to
+`build/attempts/<task-id>.md`. `--node` accepts the same node/task selectors as
+`next`. `--check` runs the normal `check` pipeline after writing the prompt.
+`--record-outcome` records post-attempt memory and requires a non-empty
+`--summary`; valid outcomes match the `memory --outcome` choices.
+
+`--json` emits `task`, `prompt_path`, `check`, `memory`, and `message`. When no
+ready task exists, those object fields are `null` and the command exits 0.
 
 ### `report`
 
@@ -392,6 +430,7 @@ unresolved facts, stale cache entries, tainted proofs, and check failures.
 isabelle-blueprint import-theory THEORY.thy [THEORY.thy ...]
                                       [--project-name NAME]
                                       [--output PATH]
+                                      [--review-output PATH]
                                       [--force]
 ```
 
@@ -401,6 +440,10 @@ blueprint stubs. This importer is best-effort and intentionally conservative:
 it strips nested `(* ... *)` comments and supports common top-level declaration
 forms, but generated statements, dependencies, and proof sketches must be
 reviewed by a human.
+
+`--review-output PATH` (added in v1.6) writes JSON review metadata including the
+line, qualified name, node id, and best-effort dependency suggestions for each
+imported fact. `--force` gates both `--output` and `--review-output`.
 
 ### `schema`
 
@@ -441,9 +484,9 @@ target suffix selects Markdown or LaTeX automatically. Passing a mismatched
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `serve`, `tasks`, `next`, `report`, `status`, `roadmap`, `comment`, `doctor`,
-   `memory`, `explain`, `import-theory`, `schema`, `new`) will not be renamed or
-   removed.
+   `serve`, `tasks`, `next`, `attempt`, `report`, `status`, `roadmap`,
+   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `schema`, `new`)
+   will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.
 3. **Exit codes** for documented conditions will not change.

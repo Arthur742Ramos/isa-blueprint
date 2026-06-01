@@ -17,12 +17,14 @@
 
   function init() {
     var filters = document.querySelector(".filters");
-    var table = document.querySelector(".status-table");
-    if (!filters || !table) {
+    if (!filters) {
       return;
     }
 
-    var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr"));
+    var table = document.querySelector(".status-table");
+    var rows = table
+      ? Array.prototype.slice.call(table.querySelectorAll("tbody tr"))
+      : Array.prototype.slice.call(document.querySelectorAll("[data-filter-item]"));
     if (!rows.length) {
       return;
     }
@@ -34,8 +36,10 @@
     var searchInput = filters.querySelector("input[data-filter-search]");
     var matchCount = filters.querySelector("[data-filter-count]");
     var totalCount = rows.length;
+    var scope = filters.getAttribute("data-filter-scope") || location.pathname.split("/").pop() || "filters";
 
     var active = Object.create(null);
+    restoreState();
 
     function apply() {
       rows.forEach(function (row) {
@@ -63,6 +67,7 @@
         }).length;
         matchCount.textContent = shown + " / " + totalCount;
       }
+      persistState();
 
       pills.forEach(function (pill) {
         var dim = pill.getAttribute("data-filter-dim");
@@ -107,11 +112,70 @@
     }
 
     apply();
+
+    function persistState() {
+      var params = [];
+      for (var dim in active) {
+        if (!Object.prototype.hasOwnProperty.call(active, dim)) continue;
+        var picks = active[dim];
+        if (picks && picks.length) {
+          params.push(encodeURIComponent(dim) + "=" + encodeURIComponent(picks.join(",")));
+        }
+      }
+      if (searchInput && searchInput.value.trim()) {
+        params.push("q=" + encodeURIComponent(searchInput.value.trim()));
+      }
+      var hash = params.length ? "#filters:" + encodeURIComponent(scope) + ":" + params.join("&") : "";
+      if (location.hash !== hash) {
+        history.replaceState(null, "", location.pathname + location.search + hash);
+      }
+    }
+
+    function restoreState() {
+      var prefix = "#filters:" + encodeURIComponent(scope) + ":";
+      if (!location.hash || location.hash.indexOf(prefix) !== 0) {
+        return;
+      }
+      var raw = location.hash.slice(prefix.length);
+      raw.split("&").forEach(function (part) {
+        if (!part) return;
+        var eq = part.indexOf("=");
+        var key = decodeURIComponent(eq === -1 ? part : part.slice(0, eq));
+        var value = decodeURIComponent(eq === -1 ? "" : part.slice(eq + 1));
+        if (key === "q" && searchInput) {
+          searchInput.value = value;
+        } else if (key) {
+          active[key] = value ? value.split(",") : [];
+        }
+      });
+    }
+  }
+
+  function initCopyButtons() {
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-copy-text]"));
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        var text = button.getAttribute("data-copy-text") || "";
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            button.textContent = "Copied";
+            window.setTimeout(function () {
+              button.textContent = "Copy handoff command";
+            }, 1500);
+          });
+        }
+      });
+    });
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", function () {
+      init();
+      initCopyButtons();
+    });
   } else {
     init();
+    initCopyButtons();
   }
 })();

@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.5.2. Keys, value types, and value semantics listed here will not change
+v1.6.0. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in backward-compatible
 releases; consumers should ignore unknown keys.
 
@@ -284,6 +284,43 @@ files do not need to exist first.
 
 Selecting an unknown, blocked, complete, or otherwise not-ready node exits 1
 with a CLI error instead of emitting a JSON payload.
+
+---
+
+## `attempt --json`
+
+Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
+
+```json
+{
+  "task": { "id": "task-main-theorem", "node_id": "main-theorem" },
+  "prompt_path": "/absolute/path/to/build/attempts/task-main-theorem.md",
+  "check": {
+    "report_path": "/absolute/path/to/build/check-report.json",
+    "project_json_path": "/absolute/path/to/build/project.json",
+    "isabelle_available": true,
+    "ran": true,
+    "return_code": 0,
+    "error": null
+  },
+  "memory": {
+    "timestamp": "2026-06-01T12:00:00Z",
+    "outcome": "failed",
+    "summary": "simp looped",
+    "actor": null,
+    "tool": null,
+    "details": "",
+    "next_step": "try induction",
+    "input_hash": "..."
+  },
+  "message": "Prepared task-main-theorem."
+}
+```
+
+`task` uses the same shape as `build/tasks.json`; `check` is `null` unless
+`--check` was passed; `memory` is `null` unless `--record-outcome` was passed.
+When no ready task exists, `task`, `prompt_path`, `check`, and `memory` are
+`null` and `message` explains the empty state.
 
 ---
 

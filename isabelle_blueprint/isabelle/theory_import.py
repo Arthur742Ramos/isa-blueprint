@@ -25,6 +25,7 @@ class ImportedTheoryFact:
     theory: str
     line: int
     node_id: str
+    uses: tuple[str, ...] = ()
 
     @property
     def qualified_name(self) -> str:
@@ -36,19 +37,36 @@ def import_theory_file(path: Path) -> list[ImportedTheoryFact]:
     cleaned = strip_isabelle_comments(text)
     theory_match = _THEORY_RE.search(cleaned)
     theory = theory_match.group(1) if theory_match else path.stem
-    facts: list[ImportedTheoryFact] = []
+    matches = list(_DECL_RE.finditer(cleaned))
+    raw_facts: list[ImportedTheoryFact] = []
     used_ids: set[str] = set()
-    for match in _DECL_RE.finditer(cleaned):
+    for match in matches:
         name = match.group("name")
         line = cleaned.count("\n", 0, match.start()) + 1
         node_id = _unique_node_id(_node_id(theory, name), used_ids)
-        facts.append(
+        raw_facts.append(
             ImportedTheoryFact(
                 kind=match.group("kind"),
                 name=name,
                 theory=theory,
                 line=line,
                 node_id=node_id,
+            )
+        )
+    facts: list[ImportedTheoryFact] = []
+    for index, fact in enumerate(raw_facts):
+        start = matches[index].end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(cleaned)
+        snippet = cleaned[start:end]
+        uses = tuple(_infer_uses(snippet, raw_facts[:index]))
+        facts.append(
+            ImportedTheoryFact(
+                kind=fact.kind,
+                name=fact.name,
+                theory=fact.theory,
+                line=fact.line,
+                node_id=fact.node_id,
+                uses=uses,
             )
         )
     return facts
@@ -64,11 +82,15 @@ def render_imported_blueprint(facts: list[ImportedTheoryFact], *, project_name: 
         "",
     ]
     for fact in facts:
+        uses_lines: list[str] = []
+        if fact.uses:
+            uses_lines = ["uses:", *[f"  - {node_id}" for node_id in fact.uses]]
         lines.extend(
             [
                 f"::: {fact.kind} {{#{fact.node_id}}}",
                 f"title: {_title(fact.name)}",
                 f"isabelle: {fact.qualified_name}",
+                *uses_lines,
                 "status:",
                 "  blueprint: stub",
                 "  formal: named",
@@ -84,6 +106,30 @@ def render_imported_blueprint(facts: list[ImportedTheoryFact], *, project_name: 
             ]
         )
     return "\n".join(lines)
+
+
+def imported_theory_review(facts: list[ImportedTheoryFact]) -> dict[str, object]:
+    """Return review metadata for best-effort theory imports."""
+
+    return {
+        "schema_version": 1,
+        "facts": [
+            {
+                "node_id": fact.node_id,
+                "kind": fact.kind,
+                "name": fact.name,
+                "qualified_name": fact.qualified_name,
+                "theory": fact.theory,
+                "line": fact.line,
+                "suggested_uses": list(fact.uses),
+            }
+            for fact in facts
+        ],
+        "notes": [
+            "Dependencies are inferred from references to earlier top-level facts.",
+            "Review generated statements, dependencies, and proof sketches before relying on them.",
+        ],
+    }
 
 
 def strip_isabelle_comments(text: str) -> str:
@@ -137,6 +183,19 @@ def _unique_node_id(node_id: str, used: set[str]) -> str:
         index += 1
     used.add(candidate)
     return candidate
+
+
+def _infer_uses(snippet: str, previous: list[ImportedTheoryFact]) -> list[str]:
+    uses: list[str] = []
+    for fact in previous:
+        if _mentions_fact(snippet, fact.name) or _mentions_fact(snippet, fact.qualified_name):
+            uses.append(fact.node_id)
+    return uses
+
+
+def _mentions_fact(text: str, fact_name: str) -> bool:
+    escaped = re.escape(fact_name)
+    return bool(re.search(rf"(?<![\w'.]){escaped}(?![\w'.])", text))
 
 
 def _title(name: str) -> str:

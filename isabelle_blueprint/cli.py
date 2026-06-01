@@ -53,7 +53,11 @@ from isabelle_blueprint.isabelle.suggestions import (
     suggest_missing_facts,
     write_fact_suggestions,
 )
-from isabelle_blueprint.isabelle.theory_import import import_theory_file, render_imported_blueprint
+from isabelle_blueprint.isabelle.theory_import import (
+    import_theory_file,
+    imported_theory_review,
+    render_imported_blueprint,
+)
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
@@ -384,12 +388,18 @@ def cmd_tasks(args: argparse.Namespace) -> int:
         memory=memory,
         github_issues=args.github_issues,
         github_issues_name=args.github_issues_file,
+        github_issue_labels=args.github_label,
+        github_issue_assignees=args.github_assignee,
     )
     if args.github_sync:
         from isabelle_blueprint.agents.tasks import generate_tasks, github_issue_drafts
 
         tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-        drafts = github_issue_drafts(tasks)
+        drafts = github_issue_drafts(
+            tasks,
+            extra_labels=args.github_label,
+            assignees=args.github_assignee,
+        )
         actions = sync_github_issues(
             drafts,
             repo=args.repo or os.environ.get("GITHUB_REPOSITORY"),
@@ -398,6 +408,7 @@ def cmd_tasks(args: argparse.Namespace) -> int:
             else config.github_sync_state_path,
             token_env=args.token_env,
             confirm=args.github_sync_confirm,
+            completed_node_ids=_completed_node_ids(project),
         )
         sync_path = config.build_dir / "github-sync-plan.json"
         sync_path.write_text(
@@ -590,6 +601,100 @@ def cmd_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_attempt(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    task = _select_ready_task(ready_tasks, args.node, project)
+    if task is None:
+        no_task_payload: dict[str, object] = {
+            "task": None,
+            "prompt_path": None,
+            "check": None,
+            "memory": None,
+            "message": "No ready tasks are currently available.",
+        }
+        if args.json:
+            print(json.dumps(no_task_payload, indent=2))
+        else:
+            print(no_task_payload["message"])
+        return 0
+
+    prompt = render_task_prompt(task)
+    output = args.output or str(config.build_dir / "attempts" / f"{task.id}.md")
+    prompt_path = _write_next_prompt(prompt, output)
+    check_payload = _run_attempt_check(args, config, project) if args.check else None
+    memory_payload = None
+    if args.record_outcome:
+        if not args.summary:
+            raise BlueprintError("--summary is required with --record-outcome")
+        attempt = record_memory_attempt(
+            config.agent_memory_path,
+            task.node_id,
+            outcome=args.record_outcome,
+            summary=args.summary,
+            actor=args.actor,
+            tool=args.tool,
+            details=args.details or "",
+            next_step=args.next_step,
+            input_hash=node_input_hash(project.by_id()[task.node_id]),
+            max_attempts=args.max_attempts,
+        )
+        memory_payload = attempt.to_dict()
+
+    payload: dict[str, object] = {
+        "task": task.to_dict(),
+        "prompt_path": str(prompt_path),
+        "check": check_payload,
+        "memory": memory_payload,
+        "message": f"Prepared {task.id}.",
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"attempt prompt -> {prompt_path}")
+        if check_payload is not None:
+            print(f"check report -> {check_payload['report_path']}")
+            if check_payload["return_code"] not in (None, 0):
+                print(f"check exited with {check_payload['return_code']}", file=sys.stderr)
+        if memory_payload is not None:
+            print(f"memory recorded -> {config.agent_memory_path}")
+    return 0
+
+
+def _run_attempt_check(
+    args: argparse.Namespace,
+    config: BlueprintConfig,
+    project: BlueprintProject,
+) -> dict[str, object]:
+    result = run_check(
+        project,
+        build_dir=config.build_dir,
+        session_name=config.isabelle_session,
+        isabelle_executable=args.isabelle or config.isabelle_executable,
+        extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
+        timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
+        incremental=bool(getattr(args, "incremental", False)),
+        cache_path=config.check_cache_path if getattr(args, "incremental", False) else None,
+        jobs=getattr(args, "jobs", None),
+    )
+    write_report(result, config.check_report_path)
+    apply_check_report(project, result)
+    write_project_report(project, config.project_json_path)
+    return {
+        "report_path": str(config.check_report_path),
+        "project_json_path": str(config.project_json_path),
+        "isabelle_available": result.isabelle_available,
+        "ran": result.ran,
+        "return_code": result.return_code,
+        "error": result.error,
+    }
+
+
 def _write_next_prompt(prompt: str, output: str | None) -> Path | None:
     if output is None:
         return None
@@ -633,6 +738,14 @@ def _select_ready_task(
             f"(formal status: {node.status.formal.value})"
         )
     raise BlueprintError(f"unknown ready task or node {selector!r}")
+
+
+def _completed_node_ids(project: BlueprintProject) -> set[str]:
+    return {
+        node.id
+        for node in project.nodes
+        if node.status.formal.value in {"found", "proved"} or node.status.agent.value == "solved"
+    }
 
 
 def cmd_comment(args: argparse.Namespace) -> int:
@@ -758,6 +871,13 @@ def cmd_import_theory(args: argparse.Namespace) -> int:
     for theory_path in args.theory:
         facts.extend(import_theory_file(Path(theory_path).resolve()))
     blueprint = render_imported_blueprint(facts, project_name=args.project_name)
+    if args.review_output:
+        review_output = Path(args.review_output).resolve()
+        if review_output.exists() and not args.force:
+            raise BlueprintError(f"refusing to overwrite {review_output}; pass --force")
+        review_output.parent.mkdir(parents=True, exist_ok=True)
+        review_output.write_text(json.dumps(imported_theory_review(facts), indent=2), encoding="utf-8")
+        print(f"import review -> {review_output}", file=sys.stderr)
     if args.output:
         output = Path(args.output).resolve()
         if output.exists() and not args.force:
@@ -897,6 +1017,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="path to persistent node-to-issue mapping (default: .isabelle-blueprint/github-sync.json)",
     )
+    p_tasks.add_argument(
+        "--github-label",
+        action="append",
+        default=None,
+        help="extra label to add to generated GitHub issue drafts; repeat to add multiple labels",
+    )
+    p_tasks.add_argument(
+        "--github-assignee",
+        action="append",
+        default=None,
+        help="GitHub username to assign to generated issue drafts; repeat to add multiple assignees",
+    )
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_next = sub.add_parser("next", help="print the next ready task prompt")
@@ -910,6 +1042,40 @@ def _build_parser() -> argparse.ArgumentParser:
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
     p_next.add_argument("--output", default=None, metavar="PATH", help="also write the selected prompt to PATH")
     p_next.set_defaults(func=cmd_next)
+
+    p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
+    p_attempt.add_argument("project_dir", nargs="?", default=".")
+    p_attempt.add_argument(
+        "--node",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="prepare this ready node/task instead of the suggested next task",
+    )
+    p_attempt.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="write the prompt to PATH (default: build/attempts/<task-id>.md)",
+    )
+    p_attempt.add_argument("--json", action="store_true", help="emit machine-readable attempt JSON")
+    p_attempt.add_argument("--check", action="store_true", help="run `check` after writing the handoff prompt")
+    p_attempt.add_argument("--isabelle", default=None, help="path to the `isabelle` binary for --check")
+    p_attempt.add_argument("--timeout", type=float, default=None, help="timeout for --check")
+    p_attempt.add_argument("--incremental", action="store_true", help="use check-cache.json during --check")
+    p_attempt.add_argument("--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check")
+    p_attempt.add_argument(
+        "--record-outcome",
+        choices=sorted(VALID_OUTCOMES),
+        default=None,
+        help="record post-attempt memory for the selected node",
+    )
+    p_attempt.add_argument("--summary", default="", help="memory summary required with --record-outcome")
+    p_attempt.add_argument("--details", default="", help="longer memory notes for --record-outcome")
+    p_attempt.add_argument("--next-step", default=None, help="recommended next action for memory")
+    p_attempt.add_argument("--actor", default=None, help="person or agent that made the attempt")
+    p_attempt.add_argument("--tool", default=None, help="tool/model used for the attempt")
+    p_attempt.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
+    p_attempt.set_defaults(func=cmd_attempt)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
@@ -1037,6 +1203,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_import.add_argument("theory", nargs="+", help="Isabelle theory file(s) to scan")
     p_import.add_argument("--project-name", default=None, help="title for the generated blueprint")
     p_import.add_argument("--output", default=None, help="write generated blueprint to this file")
+    p_import.add_argument("--review-output", default=None, help="write dependency-inference review JSON")
     p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
     p_import.set_defaults(func=cmd_import_theory)
 

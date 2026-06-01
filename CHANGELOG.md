@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-01
+
+### Added
+
+- Added `isabelle-blueprint attempt`, a one-command proof handoff helper that
+  writes the selected ready-task prompt to `build/attempts/`, can run `check`,
+  and can record post-attempt memory in the existing agent-memory file.
+- Added a static-site Roadmap page backed by the same roadmap model as the CLI,
+  plus `site/roadmap.json`, filterable roadmap cards, copyable handoff commands,
+  URL-persisted filters, and dark-mode-aware surfaces.
+- Added extra GitHub issue draft/sync polish: repeatable `tasks --github-label`
+  and `--github-assignee`, richer issue labels, assignee payloads, and dry-run
+  close hints for completed task issues.
+- Added richer PR comments with collapsible ready-task and problem-node details.
+- Added `import-theory --review-output` and best-effort dependency suggestions
+  inferred from references to earlier facts.
+- Added VS Code proof-cockpit grouping plus node-level Explain and Record Memory
+  commands and quick fixes for status diagnostics.
+- Added a copyable plugin example under `examples/plugins/`.
+
 ## [1.5.2] - 2026-06-01
 
 ### Added

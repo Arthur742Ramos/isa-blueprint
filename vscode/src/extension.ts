@@ -71,7 +71,10 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   getChildren(element?: TreeItem): TreeItem[] {
     if (element instanceof ProjectItem) {
-      return element.loaded.project.nodes.map((node) => new NodeItem(element.loaded, node));
+      return proofCockpitGroups(element.loaded).map((group) => new GroupItem(element.loaded, group));
+    }
+    if (element instanceof GroupItem) {
+      return element.group.nodes.map((node) => new NodeItem(element.loaded, node));
     }
     if (element instanceof NodeItem) {
       return element.dependencies();
@@ -99,7 +102,14 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   }
 }
 
-type TreeItem = ProjectItem | NodeItem | DependencyItem;
+type TreeItem = ProjectItem | GroupItem | NodeItem | DependencyItem;
+
+interface NodeGroup {
+  id: string;
+  title: string;
+  icon: string;
+  nodes: BlueprintNode[];
+}
 
 class ProjectItem extends vscode.TreeItem {
   constructor(readonly loaded: LoadedProject) {
@@ -107,6 +117,17 @@ class ProjectItem extends vscode.TreeItem {
     this.description = path.relative(loaded.folder.uri.fsPath, loaded.jsonPath) || loaded.jsonPath;
     this.iconPath = new vscode.ThemeIcon("symbol-namespace");
     this.contextValue = "isabelleBlueprintProject";
+  }
+}
+
+class GroupItem extends vscode.TreeItem {
+  constructor(
+    readonly loaded: LoadedProject,
+    readonly group: NodeGroup,
+  ) {
+    super(`${group.title} (${group.nodes.length})`, vscode.TreeItemCollapsibleState.Expanded);
+    this.iconPath = new vscode.ThemeIcon(group.icon);
+    this.contextValue = "isabelleBlueprintGroup";
   }
 }
 
@@ -150,6 +171,37 @@ class DependencyItem extends vscode.TreeItem {
       };
     }
   }
+}
+
+function proofCockpitGroups(loaded: LoadedProject): NodeGroup[] {
+  const groups: NodeGroup[] = [
+    { id: "ready", title: "Ready", icon: "rocket", nodes: [] },
+    { id: "problem", title: "Problem", icon: "error", nodes: [] },
+    { id: "stale", title: "Stale / Named", icon: "warning", nodes: [] },
+    { id: "blocked", title: "Blocked", icon: "debug-pause", nodes: [] },
+    { id: "complete", title: "Complete", icon: "verified", nodes: [] },
+  ];
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  for (const node of loaded.project.nodes) {
+    byId.get(groupIdForNode(loaded, node))?.nodes.push(node);
+  }
+  return groups.filter((group) => group.nodes.length > 0);
+}
+
+function groupIdForNode(loaded: LoadedProject, node: BlueprintNode): string {
+  if (node.status.formal === "proved" || node.status.formal === "found") {
+    return "complete";
+  }
+  if (["not_found", "broken", "failed_check", "tainted"].includes(node.status.formal)) {
+    return "problem";
+  }
+  if (isReadyForTask(loaded, node)) {
+    return "ready";
+  }
+  if (node.status.formal === "stale" || node.status.formal === "named") {
+    return "stale";
+  }
+  return "blocked";
 }
 
 /**
@@ -273,6 +325,31 @@ class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
     for (const diagnostic of context.diagnostics) {
       const code = typeof diagnostic.code === "string" ? diagnostic.code : "";
       if (!code.startsWith("missing-dependency:")) {
+        if (code.startsWith("status:")) {
+          const [, nodeId, status] = code.split(":");
+          const found = this.provider.findNode(nodeId);
+          if (!found) {
+            continue;
+          }
+          const explain = new vscode.CodeAction(
+            `Explain IsabelleBlueprint status '${status}'`,
+            vscode.CodeActionKind.QuickFix,
+          );
+          explain.diagnostics = [diagnostic];
+          explain.command = {
+            command: "isabelleBlueprint.explainNode",
+            title: "Explain Node",
+            arguments: [found.loaded, found.node],
+          };
+          actions.push(explain);
+          const check = new vscode.CodeAction("Run IsabelleBlueprint check", vscode.CodeActionKind.QuickFix);
+          check.diagnostics = [diagnostic];
+          check.command = {
+            command: "isabelleBlueprint.runCheck",
+            title: "Run Check",
+          };
+          actions.push(check);
+        }
         continue;
       }
       const missingId = code.slice("missing-dependency:".length);
@@ -344,6 +421,22 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelleBlueprint.openNextTaskPrompt", async () => {
       await openNextTaskPrompt(output, running);
     }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "isabelleBlueprint.explainNode",
+      async (loaded?: LoadedProject, node?: BlueprintNode) => {
+        await explainNode(loaded, node, provider, output, running);
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "isabelleBlueprint.recordMemory",
+      async (loaded?: LoadedProject, node?: BlueprintNode) => {
+        await recordMemory(loaded, node, provider, output, running);
+      },
+    ),
   );
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -516,6 +609,145 @@ async function openNextTaskPrompt(
   }
 }
 
+async function explainNode(
+  loaded: LoadedProject | undefined,
+  node: BlueprintNode | undefined,
+  provider: BlueprintTreeProvider,
+  output: vscode.OutputChannel,
+  running: Set<string>,
+): Promise<void> {
+  const target = await pickNodeTarget(loaded, node, provider, "Pick a node to explain");
+  if (!target) {
+    return;
+  }
+  const key = `${target.loaded.folder.uri.fsPath}:explain:${target.node.id}`;
+  if (running.has(key)) {
+    void vscode.window.showInformationMessage(`IsabelleBlueprint explain for '${target.node.id}' is already running.`);
+    return;
+  }
+  running.add(key);
+  const cliPath = vscode.workspace
+    .getConfiguration("isabelleBlueprint", target.loaded.folder.uri)
+    .get<string>("cliPath", "isabelle-blueprint");
+  output.show(true);
+  output.appendLine(`> ${cliPath} explain ${target.loaded.folder.uri.fsPath} --node ${target.node.id}`);
+  try {
+    const { stdout, stderr } = await execFilePromise(
+      cliPath,
+      ["explain", target.loaded.folder.uri.fsPath, "--node", target.node.id],
+      target.loaded.folder.uri.fsPath,
+    );
+    if (stderr.trim()) {
+      output.appendLine(stderr.trimEnd());
+    }
+    const document = await vscode.workspace.openTextDocument({
+      content: stdout || `No explanations for ${target.node.id}.`,
+      language: "markdown",
+    });
+    await vscode.window.showTextDocument(document, { preview: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(message);
+    void vscode.window.showErrorMessage("IsabelleBlueprint explain failed. See output for details.");
+  } finally {
+    running.delete(key);
+  }
+}
+
+async function recordMemory(
+  loaded: LoadedProject | undefined,
+  node: BlueprintNode | undefined,
+  provider: BlueprintTreeProvider,
+  output: vscode.OutputChannel,
+  running: Set<string>,
+): Promise<void> {
+  const target = await pickNodeTarget(loaded, node, provider, "Pick a node to record memory for");
+  if (!target) {
+    return;
+  }
+  const outcome = await vscode.window.showQuickPick(
+    ["note", "blocked", "failed", "succeeded", "needs_human"],
+    { placeHolder: "Attempt outcome" },
+  );
+  if (!outcome) {
+    return;
+  }
+  const summary = await vscode.window.showInputBox({
+    prompt: `Short memory summary for ${target.node.id}`,
+    ignoreFocusOut: true,
+  });
+  if (!summary || !summary.trim()) {
+    return;
+  }
+  const nextStep = await vscode.window.showInputBox({
+    prompt: "Optional next step",
+    ignoreFocusOut: true,
+  });
+  const key = `${target.loaded.folder.uri.fsPath}:memory:${target.node.id}`;
+  if (running.has(key)) {
+    void vscode.window.showInformationMessage(`IsabelleBlueprint memory for '${target.node.id}' is already running.`);
+    return;
+  }
+  running.add(key);
+  const cliPath = vscode.workspace
+    .getConfiguration("isabelleBlueprint", target.loaded.folder.uri)
+    .get<string>("cliPath", "isabelle-blueprint");
+  const args = [
+    "memory",
+    target.loaded.folder.uri.fsPath,
+    "--node",
+    target.node.id,
+    "--record",
+    "--outcome",
+    outcome,
+    "--summary",
+    summary.trim(),
+  ];
+  if (nextStep && nextStep.trim()) {
+    args.push("--next-step", nextStep.trim());
+  }
+  output.show(true);
+  output.appendLine(`> ${cliPath} memory ${target.loaded.folder.uri.fsPath} --node ${target.node.id} --record`);
+  try {
+    const { stdout, stderr } = await execFilePromise(cliPath, args, target.loaded.folder.uri.fsPath);
+    if (stdout.trim()) {
+      output.appendLine(stdout.trimEnd());
+    }
+    if (stderr.trim()) {
+      output.appendLine(stderr.trimEnd());
+    }
+    void vscode.window.showInformationMessage(`IsabelleBlueprint memory recorded for '${target.node.id}'.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(message);
+    void vscode.window.showErrorMessage("IsabelleBlueprint memory recording failed. See output for details.");
+  } finally {
+    running.delete(key);
+  }
+}
+
+async function pickNodeTarget(
+  loaded: LoadedProject | undefined,
+  node: BlueprintNode | undefined,
+  provider: BlueprintTreeProvider,
+  placeHolder: string,
+): Promise<PreviewTarget | undefined> {
+  if (loaded && node) {
+    return { loaded, node };
+  }
+  const items = provider.loadedProjects().flatMap((project) =>
+    project.project.nodes.map((candidate) => ({
+      label: candidate.title,
+      description: candidate.id,
+      detail: project.project.name,
+      loaded: project,
+      node: candidate,
+    })),
+  );
+  const picked = await vscode.window.showQuickPick(items, { placeHolder });
+  return picked ? { loaded: picked.loaded, node: picked.node } : undefined;
+}
+
 async function pickWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefined> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) {
@@ -579,7 +811,7 @@ function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticC
       }`;
       const diagnostic = new vscode.Diagnostic(range, message, severity);
       diagnostic.source = "IsabelleBlueprint";
-      diagnostic.code = node.id;
+      diagnostic.code = `status:${node.id}:${node.status.formal}`;
       existing.push(diagnostic);
     }
 

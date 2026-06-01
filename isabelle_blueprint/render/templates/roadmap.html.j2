@@ -1,0 +1,93 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>Roadmap</h1>
+
+<p class="lede">
+  Staged proof-work swimlanes generated from the same roadmap model as the CLI.
+  Ready nodes are immediately actionable; blocked nodes list their first blockers.
+</p>
+
+<section class="status-summary">
+  <article>
+    <h2>Summary</h2>
+    <div class="summary-row"><span>Complete</span><meter min="0" max="{{ roadmap.summary.node_count or 1 }}" value="{{ roadmap.summary.complete_count }}">{{ roadmap.summary.complete_count }}</meter><strong>{{ roadmap.summary.complete_count }}</strong></div>
+    <div class="summary-row"><span>Ready</span><meter min="0" max="{{ roadmap.summary.node_count or 1 }}" value="{{ roadmap.summary.ready_count }}">{{ roadmap.summary.ready_count }}</meter><strong>{{ roadmap.summary.ready_count }}</strong></div>
+    <div class="summary-row"><span>Blocked</span><meter min="0" max="{{ roadmap.summary.node_count or 1 }}" value="{{ roadmap.summary.blocked_count }}">{{ roadmap.summary.blocked_count }}</meter><strong>{{ roadmap.summary.blocked_count }}</strong></div>
+    <div class="summary-row"><span>Problem</span><meter min="0" max="{{ roadmap.summary.node_count or 1 }}" value="{{ roadmap.summary.problem_count }}">{{ roadmap.summary.problem_count }}</meter><strong>{{ roadmap.summary.problem_count }}</strong></div>
+  </article>
+  <article>
+    <h2>Suggested path</h2>
+    {% if roadmap.suggested_path %}
+      <ol class="compact-list">
+        {% for node_id in roadmap.suggested_path[:8] %}
+          <li><a href="nodes/{{ node_id }}.html"><code>{{ node_id }}</code></a></li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="empty">No suggested path is available.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="filters" data-filter-scope="roadmap" aria-label="Filter roadmap">
+  <label class="search-box">
+    <span class="filter-label">Search</span>
+    <input type="search" data-filter-search placeholder="Search id, title, fact, blockers..." />
+  </label>
+  <div class="filter-row">
+    <span class="filter-label">Status</span>
+    {% for status in ["ready", "blocked", "problem", "stale", "complete"] %}
+      {% set count = roadmap.summary.ready_count if status == "ready" else roadmap.summary.blocked_count if status == "blocked" else roadmap.summary.problem_count if status == "problem" else roadmap.summary.stale_count if status == "stale" else roadmap.summary.complete_count %}
+      {% if count %}
+        <button type="button" class="filter-pill roadmap-status-{{ status }}" data-filter-dim="status" data-filter-value="{{ status }}">{{ status }} <small>({{ count }})</small></button>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="filter-row filter-row-actions">
+    <button type="button" class="filter-clear" data-filter-clear>Clear filters</button>
+    <span class="filter-count"><span data-filter-count>{{ roadmap.summary.node_count }} / {{ roadmap.summary.node_count }}</span> nodes shown</span>
+  </div>
+</section>
+
+<section class="roadmap-swimlanes">
+  {% for stage in roadmap.stages %}
+    <article class="roadmap-stage">
+      <h2>Stage {{ stage.index }} <span>{{ stage.items|length }}</span></h2>
+      <div class="roadmap-cards">
+        {% for item in stage.items %}
+          <article class="roadmap-card roadmap-status-{{ item.status }}"
+                   data-filter-item
+                   data-status="{{ item.status }}"
+                   data-stage="{{ stage.index }}"
+                   data-kind="{{ item.kind }}"
+                   data-search="{{ (item.node_id ~ ' ' ~ item.title ~ ' ' ~ item.kind ~ ' ' ~ item.formal_status ~ ' ' ~ (item.target_fact or '') ~ ' ' ~ (item.blocked_by|map(attribute='id')|join(' ')))|lower }}">
+            <div class="roadmap-card-header">
+              <a href="nodes/{{ item.node_id }}.html"><code>{{ item.node_id }}</code></a>
+              <span class="roadmap-badge">{{ item.status }}</span>
+            </div>
+            <h3>{{ item.title }}</h3>
+            <p>
+              {{ item.kind }} · formal <code>{{ item.formal_status }}</code>
+              {% if item.priority %} · {{ item.priority }} priority{% endif %}
+              {% if item.difficulty %} · {{ item.difficulty }}{% endif %}
+            </p>
+            {% if item.task_id %}
+              <button type="button" class="copy-button" data-copy-text="isabelle-blueprint next . --node {{ item.node_id }} --output build/prompts/{{ item.task_id }}.md">Copy handoff command</button>
+            {% endif %}
+            {% if item.blocked_by %}
+              <details>
+                <summary>{{ item.blocked_by|length }} blocker{{ '' if item.blocked_by|length == 1 else 's' }}</summary>
+                <ul>
+                  {% for blocker in item.blocked_by %}
+                    <li><a href="nodes/{{ blocker.id }}.html"><code>{{ blocker.id }}</code></a> — {{ blocker.reason }}</li>
+                  {% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}

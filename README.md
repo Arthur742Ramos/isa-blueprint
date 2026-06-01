@@ -267,10 +267,11 @@ already justify.
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
+| `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note | A single proof-attempt handoff/check/record loop. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
-| `web` / `serve` | Static HTML site | Public progress pages and local preview. |
+| `web` / `serve` | Static HTML site plus `site/roadmap.json` | Public progress pages, roadmap boards, and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
@@ -366,6 +367,9 @@ For proof-work queues, `tasks --github-sync` now writes a dry-run issue sync
 plan. Add `--github-sync-confirm --repo OWNER/REPO` when you intentionally want
 to create or update GitHub issues; sync uses hidden node markers plus
 `.isabelle-blueprint/github-sync.json` to avoid duplicates.
+Use repeatable `--github-label` and `--github-assignee` to enrich issue drafts
+or sync payloads. Completed tracked nodes appear as close actions in dry-run
+plans so maintainers can review issue cleanup before confirming.
 
 ## Status overview, roadmaps, agent context, memory, and explanations
 
@@ -377,12 +381,17 @@ isabelle-blueprint status .
 isabelle-blueprint status . --json
 isabelle-blueprint next .
 isabelle-blueprint next . --node main-theorem --json
+isabelle-blueprint attempt .
+isabelle-blueprint attempt . --node main-theorem --check
+isabelle-blueprint attempt . --record-outcome failed --summary "simp loops"
 ```
 
 It reports coverage, problem/stale counts, cycle status, ready-task count, and
 the next suggested proof task. Use `next` when you want the selected ready-task
 prompt directly on stdout without first generating `build/prompts/`. Use
-`roadmap` when you want the staged plan:
+`attempt` when you want that handoff written to `build/attempts/`, optionally
+followed by a `check` run and a memory note. Use `roadmap` when you want the
+staged plan:
 
 ```bash
 isabelle-blueprint roadmap .
@@ -433,25 +442,28 @@ isabelle-blueprint explain . --node main-theorem
 Existing Isabelle projects can bootstrap an initial blueprint from theory files:
 
 ```bash
-isabelle-blueprint import-theory src/Demo.thy --output blueprint.md
+isabelle-blueprint import-theory src/Demo.thy --output blueprint.md \
+  --review-output import-review.json
 ```
 
-The importer is best-effort; review generated statements, dependencies, and
-proof sketches before relying on the result.
+The importer is best-effort; review generated statements, suggested
+dependencies, and proof sketches before relying on the result.
 
 ## VS Code extension
 
 The companion extension under [`vscode/`](vscode/) reads `build/project.json`
 and adds:
 
-- a **Blueprint Nodes** explorer,
+- a proof-cockpit **Blueprint Nodes** explorer grouped by ready, problem, stale,
+  blocked, and complete work,
 - inline diagnostics for missing/stale/broken/tainted nodes,
 - source navigation,
 - refresh/watch support,
-- dependency navigation and quick fixes.
+- dependency navigation, status quick fixes, and node explanations,
 - commands to run `report`, `check`, `tasks`, `roadmap`, and `agent-context`,
 - next-task prompt preview directly from the CLI,
-- task prompt preview from generated `build/prompts/`.
+- task prompt preview from generated `build/prompts/`,
+- memory recording from the editor context menu.
 
 ## Project status
 

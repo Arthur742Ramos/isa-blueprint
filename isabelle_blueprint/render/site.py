@@ -28,6 +28,7 @@ from isabelle_blueprint.model.status import (
     FormalStatus,
 )
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.roadmap import build_roadmap, roadmap_payload
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "templates" / "static"
@@ -76,6 +77,7 @@ def render_site(
     fact_suggestions = fact_suggestions or []
     fact_suggestions_by_node = suggestions_by_node(fact_suggestions)
     tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    roadmap = build_roadmap(project, tasks)
     memory_summaries = summaries_by_node(memory, project.nodes) if memory is not None else {}
     formal_counts = Counter(n.status.formal.value for n in project.nodes)
     blueprint_counts = Counter(n.status.blueprint.value for n in project.nodes)
@@ -111,6 +113,7 @@ def render_site(
         "trends": trends_data,
         "trend_delta": _trend_delta(trends_data),
         "fact_suggestions_by_node": fact_suggestions_by_node,
+        "roadmap": roadmap,
     }
 
     _render_page(env, "index.html.j2", output_dir / "index.html", page="index", **common)
@@ -118,6 +121,7 @@ def render_site(
     _render_page(env, "status.html.j2", output_dir / "status.html", page="status", **common)
     _render_page(env, "tasks.html.j2", output_dir / "tasks.html", page="tasks", **common)
     _render_page(env, "trends.html.j2", output_dir / "trends.html", page="trends", **common)
+    _render_page(env, "roadmap.html.j2", output_dir / "roadmap.html", page="roadmap", **common)
 
     node_dir = output_dir / "nodes"
     node_dir.mkdir(parents=True, exist_ok=True)
@@ -145,6 +149,10 @@ def render_site(
             },
             indent=2,
         ),
+        encoding="utf-8",
+    )
+    (output_dir / "roadmap.json").write_text(
+        json.dumps(roadmap_payload(roadmap), indent=2),
         encoding="utf-8",
     )
     if fact_suggestions:
