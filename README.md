@@ -266,7 +266,7 @@ already justify.
 | `new` | Markdown or LaTeX node stubs | Adding theorem/lemma/definition skeletons quickly. |
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
-| `next` | Markdown or JSON prompt for the next ready task | Copy-ready proof handoffs without writing files. |
+| `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |

@@ -2,9 +2,9 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.5.1. Keys, value types, and value semantics listed here will not change
-without a major version bump. New keys may be added in minor releases;
-consumers should ignore unknown keys.
+v1.5.2. Keys, value types, and value semantics listed here will not change
+without a major version bump. New keys may be added in backward-compatible
+releases; consumers should ignore unknown keys.
 
 Report files are always UTF-8, indent-2 pretty-printed JSON. Packaged JSON
 Schemas for the public payloads are available via `isabelle-blueprint schema`.
@@ -255,6 +255,38 @@ inputs. Existing task keys remain unchanged.
 
 ---
 
+## `next --json`
+
+A read-only ready-task prompt payload printed to stdout by
+`isabelle-blueprint next --json`. It is generated directly from the current
+blueprint and any available check, dump, suggestion, or memory artifacts; prompt
+files do not need to exist first.
+
+```json
+{
+  "task": {
+    "id": "task-main-theorem",
+    "node_id": "main-theorem",
+    "title": "Main theorem"
+  },
+  "prompt": "# Task: Main theorem\n...",
+  "prompt_path": "/absolute/path/to/next.md",
+  "message": "Selected task-main-theorem."
+}
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `task` | object or null | Full task object using the same shape as entries in `build/tasks.json`, or `null` when no ready task exists. |
+| `prompt` | string or null | Rendered Markdown prompt for the selected task, or `null` when no ready task exists. |
+| `prompt_path` | string or null | Absolute path written by `next --output PATH`, or `null` when `--output` was omitted or no prompt was selected. Added in v1.5.2. |
+| `message` | string | Human-readable selection or no-task summary. |
+
+Selecting an unknown, blocked, complete, or otherwise not-ready node exits 1
+with a CLI error instead of emitting a JSON payload.
+
+---
+
 ## `status --json`
 
 A read-only project health overview printed to stdout by
@@ -416,7 +448,7 @@ discover them one by one.
 ```json
 {
   "schema_version": 1,
-  "tool_version": "1.5.1",
+  "tool_version": "1.5.2",
   "generated_at": "2026-06-01T12:00:00Z",
   "project": {
     "name": "Group theory demo",

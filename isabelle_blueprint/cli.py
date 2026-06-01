@@ -554,18 +554,30 @@ def cmd_next(args: argparse.Namespace) -> int:
     if task is None:
         message = "No ready tasks are currently available."
         if args.json:
-            print(json.dumps({"task": None, "prompt": None, "message": message}, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "task": None,
+                        "prompt": None,
+                        "prompt_path": None,
+                        "message": message,
+                    },
+                    indent=2,
+                )
+            )
         else:
             print(message)
         return 0
 
     prompt = render_task_prompt(task)
+    prompt_path = _write_next_prompt(prompt, args.output)
     if args.json:
         print(
             json.dumps(
                 {
                     "task": task.to_dict(),
                     "prompt": prompt,
+                    "prompt_path": str(prompt_path) if prompt_path is not None else None,
                     "message": f"Selected {task.id}.",
                 },
                 indent=2,
@@ -573,7 +585,21 @@ def cmd_next(args: argparse.Namespace) -> int:
         )
     else:
         print(prompt, end="")
+        if prompt_path is not None:
+            print(f"next prompt -> {prompt_path}", file=sys.stderr)
     return 0
+
+
+def _write_next_prompt(prompt: str, output: str | None) -> Path | None:
+    if output is None:
+        return None
+    path = Path(output).resolve()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(prompt, encoding="utf-8")
+    except OSError as exc:
+        raise BlueprintError(f"could not write next prompt to {path}: {exc}") from exc
+    return path
 
 
 def _select_ready_task(
@@ -882,6 +908,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="print the ready prompt for this node id or task id instead of the suggested next task",
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
+    p_next.add_argument("--output", default=None, metavar="PATH", help="also write the selected prompt to PATH")
     p_next.set_defaults(func=cmd_next)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")

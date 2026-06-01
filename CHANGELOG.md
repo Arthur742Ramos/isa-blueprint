@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-06-01
+
+### Added
+
+- Added `isabelle-blueprint next --output PATH` for writing the selected
+  ready-task prompt to a specific file while keeping the command read-only with
+  respect to project artifacts.
+- Added a stable `prompt_path` key to `next --json`, set to the written prompt
+  path when `--output` is used and `null` otherwise.
+
+### Changed
+
+- Improved the VS Code task prompt preview to generate a live ready-node prompt
+  through the CLI when `build/prompts/task-<node>.md` has not been generated yet.
+
 ## [1.5.1] - 2026-06-01
 
 ### Added
@@ -273,7 +288,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...v1.4.1

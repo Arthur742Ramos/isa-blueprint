@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.5.1. Subcommand names, flag names, default values,
+command-line tool as of v1.5.2. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -181,7 +181,7 @@ default this is a dry-run and performs no network calls. Passing
 ### `next`
 
 ```text
-isabelle-blueprint next [project_dir] [--node NODE_OR_TASK] [--json]
+isabelle-blueprint next [project_dir] [--node NODE_OR_TASK] [--json] [--output PATH]
 ```
 
 Prints the Markdown prompt for the next ready proof task, using the same stable
@@ -192,10 +192,15 @@ read-only and does not require prompt files to have been generated first.
 - `--node` accepts either a task id such as `task-main` or a blueprint node id
   such as `main`. Exact task ids are resolved before node ids when names could
   overlap.
-- `--json` emits a clean payload with `task`, `prompt`, and `message`. When no
-  ready task exists, the command exits 0 with `task` and `prompt` set to `null`.
-  Selecting an unknown or currently blocked/proved node is a `BlueprintError`
-  and exits 1.
+- `--json` emits a clean payload with `task`, `prompt`, `prompt_path`, and
+  `message`. When no ready task exists, the command exits 0 with `task`,
+  `prompt`, and `prompt_path` set to `null`. Selecting an unknown or currently
+  blocked/proved node is a `BlueprintError` and exits 1.
+- `--output PATH` (added in v1.5.2) writes the selected prompt to `PATH`,
+  creating parent directories as needed. It does not write anything when no
+  ready task exists or when selector validation fails. Text output still prints
+  the prompt to stdout and reports the written path on stderr; JSON output
+  records the absolute path in `prompt_path`.
 
 ### `report`
 

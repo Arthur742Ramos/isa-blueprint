@@ -45,7 +45,13 @@ interface LoadedProject {
 interface NextTaskPayload {
   task?: { id?: string; title?: string } | null;
   prompt?: string | null;
+  prompt_path?: string | null;
   message?: string | null;
+}
+
+interface PreviewTarget {
+  loaded: LoadedProject;
+  node: BlueprintNode;
 }
 
 class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
@@ -343,7 +349,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "isabelleBlueprint.previewTaskPrompt",
       async (loaded?: LoadedProject, node?: BlueprintNode) => {
-        await previewTaskPrompt(loaded, node, provider);
+        await previewTaskPrompt(loaded, node, provider, output, running);
       },
     ),
   );
@@ -616,8 +622,10 @@ async function previewTaskPrompt(
   loaded: LoadedProject | undefined,
   node: BlueprintNode | undefined,
   provider: BlueprintTreeProvider,
+  output: vscode.OutputChannel,
+  running: Set<string>,
 ): Promise<void> {
-  let target = loaded && node ? { loaded, node } : undefined;
+  let target: PreviewTarget | undefined = loaded && node ? { loaded, node } : undefined;
   if (!target) {
     const items = provider.allNodes().map((candidate) => ({
       label: candidate.title,
@@ -637,12 +645,96 @@ async function previewTaskPrompt(
   }
   const promptPath = path.join(path.dirname(target.loaded.jsonPath), "prompts", `task-${target.node.id}.md`);
   try {
+    if (!(await fileExists(promptPath))) {
+      if (!isReadyForTask(target.loaded, target.node)) {
+        void vscode.window.showWarningMessage(
+          `No prompt found for '${target.node.id}'. Run "IsabelleBlueprint: Generate Tasks" first; live preview is only available for ready nodes.`,
+        );
+        return;
+      }
+      await openLiveTaskPrompt(target, output, running);
+      return;
+    }
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(promptPath));
     await vscode.window.showTextDocument(document, { preview: true });
-  } catch {
+  } catch (error) {
     void vscode.window.showWarningMessage(
-      `No prompt found for '${target.node.id}'. Run "IsabelleBlueprint: Generate Tasks" first.`,
+      `Could not open prompt for '${target.node.id}': ${String(error)}`,
     );
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function isReadyForTask(loaded: LoadedProject, node: BlueprintNode): boolean {
+  const completeStatuses = new Set(["found", "proved"]);
+  if (completeStatuses.has(node.status.formal)) {
+    return false;
+  }
+  const byId = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate]));
+  return (node.uses ?? []).every((depId) => {
+    const dependency = byId.get(depId);
+    return dependency ? completeStatuses.has(dependency.status.formal) : false;
+  });
+}
+
+async function openLiveTaskPrompt(
+  target: PreviewTarget,
+  output: vscode.OutputChannel,
+  running: Set<string>,
+): Promise<void> {
+  const { loaded, node } = target;
+  const command = "next";
+  const key = `${loaded.folder.uri.fsPath}:${command}:${node.id}`;
+  if (running.has(key)) {
+    void vscode.window.showInformationMessage(`IsabelleBlueprint prompt for '${node.id}' is already running.`);
+    return;
+  }
+  running.add(key);
+  const cliPath = vscode.workspace
+    .getConfiguration("isabelleBlueprint", loaded.folder.uri)
+    .get<string>("cliPath", "isabelle-blueprint");
+  output.show(true);
+  output.appendLine(`> ${cliPath} next ${loaded.folder.uri.fsPath} --node ${node.id} --json`);
+  try {
+    const { stdout, stderr } = await execFilePromise(
+      cliPath,
+      ["next", loaded.folder.uri.fsPath, "--node", node.id, "--json"],
+      loaded.folder.uri.fsPath,
+    );
+    if (stderr.trim()) {
+      output.appendLine(stderr.trimEnd());
+    }
+    const payload = JSON.parse(stdout) as NextTaskPayload;
+    if (!payload.prompt) {
+      void vscode.window.showWarningMessage(payload.message ?? `No prompt is available for '${node.id}'.`);
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument({
+      content: payload.prompt,
+      language: "markdown",
+    });
+    await vscode.window.showTextDocument(document, { preview: true });
+    void vscode.commands.executeCommand("markdown.showPreview", document.uri);
+    const suffix = payload.task?.id ? ` (${payload.task.id})` : "";
+    void vscode.window.showInformationMessage(`IsabelleBlueprint task prompt opened${suffix}.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(message);
+    void vscode.window.showErrorMessage("IsabelleBlueprint task prompt preview failed. See output for details.");
+  } finally {
+    running.delete(key);
   }
 }
 
