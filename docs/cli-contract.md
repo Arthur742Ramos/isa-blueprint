@@ -275,7 +275,7 @@ When `$GITHUB_OUTPUT` is set, the stable scalar keys
 ### `status`
 
 ```text
-isabelle-blueprint status [project_dir] [--json]
+isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
 ```
 
 Prints a read-only project health overview without writing report artifacts.
@@ -283,6 +283,11 @@ The text form includes the project health classification, coverage, node/problem
 counts, cycle status, ready-task count, and the next suggested task when one is
 available. `--json` emits the same payload documented by the packaged
 `status` JSON Schema.
+
+`--top-tasks N` includes the first `N` ready-task summaries from the same stable
+ordering used by `tasks`, `next`, `roadmap`, and `agent-context`. In JSON mode
+this adds `top_ready_tasks`; when present, `top_ready_tasks[0]` is the same task
+summary as `next_task`.
 
 ### `roadmap`
 

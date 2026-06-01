@@ -386,6 +386,7 @@ artifacts:
 ```bash
 isabelle-blueprint status .
 isabelle-blueprint status . --json
+isabelle-blueprint status . --top-tasks 3
 isabelle-blueprint next .
 isabelle-blueprint next . --node main-theorem --json
 isabelle-blueprint attempt .
@@ -394,11 +395,12 @@ isabelle-blueprint attempt . --record-outcome failed --summary "simp loops"
 ```
 
 It reports coverage, problem/stale counts, cycle status, ready-task count, and
-the next suggested proof task. Use `next` when you want the selected ready-task
-prompt directly on stdout without first generating `build/prompts/`. Use
-`attempt` when you want that handoff written to `build/attempts/`, optionally
-followed by a `check` run and a memory note. Use `roadmap` when you want the
-staged plan:
+the next suggested proof task. Add `--top-tasks N` when you want a compact queue
+of the first ready tasks without generating prompt files. Use `next` when you
+want the selected ready-task prompt directly on stdout without first generating
+`build/prompts/`. Use `attempt` when you want that handoff written to
+`build/attempts/`, optionally followed by a `check` run and a memory note. Use
+`roadmap` when you want the staged plan:
 
 ```bash
 isabelle-blueprint roadmap .

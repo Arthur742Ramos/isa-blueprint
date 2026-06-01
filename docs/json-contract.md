@@ -365,6 +365,7 @@ A read-only project health overview printed to stdout by
 | `metrics` | object | Same scalar status metrics used by badges and GitHub Actions outputs. `coverage_percent` is `null` when no formal targets exist. |
 | `ready_task_count` | integer | Number of currently actionable proof tasks. |
 | `next_task` | object or null | Summary of the first suggested task, or `null` when no task is ready. |
+| `top_ready_tasks` | array, optional | Present only when `status --top-tasks N --json` is used. Contains the first `N` ready-task summaries in stable task order; when non-empty, `top_ready_tasks[0]` is the same summary as `next_task`. |
 
 ---
 

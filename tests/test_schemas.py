@@ -53,3 +53,11 @@ def test_roadmap_schema_places_optional_keys_at_root() -> None:
     assert "filters" not in stage_schema["properties"]
     assert "diff" not in stage_schema["properties"]
     assert "$defs" not in stage_schema
+
+
+def test_status_schema_documents_top_ready_tasks() -> None:
+    payload = json.loads(read_schema("status"))
+    top_ready_tasks = payload["properties"]["top_ready_tasks"]
+
+    assert top_ready_tasks["type"] == "array"
+    assert "node_id" in top_ready_tasks["items"]["required"]
