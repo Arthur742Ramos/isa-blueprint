@@ -39,7 +39,6 @@ flowchart LR
     class C checks;
     class G,R,W output;
     class T tasks;
-    linkStyle default stroke:#64748b;
 ```
 
 ## Why Isabelle users reach for it
