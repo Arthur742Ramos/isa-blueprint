@@ -12,6 +12,8 @@ Features:
 - One-click navigation from the tree to the node source.
 - Commands to run `isabelle-blueprint report`, `check`, `tasks`, `roadmap`, and
   `agent-context` from the active workspace.
+- Command to open the CLI-selected next ready task prompt without generating
+  prompt files first.
 - Task prompt preview from the generated `build/prompts/task-<node>.md` files.
 - Markdown and LaTeX authoring assistance: snippets, dependency/fact
   completions, go-to-definition for node ids, and quick fixes for missing

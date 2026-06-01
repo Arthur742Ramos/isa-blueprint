@@ -1,10 +1,10 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.5.0. Subcommand names, flag names, default values,
+command-line tool as of v1.5.1. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
-bump. New flags and subcommands may be added in minor releases provided the
-existing ones keep behaving the same way.
+bump. New flags and subcommands may be added in backward-compatible releases
+provided the existing ones keep behaving the same way.
 
 Help text in `--help` is authoritative for prose; this document is
 authoritative for the contract.
@@ -177,6 +177,25 @@ default this is a dry-run and performs no network calls. Passing
 `GITHUB_REPOSITORY`. The sync is idempotent: issue bodies carry a hidden
 `isabelle-blueprint:task` marker and the persistent mapping defaults to
 `.isabelle-blueprint/github-sync.json`.
+
+### `next`
+
+```text
+isabelle-blueprint next [project_dir] [--node NODE_OR_TASK] [--json]
+```
+
+Prints the Markdown prompt for the next ready proof task, using the same stable
+task ordering as `tasks`, `roadmap`, and `agent-context`. This command is
+read-only and does not require prompt files to have been generated first.
+
+- Without `--node`, the selected task is the highest-priority ready task.
+- `--node` accepts either a task id such as `task-main` or a blueprint node id
+  such as `main`. Exact task ids are resolved before node ids when names could
+  overlap.
+- `--json` emits a clean payload with `task`, `prompt`, and `message`. When no
+  ready task exists, the command exits 0 with `task` and `prompt` set to `null`.
+  Selecting an unknown or currently blocked/proved node is a `BlueprintError`
+  and exits 1.
 
 ### `report`
 
@@ -386,8 +405,8 @@ isabelle-blueprint schema [name] [--out DIR]
 
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
-`tasks`, `summary`, `status`, `roadmap`, `config`, `plugin-annotations`, and
-`agent-memory`.
+`tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
+`plugin-annotations`, and `agent-memory`.
 
 ### `new`
 
@@ -417,7 +436,7 @@ target suffix selects Markdown or LaTeX automatically. Passing a mismatched
 For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
-   `serve`, `tasks`, `report`, `status`, `roadmap`, `comment`, `doctor`,
+   `serve`, `tasks`, `next`, `report`, `status`, `roadmap`, `comment`, `doctor`,
    `memory`, `explain`, `import-theory`, `schema`, `new`) will not be renamed or
    removed.
 2. **Flag names and short forms** documented above will not be renamed or

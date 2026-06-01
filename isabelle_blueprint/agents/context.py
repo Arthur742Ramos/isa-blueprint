@@ -402,6 +402,11 @@ def _recommended_commands(suggested_next_task: str | None) -> list[AgentContextC
             writes=True,
         ),
         AgentContextCommand(
+            intent="next_task_prompt",
+            description="Print the highest-priority ready proof-task prompt.",
+            argv=["isabelle-blueprint", "next", "."],
+        ),
+        AgentContextCommand(
             intent="inspect_roadmap",
             description="Inspect the staged proof-work plan.",
             argv=["isabelle-blueprint", "roadmap", ".", "--json"],

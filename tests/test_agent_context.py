@@ -30,6 +30,13 @@ def test_cli_agent_context_json_is_clean_and_project_relative(
     assert "\\" not in data["ready_tasks"][0]["prompt_path"]
     assert data["artifacts"]["tasks_json"] == "build/tasks.json"
     assert data["commands"][0]["intent"] == "refresh_context"
+    assert [command["intent"] for command in data["commands"]] == [
+        "refresh_context",
+        "write_context",
+        "next_task_prompt",
+        "inspect_roadmap",
+        "record_attempt",
+    ]
 
 
 def test_cli_agent_context_write_outputs_bundle_and_task_prompts(

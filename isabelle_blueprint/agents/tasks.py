@@ -182,7 +182,7 @@ def write_tasks(
     md_path.write_text(_render_tasks_index(tasks), encoding="utf-8")
 
     for task in tasks:
-        (prompts_dir / f"{task.id}.md").write_text(_render_prompt(task), encoding="utf-8")
+        (prompts_dir / f"{task.id}.md").write_text(render_task_prompt(task), encoding="utf-8")
 
     written = {"json": json_path, "md": md_path, "prompts": prompts_dir}
     if github_issues:
@@ -213,7 +213,9 @@ def _render_tasks_index(tasks: list[AgentTask]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _render_prompt(task: AgentTask) -> str:
+def render_task_prompt(task: AgentTask) -> str:
+    """Render the Markdown prompt for a ready proof task."""
+
     parts: list[str] = []
     parts.append(f"# Task: {task.title}")
     parts.append("")
@@ -283,7 +285,7 @@ def github_issue_drafts(tasks: list[AgentTask]) -> list[dict[str, object]]:
 
     issues: list[dict[str, object]] = []
     for task in tasks:
-        body = _render_prompt(task)
+        body = render_task_prompt(task)
         if len(body) > 60000:
             body = body[:59900] + "\n\n_(Prompt truncated to stay under GitHub issue limits.)_\n"
         labels = [

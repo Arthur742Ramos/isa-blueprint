@@ -25,7 +25,12 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
-from isabelle_blueprint.agents.tasks import generate_tasks, write_tasks
+from isabelle_blueprint.agents.tasks import (
+    AgentTask,
+    generate_tasks,
+    render_task_prompt,
+    write_tasks,
+)
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
@@ -538,6 +543,72 @@ def cmd_agent_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_next(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    task = _select_ready_task(ready_tasks, args.node, project)
+    if task is None:
+        message = "No ready tasks are currently available."
+        if args.json:
+            print(json.dumps({"task": None, "prompt": None, "message": message}, indent=2))
+        else:
+            print(message)
+        return 0
+
+    prompt = render_task_prompt(task)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "task": task.to_dict(),
+                    "prompt": prompt,
+                    "message": f"Selected {task.id}.",
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(prompt, end="")
+    return 0
+
+
+def _select_ready_task(
+    ready_tasks: list[AgentTask],
+    selector: str | None,
+    project: BlueprintProject,
+) -> AgentTask | None:
+    if selector is None:
+        # Keep `next`, `roadmap`, and `agent-context` aligned on the same ordering.
+        return ready_tasks[0] if ready_tasks else None
+
+    for task in ready_tasks:
+        if task.id == selector:
+            return task
+    for task in ready_tasks:
+        if task.node_id == selector:
+            return task
+
+    by_id = project.by_id()
+    candidate_node_id = selector.removeprefix("task-") if selector.startswith("task-") else selector
+    if selector in by_id:
+        node = by_id[selector]
+        raise BlueprintError(
+            f"node {selector!r} is not currently ready for a task "
+            f"(formal status: {node.status.formal.value})"
+        )
+    if candidate_node_id in by_id:
+        node = by_id[candidate_node_id]
+        raise BlueprintError(
+            f"node {candidate_node_id!r} is not currently ready for a task "
+            f"(formal status: {node.status.formal.value})"
+        )
+    raise BlueprintError(f"unknown ready task or node {selector!r}")
+
+
 def cmd_comment(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -801,6 +872,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="path to persistent node-to-issue mapping (default: .isabelle-blueprint/github-sync.json)",
     )
     p_tasks.set_defaults(func=cmd_tasks)
+
+    p_next = sub.add_parser("next", help="print the next ready task prompt")
+    p_next.add_argument("project_dir", nargs="?", default=".")
+    p_next.add_argument(
+        "--node",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="print the ready prompt for this node id or task id instead of the suggested next task",
+    )
+    p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
+    p_next.set_defaults(func=cmd_next)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
