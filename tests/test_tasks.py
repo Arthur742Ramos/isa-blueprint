@@ -273,6 +273,29 @@ def test_cli_attempt_records_memory_when_requested(tmp_path: Path, capsys):
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp looped"
 
 
+def test_cli_attempt_rejects_blank_memory_summary(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(
+        [
+            "attempt",
+            str(tmp_path),
+            "--node",
+            "main",
+            "--record-outcome",
+            "failed",
+            "--summary",
+            "   ",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--summary is required" in captured.err
+    assert not (tmp_path / ".isabelle-blueprint" / "agent-memory.json").exists()
+
+
 def test_cli_next_can_select_by_node_id_or_task_id(tmp_path: Path, capsys):
     _write_next_project(tmp_path, _next_project())
 

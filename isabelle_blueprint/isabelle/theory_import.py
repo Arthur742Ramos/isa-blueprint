@@ -127,7 +127,7 @@ def imported_theory_review(facts: list[ImportedTheoryFact]) -> dict[str, object]
         ],
         "notes": [
             "Dependencies are inferred from references to earlier top-level facts.",
-            "Review generated statements, dependencies, and proof sketches before relying on them.",
+            "Review generated statements, suggested dependencies, and proof sketches before relying on them.",
         ],
     }
 

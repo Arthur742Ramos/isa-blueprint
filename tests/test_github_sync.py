@@ -118,3 +118,26 @@ def test_github_sync_dry_run_surfaces_completed_issue_close_hint(tmp_path: Path)
 
     assert actions[0].action == "would_close"
     assert actions[0].issue_number == 7
+
+
+def test_github_sync_confirmed_close_removes_completed_issue_from_state(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret")
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({"schema_version": 1, "nodes": {"done": {"issue_number": 7}}}),
+        encoding="utf-8",
+    )
+
+    actions = sync_github_issues(
+        [],
+        repo="owner/repo",
+        state_path=state_path,
+        confirm=True,
+        client=FakeClient(),
+        completed_node_ids={"done"},
+    )
+
+    assert actions[0].action == "closed"
+    assert actions[0].issue_number == 7
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["nodes"] == {}

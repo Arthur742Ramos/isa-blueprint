@@ -629,13 +629,14 @@ def cmd_attempt(args: argparse.Namespace) -> int:
     check_payload = _run_attempt_check(args, config, project) if args.check else None
     memory_payload = None
     if args.record_outcome:
-        if not args.summary:
+        summary = args.summary.strip() if args.summary else ""
+        if not summary:
             raise BlueprintError("--summary is required with --record-outcome")
         attempt = record_memory_attempt(
             config.agent_memory_path,
             task.node_id,
             outcome=args.record_outcome,
-            summary=args.summary,
+            summary=summary,
             actor=args.actor,
             tool=args.tool,
             details=args.details or "",

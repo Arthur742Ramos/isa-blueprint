@@ -169,17 +169,19 @@ def sync_github_issues(
         )
 
     for node_id in sorted(completed_node_ids & set(state) - draft_node_ids):
-        result = active_client.close_issue(repo, state[node_id])
+        issue_number = state[node_id]
+        result = active_client.close_issue(repo, issue_number)
         actions.append(
             GitHubSyncAction(
                 node_id=node_id,
                 action="closed",
-                issue_number=state[node_id],
+                issue_number=issue_number,
                 title=f"Close completed task {node_id}",
                 url=result.get("html_url"),
                 reason="node is complete and no ready-task draft remains",
             )
         )
+        del state[node_id]
 
     _write_state(state_path, state)
     return actions

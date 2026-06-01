@@ -140,8 +140,14 @@
       raw.split("&").forEach(function (part) {
         if (!part) return;
         var eq = part.indexOf("=");
-        var key = decodeURIComponent(eq === -1 ? part : part.slice(0, eq));
-        var value = decodeURIComponent(eq === -1 ? "" : part.slice(eq + 1));
+        var key;
+        var value;
+        try {
+          key = decodeURIComponent(eq === -1 ? part : part.slice(0, eq));
+          value = decodeURIComponent(eq === -1 ? "" : part.slice(eq + 1));
+        } catch (error) {
+          return;
+        }
         if (key === "q" && searchInput) {
           searchInput.value = value;
         } else if (key) {

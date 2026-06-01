@@ -326,7 +326,11 @@ class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
       const code = typeof diagnostic.code === "string" ? diagnostic.code : "";
       if (!code.startsWith("missing-dependency:")) {
         if (code.startsWith("status:")) {
-          const [, nodeId, status] = code.split(":");
+          const parsedStatus = parseStatusDiagnosticCode(code);
+          if (!parsedStatus) {
+            continue;
+          }
+          const { nodeId, status } = parsedStatus;
           const found = this.provider.findNode(nodeId);
           if (!found) {
             continue;
@@ -792,6 +796,26 @@ async function readProject(jsonPath: string): Promise<BlueprintProject | undefin
   }
 }
 
+function parseStatusDiagnosticCode(code: string): { nodeId: string; status: string } | undefined {
+  const prefix = "status:";
+  if (!code.startsWith(prefix)) {
+    return undefined;
+  }
+  const payload = code.slice(prefix.length);
+  const separator = payload.lastIndexOf(":");
+  if (separator <= 0 || separator === payload.length - 1) {
+    return undefined;
+  }
+  try {
+    return {
+      nodeId: decodeURIComponent(payload.slice(0, separator)),
+      status: decodeURIComponent(payload.slice(separator + 1)),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticCollection): void {
   const byFile = new Map<string, vscode.Diagnostic[]>();
   const byId = new Map(loaded.project.nodes.map((node) => [node.id, node]));
@@ -811,7 +835,7 @@ function applyDiagnostics(loaded: LoadedProject, diagnostics: vscode.DiagnosticC
       }`;
       const diagnostic = new vscode.Diagnostic(range, message, severity);
       diagnostic.source = "IsabelleBlueprint";
-      diagnostic.code = `status:${node.id}:${node.status.formal}`;
+      diagnostic.code = `status:${encodeURIComponent(node.id)}:${encodeURIComponent(node.status.formal)}`;
       existing.push(diagnostic);
     }
 
