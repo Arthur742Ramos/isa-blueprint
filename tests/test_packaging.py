@@ -1,6 +1,7 @@
 """Packaging metadata smoke tests."""
 from __future__ import annotations
 
+import json
 import tomllib
 from pathlib import Path
 
@@ -56,3 +57,17 @@ def test_pyproject_declares_changelog_url():
     urls = data["project"].get("urls", {})
     assert "Changelog" in urls, f"missing Changelog URL in [project.urls]: {urls!r}"
     assert urls["Changelog"].startswith("https://"), urls["Changelog"]
+
+
+def test_vscode_extension_contributes_roadmap_command():
+    root = Path(__file__).resolve().parents[1]
+    package = json.loads((root / "vscode" / "package.json").read_text(encoding="utf-8"))
+    commands = {
+        command["command"]
+        for command in package["contributes"]["commands"]
+    }
+    extension_source = (root / "vscode" / "src" / "extension.ts").read_text(encoding="utf-8")
+
+    assert "onCommand:isabelleBlueprint.runRoadmap" in package["activationEvents"]
+    assert "isabelleBlueprint.runRoadmap" in commands
+    assert 'registerCommand("isabelleBlueprint.runRoadmap"' in extension_source

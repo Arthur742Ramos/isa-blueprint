@@ -115,6 +115,113 @@ def test_cli_roadmap_write_outputs_artifacts(tmp_path: Path, capsys) -> None:
     assert (tmp_path / "build" / "roadmap.md").exists()
 
 
+def test_cli_roadmap_strict_ignores_ordinary_blocked_work(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--strict"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "roadmap strict:" not in captured.err
+    assert "blocked-main" not in captured.out
+
+
+def test_cli_roadmap_strict_fails_cycles_stale_problem_and_missing_deps(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    _write_strict_failure_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--strict", "--json", "--status", "ready"])
+
+    assert rc == 9
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["filters"]["status"] == ["ready"]
+    assert "[cycles]" in captured.err
+    assert "[problem]" in captured.err
+    assert "[stale]" in captured.err
+    assert "[missing-deps]" in captured.err
+
+
+def test_cli_roadmap_filters_json_stages_without_changing_summary(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(
+        [
+            "roadmap",
+            str(tmp_path),
+            "--json",
+            "--status",
+            "ready",
+            "--kind",
+            "theorem",
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["summary"]["node_count"] == 3
+    assert data["filters"] == {"status": ["ready"], "stage": [], "kind": ["theorem"]}
+    items = [item for stage in data["stages"] for item in stage["items"]]
+    assert [item["node_id"] for item in items] == ["b"]
+    assert items[0]["kind"] == "theorem"
+
+
+def test_cli_roadmap_diff_is_computed_before_filters(tmp_path: Path, capsys) -> None:
+    previous = BlueprintProject.from_nodes(
+        "diff-test",
+        [
+            _node("a", FormalStatus.PROVED),
+            _node("b", FormalStatus.NAMED, uses=["a"], kind=NodeKind.THEOREM),
+            _node("c", FormalStatus.NAMED, uses=["b"]),
+        ],
+    )
+    previous_path = tmp_path / "previous-roadmap.json"
+    previous_path.write_text(
+        json.dumps(build_roadmap(previous, generate_tasks(previous)).to_dict()),
+        encoding="utf-8",
+    )
+    _write_diff_project(tmp_path)
+
+    rc = cli_main(
+        [
+            "roadmap",
+            str(tmp_path),
+            "--json",
+            "--since",
+            str(previous_path),
+            "--status",
+            "ready",
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [item["node_id"] for item in data["diff"]["newly_complete"]] == ["b"]
+    assert [item["node_id"] for item in data["diff"]["newly_ready"]] == ["c"]
+    assert [item["node_id"] for stage in data["stages"] for item in stage["items"]] == ["c"]
+
+
+def test_cli_roadmap_write_ignores_filters_for_canonical_artifacts(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--write", "--status", "ready"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "roadmap.json").read_text(encoding="utf-8"))
+    assert "filters" not in data
+    assert data["summary"]["node_count"] == 3
+    items = [item for stage in data["stages"] for item in stage["items"]]
+    assert {item["node_id"] for item in items} == {"a", "b", "c"}
+
+
 def _write_roadmap_project(tmp_path: Path) -> None:
     (tmp_path / "isabelle-blueprint.toml").write_text(
         '[project]\nname = "CLI roadmap"\n',
@@ -132,13 +239,114 @@ status:
 A.
 :::
 
-::: lemma {#b}
+::: theorem {#b}
 title: B
 isabelle: Demo.b
 uses:
   - a
 status:
   formal: named
+
+B.
+:::
+
+::: lemma {#c}
+title: C
+isabelle: Demo.c
+uses:
+  - b
+status:
+  formal: named
+
+C.
+:::
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_strict_failure_project(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "Strict failures"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# Strict failures
+
+::: lemma {#cycle-a}
+title: Cycle A
+uses:
+  - cycle-b
+status:
+  formal: named
+
+A.
+:::
+
+::: lemma {#cycle-b}
+title: Cycle B
+uses:
+  - cycle-a
+status:
+  formal: named
+
+B.
+:::
+
+::: lemma {#problem}
+title: Problem
+status:
+  formal: not_found
+
+Problem.
+:::
+
+::: lemma {#stale}
+title: Stale
+status:
+  formal: stale
+
+Stale.
+:::
+
+::: lemma {#missing}
+title: Missing
+uses:
+  - absent
+status:
+  formal: named
+
+Missing.
+:::
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_diff_project(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "diff-test"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# diff-test
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+uses:
+  - a
+status:
+  formal: proved
 
 B.
 :::
