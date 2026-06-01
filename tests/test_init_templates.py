@@ -2,8 +2,36 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from isabelle_blueprint.cli import _build_parser
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.templates import TEMPLATES
+
+
+def test_top_level_help_highlights_common_workflows() -> None:
+    help_text = _build_parser().format_help()
+
+    assert "common workflows:" in help_text
+    assert "isabelle-blueprint init my-formalization --template agent-ready" in help_text
+    assert "isabelle-blueprint init --list-templates" in help_text
+
+
+def test_init_list_templates_prints_descriptions_without_writing(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli_main(["init", "--list-templates"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Available templates:" in out
+    for name, template in TEMPLATES.items():
+        assert name in out
+        assert template.description in out
+    assert not (tmp_path / "blueprint.md").exists()
+    assert not (tmp_path / "isabelle-blueprint.toml").exists()
 
 
 def test_init_agent_ready_template_writes_task_workflow(tmp_path: Path) -> None:

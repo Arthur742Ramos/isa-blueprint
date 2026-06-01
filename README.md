@@ -108,6 +108,13 @@ isabelle-blueprint init my-formalization --template agent-ready --format latex
 isabelle-blueprint new theorem my-main-result --append
 ```
 
+Not sure which starter fits? List the available templates and their intended
+uses before scaffolding:
+
+```bash
+isabelle-blueprint init --list-templates
+```
+
 When Isabelle is available, add the real proof checks:
 
 ```bash
