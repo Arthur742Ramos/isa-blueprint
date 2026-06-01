@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/agent-context.schema.json",
+  "title": "IsabelleBlueprint agent context",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool_version",
+    "generated_at",
+    "project",
+    "health",
+    "metrics",
+    "ready_task_count",
+    "ready_tasks_truncated",
+    "suggested_next_task",
+    "suggested_path",
+    "warnings",
+    "artifacts",
+    "commands",
+    "ready_tasks"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "tool_version": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "project": {
+      "type": "object",
+      "required": ["name", "root", "blueprints"],
+      "properties": {
+        "name": { "type": "string" },
+        "root": { "type": "string" },
+        "blueprints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "health": {
+      "type": "string",
+      "enum": ["complete", "ready", "blocked", "problem", "stale", "unstarted"]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ready_task_count": { "type": "integer", "minimum": 0 },
+    "ready_tasks_truncated": { "type": "boolean" },
+    "suggested_next_task": { "type": ["string", "null"] },
+    "suggested_path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message", "severity", "related_nodes"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warning", "error"]
+          },
+          "related_nodes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["intent", "description", "argv", "writes"],
+        "properties": {
+          "intent": { "type": "string" },
+          "description": { "type": "string" },
+          "argv": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "writes": { "type": "boolean" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "ready_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "node_id",
+          "title",
+          "kind",
+          "target_fact",
+          "target_theory",
+          "prompt_path",
+          "priority",
+          "difficulty",
+          "blocking_count",
+          "suggested_order",
+          "memory"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "title": { "type": "string" },
+          "kind": { "type": "string" },
+          "target_fact": { "type": ["string", "null"] },
+          "target_theory": { "type": ["string", "null"] },
+          "prompt_path": { "type": "string" },
+          "priority": { "type": ["string", "null"] },
+          "difficulty": { "type": ["string", "null"] },
+          "blocking_count": { "type": ["integer", "null"], "minimum": 0 },
+          "suggested_order": { "type": ["integer", "null"], "minimum": 0 },
+          "memory": {
+            "type": ["object", "null"],
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

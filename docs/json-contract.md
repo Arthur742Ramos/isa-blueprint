@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.4.1. Keys, value types, and value semantics listed here will not change
+v1.5.0. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in minor releases;
 consumers should ignore unknown keys.
 
@@ -401,6 +401,106 @@ roadmap `status` (or `missing` for an undefined dependency), nullable
 Each diff entry includes `node_id`, nullable `title`, nullable `kind`, nullable
 `previous_status`, nullable `current_status`, nullable `previous_stage`, and
 nullable `current_stage`.
+
+---
+
+## `agent-context --json` / `build/agent-context.json`
+
+The agent-context payload is printed by
+`isabelle-blueprint agent-context --json` and written to
+`build/agent-context.json` by `isabelle-blueprint agent-context --write`. It is
+the recommended first payload for AI agents because it points at the fuller
+status, roadmap, task, prompt, and memory artifacts without forcing agents to
+discover them one by one.
+
+```json
+{
+  "schema_version": 1,
+  "tool_version": "1.5.0",
+  "generated_at": "2026-06-01T12:00:00Z",
+  "project": {
+    "name": "Group theory demo",
+    "root": ".",
+    "blueprints": ["blueprint.md"]
+  },
+  "health": "ready",
+  "metrics": {
+    "node_count": 10,
+    "formal_target_count": 4,
+    "proved_count": 2,
+    "found_count": 2,
+    "problem_count": 0,
+    "stale_count": 0,
+    "has_cycles": false,
+    "coverage_percent": 50
+  },
+  "ready_task_count": 2,
+  "ready_tasks_truncated": false,
+  "suggested_next_task": "task-main-theorem",
+  "suggested_path": ["main-theorem", "final-corollary"],
+  "warnings": [],
+  "artifacts": {
+    "agent_context_json": "build/agent-context.json",
+    "agent_context_md": "build/agent-context.md",
+    "project_json": "build/project.json",
+    "tasks_json": "build/tasks.json",
+    "tasks_md": "build/tasks.md",
+    "prompts_dir": "build/prompts",
+    "roadmap_json": "build/roadmap.json",
+    "roadmap_md": "build/roadmap.md",
+    "agent_memory": ".isabelle-blueprint/agent-memory.json",
+    "check_report": "build/check_report.json"
+  },
+  "commands": [
+    {
+      "intent": "refresh_context",
+      "description": "Refresh the machine-readable handoff without writing artifacts.",
+      "argv": ["isabelle-blueprint", "agent-context", ".", "--json"],
+      "writes": false
+    }
+  ],
+  "ready_tasks": [
+    {
+      "id": "task-main-theorem",
+      "node_id": "main-theorem",
+      "title": "Main theorem",
+      "kind": "theorem",
+      "target_fact": "Demo.main_theorem",
+      "target_theory": "Demo",
+      "prompt_path": "build/prompts/task-main-theorem.md",
+      "priority": "high",
+      "difficulty": "medium",
+      "blocking_count": 3,
+      "suggested_order": 1,
+      "memory": null
+    }
+  ]
+}
+```
+
+Top-level keys:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 agent-context shape. |
+| `tool_version` | string | IsabelleBlueprint package version that generated the payload. |
+| `generated_at` | string | ISO-8601 UTC timestamp. Honors `SOURCE_DATE_EPOCH` when set. |
+| `project` | object | Project name, root marker (`"."`), and blueprint paths. |
+| `health` | string | Same values and semantics as `status --json`. |
+| `metrics` | object | Same scalar status metrics used by `status`, `roadmap`, badges, and GitHub Actions outputs. |
+| `ready_task_count` | integer | Full count of currently actionable tasks. |
+| `ready_tasks_truncated` | boolean | `true` when the embedded `ready_tasks` list is capped by `--max-tasks`; read `artifacts.tasks_json` for the full queue. |
+| `suggested_next_task` | string or null | Same stable ordering as `tasks` and `roadmap`. |
+| `suggested_path` | array of strings | Same path heuristic as `roadmap`. |
+| `warnings` | array | Machine-branchable warnings with `code`, `message`, `severity`, and `related_nodes`. Codes include `cycles_detected`, `problem_nodes`, `stale_nodes`, `missing_dependencies`, `stale_memory`, and `no_ready_tasks`. |
+| `artifacts` | object | Conventional artifact paths. Paths are project-root-relative POSIX strings when under the project root; unusual external output directories may be absolute platform paths. |
+| `commands` | array | Advisory follow-up commands. Each entry has an `intent`, human description, `argv` array, and `writes` flag. |
+| `ready_tasks` | array | Bounded summaries of the first ready tasks plus their prompt paths and latest memory summary. |
+
+`agent-context` reuses existing status, roadmap, and task builders. Consumers that
+need full prompt bodies, dependencies, or acceptance criteria should follow
+`prompt_path` or read `artifacts.tasks_json`; the context payload intentionally
+keeps each ready-task entry compact.
 
 ---
 

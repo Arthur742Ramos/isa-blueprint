@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
+from isabelle_blueprint.agents.context import (
+    DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
+    build_agent_context,
+    render_agent_context,
+    write_agent_context,
+)
 from isabelle_blueprint.agents.github_sync import sync_github_issues
 from isabelle_blueprint.agents.memory import (
     VALID_OUTCOMES,
@@ -490,6 +496,48 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     return 9 if failures else 0
 
 
+def cmd_agent_context(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    status = build_status_overview(project, ready_tasks)
+    roadmap = build_roadmap(project, ready_tasks)
+    context = build_agent_context(
+        config,
+        status,
+        roadmap,
+        ready_tasks,
+        max_tasks=args.max_tasks,
+    )
+    written: dict[str, Path] = {}
+    if args.write:
+        project_path = write_project_report(project, config.project_json_path)
+        written["project json"] = project_path
+        for name, path in write_tasks(
+            project,
+            config.build_dir,
+            fact_suggestions=fact_suggestions,
+            memory=memory,
+        ).items():
+            written[f"tasks {name}"] = path
+        for name, path in write_roadmap(roadmap, config.build_dir).items():
+            written[f"roadmap {name}"] = path
+        for name, path in write_agent_context(context, config.build_dir).items():
+            written[f"agent-context {name}"] = path
+    if args.json:
+        print(json.dumps(context.to_dict(), indent=2))
+        stream = sys.stderr
+    else:
+        print(render_agent_context(context), end="")
+        stream = sys.stdout
+    for name, path in written.items():
+        print(f"{name} -> {path}", file=stream)
+    return 0
+
+
 def cmd_comment(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -805,6 +853,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="directory for --write artifacts (default: configured build_dir)",
     )
     p_roadmap.set_defaults(func=cmd_roadmap)
+
+    p_agent_context = sub.add_parser(
+        "agent-context",
+        help="emit an AI-agent handoff bundle with status, roadmap, tasks, and commands",
+    )
+    p_agent_context.add_argument("project_dir", nargs="?", default=".")
+    p_agent_context.add_argument("--json", action="store_true", help="emit machine-readable context JSON")
+    p_agent_context.add_argument(
+        "--write",
+        action="store_true",
+        help="write build/agent-context.*, tasks, prompts, roadmap, and project JSON artifacts",
+    )
+    p_agent_context.add_argument(
+        "--max-tasks",
+        type=_positive_int,
+        default=DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
+        help=f"maximum ready tasks to embed in the context (default: {DEFAULT_AGENT_CONTEXT_TASK_LIMIT})",
+    )
+    p_agent_context.set_defaults(func=cmd_agent_context)
 
     p_comment = sub.add_parser(
         "comment",

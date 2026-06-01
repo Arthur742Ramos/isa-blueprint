@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-01
+
+### Added
+
+- Added `isabelle-blueprint agent-context`, a one-command AI-agent handoff
+  bundle that combines status metrics, roadmap suggestions, ready-task prompt
+  paths, warning codes, artifact locations, and recommended follow-up commands.
+- Added `agent-context --json` for clean machine-readable stdout,
+  `agent-context --write` for `build/agent-context.json` /
+  `build/agent-context.md` plus refreshed task prompts, roadmap artifacts, and
+  `project.json`, and `--max-tasks` to cap embedded ready-task summaries.
+- Added a packaged `agent-context` JSON Schema and VS Code command for
+  generating the agent-context bundle from the active workspace.
+
 ## [1.4.1] - 2026-06-01
 
 ### Added
@@ -246,7 +260,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.2.0...v1.3.0
