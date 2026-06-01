@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.4.0. Keys, value types, and value semantics listed here will not change
+v1.4.1. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in minor releases;
 consumers should ignore unknown keys.
 
@@ -368,6 +368,8 @@ Top-level keys:
 | `suggested_path` | array of strings | A deterministic heuristic path through incomplete downstream work. It starts from `suggested_next_task` when available, otherwise from the first incomplete node by stage and id; ties choose the longest path, then the most downstream blocked nodes, then lexicographic node id. |
 | `cycles` | array of string arrays | Dependency cycles reported by validation. Nodes in cycles are classified as `problem`. |
 | `stages` | array | Topological dependency stages. Nodes that participate in cycles are placed in the final stage. |
+| `filters` | object, optional | Present only for filtered `roadmap --json` output. Contains the requested `status`, `stage`, and `kind` filter arrays. Top-level summary, metrics, cycles, and suggestions still describe the full roadmap; only `stages` is filtered. |
+| `diff` | object, optional | Present only for `roadmap --json --since PATH`. Contains status changes computed from the full current roadmap before display filters are applied. |
 
 Roadmap item statuses:
 
@@ -384,6 +386,21 @@ roadmap `status` (or `missing` for an undefined dependency), nullable
 `formal_status`, and a `reason` such as
 `missing_dependency`, `incomplete_dependency`, `problem_dependency`,
 `stale_dependency`, or `cycle_dependency`.
+
+`diff` contains:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `previous_project` | string or null | Project name from the baseline roadmap. |
+| `current_project` | string | Project name from the current roadmap. |
+| `counts` | object | Counts for each diff bucket. |
+| `added` / `removed` | arrays | Nodes added to or removed from the roadmap. |
+| `newly_complete` / `newly_ready` / `newly_blocked` / `newly_problem` / `newly_stale` | arrays | Nodes whose roadmap status changed into that state. |
+| `status_changed` | array | Status changes that do not fit one of the named buckets. |
+
+Each diff entry includes `node_id`, nullable `title`, nullable `kind`, nullable
+`previous_status`, nullable `current_status`, nullable `previous_stage`, and
+nullable `current_stage`.
 
 ---
 

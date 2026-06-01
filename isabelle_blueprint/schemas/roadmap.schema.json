@@ -120,6 +120,88 @@
         },
         "additionalProperties": true
       }
+    },
+    "filters": {
+      "type": "object",
+      "required": ["status", "stage", "kind"],
+      "properties": {
+        "status": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["complete", "ready", "blocked", "problem", "stale"]
+          }
+        },
+        "stage": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "kind": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "diff": {
+      "type": "object",
+      "required": [
+        "previous_project",
+        "current_project",
+        "counts",
+        "added",
+        "removed",
+        "newly_complete",
+        "newly_ready",
+        "newly_blocked",
+        "newly_problem",
+        "newly_stale",
+        "status_changed"
+      ],
+      "properties": {
+        "previous_project": { "type": ["string", "null"] },
+        "current_project": { "type": "string" },
+        "counts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "added": { "$ref": "#/$defs/diffEntries" },
+        "removed": { "$ref": "#/$defs/diffEntries" },
+        "newly_complete": { "$ref": "#/$defs/diffEntries" },
+        "newly_ready": { "$ref": "#/$defs/diffEntries" },
+        "newly_blocked": { "$ref": "#/$defs/diffEntries" },
+        "newly_problem": { "$ref": "#/$defs/diffEntries" },
+        "newly_stale": { "$ref": "#/$defs/diffEntries" },
+        "status_changed": { "$ref": "#/$defs/diffEntries" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "diffEntries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "title",
+          "kind",
+          "previous_status",
+          "current_status",
+          "previous_stage",
+          "current_stage"
+        ],
+        "properties": {
+          "node_id": { "type": "string" },
+          "title": { "type": ["string", "null"] },
+          "kind": { "type": ["string", "null"] },
+          "previous_status": { "type": ["string", "null"] },
+          "current_status": { "type": ["string", "null"] },
+          "previous_stage": { "type": ["integer", "null"], "minimum": 1 },
+          "current_stage": { "type": ["integer", "null"], "minimum": 1 }
+        },
+        "additionalProperties": true
+      }
     }
   },
   "additionalProperties": true

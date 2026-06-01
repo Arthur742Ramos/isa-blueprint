@@ -43,6 +43,7 @@ from isabelle_blueprint.isabelle.suggestions import (
     write_fact_suggestions,
 )
 from isabelle_blueprint.isabelle.theory_import import import_theory_file, render_imported_blueprint
+from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.render.site import render_site
@@ -59,7 +60,17 @@ from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
 )
-from isabelle_blueprint.report.roadmap import build_roadmap, render_roadmap, write_roadmap
+from isabelle_blueprint.report.roadmap import (
+    ROADMAP_STATUSES,
+    RoadmapFilters,
+    build_roadmap,
+    diff_roadmaps,
+    load_roadmap_payload,
+    render_roadmap,
+    roadmap_payload,
+    roadmap_strict_failures,
+    write_roadmap,
+)
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -102,6 +113,43 @@ def _try_apply_check(project: BlueprintProject, config: BlueprintConfig) -> None
         return
     result = CheckResult.from_dict(report_data)
     apply_check_report(project, result)
+
+
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _dedupe(values: list[str] | None) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(values or []))
+
+
+def _dedupe_int(values: list[int] | None) -> tuple[int, ...]:
+    return tuple(dict.fromkeys(values or []))
+
+
+def _roadmap_filters_from_args(args: argparse.Namespace) -> RoadmapFilters:
+    return RoadmapFilters(
+        statuses=_dedupe(getattr(args, "status", None)),
+        stages=_dedupe_int(getattr(args, "stage", None)),
+        kinds=_dedupe(getattr(args, "kind", None)),
+    )
+
+
+def _validate_roadmap_filters(roadmap_stage_count: int, filters: RoadmapFilters) -> None:
+    if not filters.stages:
+        return
+    missing = [stage for stage in filters.stages if stage > roadmap_stage_count]
+    if missing:
+        requested = ", ".join(str(stage) for stage in missing)
+        raise BlueprintError(
+            f"roadmap has {roadmap_stage_count} stage(s); requested missing stage(s): {requested}"
+        )
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -417,19 +465,29 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     memory = load_agent_memory(config.agent_memory_path)
     ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
     roadmap = build_roadmap(project, ready_tasks)
+    filters = _roadmap_filters_from_args(args)
+    _validate_roadmap_filters(roadmap.summary.stage_count, filters)
+    diff = (
+        diff_roadmaps(load_roadmap_payload(Path(args.since).resolve()), roadmap)
+        if args.since
+        else None
+    )
     written: dict[str, Path] = {}
     if args.write:
         output_dir = Path(args.out).resolve() if args.out else config.build_dir
         written = write_roadmap(roadmap, output_dir)
     if args.json:
-        print(json.dumps(roadmap.to_dict(), indent=2))
+        print(json.dumps(roadmap_payload(roadmap, filters=filters, diff=diff), indent=2))
         stream = sys.stderr
     else:
-        print(render_roadmap(roadmap), end="")
+        print(render_roadmap(roadmap, filters=filters, diff=diff), end="")
         stream = sys.stdout
     for name, path in written.items():
         print(f"roadmap {name} -> {path}", file=stream)
-    return 0
+    failures = roadmap_strict_failures(roadmap) if args.strict else []
+    for failure in failures:
+        print(f"roadmap strict: {failure}", file=sys.stderr)
+    return 9 if failures else 0
 
 
 def cmd_comment(args: argparse.Namespace) -> int:
@@ -708,6 +766,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")
     p_roadmap.add_argument("project_dir", nargs="?", default=".")
     p_roadmap.add_argument("--json", action="store_true", help="emit machine-readable roadmap JSON")
+    p_roadmap.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 9 when cycles, problem nodes, stale nodes, or missing dependencies exist",
+    )
+    p_roadmap.add_argument(
+        "--status",
+        action="append",
+        choices=ROADMAP_STATUSES,
+        help="show only roadmap items with this status; repeat to include more statuses",
+    )
+    p_roadmap.add_argument(
+        "--stage",
+        action="append",
+        type=_positive_int,
+        help="show only this topological stage; repeat to include more stages",
+    )
+    p_roadmap.add_argument(
+        "--kind",
+        action="append",
+        choices=tuple(kind.value for kind in NodeKind),
+        help="show only roadmap items of this node kind; repeat to include more kinds",
+    )
+    p_roadmap.add_argument(
+        "--since",
+        default=None,
+        help="compare against a previous roadmap JSON file or directory containing roadmap.json",
+    )
     p_roadmap.add_argument(
         "--write",
         action="store_true",

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-01
+
+### Added
+
+- Added `roadmap --strict` for CI gates that fail on cycles, problem nodes,
+  stale nodes, or missing dependencies while still producing the requested
+  roadmap output.
+- Added repeatable `roadmap --status`, `--stage`, and `--kind` filters for
+  focused terminal/JSON roadmap views without changing canonical
+  `build/roadmap.json` artifacts.
+- Added `roadmap --since` to compare against a previous `roadmap.json` and
+  surface added, removed, newly ready, newly blocked, newly complete, newly
+  stale, newly problematic, and otherwise changed nodes.
+- Added a VS Code `IsabelleBlueprint: Run Roadmap` command.
+
 ## [1.4.0] - 2026-06-01
 
 ### Added
@@ -231,7 +246,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.1.0...v1.2.0

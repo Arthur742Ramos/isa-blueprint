@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.4.0. Subcommand names, flag names, default values,
+command-line tool as of v1.4.1. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in minor releases provided the
 existing ones keep behaving the same way.
@@ -41,6 +41,7 @@ valid `isabelle-blueprint.toml`.
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `check --strict` couldn't run Isabelle; `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
+| `9` | `roadmap --strict` found cycles, problem nodes, stale nodes, or missing dependencies |
 
 `--strict` is opt-in for every subcommand that exposes it. Without `--strict`,
 a missing external dependency is downgraded to an informational message and
@@ -224,7 +225,15 @@ available. `--json` emits the same payload documented by the packaged
 ### `roadmap`
 
 ```text
-isabelle-blueprint roadmap [project_dir] [--json] [--write] [--out DIR]
+isabelle-blueprint roadmap [project_dir]
+                           [--json]
+                           [--strict]
+                           [--status STATUS]
+                           [--stage N]
+                           [--kind KIND]
+                           [--since PATH]
+                           [--write]
+                           [--out DIR]
 ```
 
 Prints a staged proof-work roadmap without modifying the project by default.
@@ -233,9 +242,22 @@ node as `complete`, `ready`, `blocked`, `problem`, or `stale`, includes blocker
 details, and surfaces dependency cycles instead of hiding them.
 
 - `--json` emits the same payload documented by the packaged `roadmap` JSON
-  Schema.
+  Schema. When filters are supplied, `summary`, `metrics`, `cycles`, and
+  suggestions still describe the full roadmap; only `stages` is filtered and a
+  `filters` object records the requested view.
+- `--strict` exits 9 when the full roadmap has dependency cycles, `problem`
+  nodes, `stale` nodes, or blocked nodes caused by missing dependencies. Strict
+  checks intentionally ignore filters so CI gates cannot hide failures.
+- `--status`, `--stage`, and `--kind` filter the displayed terminal/JSON roadmap
+  stages. Each flag can be repeated to include multiple values.
+- `--since PATH` compares the full current roadmap against a previous
+  `roadmap.json` file, or a directory containing one, and includes added,
+  removed, newly complete, newly ready, newly blocked, newly problem, newly
+  stale, and otherwise changed nodes. Filtered JSON payloads are rejected as
+  baselines because they cannot represent removed or changed nodes reliably.
 - `--write` writes `roadmap.json` and `roadmap.md` under the configured
-  `build_dir`.
+  `build_dir`. Written artifacts are always the unfiltered current roadmap so
+  downstream consumers can keep treating `build/roadmap.json` as canonical.
 - `--out DIR` changes the directory used by `--write`.
 
 `suggested_next_task` follows the same stable task ordering as `tasks`: priority

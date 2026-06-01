@@ -381,10 +381,16 @@ the next suggested proof task. Use `roadmap` when you want the staged plan:
 isabelle-blueprint roadmap .
 isabelle-blueprint roadmap . --json
 isabelle-blueprint roadmap . --write
+isabelle-blueprint roadmap . --strict
+isabelle-blueprint roadmap . --status ready --kind theorem
+isabelle-blueprint roadmap . --since build/roadmap.json
 ```
 
 It groups nodes into parallel dependency stages, labels blockers and cycles,
-and suggests a deterministic path through the next useful proof work.
+suggests a deterministic path through the next useful proof work, filters large
+plans for handoff views, compares against a previous roadmap, and can fail CI
+with `--strict` when cycles, problem nodes, stale nodes, or missing dependencies
+need attention.
 Use `memory` to preserve what a human or agent
 already tried:
 
