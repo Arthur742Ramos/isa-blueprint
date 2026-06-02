@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.7.0. Subcommand names, flag names, default values,
+command-line tool as of v1.7.1. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -197,6 +197,7 @@ isabelle-blueprint next [project_dir]
                         [--difficulty low|medium|high]
                         [--memory-state fresh|attempted|stale]
                         [--last-outcome OUTCOME]
+                        [--exclude-node NODE_OR_TASK]
 ```
 
 Prints the Markdown prompt for the next ready proof task, using the same stable
@@ -221,14 +222,17 @@ read-only and does not require prompt files to have been generated first.
   filters for interactive selection. They narrow automatic selection and must
   also match an explicit `--node` selector when one is supplied. They do not
   rewrite `build/tasks.json`; use `tasks` for the full canonical queue.
-- `--memory-state` (added after v1.7) is repeatable and filters tasks by
+- `--memory-state` (added in v1.7.1) is repeatable and filters tasks by
   prior attempt memory: `fresh` has no recorded attempts, `attempted` has any
   memory summary, and `stale` means the latest attempt was recorded against
   older task inputs.
-- `--last-outcome` (added after v1.7) is repeatable and filters tasks by the
+- `--last-outcome` (added in v1.7.1) is repeatable and filters tasks by the
   latest recorded memory outcome. Choices match `memory --outcome` /
   `attempt --record-outcome` values: `blocked`, `failed`, `needs_human`,
   `note`, or `succeeded`.
+- `--exclude-node` (added in v1.7.1) is repeatable and skips matching ready
+  node ids or task ids during selection without rewriting the canonical
+  `build/tasks.json` queue.
 
 ### `attempt`
 
@@ -247,6 +251,7 @@ isabelle-blueprint attempt [project_dir]
                           [--difficulty low|medium|high]
                           [--memory-state fresh|attempted|stale]
                           [--last-outcome OUTCOME]
+                          [--exclude-node NODE_OR_TASK]
                           [--record-outcome OUTCOME]
                           [--summary TEXT]
                           [--details TEXT]
@@ -263,7 +268,8 @@ attempt. By default it writes the prompt to
 `--record-outcome` records post-attempt memory and requires a non-empty
 `--summary`; valid outcomes match the `memory --outcome` choices.
 `--kind`, `--priority`, `--difficulty`, `--memory-state`, and
-`--last-outcome` select from the same filtered ready-task view as `next`.
+`--last-outcome`, and `--exclude-node` select from the same filtered ready-task
+view as `next`.
 Recording an outcome updates the selected node's memory, so a task selected via
 `--memory-state fresh` will no longer match `fresh` on the next invocation.
 

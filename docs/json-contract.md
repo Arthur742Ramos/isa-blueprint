@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.7.0. Keys, value types, and value semantics listed here will not change
+v1.7.1. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in backward-compatible
 releases; consumers should ignore unknown keys.
 
@@ -276,7 +276,8 @@ files do not need to exist first.
     "priority": ["high"],
     "difficulty": [],
     "memory_state": ["fresh"],
-    "last_outcome": []
+    "last_outcome": [],
+    "exclude_node": ["task-old-attempt"]
   },
   "ready_task_count": 3,
   "filtered_ready_task_count": 1,
@@ -289,7 +290,7 @@ files do not need to exist first.
 | `task` | object or null | Full task object using the same shape as entries in `build/tasks.json`, or `null` when no ready task exists. |
 | `prompt` | string or null | Rendered Markdown prompt for the selected task, or `null` when no ready task exists. |
 | `prompt_path` | string or null | Absolute path written by `next --output PATH`, or `null` when `--output` was omitted or no prompt was selected. Added in v1.5.2. |
-| `filters` | object | Selected `kind`, `priority`, `difficulty`, `memory_state`, and `last_outcome` filter values. Added in v1.7 with memory filters added after v1.7. |
+| `filters` | object | Selected `kind`, `priority`, `difficulty`, `memory_state`, `last_outcome`, and `exclude_node` filter values. Added in v1.7 with `memory_state`, `last_outcome`, and `exclude_node` in v1.7.1. |
 | `ready_task_count` | integer | Number of currently ready tasks before filters. Added in v1.7. |
 | `filtered_ready_task_count` | integer | Number of ready tasks after applying selection filters. Added in v1.7. |
 | `message` | string | Human-readable selection or no-task summary. |
@@ -333,7 +334,8 @@ Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
     "priority": [],
     "difficulty": [],
     "memory_state": ["attempted"],
-    "last_outcome": ["failed"]
+    "last_outcome": ["failed"],
+    "exclude_node": []
   },
   "ready_task_count": 3,
   "filtered_ready_task_count": 1,
@@ -344,8 +346,8 @@ Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
 `task` uses the same shape as `build/tasks.json`; `check` is `null` unless
 `--check` was passed; `memory` is `null` unless `--record-outcome` was passed.
 `filters`, `ready_task_count`, and `filtered_ready_task_count` mirror
-`next --json` and were added in v1.7. Memory-related filter keys are additive
-after v1.7. When no ready task exists, `task`,
+`next --json` and were added in v1.7. The `memory_state`, `last_outcome`, and
+`exclude_node` filter keys were added in v1.7.1. When no ready task exists, `task`,
 `prompt_path`, `check`, and `memory` are `null` and `message` explains the empty
 state or filter exclusion.
 
@@ -513,7 +515,7 @@ discover them one by one.
 ```json
 {
   "schema_version": 1,
-  "tool_version": "1.7.0",
+  "tool_version": "1.7.1",
   "generated_at": "2026-06-01T12:00:00Z",
   "project": {
     "name": "Group theory demo",

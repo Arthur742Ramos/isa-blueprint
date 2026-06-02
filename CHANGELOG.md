@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-06-02
+
 ### Added
 
 - Added repeatable `next` and `attempt` memory filters so agents can target
   fresh tasks, previously attempted tasks, stale-attempt tasks, or tasks with a
   specific latest attempt outcome.
+- Added repeatable `next --exclude-node` and `attempt --exclude-node` selection
+  filters so agents can skip known-bad, already assigned, or recently delegated
+  ready tasks without rewriting the canonical task queue.
 
 ## [1.7.0] - 2026-06-01
 
@@ -334,7 +339,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.1...v1.5.2
