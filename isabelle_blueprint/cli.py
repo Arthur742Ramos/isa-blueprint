@@ -308,6 +308,49 @@ def _no_ready_task_message(ready_task_count: int, filters: ReadyTaskFilters) -> 
     return "No ready tasks are currently available."
 
 
+def _add_ready_task_filter_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--kind",
+        action="append",
+        choices=tuple(kind.value for kind in NodeKind),
+        help="only consider ready tasks of this node kind; repeat to include multiple kinds",
+    )
+    parser.add_argument(
+        "--priority",
+        action="append",
+        choices=READY_TASK_PRIORITIES,
+        help="only consider ready tasks with this priority; repeat to include multiple priorities",
+    )
+    parser.add_argument(
+        "--difficulty",
+        action="append",
+        choices=READY_TASK_DIFFICULTIES,
+        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
+    )
+    parser.add_argument(
+        "--memory-state",
+        action="append",
+        choices=READY_TASK_MEMORY_STATES,
+        help=(
+            "only consider ready tasks with this memory state: fresh (no attempts), "
+            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
+        ),
+    )
+    parser.add_argument(
+        "--last-outcome",
+        action="append",
+        choices=READY_TASK_LAST_OUTCOMES,
+        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
+    )
+    parser.add_argument(
+        "--exclude-node",
+        action="append",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="omit this ready node id or task id; repeat to omit multiple tasks",
+    )
+
+
 def _validate_roadmap_filters(roadmap_stage_count: int, filters: RoadmapFilters) -> None:
     if not filters.stages:
         return
@@ -537,22 +580,38 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    payload_metadata = (
+        _selection_metadata(
+            filters,
+            ready_task_count=len(all_ready_tasks),
+            filtered_ready_task_count=len(ready_tasks),
+        )
+        if filters.active
+        else None
+    )
+    empty_message = _no_ready_task_message(len(all_ready_tasks), filters) if filters.active else None
     written = write_tasks(
         project,
         config.build_dir,
         fact_suggestions=fact_suggestions,
         memory=memory,
+        tasks=ready_tasks,
+        prompt_tasks=all_ready_tasks,
+        payload_metadata=payload_metadata,
+        empty_message=empty_message,
         github_issues=args.github_issues,
         github_issues_name=args.github_issues_file,
         github_issue_labels=args.github_label,
         github_issue_assignees=args.github_assignee,
     )
     if args.github_sync:
-        from isabelle_blueprint.agents.tasks import generate_tasks, github_issue_drafts
+        from isabelle_blueprint.agents.tasks import github_issue_drafts
 
-        tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
         drafts = github_issue_drafts(
-            tasks,
+            all_ready_tasks,
             extra_labels=args.github_label,
             assignees=args.github_assignee,
         )
@@ -574,6 +633,13 @@ def cmd_tasks(args: argparse.Namespace) -> int:
         written["github_sync"] = sync_path
     for name, path in written.items():
         print(f"{name} -> {path}")
+    if filters.active and not ready_tasks:
+        print(_no_ready_task_message(len(all_ready_tasks), filters), file=sys.stderr)
+    if filters.active and args.github_sync:
+        print(
+            "note: --github-sync reconciles all ready tasks; filters only narrow tasks.json, tasks.md, and issue drafts",
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -1308,6 +1374,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         help="GitHub username to assign to generated issue drafts; repeat to add multiple assignees",
     )
+    _add_ready_task_filter_arguments(p_tasks)
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_next = sub.add_parser("next", help="print the next ready task prompt")
@@ -1320,46 +1387,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
     p_next.add_argument("--output", default=None, metavar="PATH", help="also write the selected prompt to PATH")
-    p_next.add_argument(
-        "--kind",
-        action="append",
-        choices=tuple(kind.value for kind in NodeKind),
-        help="only consider ready tasks of this node kind; repeat to include multiple kinds",
-    )
-    p_next.add_argument(
-        "--priority",
-        action="append",
-        choices=READY_TASK_PRIORITIES,
-        help="only consider ready tasks with this priority; repeat to include multiple priorities",
-    )
-    p_next.add_argument(
-        "--difficulty",
-        action="append",
-        choices=READY_TASK_DIFFICULTIES,
-        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
-    )
-    p_next.add_argument(
-        "--memory-state",
-        action="append",
-        choices=READY_TASK_MEMORY_STATES,
-        help=(
-            "only consider ready tasks with this memory state: fresh (no attempts), "
-            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
-        ),
-    )
-    p_next.add_argument(
-        "--last-outcome",
-        action="append",
-        choices=READY_TASK_LAST_OUTCOMES,
-        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
-    )
-    p_next.add_argument(
-        "--exclude-node",
-        action="append",
-        default=None,
-        metavar="NODE_OR_TASK",
-        help="skip this ready node id or task id during selection; repeat to skip multiple tasks",
-    )
+    _add_ready_task_filter_arguments(p_next)
     p_next.set_defaults(func=cmd_next)
 
     p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
@@ -1382,46 +1410,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_attempt.add_argument("--timeout", type=float, default=None, help="timeout for --check")
     p_attempt.add_argument("--incremental", action="store_true", help="use check-cache.json during --check")
     p_attempt.add_argument("--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check")
-    p_attempt.add_argument(
-        "--kind",
-        action="append",
-        choices=tuple(kind.value for kind in NodeKind),
-        help="only consider ready tasks of this node kind; repeat to include multiple kinds",
-    )
-    p_attempt.add_argument(
-        "--priority",
-        action="append",
-        choices=READY_TASK_PRIORITIES,
-        help="only consider ready tasks with this priority; repeat to include multiple priorities",
-    )
-    p_attempt.add_argument(
-        "--difficulty",
-        action="append",
-        choices=READY_TASK_DIFFICULTIES,
-        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
-    )
-    p_attempt.add_argument(
-        "--memory-state",
-        action="append",
-        choices=READY_TASK_MEMORY_STATES,
-        help=(
-            "only consider ready tasks with this memory state: fresh (no attempts), "
-            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
-        ),
-    )
-    p_attempt.add_argument(
-        "--last-outcome",
-        action="append",
-        choices=READY_TASK_LAST_OUTCOMES,
-        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
-    )
-    p_attempt.add_argument(
-        "--exclude-node",
-        action="append",
-        default=None,
-        metavar="NODE_OR_TASK",
-        help="skip this ready node id or task id during selection; repeat to skip multiple tasks",
-    )
+    _add_ready_task_filter_arguments(p_attempt)
     p_attempt.add_argument(
         "--record-outcome",
         choices=sorted(VALID_OUTCOMES),

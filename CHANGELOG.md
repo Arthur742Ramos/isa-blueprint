@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added ready-task filters to `isabelle-blueprint tasks`, matching `next` and
+  `attempt` for kind, priority, difficulty, memory state, latest outcome, and
+  explicit exclusions.
+
+### Changed
+
+- Improved task prompt generation so stale `build/prompts/task-*.md` files are
+  removed only when their task is no longer ready, while filtered task runs keep
+  still-ready prompts available.
+
 ## [1.7.1] - 2026-06-02
 
 ### Added

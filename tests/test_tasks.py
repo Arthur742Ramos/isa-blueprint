@@ -117,6 +117,18 @@ def test_write_tasks_produces_json_md_and_prompts(tmp_path: Path):
     assert "Acceptance criteria" in prompt_text
 
 
+def test_write_tasks_removes_prompts_for_tasks_that_are_no_longer_ready(tmp_path: Path):
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a")])
+    stale_prompt = tmp_path / "prompts" / "task-old.md"
+    stale_prompt.parent.mkdir(parents=True)
+    stale_prompt.write_text("old", encoding="utf-8")
+
+    write_tasks(project, tmp_path)
+
+    assert not stale_prompt.exists()
+    assert (tmp_path / "prompts" / "task-a.md").exists()
+
+
 def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
     project = BlueprintProject.from_nodes(
         "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
@@ -127,6 +139,45 @@ def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
     data = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert data["tasks"] == []
     assert data["suggested_next_task"] is None
+
+
+def test_cli_tasks_filters_task_artifacts_but_keeps_full_prompt_set(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["tasks", str(tmp_path), "--kind", "lemma"])
+
+    assert rc == 0
+    assert capsys.readouterr().err == ""
+    data = json.loads((tmp_path / "build" / "tasks.json").read_text(encoding="utf-8"))
+    assert [task["id"] for task in data["tasks"]] == ["task-helper"]
+    assert data["suggested_next_task"] == "task-helper"
+    assert data["filters"]["kind"] == ["lemma"]
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 1
+    md_text = (tmp_path / "build" / "tasks.md").read_text(encoding="utf-8")
+    assert "HELPER" in md_text
+    assert "MAIN" not in md_text
+    assert (tmp_path / "build" / "prompts" / "task-helper.md").exists()
+    assert (tmp_path / "build" / "prompts" / "task-main.md").exists()
+
+
+def test_cli_tasks_filter_no_match_writes_truthful_empty_index(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["tasks", str(tmp_path), "--difficulty", "low"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "No ready tasks match the requested filters" in captured.err
+    data = json.loads((tmp_path / "build" / "tasks.json").read_text(encoding="utf-8"))
+    assert data["tasks"] == []
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 0
+    md_text = (tmp_path / "build" / "tasks.md").read_text(encoding="utf-8")
+    assert "No ready tasks match the requested filters" in md_text
+    assert "complete or blocked" not in md_text
+    assert (tmp_path / "build" / "prompts" / "task-helper.md").exists()
+    assert (tmp_path / "build" / "prompts" / "task-main.md").exists()
 
 
 def test_write_tasks_can_emit_github_issue_drafts(tmp_path: Path):
@@ -147,6 +198,17 @@ def test_write_tasks_can_emit_github_issue_drafts(tmp_path: Path):
     assert "difficulty:low" in data["issues"][0]["labels"]
     assert "proof-review" in data["issues"][0]["labels"]
     assert data["issues"][0]["assignees"] == ["alice"]
+
+
+def test_cli_tasks_filters_github_issue_drafts(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["tasks", str(tmp_path), "--github-issues", "--kind", "lemma"])
+
+    assert rc == 0
+    assert capsys.readouterr().err == ""
+    data = json.loads((tmp_path / "build" / "github-issues.json").read_text(encoding="utf-8"))
+    assert [issue["task_id"] for issue in data["issues"]] == ["task-helper"]
 
 
 def test_cli_next_prints_suggested_prompt(tmp_path: Path, capsys):
