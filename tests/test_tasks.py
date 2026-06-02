@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from isabelle_blueprint.agents.memory import node_input_hash, record_memory_attempt
 from isabelle_blueprint.agents.tasks import generate_tasks, render_task_prompt, write_tasks
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
@@ -348,6 +349,64 @@ def test_cli_next_filter_no_match_reports_excluded_ready_tasks(tmp_path: Path, c
     assert "2 ready tasks were excluded" in data["message"]
 
 
+def test_cli_next_filters_ready_tasks_by_memory_state_and_last_outcome(tmp_path: Path, capsys):
+    project = _next_project()
+    _write_next_project(tmp_path, project)
+    record_memory_attempt(
+        tmp_path / ".isabelle-blueprint" / "agent-memory.json",
+        "main",
+        outcome="failed",
+        summary="simp looped",
+        input_hash=node_input_hash(project.by_id()["main"]),
+    )
+
+    rc_fresh = cli_main(["next", str(tmp_path), "--memory-state", "fresh", "--json"])
+    fresh_payload = json.loads(capsys.readouterr().out)
+    rc_failed = cli_main(["next", str(tmp_path), "--last-outcome", "failed", "--json"])
+    failed_payload = json.loads(capsys.readouterr().out)
+
+    assert rc_fresh == 0
+    assert fresh_payload["task"]["id"] == "task-helper"
+    assert fresh_payload["filters"]["memory_state"] == ["fresh"]
+    assert fresh_payload["filtered_ready_task_count"] == 1
+    assert rc_failed == 0
+    assert failed_payload["task"]["id"] == "task-main"
+    assert failed_payload["filters"]["last_outcome"] == ["failed"]
+
+
+def test_cli_next_filters_ready_tasks_by_stale_memory(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+    record_memory_attempt(
+        tmp_path / ".isabelle-blueprint" / "agent-memory.json",
+        "main",
+        outcome="failed",
+        summary="old input",
+        input_hash="older-blueprint-input",
+    )
+
+    rc = cli_main(["next", str(tmp_path), "--memory-state", "stale", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"]["id"] == "task-main"
+    assert data["task"]["memory"]["stale"] is True
+    assert data["filters"]["memory_state"] == ["stale"]
+
+
+def test_cli_next_last_outcome_filter_no_match_reports_excluded_tasks(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["next", str(tmp_path), "--last-outcome", "succeeded", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"] is None
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 0
+    assert data["filters"]["last_outcome"] == ["succeeded"]
+    assert "last-outcome=succeeded" in data["message"]
+
+
 def test_cli_next_reports_filter_mismatch_for_explicit_selector(tmp_path: Path, capsys):
     _write_next_project(tmp_path, _next_project())
 
@@ -358,6 +417,26 @@ def test_cli_next_reports_filter_mismatch_for_explicit_selector(tmp_path: Path, 
     assert captured.out == ""
     assert "ready task 'task-helper' was excluded by filters" in captured.err
     assert "kind=lemma does not match --kind=theorem" in captured.err
+
+
+def test_cli_next_reports_last_outcome_mismatch_for_explicit_selector(tmp_path: Path, capsys):
+    project = _next_project()
+    _write_next_project(tmp_path, project)
+    record_memory_attempt(
+        tmp_path / ".isabelle-blueprint" / "agent-memory.json",
+        "main",
+        outcome="failed",
+        summary="simp looped",
+        input_hash=node_input_hash(project.by_id()["main"]),
+    )
+
+    rc = cli_main(["next", str(tmp_path), "--node", "helper", "--last-outcome", "failed"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "ready task 'task-helper' was excluded by filters" in captured.err
+    assert "last-outcome=none does not match --last-outcome=failed" in captured.err
 
 
 def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):
@@ -385,6 +464,26 @@ def test_cli_attempt_filters_default_ready_task(tmp_path: Path, capsys):
     assert data["filters"]["kind"] == ["lemma"]
     assert data["ready_task_count"] == 2
     assert data["filtered_ready_task_count"] == 1
+    assert Path(data["prompt_path"]).name == "task-helper.md"
+
+
+def test_cli_attempt_filters_default_ready_task_by_fresh_memory(tmp_path: Path, capsys):
+    project = _next_project()
+    _write_next_project(tmp_path, project)
+    record_memory_attempt(
+        tmp_path / ".isabelle-blueprint" / "agent-memory.json",
+        "main",
+        outcome="failed",
+        summary="simp looped",
+        input_hash=node_input_hash(project.by_id()["main"]),
+    )
+
+    rc = cli_main(["attempt", str(tmp_path), "--memory-state", "fresh", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"]["id"] == "task-helper"
+    assert data["filters"]["memory_state"] == ["fresh"]
     assert Path(data["prompt_path"]).name == "task-helper.md"
 
 
