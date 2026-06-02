@@ -68,7 +68,39 @@
         "additionalProperties": true
       }
     },
-    "suggested_next_task": { "type": ["string", "null"] }
+    "suggested_next_task": { "type": ["string", "null"] },
+    "filters": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "priority": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "difficulty": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "memory_state": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "last_outcome": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exclude_node": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ready_task_count": { "type": "integer" },
+    "filtered_ready_task_count": { "type": "integer" }
   },
   "additionalProperties": true
 }

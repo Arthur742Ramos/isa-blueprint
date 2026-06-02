@@ -163,6 +163,12 @@ isabelle-blueprint tasks [project_dir]
                          [--github-sync-state PATH]
                          [--github-label LABEL]
                          [--github-assignee USER]
+                         [--kind KIND]
+                         [--priority high|medium|low]
+                         [--difficulty low|medium|high]
+                         [--memory-state fresh|attempted|stale]
+                         [--last-outcome OUTCOME]
+                         [--exclude-node NODE_OR_TASK]
 ```
 
 Emits agent-ready task artefacts under `build/`: `tasks.json`, `tasks.md`,
@@ -184,6 +190,14 @@ default this is a dry-run and performs no network calls. Passing
 `--github-label` and `--github-assignee` (added in v1.6) are repeatable and
 affect generated issue drafts and sync payloads. Sync plans also include
 `would_close` actions for completed nodes that still have a tracked issue.
+
+The ready-task filters mirror `next` and `attempt`: repeat `--kind`,
+`--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
+`--exclude-node` to narrow `tasks.json`, `tasks.md`, and optional
+`github-issues.json` issue drafts. Prompt files under `build/prompts/` remain
+synchronised with the full ready-task set so filtered runs do not delete
+still-ready prompts. `--github-sync` remains a full reconciliation of all ready
+tasks; filters only affect `tasks.json`, `tasks.md`, and issue drafts.
 
 ### `next`
 

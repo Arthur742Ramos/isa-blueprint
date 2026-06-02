@@ -157,6 +157,10 @@ def write_tasks(
     prompt_dir_name: str = "prompts",
     fact_suggestions: list[FactSuggestion] | None = None,
     memory: AgentMemory | None = None,
+    tasks: list[AgentTask] | None = None,
+    prompt_tasks: list[AgentTask] | None = None,
+    payload_metadata: dict[str, object] | None = None,
+    empty_message: str | None = None,
     github_issues: bool = False,
     github_issues_name: str = "github-issues.json",
     github_issue_labels: list[str] | None = None,
@@ -164,26 +168,33 @@ def write_tasks(
 ) -> dict[str, Path]:
     """Write ``tasks.json``, ``tasks.md`` and ``prompts/<task-id>.md`` files."""
     build_dir.mkdir(parents=True, exist_ok=True)
-    tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    generated_tasks: list[AgentTask] | None = None
+    if tasks is None or prompt_tasks is None:
+        generated_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    if tasks is None:
+        tasks = generated_tasks or []
+    if prompt_tasks is None:
+        prompt_tasks = generated_tasks or []
 
     json_path = build_dir / json_name
     md_path = build_dir / md_name
     prompts_dir = build_dir / prompt_dir_name
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
+    payload: dict[str, object] = {
+        "tasks": [t.to_dict() for t in tasks],
+        "suggested_next_task": tasks[0].id if tasks else None,
+    }
+    if payload_metadata:
+        payload.update(payload_metadata)
     json_path.write_text(
-        json.dumps(
-            {
-                "tasks": [t.to_dict() for t in tasks],
-                "suggested_next_task": tasks[0].id if tasks else None,
-            },
-            indent=2,
-        ),
+        json.dumps(payload, indent=2),
         encoding="utf-8",
     )
-    md_path.write_text(_render_tasks_index(tasks), encoding="utf-8")
+    md_path.write_text(_render_tasks_index(tasks, empty_message=empty_message), encoding="utf-8")
 
-    for task in tasks:
+    _remove_stale_task_prompts(prompts_dir, prompt_tasks)
+    for task in prompt_tasks:
         (prompts_dir / f"{task.id}.md").write_text(render_task_prompt(task), encoding="utf-8")
 
     written = {"json": json_path, "md": md_path, "prompts": prompts_dir}
@@ -199,9 +210,17 @@ def write_tasks(
     return written
 
 
-def _render_tasks_index(tasks: list[AgentTask]) -> str:
+def _remove_stale_task_prompts(prompts_dir: Path, tasks: list[AgentTask]) -> None:
+    current_prompt_names = {f"{task.id}.md" for task in tasks}
+    for prompt_path in prompts_dir.glob("task-*.md"):
+        if prompt_path.name not in current_prompt_names:
+            prompt_path.unlink()
+
+
+def _render_tasks_index(tasks: list[AgentTask], *, empty_message: str | None = None) -> str:
     if not tasks:
-        return "# Agent tasks\n\nNo ready tasks - every node is either complete or blocked.\n"
+        message = empty_message or "No ready tasks - every node is either complete or blocked."
+        return f"# Agent tasks\n\n{message}\n"
     lines = ["# Agent tasks", ""]
     lines.append(f"Suggested next task: `{tasks[0].id}`.")
     lines.append("")

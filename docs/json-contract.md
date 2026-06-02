@@ -232,7 +232,17 @@ static site by `isabelle-blueprint web`.
       }
     }
   ],
-  "suggested_next_task": "task-main-theorem"
+  "suggested_next_task": "task-main-theorem",
+  "filters": {
+    "kind": ["theorem"],
+    "priority": ["high"],
+    "difficulty": [],
+    "memory_state": ["fresh"],
+    "last_outcome": [],
+    "exclude_node": []
+  },
+  "ready_task_count": 3,
+  "filtered_ready_task_count": 1
 }
 ```
 
@@ -252,6 +262,12 @@ v1.1 adds the optional `metadata` object and top-level
 
 `stale` is `true` when the latest attempt was recorded against older task
 inputs. Existing task keys remain unchanged.
+
+When `isabelle-blueprint tasks` is run with ready-task filters, `tasks` contains
+only the filtered ready tasks and `suggested_next_task` is the first task in that
+filtered view. Filtered payloads also include `filters`, `ready_task_count`, and
+`filtered_ready_task_count`, using the same shapes as `next --json`. Without
+filters, those top-level metadata keys may be omitted.
 
 ---
 
