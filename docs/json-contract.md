@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.6.0. Keys, value types, and value semantics listed here will not change
+v1.7.0. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in backward-compatible
 releases; consumers should ignore unknown keys.
 
@@ -271,6 +271,13 @@ files do not need to exist first.
   },
   "prompt": "# Task: Main theorem\n...",
   "prompt_path": "/absolute/path/to/next.md",
+  "filters": {
+    "kind": ["theorem"],
+    "priority": ["high"],
+    "difficulty": []
+  },
+  "ready_task_count": 3,
+  "filtered_ready_task_count": 1,
   "message": "Selected task-main-theorem."
 }
 ```
@@ -280,10 +287,16 @@ files do not need to exist first.
 | `task` | object or null | Full task object using the same shape as entries in `build/tasks.json`, or `null` when no ready task exists. |
 | `prompt` | string or null | Rendered Markdown prompt for the selected task, or `null` when no ready task exists. |
 | `prompt_path` | string or null | Absolute path written by `next --output PATH`, or `null` when `--output` was omitted or no prompt was selected. Added in v1.5.2. |
+| `filters` | object | Selected `kind`, `priority`, and `difficulty` filter values. Added in v1.7. |
+| `ready_task_count` | integer | Number of currently ready tasks before filters. Added in v1.7. |
+| `filtered_ready_task_count` | integer | Number of ready tasks after applying selection filters. Added in v1.7. |
 | `message` | string | Human-readable selection or no-task summary. |
 
 Selecting an unknown, blocked, complete, or otherwise not-ready node exits 1
-with a CLI error instead of emitting a JSON payload.
+with a CLI error instead of emitting a JSON payload. When filters exclude all
+ready tasks, the command exits 0 with `task`, `prompt`, and `prompt_path` set to
+`null`, `ready_task_count` greater than zero, and a `message` that says existing
+ready tasks were filtered out.
 
 ---
 
@@ -313,14 +326,23 @@ Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
     "next_step": "try induction",
     "input_hash": "..."
   },
+  "filters": {
+    "kind": ["theorem"],
+    "priority": [],
+    "difficulty": []
+  },
+  "ready_task_count": 3,
+  "filtered_ready_task_count": 1,
   "message": "Prepared task-main-theorem."
 }
 ```
 
 `task` uses the same shape as `build/tasks.json`; `check` is `null` unless
 `--check` was passed; `memory` is `null` unless `--record-outcome` was passed.
-When no ready task exists, `task`, `prompt_path`, `check`, and `memory` are
-`null` and `message` explains the empty state.
+`filters`, `ready_task_count`, and `filtered_ready_task_count` mirror
+`next --json` and were added in v1.7. When no ready task exists, `task`,
+`prompt_path`, `check`, and `memory` are `null` and `message` explains the empty
+state or filter exclusion.
 
 ---
 
@@ -486,7 +508,7 @@ discover them one by one.
 ```json
 {
   "schema_version": 1,
-  "tool_version": "1.5.2",
+  "tool_version": "1.7.0",
   "generated_at": "2026-06-01T12:00:00Z",
   "project": {
     "name": "Group theory demo",

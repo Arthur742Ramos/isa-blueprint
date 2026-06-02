@@ -415,6 +415,21 @@ def _recommended_commands(suggested_next_task: str | None) -> list[AgentContextC
     node_arg = suggested_next_task.removeprefix("task-") if suggested_next_task else "<node-id>"
     commands.append(
         AgentContextCommand(
+            intent="prepare_attempt",
+            description="Write the selected task prompt and run a best-effort check pass.",
+            argv=[
+                "isabelle-blueprint",
+                "attempt",
+                ".",
+                "--node",
+                node_arg,
+                "--check",
+            ],
+            writes=True,
+        )
+    )
+    commands.append(
+        AgentContextCommand(
             intent="record_attempt",
             description="Record proof-attempt memory after working on a node.",
             argv=[

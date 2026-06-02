@@ -35,6 +35,7 @@ def test_cli_agent_context_json_is_clean_and_project_relative(
         "write_context",
         "next_task_prompt",
         "inspect_roadmap",
+        "prepare_attempt",
         "record_attempt",
     ]
 

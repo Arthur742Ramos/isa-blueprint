@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-01
+
+### Added
+
+- Added repeatable `next` and `attempt` filters for ready-task kind, priority,
+  and difficulty so handoffs can target, for example, the next high-priority
+  theorem without rewriting the canonical task queue.
+- Added filter metadata to `next --json` and `attempt --json`, including the
+  full ready-task count and the filtered ready-task count.
+- Added a direct `prepare_attempt` recommendation to `agent-context` command
+  bundles, pointing agents at the `attempt --check` workflow.
+
+### Changed
+
+- Improved explicit `next` / `attempt --node` diagnostics for blocked nodes by
+  listing missing or incomplete dependency blockers, capped for readability.
+- Improved filtered selection diagnostics so a ready task excluded by filters
+  reports the mismatched kind, priority, or difficulty instead of looking
+  unknown or blocked.
+
 ## [1.6.0] - 2026-06-01
 
 ### Added
@@ -308,7 +328,9 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.4.1...v1.5.0

@@ -388,8 +388,10 @@ isabelle-blueprint status .
 isabelle-blueprint status . --json
 isabelle-blueprint status . --top-tasks 3
 isabelle-blueprint next .
+isabelle-blueprint next . --kind theorem --priority high
 isabelle-blueprint next . --node main-theorem --json
 isabelle-blueprint attempt .
+isabelle-blueprint attempt . --kind lemma --difficulty medium
 isabelle-blueprint attempt . --node main-theorem --check
 isabelle-blueprint attempt . --record-outcome failed --summary "simp loops"
 ```
@@ -398,9 +400,11 @@ It reports coverage, problem/stale counts, cycle status, ready-task count, and
 the next suggested proof task. Add `--top-tasks N` when you want a compact queue
 of the first ready tasks without generating prompt files. Use `next` when you
 want the selected ready-task prompt directly on stdout without first generating
-`build/prompts/`. Use `attempt` when you want that handoff written to
-`build/attempts/`, optionally followed by a `check` run and a memory note. Use
-`roadmap` when you want the staged plan:
+`build/prompts/`. Add repeatable `--kind`, `--priority`, or `--difficulty`
+filters to focus the automatic selection without changing the canonical task
+queue. Use `attempt` when you want that handoff written to `build/attempts/`,
+optionally followed by a `check` run and a memory note. Use `roadmap` when you
+want the staged plan:
 
 ```bash
 isabelle-blueprint roadmap .
@@ -480,14 +484,14 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.5 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.7 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz output, static
 site, live preview, task packs, project templates, fact suggestions, JSON
 Schemas, plugin API, PR comments, GitHub Release automation, VS Code extension
 support, agent memory, status explanations, theory import bootstrap, and
 dry-run GitHub issue synchronization, plus fast `status` and staged `roadmap`
-planning commands, direct `next` prompt handoffs, and one-shot `agent-context`
-bundles.
+planning commands, filtered direct `next` / `attempt` handoffs, and one-shot
+`agent-context` bundles.
 
 Community docs:
 
