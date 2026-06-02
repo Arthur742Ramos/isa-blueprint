@@ -436,7 +436,7 @@ def test_cli_next_reports_last_outcome_mismatch_for_explicit_selector(tmp_path: 
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "ready task 'task-helper' was excluded by filters" in captured.err
-    assert "last_outcome=none does not match --last-outcome=failed" in captured.err
+    assert "last-outcome=none does not match --last-outcome=failed" in captured.err
 
 
 def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):

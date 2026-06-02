@@ -950,7 +950,7 @@ def _filter_mismatch_message(task: AgentTask, filters: ReadyTaskFilters) -> str:
             else "none"
         )
         mismatches.append(
-            f"last_outcome={actual} does not match --last-outcome={','.join(filters.last_outcomes)}"
+            f"last-outcome={actual} does not match --last-outcome={','.join(filters.last_outcomes)}"
         )
     detail = "; ".join(mismatches) if mismatches else _format_ready_task_filters(filters)
     return f"ready task {task.id!r} was excluded by filters ({detail})"
