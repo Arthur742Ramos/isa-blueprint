@@ -374,6 +374,36 @@ def test_cli_next_filters_ready_tasks_by_memory_state_and_last_outcome(tmp_path:
     assert failed_payload["filters"]["last_outcome"] == ["failed"]
 
 
+def test_cli_next_can_exclude_ready_nodes_from_selection(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc_node = cli_main(["next", str(tmp_path), "--exclude-node", "main", "--json"])
+    node_payload = json.loads(capsys.readouterr().out)
+    rc_task = cli_main(["next", str(tmp_path), "--exclude-node", "task-main", "--json"])
+    task_payload = json.loads(capsys.readouterr().out)
+
+    assert rc_node == 0
+    assert rc_task == 0
+    assert node_payload["task"]["id"] == "task-helper"
+    assert node_payload["filters"]["exclude_node"] == ["main"]
+    assert node_payload["ready_task_count"] == 2
+    assert node_payload["filtered_ready_task_count"] == 1
+    assert task_payload["task"]["id"] == "task-helper"
+    assert task_payload["filters"]["exclude_node"] == ["task-main"]
+
+
+def test_cli_next_reports_excluded_explicit_selector(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["next", str(tmp_path), "--node", "helper", "--exclude-node", "helper"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "ready task 'task-helper' was excluded by filters" in captured.err
+    assert "excluded by --exclude-node=helper" in captured.err
+
+
 def test_cli_next_filters_ready_tasks_by_stale_memory(tmp_path: Path, capsys):
     _write_next_project(tmp_path, _next_project())
     record_memory_attempt(
@@ -484,6 +514,19 @@ def test_cli_attempt_filters_default_ready_task_by_fresh_memory(tmp_path: Path, 
     data = json.loads(capsys.readouterr().out)
     assert data["task"]["id"] == "task-helper"
     assert data["filters"]["memory_state"] == ["fresh"]
+    assert Path(data["prompt_path"]).name == "task-helper.md"
+
+
+def test_cli_attempt_can_exclude_default_ready_task(tmp_path: Path, capsys):
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["attempt", str(tmp_path), "--exclude-node", "task-main", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["task"]["id"] == "task-helper"
+    assert data["filters"]["exclude_node"] == ["task-main"]
+    assert data["filtered_ready_task_count"] == 1
     assert Path(data["prompt_path"]).name == "task-helper.md"
 
 

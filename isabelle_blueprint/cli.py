@@ -114,6 +114,7 @@ class ReadyTaskFilters:
     difficulties: tuple[str, ...] = ()
     memory_states: tuple[str, ...] = ()
     last_outcomes: tuple[str, ...] = ()
+    excluded_nodes: tuple[str, ...] = ()
 
     @property
     def active(self) -> bool:
@@ -123,6 +124,7 @@ class ReadyTaskFilters:
             or self.difficulties
             or self.memory_states
             or self.last_outcomes
+            or self.excluded_nodes
         )
 
     def to_dict(self) -> dict[str, list[str]]:
@@ -132,6 +134,7 @@ class ReadyTaskFilters:
             "difficulty": list(self.difficulties),
             "memory_state": list(self.memory_states),
             "last_outcome": list(self.last_outcomes),
+            "exclude_node": list(self.excluded_nodes),
         }
 
 
@@ -207,6 +210,7 @@ def _ready_task_filters_from_args(args: argparse.Namespace) -> ReadyTaskFilters:
         difficulties=_dedupe(getattr(args, "difficulty", None)),
         memory_states=_dedupe(getattr(args, "memory_state", None)),
         last_outcomes=_dedupe(getattr(args, "last_outcome", None)),
+        excluded_nodes=_dedupe(getattr(args, "exclude_node", None)),
     )
 
 
@@ -232,6 +236,8 @@ def _task_matches_filters(task: AgentTask, filters: ReadyTaskFilters) -> bool:
         return False
     if filters.last_outcomes and not _task_matches_last_outcomes(task, filters.last_outcomes):
         return False
+    if filters.excluded_nodes and _task_is_excluded(task, filters.excluded_nodes):
+        return False
     return True
 
 
@@ -252,6 +258,10 @@ def _task_has_memory_state(task: AgentTask, memory_state: str) -> bool:
 
 def _task_matches_last_outcomes(task: AgentTask, last_outcomes: tuple[str, ...]) -> bool:
     return task.memory is not None and task.memory.last_outcome in last_outcomes
+
+
+def _task_is_excluded(task: AgentTask, excluded_nodes: tuple[str, ...]) -> bool:
+    return task.id in excluded_nodes or task.node_id in excluded_nodes
 
 
 def _selection_metadata(
@@ -279,6 +289,8 @@ def _format_ready_task_filters(filters: ReadyTaskFilters) -> str:
         parts.append(f"memory-state={','.join(filters.memory_states)}")
     if filters.last_outcomes:
         parts.append(f"last-outcome={','.join(filters.last_outcomes)}")
+    if filters.excluded_nodes:
+        parts.append(f"exclude-node={','.join(filters.excluded_nodes)}")
     return "; ".join(parts)
 
 
@@ -952,6 +964,8 @@ def _filter_mismatch_message(task: AgentTask, filters: ReadyTaskFilters) -> str:
         mismatches.append(
             f"last-outcome={actual} does not match --last-outcome={','.join(filters.last_outcomes)}"
         )
+    if filters.excluded_nodes and _task_is_excluded(task, filters.excluded_nodes):
+        mismatches.append(f"excluded by --exclude-node={','.join(filters.excluded_nodes)}")
     detail = "; ".join(mismatches) if mismatches else _format_ready_task_filters(filters)
     return f"ready task {task.id!r} was excluded by filters ({detail})"
 
@@ -1339,6 +1353,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         choices=READY_TASK_LAST_OUTCOMES,
         help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
     )
+    p_next.add_argument(
+        "--exclude-node",
+        action="append",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="skip this ready node id or task id during selection; repeat to skip multiple tasks",
+    )
     p_next.set_defaults(func=cmd_next)
 
     p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
@@ -1393,6 +1414,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="append",
         choices=READY_TASK_LAST_OUTCOMES,
         help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
+    )
+    p_attempt.add_argument(
+        "--exclude-node",
+        action="append",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="skip this ready node id or task id during selection; repeat to skip multiple tasks",
     )
     p_attempt.add_argument(
         "--record-outcome",
