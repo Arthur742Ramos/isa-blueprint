@@ -103,6 +103,8 @@ if TYPE_CHECKING:
 
 READY_TASK_PRIORITIES = ("high", "medium", "low")
 READY_TASK_DIFFICULTIES = ("low", "medium", "high")
+READY_TASK_MEMORY_STATES = ("fresh", "attempted", "stale")
+READY_TASK_LAST_OUTCOMES = tuple(sorted(VALID_OUTCOMES))
 
 
 @dataclass(frozen=True)
@@ -110,16 +112,26 @@ class ReadyTaskFilters:
     kinds: tuple[str, ...] = ()
     priorities: tuple[str, ...] = ()
     difficulties: tuple[str, ...] = ()
+    memory_states: tuple[str, ...] = ()
+    last_outcomes: tuple[str, ...] = ()
 
     @property
     def active(self) -> bool:
-        return bool(self.kinds or self.priorities or self.difficulties)
+        return bool(
+            self.kinds
+            or self.priorities
+            or self.difficulties
+            or self.memory_states
+            or self.last_outcomes
+        )
 
     def to_dict(self) -> dict[str, list[str]]:
         return {
             "kind": list(self.kinds),
             "priority": list(self.priorities),
             "difficulty": list(self.difficulties),
+            "memory_state": list(self.memory_states),
+            "last_outcome": list(self.last_outcomes),
         }
 
 
@@ -193,6 +205,8 @@ def _ready_task_filters_from_args(args: argparse.Namespace) -> ReadyTaskFilters:
         kinds=_dedupe(getattr(args, "kind", None)),
         priorities=_dedupe(getattr(args, "priority", None)),
         difficulties=_dedupe(getattr(args, "difficulty", None)),
+        memory_states=_dedupe(getattr(args, "memory_state", None)),
+        last_outcomes=_dedupe(getattr(args, "last_outcome", None)),
     )
 
 
@@ -214,7 +228,30 @@ def _task_matches_filters(task: AgentTask, filters: ReadyTaskFilters) -> bool:
         metadata is None or metadata.difficulty not in filters.difficulties
     ):
         return False
+    if filters.memory_states and not _task_matches_memory_states(task, filters.memory_states):
+        return False
+    if filters.last_outcomes and not _task_matches_last_outcomes(task, filters.last_outcomes):
+        return False
     return True
+
+
+def _task_matches_memory_states(task: AgentTask, memory_states: tuple[str, ...]) -> bool:
+    return any(_task_has_memory_state(task, memory_state) for memory_state in memory_states)
+
+
+def _task_has_memory_state(task: AgentTask, memory_state: str) -> bool:
+    memory = task.memory
+    if memory_state == "fresh":
+        return memory is None
+    if memory_state == "attempted":
+        return memory is not None
+    if memory_state == "stale":
+        return memory is not None and memory.stale
+    return False
+
+
+def _task_matches_last_outcomes(task: AgentTask, last_outcomes: tuple[str, ...]) -> bool:
+    return task.memory is not None and task.memory.last_outcome in last_outcomes
 
 
 def _selection_metadata(
@@ -238,6 +275,10 @@ def _format_ready_task_filters(filters: ReadyTaskFilters) -> str:
         parts.append(f"priority={','.join(filters.priorities)}")
     if filters.difficulties:
         parts.append(f"difficulty={','.join(filters.difficulties)}")
+    if filters.memory_states:
+        parts.append(f"memory-state={','.join(filters.memory_states)}")
+    if filters.last_outcomes:
+        parts.append(f"last-outcome={','.join(filters.last_outcomes)}")
     return "; ".join(parts)
 
 
@@ -897,8 +938,31 @@ def _filter_mismatch_message(task: AgentTask, filters: ReadyTaskFilters) -> str:
     if filters.difficulties and difficulty not in filters.difficulties:
         actual = difficulty or "unknown"
         mismatches.append(f"difficulty={actual} does not match --difficulty={','.join(filters.difficulties)}")
+    if filters.memory_states and not _task_matches_memory_states(task, filters.memory_states):
+        mismatches.append(
+            f"memory={_format_task_memory_summary(task)} "
+            f"does not match --memory-state={','.join(filters.memory_states)}"
+        )
+    if filters.last_outcomes and not _task_matches_last_outcomes(task, filters.last_outcomes):
+        actual = (
+            task.memory.last_outcome
+            if task.memory is not None and task.memory.last_outcome is not None
+            else "none"
+        )
+        mismatches.append(
+            f"last_outcome={actual} does not match --last-outcome={','.join(filters.last_outcomes)}"
+        )
     detail = "; ".join(mismatches) if mismatches else _format_ready_task_filters(filters)
     return f"ready task {task.id!r} was excluded by filters ({detail})"
+
+
+def _format_task_memory_summary(task: AgentTask) -> str:
+    memory = task.memory
+    if memory is None:
+        return "none"
+    last_outcome = memory.last_outcome or "unknown"
+    stale = "true" if memory.stale else "false"
+    return f"attempts={memory.attempt_count},last_outcome={last_outcome},stale={stale}"
 
 
 def _not_ready_node_message(node_id: str, project: BlueprintProject) -> str:
@@ -1260,6 +1324,21 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         choices=READY_TASK_DIFFICULTIES,
         help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
     )
+    p_next.add_argument(
+        "--memory-state",
+        action="append",
+        choices=READY_TASK_MEMORY_STATES,
+        help=(
+            "only consider ready tasks with this memory state: fresh (no attempts), "
+            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
+        ),
+    )
+    p_next.add_argument(
+        "--last-outcome",
+        action="append",
+        choices=READY_TASK_LAST_OUTCOMES,
+        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
+    )
     p_next.set_defaults(func=cmd_next)
 
     p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
@@ -1299,6 +1378,21 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="append",
         choices=READY_TASK_DIFFICULTIES,
         help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
+    )
+    p_attempt.add_argument(
+        "--memory-state",
+        action="append",
+        choices=READY_TASK_MEMORY_STATES,
+        help=(
+            "only consider ready tasks with this memory state: fresh (no attempts), "
+            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
+        ),
+    )
+    p_attempt.add_argument(
+        "--last-outcome",
+        action="append",
+        choices=READY_TASK_LAST_OUTCOMES,
+        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
     )
     p_attempt.add_argument(
         "--record-outcome",

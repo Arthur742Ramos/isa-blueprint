@@ -195,6 +195,8 @@ isabelle-blueprint next [project_dir]
                         [--kind KIND]
                         [--priority high|medium|low]
                         [--difficulty low|medium|high]
+                        [--memory-state fresh|attempted|stale]
+                        [--last-outcome OUTCOME]
 ```
 
 Prints the Markdown prompt for the next ready proof task, using the same stable
@@ -219,6 +221,14 @@ read-only and does not require prompt files to have been generated first.
   filters for interactive selection. They narrow automatic selection and must
   also match an explicit `--node` selector when one is supplied. They do not
   rewrite `build/tasks.json`; use `tasks` for the full canonical queue.
+- `--memory-state` (added after v1.7) is repeatable and filters tasks by
+  prior attempt memory: `fresh` has no recorded attempts, `attempted` has any
+  memory summary, and `stale` means the latest attempt was recorded against
+  older task inputs.
+- `--last-outcome` (added after v1.7) is repeatable and filters tasks by the
+  latest recorded memory outcome. Choices match `memory --outcome` /
+  `attempt --record-outcome` values: `blocked`, `failed`, `needs_human`,
+  `note`, or `succeeded`.
 
 ### `attempt`
 
@@ -235,6 +245,8 @@ isabelle-blueprint attempt [project_dir]
                           [--kind KIND]
                           [--priority high|medium|low]
                           [--difficulty low|medium|high]
+                          [--memory-state fresh|attempted|stale]
+                          [--last-outcome OUTCOME]
                           [--record-outcome OUTCOME]
                           [--summary TEXT]
                           [--details TEXT]
@@ -250,8 +262,10 @@ attempt. By default it writes the prompt to
 `next`. `--check` runs the normal `check` pipeline after writing the prompt.
 `--record-outcome` records post-attempt memory and requires a non-empty
 `--summary`; valid outcomes match the `memory --outcome` choices.
-`--kind`, `--priority`, and `--difficulty` (added in v1.7) select from the same
-filtered ready-task view as `next`.
+`--kind`, `--priority`, `--difficulty`, `--memory-state`, and
+`--last-outcome` select from the same filtered ready-task view as `next`.
+Recording an outcome updates the selected node's memory, so a task selected via
+`--memory-state fresh` will no longer match `fresh` on the next invocation.
 
 `--json` emits `task`, `prompt_path`, `check`, `memory`, `message`, filter
 metadata, and ready-task counts. When no ready task exists, those object fields
