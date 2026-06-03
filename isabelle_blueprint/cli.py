@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import sys
 import time
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isabelle_blueprint import __version__
+from isabelle_blueprint import __version__, console
 from isabelle_blueprint.agents.assignments import (
     clear_assignment,
     load_assignments,
@@ -38,6 +39,7 @@ from isabelle_blueprint.agents.tasks import (
     render_task_prompt,
     write_tasks,
 )
+from isabelle_blueprint.completion import SUPPORTED_SHELLS, render_completion
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
@@ -102,6 +104,8 @@ from isabelle_blueprint.report.roadmap import (
     roadmap_strict_failures,
     write_roadmap,
 )
+from isabelle_blueprint.report.sarif import render_sarif
+from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -251,6 +255,25 @@ def _add_fail_on_argument(parser: argparse.ArgumentParser) -> None:
             "exit non-zero (5) if any node has the given formal status; "
             "repeatable; 'problem' expands to all problem statuses"
         ),
+    )
+
+
+def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
+    """Attach shared ``--watch``/``--interval`` flags to a subparser.
+
+    ``action`` is a short verb phrase used in the help text (e.g. "report").
+    """
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help=f"re-run the {action} whenever the blueprint sources change (Ctrl-C to stop)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="polling interval for --watch (default: 1.0)",
     )
 
 
@@ -627,6 +650,35 @@ def _watch_check(args: argparse.Namespace) -> int:
         return exit_code
 
 
+def _run_watch(args: argparse.Namespace, run_once) -> int:
+    """Re-run ``run_once(args)`` whenever an input source changes.
+
+    Shared by ``report``/``status``/``tasks``; like ``check --watch`` it only
+    watches input sources (config + blueprint files) via ``_check_watch_paths``
+    so regenerating outputs never re-triggers the loop.
+    """
+
+    project_dir = Path(args.project_dir).resolve()
+    exit_code = run_once(args)
+    print(f"watching for changes (exit code {exit_code}); press Ctrl-C to stop", file=sys.stderr)
+    snapshot = _snapshot(_check_watch_paths(project_dir))
+    try:
+        while True:
+            time.sleep(max(getattr(args, "interval", 1.0), 0.1))
+            current = _snapshot(_check_watch_paths(project_dir))
+            if current != snapshot:
+                snapshot = current
+                try:
+                    exit_code = run_once(args)
+                except BlueprintError as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    exit_code = 1
+                print(f"re-ran (exit code {exit_code})", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("stopped", file=sys.stderr)
+        return exit_code
+
+
 def cmd_graph(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -646,12 +698,78 @@ def cmd_lint(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     report = build_lint_report(project)
-    if args.json:
+    fmt = _resolve_lint_format(args)
+    if fmt == "json":
         print(json.dumps(report.to_dict(), indent=2))
+    elif fmt == "sarif":
+        print(render_sarif(report, project), end="")
     else:
         print(render_lint_report(report), end="")
     if args.strict and not report.ok:
         return 2
+    return 0
+
+
+def _resolve_lint_format(args: argparse.Namespace) -> str:
+    """Reconcile the ``--json`` alias with ``--format``.
+
+    ``--json`` predates ``--format`` and is kept as a backward-compatible alias
+    for ``--format json``. The two may be combined only when they agree.
+    """
+
+    fmt = getattr(args, "format", None)
+    if args.json:
+        if fmt is not None and fmt != "json":
+            raise BlueprintError(
+                f"--json conflicts with --format {fmt}; use one or the other"
+            )
+        return "json"
+    return fmt or "text"
+
+
+PROG_NAME = "isabelle-blueprint"
+
+
+def _subcommand_names() -> list[str]:
+    """Return the sorted list of registered subcommand names."""
+
+    parser = _build_parser()
+    for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
+        if isinstance(action, argparse._SubParsersAction):
+            return sorted(action.choices)
+    return []
+
+
+def cmd_version(args: argparse.Namespace) -> int:
+    info = {
+        "name": PROG_NAME,
+        "version": __version__,
+        "python": platform.python_version(),
+        "schemas": list(available_schemas()),
+    }
+    if args.json:
+        print(json.dumps(info, indent=2))
+    else:
+        print(f"{PROG_NAME} {__version__}")
+        print(f"  python  {info['python']}")
+        print(f"  schemas {', '.join(info['schemas'])}")
+    return 0
+
+
+def cmd_completion(args: argparse.Namespace) -> int:
+    print(render_completion(args.shell, PROG_NAME, _subcommand_names()), end="")
+    return 0
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    memory = load_agent_memory(config.agent_memory_path)
+    report = build_stats_report(memory, project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_stats_report(report), end="")
     return 0
 
 
@@ -839,6 +957,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 def cmd_tasks(args: argparse.Namespace) -> int:
+    if getattr(args, "watch", False):
+        return _run_watch(args, _run_tasks_once)
+    return _run_tasks_once(args)
+
+
+def _run_tasks_once(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -908,6 +1032,12 @@ def cmd_tasks(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
+    if getattr(args, "watch", False):
+        return _run_watch(args, _run_report_once)
+    return _run_report_once(args)
+
+
+def _run_report_once(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -951,6 +1081,12 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
+    if getattr(args, "watch", False):
+        return _run_watch(args, _run_status_once)
+    return _run_status_once(args)
+
+
+def _run_status_once(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -1403,8 +1539,18 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(output)
     else:
         for check in report.checks:
-            print(f"[{check.status}] {check.name}: {check.message}")
+            print(f"[{_paint_doctor_status(check.status)}] {check.name}: {check.message}")
     return 7 if args.strict and report.has_errors else 0
+
+
+def _paint_doctor_status(status: str) -> str:
+    if status == "error":
+        return console.error(status)
+    if status == "warning":
+        return console.warning(status)
+    if status == "ok":
+        return console.success(status)
+    return status
 
 
 def cmd_schema(args: argparse.Namespace) -> int:
@@ -1524,6 +1670,19 @@ def _build_parser() -> argparse.ArgumentParser:
 Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_const",
+        const="never",
+        dest="color",
+        help="disable coloured output (alias for --color never)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
@@ -1600,13 +1759,36 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
-    p_lint.add_argument("--json", action="store_true", help="emit findings as JSON")
+    p_lint.add_argument("--json", action="store_true", help="emit findings as JSON (alias for --format json)")
+    p_lint.add_argument(
+        "--format",
+        choices=("text", "json", "sarif"),
+        default=None,
+        help="output format: text (default), json, or sarif (SARIF 2.1.0 for code scanning)",
+    )
     p_lint.add_argument(
         "--strict",
         action="store_true",
         help="exit non-zero (2) when any error-severity finding is present",
     )
     p_lint.set_defaults(func=cmd_lint)
+
+    p_stats = sub.add_parser(
+        "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"
+    )
+    p_stats.add_argument("project_dir", nargs="?", default=".")
+    p_stats.add_argument("--json", action="store_true", help="emit stats as JSON")
+    p_stats.set_defaults(func=cmd_stats)
+
+    p_version = sub.add_parser("version", help="print version, Python, and schema information")
+    p_version.add_argument("--json", action="store_true", help="emit version info as JSON")
+    p_version.set_defaults(func=cmd_version)
+
+    p_completion = sub.add_parser(
+        "completion", help="print a shell completion script (bash, zsh, or fish)"
+    )
+    p_completion.add_argument("shell", choices=SUPPORTED_SHELLS)
+    p_completion.set_defaults(func=cmd_completion)
 
     p_diff = sub.add_parser("diff", help="compare the current blueprint against a saved project.json")
     p_diff.add_argument("baseline", help="path to a baseline project.json")
@@ -1731,6 +1913,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="GitHub username to assign to generated issue drafts; repeat to add multiple assignees",
     )
     _add_ready_task_filter_arguments(p_tasks)
+    _add_watch_arguments(p_tasks, action="task generation")
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_next = sub.add_parser("next", help="print the next ready task prompt")
@@ -1784,6 +1967,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
     _add_fail_on_argument(p_report)
+    _add_watch_arguments(p_report, action="report")
     p_report.set_defaults(func=cmd_report)
 
     p_status = sub.add_parser("status", help="print a concise project health summary")
@@ -1798,6 +1982,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     _add_ready_task_filter_arguments(p_status)
     _add_fail_on_argument(p_status)
+    _add_watch_arguments(p_status, action="status summary")
     p_status.set_defaults(func=cmd_status)
 
     p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")
@@ -1949,6 +2134,25 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_new.set_defaults(func=cmd_new)
 
+    # Accept `--color`/`--no-color` after the subcommand too (e.g. `lint --color
+    # never`). SUPPRESS defaults mean an omitted sub-command flag never clobbers
+    # the value parsed from the top-level parser.
+    for subparser in sub.choices.values():
+        subparser.add_argument(
+            "--color",
+            choices=("auto", "always", "never"),
+            default=argparse.SUPPRESS,
+            help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
+        )
+        subparser.add_argument(
+            "--no-color",
+            action="store_const",
+            const="never",
+            dest="color",
+            default=argparse.SUPPRESS,
+            help="disable coloured output (alias for --color never)",
+        )
+
     return parser
 
 
@@ -2049,6 +2253,7 @@ def _snapshot(paths: list[Path]) -> dict[str, int | None]:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    console.configure(getattr(args, "color", "auto"), stream=sys.stdout)
     try:
         return args.func(args)
     except BlueprintError as exc:

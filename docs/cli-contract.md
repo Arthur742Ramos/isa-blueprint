@@ -29,6 +29,15 @@ Most subcommands accept an optional positional `project_dir` (default: current
 working directory). When supplied it must point at a directory containing a
 valid `isabelle-blueprint.toml`.
 
+### Global options
+
+`--color {auto,always,never}` (with `--no-color` as an alias for `never`)
+controls ANSI colour in the human-readable `lint`, `status`, and `doctor`
+renders. It is accepted both before and after the subcommand. The default
+`auto` enables colour only when stdout is a TTY and the `NO_COLOR` environment
+variable is unset, so machine-readable (`--json`) output and captured text are
+never colourised.
+
 ---
 
 ## Exit codes
@@ -114,7 +123,8 @@ renders `build/graph.svg` if Graphviz `dot` is on `PATH`.
 ### `lint`
 
 ```text
-isabelle-blueprint lint [project_dir] [--json] [--strict]
+isabelle-blueprint lint [project_dir] [--json] [--format text|json|sarif]
+                        [--strict]
 ```
 
 Runs structural and quality checks over the blueprint and prints findings with
@@ -123,7 +133,10 @@ a severity (`error`/`warning`/`info`). Codes include `duplicate-id`,
 `empty-statement`, `missing-informal-proof`, `no-isabelle-fact`, and
 `isolated-node`.
 
-- `--json` emits the machine-readable report.
+- `--format` selects the output: `text` (default), `json`, or `sarif` (a
+  SARIF 2.1.0 document suitable for GitHub code scanning).
+- `--json` is a backwards-compatible alias for `--format json`. Combining
+  `--json` with a conflicting `--format` value is an error (exit 1).
 - `--strict` exits 2 if any error-severity finding is present.
 
 ### `diff`
@@ -260,6 +273,7 @@ isabelle-blueprint tasks [project_dir]
                          [--memory-state fresh|attempted|stale]
                          [--last-outcome OUTCOME]
                          [--exclude-node NODE_OR_TASK]
+                         [--watch] [--interval SECONDS]
 ```
 
 Emits agent-ready task artefacts under `build/`: `tasks.json`, `tasks.md`,
@@ -289,6 +303,10 @@ The ready-task filters mirror `next` and `attempt`: repeat `--kind`,
 synchronised with the full ready-task set so filtered runs do not delete
 still-ready prompts. `--github-sync` remains a full reconciliation of all ready
 tasks; filters only affect `tasks.json`, `tasks.md`, and issue drafts.
+
+`--watch` re-emits the task artefacts whenever the configuration or blueprint
+sources change, polling every `--interval` seconds (default `1.0`). Stop with
+Ctrl-C.
 
 ### `next`
 
@@ -387,6 +405,7 @@ are `null` and the command exits 0. If filters exclude existing ready tasks,
 
 ```text
 isabelle-blueprint report [project_dir] [--fail-on STATUS ...]
+                          [--watch] [--interval SECONDS]
 ```
 
 Writes the machine-readable status payload:
@@ -420,6 +439,11 @@ statuses after the report is written. Repeat the flag to select multiple
 statuses (the `problem` alias expands to all
 problem statuses). Report artifacts are still emitted before the gate fires.
 
+`--watch` re-runs the report whenever the configuration or blueprint sources
+change (generated outputs under `build/` are ignored to avoid self-triggering),
+polling every `--interval` seconds (default `1.0`). Stop with Ctrl-C. A
+`--fail-on` gate is evaluated on each pass but does not stop the watch loop.
+
 ### `status`
 
 ```text
@@ -431,6 +455,7 @@ isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
                           [--last-outcome OUTCOME]
                           [--exclude-node NODE_OR_TASK]
                           [--fail-on STATUS ...]
+                          [--watch] [--interval SECONDS]
 ```
 
 Prints a read-only project health overview without writing report artifacts.
@@ -458,6 +483,10 @@ tasks emit a short note to stderr listing how many ready tasks were excluded.
 statuses. Repeat the flag to select multiple statuses (the `problem` alias
 expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
+
+`--watch` re-renders the overview whenever the configuration or blueprint
+sources change, polling every `--interval` seconds (default `1.0`). Stop with
+Ctrl-C.
 
 ### `roadmap`
 
@@ -656,6 +685,42 @@ writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
 `plugin-annotations`, and `agent-memory`.
 
+### `stats`
+
+```text
+isabelle-blueprint stats [project_dir] [--json]
+```
+
+Aggregates agent-memory analytics from
+`.isabelle-blueprint/agent-memory.json`: total recorded attempts broken down by
+outcome (`succeeded`, `failed`, `blocked`, `needs_human`, `note`), a success
+rate per node kind, and a per-node summary of attempt counts and the latest
+outcome. The text form is a compact report; `--json` emits the same data in a
+lightweight shape. This analytics payload is **not** part of the frozen JSON
+contract and may evolve.
+
+### `version`
+
+```text
+isabelle-blueprint version [--json]
+```
+
+Prints the package version. `--json` emits a machine-readable object with the
+package `version`, the running `python` version, and the list of available
+schema `schemas`. (The top-level `--version` flag remains available and prints
+`isabelle-blueprint <version>`.)
+
+### `completion`
+
+```text
+isabelle-blueprint completion {bash,zsh,fish}
+```
+
+Emits a shell completion script for the named shell to stdout. The script
+completes the subcommand names and otherwise falls back to file completion. It
+has no runtime dependencies; redirect it into your shell's completion directory
+or source it from your shell profile.
+
 ### `new`
 
 ```text
@@ -685,7 +750,8 @@ For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
    `serve`, `tasks`, `next`, `attempt`, `report`, `status`, `roadmap`,
-   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `schema`, `new`)
+   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `schema`, `new`,
+   `stats`, `version`, `completion`)
    will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or
    removed; their default values will not change.

@@ -52,6 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `filtered_ready_task_count` fields (mirroring the `tasks --json` shape),
   and surfaced the active filter flags in the `agent-context` recommended
   command argv for `refresh_context`, `write_context`, and `next_task_prompt`.
+- Added a global `--color {auto,always,never}` flag (and `--no-color` alias,
+  honouring the `NO_COLOR` environment variable) that colourises the `lint`,
+  `status`, and `doctor` renders. Defaults to `auto`, which stays off when the
+  output is not a TTY so machine-readable output and captured text are unchanged.
+- Added `lint --format {text,json,sarif}` with a SARIF 2.1.0 renderer so lint
+  findings can be uploaded to GitHub code scanning and other SARIF consumers.
+  `--json` remains a backwards-compatible alias for `--format json`.
+- Added a `stats` command that aggregates agent-memory analytics (attempts by
+  outcome, success rate per node kind, and a per-node breakdown). Supports
+  `--json`; the JSON shape is lightweight and explicitly non-contract.
+- Added a `version` command with `--json` that reports the package version, the
+  running Python version, and the list of available schema names.
+- Added a `completion` command that emits `bash`, `zsh`, and `fish` shell
+  completion scripts for the subcommand names (no extra dependencies).
+- Added `--watch` (with `--interval`) to `report`, `status`, and `tasks`,
+  re-running the command whenever the blueprint sources change, mirroring the
+  existing `check --watch`.
 
 ### Changed
 
