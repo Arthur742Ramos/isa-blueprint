@@ -48,6 +48,8 @@ class StatusOverview:
     ready_task_count: int
     next_task: NextTaskOverview | None
     top_ready_tasks: tuple[NextTaskOverview, ...] | None = None
+    filters: dict[str, list[str]] | None = None
+    filtered_ready_task_count: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -59,6 +61,10 @@ class StatusOverview:
         }
         if self.top_ready_tasks is not None:
             payload["top_ready_tasks"] = [task.to_dict() for task in self.top_ready_tasks]
+        if self.filters is not None:
+            payload["filters"] = {key: list(values) for key, values in self.filters.items()}
+        if self.filtered_ready_task_count is not None:
+            payload["filtered_ready_task_count"] = self.filtered_ready_task_count
         return payload
 
 
@@ -67,16 +73,30 @@ def build_status_overview(
     ready_tasks: Sequence[AgentTask],
     *,
     top_task_count: int | None = None,
+    selected_ready_tasks: Sequence[AgentTask] | None = None,
+    filters: dict[str, list[str]] | None = None,
 ) -> StatusOverview:
-    """Build the read-only summary used by ``isabelle-blueprint status``."""
+    """Build the read-only summary used by ``isabelle-blueprint status``.
+
+    ``ready_tasks`` is the canonical (unfiltered) ready set used for health
+    classification and ``ready_task_count``. When filter flags narrow the
+    view, callers pass the filtered ordering as ``selected_ready_tasks`` so
+    ``next_task`` and ``top_ready_tasks`` reflect that subset while project
+    health remains tied to the full set.
+    """
 
     metrics = build_status_metrics(project)
-    next_task = NextTaskOverview.from_task(ready_tasks[0]) if ready_tasks else None
+    selected = list(selected_ready_tasks) if selected_ready_tasks is not None else list(ready_tasks)
+    next_task = NextTaskOverview.from_task(selected[0]) if selected else None
     top_ready_tasks = (
-        tuple(NextTaskOverview.from_task(task) for task in ready_tasks[:top_task_count])
+        tuple(NextTaskOverview.from_task(task) for task in selected[:top_task_count])
         if top_task_count is not None
         else None
     )
+    filters_payload = (
+        {key: list(values) for key, values in filters.items()} if filters is not None else None
+    )
+    filtered_count = len(selected) if filters_payload is not None else None
     return StatusOverview(
         project=project.name,
         health=_health(metrics, ready_tasks),
@@ -84,6 +104,8 @@ def build_status_overview(
         ready_task_count=len(ready_tasks),
         next_task=next_task,
         top_ready_tasks=top_ready_tasks,
+        filters=filters_payload,
+        filtered_ready_task_count=filtered_count,
     )
 
 
@@ -91,6 +113,11 @@ def render_status_overview(overview: StatusOverview) -> str:
     """Render a compact terminal summary."""
 
     metrics = overview.metrics
+    filters_active = overview.filters is not None
+    ready_line = f"Ready tasks: {overview.ready_task_count}"
+    if filters_active:
+        filtered = overview.filtered_ready_task_count or 0
+        ready_line = f"Ready tasks: {overview.ready_task_count} total, {filtered} match filters"
     lines = [
         f"{overview.project}: {overview.health}",
         f"Coverage: {_coverage_text(metrics)}",
@@ -102,22 +129,54 @@ def render_status_overview(overview: StatusOverview) -> str:
             f"{metrics.stale_count} stale, "
             f"cycles {_yes_no(metrics.has_cycles)}"
         ),
-        f"Ready tasks: {overview.ready_task_count}",
     ]
+    if filters_active:
+        formatted = _format_filters_dict(overview.filters or {})
+        if formatted:
+            lines.append(f"Filters: {formatted}")
+    lines.append(ready_line)
+    next_label = "Next task matching filters" if filters_active else "Next task"
     if overview.next_task is None:
-        lines.append("Next task: none")
+        if filters_active and overview.ready_task_count:
+            lines.append(
+                f"{next_label}: none ({overview.ready_task_count} ready task(s) excluded by filters)"
+            )
+        else:
+            lines.append(f"{next_label}: none")
     else:
-        lines.append("Next task: " + _next_task_text(overview.next_task))
+        lines.append(f"{next_label}: " + _next_task_text(overview.next_task))
     if overview.top_ready_tasks is not None:
+        top_label = "Top ready tasks matching filters" if filters_active else "Top ready tasks"
         if overview.top_ready_tasks:
-            lines.append("Top ready tasks:")
+            lines.append(f"{top_label}:")
             lines.extend(
                 f"  {index}. {_next_task_text(task)}"
                 for index, task in enumerate(overview.top_ready_tasks, start=1)
             )
         else:
-            lines.append("Top ready tasks: none")
+            lines.append(f"{top_label}: none")
     return "\n".join(lines) + "\n"
+
+
+_FILTER_LABELS: tuple[tuple[str, str], ...] = (
+    ("kind", "kind"),
+    ("priority", "priority"),
+    ("difficulty", "difficulty"),
+    ("memory_state", "memory-state"),
+    ("last_outcome", "last-outcome"),
+    ("exclude_node", "exclude-node"),
+)
+
+
+def _format_filters_dict(filters: dict[str, list[str]]) -> str:
+    """Render a filter dict (kind/priority/...) into a compact human-readable string."""
+
+    parts: list[str] = []
+    for key, label in _FILTER_LABELS:
+        values = filters.get(key) or []
+        if values:
+            parts.append(f"{label}={','.join(values)}")
+    return "; ".join(parts)
 
 
 def _health(metrics: StatusMetrics, ready_tasks: Sequence[AgentTask]) -> str:

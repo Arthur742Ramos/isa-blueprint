@@ -387,6 +387,7 @@ artifacts:
 isabelle-blueprint status .
 isabelle-blueprint status . --json
 isabelle-blueprint status . --top-tasks 3
+isabelle-blueprint status . --top-tasks 5 --kind theorem --priority high
 isabelle-blueprint next .
 isabelle-blueprint next . --kind theorem --priority high
 isabelle-blueprint next . --memory-state fresh
@@ -400,13 +401,18 @@ isabelle-blueprint attempt . --record-outcome failed --summary "simp loops"
 
 It reports coverage, problem/stale counts, cycle status, ready-task count, and
 the next suggested proof task. Add `--top-tasks N` when you want a compact queue
-of the first ready tasks without generating prompt files. Use `next` when you
-want the selected ready-task prompt directly on stdout without first generating
-`build/prompts/`. Add repeatable `--kind`, `--priority`, `--difficulty`,
-`--memory-state`, or `--last-outcome` filters to focus the automatic selection
-without changing the canonical task queue. Use `attempt` when you want that
-handoff written to `build/attempts/`, optionally followed by a `check` run and a
-memory note. Use `roadmap` when you want the staged plan:
+of the first ready tasks without generating prompt files. The same repeatable
+`--kind`, `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, and
+`--exclude-node` filters supported by `next`/`attempt`/`tasks` also apply to
+`status`; project health, metrics, and `ready_task_count` continue to describe
+the full project, while `next_task` and `top_ready_tasks` narrow to the
+filtered selection. Use `next` when you want the selected ready-task prompt
+directly on stdout without first generating `build/prompts/`. Add repeatable
+`--kind`, `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
+`--exclude-node` filters to focus the automatic selection without changing the
+canonical task queue. Use `attempt` when you want that handoff written to `build/attempts/`,
+optionally followed by a `check` run and a memory note. Use `roadmap` when you
+want the staged plan:
 
 ```bash
 isabelle-blueprint roadmap .
@@ -430,13 +436,22 @@ payload:
 isabelle-blueprint agent-context . --json
 isabelle-blueprint agent-context . --write
 isabelle-blueprint agent-context . --write --max-tasks 10
+isabelle-blueprint agent-context . --json --kind theorem --priority high
 ```
 
 It combines the status health, roadmap suggestion, warning codes, conventional
 artifact paths, recommended follow-up commands, and bounded ready-task summaries
 with prompt paths. With `--write`, it also refreshes `project.json`,
 `tasks.json`, `tasks.md`, `build/prompts/`, `roadmap.json`, `roadmap.md`,
-`agent-context.json`, and `agent-context.md`.
+`agent-context.json`, and `agent-context.md`. The same repeatable `--kind`,
+`--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, and
+`--exclude-node` filters supported by `next`/`attempt`/`tasks`/`status` also
+apply here: only the embedded `ready_tasks` list narrows to the matching
+selection, while `ready_task_count`, `suggested_next_task`, `suggested_path`,
+warnings, and `--write` artifacts stay canonical so the handoff remains a
+faithful snapshot. Active filter flags are propagated into the recommended
+`refresh_context`, `write_context`, and `next_task_prompt` command argv so
+agents can replay the same focused view.
 Use `memory` to preserve what a human or agent
 already tried:
 

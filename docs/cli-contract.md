@@ -328,6 +328,12 @@ When `$GITHUB_OUTPUT` is set, the stable scalar keys
 
 ```text
 isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
+                          [--kind KIND]
+                          [--priority high|medium|low]
+                          [--difficulty low|medium|high]
+                          [--memory-state fresh|attempted|stale]
+                          [--last-outcome OUTCOME]
+                          [--exclude-node NODE_OR_TASK]
 ```
 
 Prints a read-only project health overview without writing report artifacts.
@@ -340,6 +346,16 @@ available. `--json` emits the same payload documented by the packaged
 ordering used by `tasks`, `next`, `roadmap`, and `agent-context`. In JSON mode
 this adds `top_ready_tasks`; when present, `top_ready_tasks[0]` is the same task
 summary as `next_task`.
+
+The ready-task filters mirror `next`, `attempt`, and `tasks`: repeat `--kind`,
+`--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
+`--exclude-node` to narrow `next_task` and `top_ready_tasks`. Project health,
+metrics, and `ready_task_count` always describe the full project so a focused
+query never changes the reported health classification. When filters are
+active, JSON payloads add a `filters` object recording the requested view and a
+`filtered_ready_task_count` integer; the text form prints a `Filters:` line
+and annotates `Ready tasks: X total, Y match filters`. Filters matching zero
+tasks emit a short note to stderr listing how many ready tasks were excluded.
 
 ### `roadmap`
 
@@ -393,6 +409,12 @@ isabelle-blueprint agent-context [project_dir]
                                   [--json]
                                   [--write]
                                   [--max-tasks N]
+                                  [--kind KIND]
+                                  [--priority high|medium|low]
+                                  [--difficulty low|medium|high]
+                                  [--memory-state fresh|attempted|stale]
+                                  [--last-outcome OUTCOME]
+                                  [--exclude-node NODE_OR_TASK]
 ```
 
 Builds an AI-agent handoff bundle that projects existing status, roadmap, task,
@@ -410,6 +432,22 @@ default and prints a Markdown brief to stdout.
   context payload (default 5). `ready_task_count` always reports the full number
   of ready tasks, and `ready_tasks_truncated` tells consumers whether to read
   `build/tasks.json` for the complete queue.
+
+The ready-task filters mirror `next`, `attempt`, `tasks`, and `status`: repeat
+`--kind`, `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
+`--exclude-node` to narrow the embedded `ready_tasks` list (and its Markdown
+rendering). `ready_task_count`, `suggested_next_task`, `suggested_path`,
+`warnings`, and `artifacts` continue to describe the full project so the bundle
+remains a faithful snapshot. When filters are active, JSON payloads add a
+`filters` object and a `filtered_ready_task_count` integer, the Markdown brief
+prints `Filters:` and `Filtered ready tasks:` lines, the embedded section is
+titled `Ready tasks matching filters`, and the active filter flags are appended
+to the `refresh_context`, `write_context`, and `next_task_prompt` command argv
+so repeating the recommended commands preserves the same view. `prepare_attempt`
+and `record_attempt` deliberately omit the filter flags because they target a
+specific suggested node. `--write` always writes canonical (unfiltered)
+`build/tasks.json`, `build/tasks.md`, `build/prompts/`, and `build/roadmap.*`;
+only `build/agent-context.{json,md}` reflects the active filter view.
 
 All artifact paths embedded in the payload are project-root-relative POSIX-style
 strings when the artifact lives under the project root. Existing `status`,

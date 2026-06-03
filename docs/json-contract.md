@@ -409,8 +409,10 @@ A read-only project health overview printed to stdout by
 | `health` | string | One of `complete`, `ready`, `blocked`, `problem`, `stale`, or `unstarted`. |
 | `metrics` | object | Same scalar status metrics used by badges and GitHub Actions outputs. `coverage_percent` is `null` when no formal targets exist. |
 | `ready_task_count` | integer | Number of currently actionable proof tasks. |
-| `next_task` | object or null | Summary of the first suggested task, or `null` when no task is ready. |
-| `top_ready_tasks` | array, optional | Present only when `status --top-tasks N --json` is used. Contains the first `N` ready-task summaries in stable task order; when non-empty, `top_ready_tasks[0]` is the same summary as `next_task`. |
+| `next_task` | object or null | Summary of the first suggested task, or `null` when no task is ready. When filters are active, this reflects the filtered ordering. |
+| `top_ready_tasks` | array, optional | Present only when `status --top-tasks N --json` is used. Contains the first `N` ready-task summaries in stable task order; when non-empty, `top_ready_tasks[0]` is the same summary as `next_task`. With filters active, the list reflects the filtered selection. |
+| `filters` | object, optional | Present only when ready-task filters are supplied. Contains the selected `kind`, `priority`, `difficulty`, `memory_state`, `last_outcome`, and `exclude_node` arrays, matching the shape used by `tasks --json`. Added in v1.7.2. |
+| `filtered_ready_task_count` | integer, optional | Present only when ready-task filters are supplied. Number of ready tasks that match the active filters; `ready_task_count` continues to report the full project total so health classification is unchanged. Added in v1.7.2. |
 
 ---
 
@@ -610,7 +612,20 @@ Top-level keys:
 | `warnings` | array | Machine-branchable warnings with `code`, `message`, `severity`, and `related_nodes`. Codes include `cycles_detected`, `problem_nodes`, `stale_nodes`, `missing_dependencies`, `stale_memory`, and `no_ready_tasks`. |
 | `artifacts` | object | Conventional artifact paths. Paths are project-root-relative POSIX strings when under the project root; unusual external output directories may be absolute platform paths. |
 | `commands` | array | Advisory follow-up commands. Each entry has an `intent`, human description, `argv` array, and `writes` flag. |
-| `ready_tasks` | array | Bounded summaries of the first ready tasks plus their prompt paths and latest memory summary. |
+| `ready_tasks` | array | Bounded summaries of the first ready tasks plus their prompt paths and latest memory summary. When filters are active, this contains only tasks matching those filters (still capped by `--max-tasks`). |
+| `filters` | object, optional | Present only when ready-task filters are supplied. Contains the selected `kind`, `priority`, `difficulty`, `memory_state`, `last_outcome`, and `exclude_node` arrays, matching the shape used by `tasks --json` and `status --json`. Added in v1.7.2. |
+| `filtered_ready_task_count` | integer, optional | Present only when ready-task filters are supplied. Number of ready tasks matching the active filters; `ready_task_count`, `suggested_next_task`, and `suggested_path` always describe the full project so the bundle remains a faithful snapshot. Added in v1.7.2. |
+
+When filters are active, the active filter flags are appended to the `argv`
+arrays of the `refresh_context`, `write_context`, and `next_task_prompt`
+command entries so re-running the recommended commands reproduces the same
+filtered view. `prepare_attempt` and `record_attempt` deliberately omit the
+filter flags because they target a specific suggested node. The `artifacts` map
+still points at canonical files: `agent-context --write` always refreshes
+`build/tasks.json`, `build/tasks.md`, `build/prompts/`, and `build/roadmap.*`
+with the unfiltered project so downstream consumers can keep treating those
+artifacts as canonical; only `build/agent-context.{json,md}` reflects the
+filtered view.
 
 `agent-context` reuses existing status, roadmap, and task builders. Consumers that
 need full prompt bodies, dependencies, or acceptance criteria should follow

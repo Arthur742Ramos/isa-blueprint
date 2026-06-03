@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added ready-task filters to `isabelle-blueprint tasks`, matching `next` and
   `attempt` for kind, priority, difficulty, memory state, latest outcome, and
   explicit exclusions.
+- Added ready-task filters to `isabelle-blueprint status` and
+  `isabelle-blueprint agent-context` so `--top-tasks` / `--max-tasks`,
+  `next_task`, and the embedded agent-context `ready_tasks` list can be narrowed
+  by `--kind`, `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`,
+  and `--exclude-node`. Project health, metrics, `ready_task_count`,
+  `suggested_next_task`, `suggested_path`, and `--write` artifacts continue to
+  describe the full project so handoffs remain canonical.
+- Extended `status` and `agent-context` JSON payloads with optional `filters`
+  and `filtered_ready_task_count` fields (mirroring the `tasks --json` shape),
+  and surfaced the active filter flags in the `agent-context` recommended
+  command argv for `refresh_context`, `write_context`, and `next_task_prompt`.
 
 ### Changed
 
