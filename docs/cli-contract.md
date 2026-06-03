@@ -571,6 +571,40 @@ All ordering is deterministic: dependency and dependent iteration is sorted by
 id, goals are ordered by descending depth then id, and bottlenecks by descending
 leverage then id.
 
+### `impact`
+
+```text
+isabelle-blueprint impact [project_dir]
+                          [--node NODE]
+                          [--json]
+                          [--top N]
+```
+
+Prints the *downstream* blast radius of the blueprint without modifying the
+project. It is the dependent-facing complement to `critical-path`: where
+`critical-path` walks upstream over remaining work, `impact` walks downstream
+over *all* dependents regardless of formal status.
+
+- With `--node NODE` it reports a single node's blast radius: its
+  `direct_dependents`, the transitive `blast_radius` (each affected node with its
+  shortest dependency `distance` from the target), the `affected_goals`
+  (terminal targets that rest on the node), and `complete_affected` (currently
+  trusted `found`/`proved` dependents that would go stale if the node changed).
+  An unknown node id is a fatal error (exit 1).
+- Without `--node` it ranks every node by `blast_radius_count` (descending, ties
+  broken by id), surfacing the highest-leverage foundations.
+- `--top N` limits how many rows the text/JSON output shows (default 10; must be
+  a positive integer).
+- `--json` emits a schema-versioned payload. The single-node shape has
+  `node_id`, `title`, `formal_status`, `in_cycle`, `direct_dependent_count`,
+  `blast_radius_count`, `direct_dependents`, `blast_radius`, `affected_goals`,
+  and `complete_affected`. The ranking shape has `schema_version`, `project`,
+  `node_count`, `rankings`, and `cycles`.
+
+Distances are shortest-hop (BFS) and traversal is cycle-safe. All ordering is
+deterministic: blast-radius entries by ascending distance then id, dependent and
+goal lists by id, and rankings by descending blast radius then id.
+
 ### `agent-context`
 
 ```text

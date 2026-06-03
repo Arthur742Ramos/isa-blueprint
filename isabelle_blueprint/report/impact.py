@@ -1,0 +1,371 @@
+"""Downstream *blast-radius* analysis: "what rests on this node?".
+
+``impact`` is the downstream complement to ``critical-path``:
+
+* ``critical-path`` walks *upstream* over dependencies to find the longest
+  remaining incomplete chain and ranks bottleneck nodes by how many *incomplete*
+  nodes depend on them (leverage). It only ever counts remaining work.
+* ``impact`` walks *downstream* over dependents to measure the **blast radius**
+  of a node - every node that would be affected (directly or transitively) if
+  this node changed or broke. It counts *all* dependents regardless of status.
+
+The distinction matters. A foundational lemma that is already ``proved`` has a
+``critical-path`` leverage of ``0`` (nothing *incomplete* depends on it) yet an
+enormous blast radius (much of the project rests on it). ``impact`` surfaces that
+risk so you can see which trusted facts a change would invalidate.
+
+Definitions used throughout this module:
+
+* The **blast radius** of a node is the set of nodes that transitively depend on
+  it (its downstream cone). Each affected node carries the **distance** - the
+  shortest number of dependency hops from the target out to that node.
+* An **affected goal** is a node in the blast radius that itself has no
+  dependents: a terminal project target that ultimately rests on the node.
+* A **complete affected** node is one in the blast radius whose formal status is
+  ``found`` or ``proved`` - a currently-trusted fact that would go stale if the
+  target node broke or changed.
+
+Nodes participating in a dependency cycle are still traversed (so the blast
+radius stays honest), but the cycle membership of the *target* is reported via
+``in_cycle`` because its own ordering relative to the cycle is ambiguous.
+"""
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+
+from isabelle_blueprint.graph.dependency_graph import build_graph
+from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
+
+IMPACT_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class AffectedNode:
+    """A single node inside a target's blast radius."""
+
+    node_id: str
+    title: str
+    formal_status: str
+    distance: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "node_id": self.node_id,
+            "title": self.title,
+            "formal_status": self.formal_status,
+            "distance": self.distance,
+        }
+
+
+@dataclass(frozen=True)
+class ImpactReport:
+    """The downstream blast radius for a single target node."""
+
+    node_id: str
+    title: str
+    formal_status: str
+    in_cycle: bool
+    direct_dependents: list[str]
+    blast_radius: list[AffectedNode]
+    affected_goals: list[str]
+    complete_affected: list[str]
+
+    @property
+    def blast_radius_count(self) -> int:
+        return len(self.blast_radius)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "node_id": self.node_id,
+            "title": self.title,
+            "formal_status": self.formal_status,
+            "in_cycle": self.in_cycle,
+            "direct_dependent_count": len(self.direct_dependents),
+            "blast_radius_count": self.blast_radius_count,
+            "direct_dependents": list(self.direct_dependents),
+            "blast_radius": [item.to_dict() for item in self.blast_radius],
+            "affected_goals": list(self.affected_goals),
+            "complete_affected": list(self.complete_affected),
+        }
+
+
+@dataclass(frozen=True)
+class ImpactRank:
+    """A node ranked by the size of its downstream blast radius."""
+
+    node_id: str
+    title: str
+    formal_status: str
+    blast_radius_count: int
+    direct_dependent_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "node_id": self.node_id,
+            "title": self.title,
+            "formal_status": self.formal_status,
+            "blast_radius_count": self.blast_radius_count,
+            "direct_dependent_count": self.direct_dependent_count,
+        }
+
+
+@dataclass(frozen=True)
+class ImpactOverview:
+    """Project-wide ranking of nodes by blast radius."""
+
+    project: str
+    node_count: int
+    rankings: list[ImpactRank]
+    cycles: list[list[str]] = field(default_factory=list)
+    schema_version: int = IMPACT_SCHEMA_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "project": self.project,
+            "node_count": self.node_count,
+            "rankings": [rank.to_dict() for rank in self.rankings],
+            "cycles": [list(cycle) for cycle in self.cycles],
+        }
+
+
+class UnknownNodeError(KeyError):
+    """Raised when an ``impact`` target id is not present in the project."""
+
+
+def _build_context(project: BlueprintProject):
+    by_id = project.by_id()
+    graph = build_graph(project)
+    cycle_nodes = {
+        node_id for cycle in project.validate().cycles for node_id in cycle
+    }
+    return by_id, graph, cycle_nodes
+
+
+def _blast_radius(graph, start: str) -> dict[str, int]:
+    """BFS shortest-hop distances over reverse edges (dependents).
+
+    Returns a mapping of ``dependent_id -> distance`` excluding ``start``. The
+    visited guard keeps the traversal finite even when ``start`` sits in a
+    dependency cycle.
+    """
+
+    distances: dict[str, int] = {}
+    queue: deque[tuple[str, int]] = deque((dep, 1) for dep in graph.reverse_edges.get(start, []))
+    while queue:
+        node_id, dist = queue.popleft()
+        if node_id == start:
+            continue
+        existing = distances.get(node_id)
+        if existing is not None and existing <= dist:
+            continue
+        distances[node_id] = dist
+        for child in graph.reverse_edges.get(node_id, []):
+            queue.append((child, dist + 1))
+    return distances
+
+
+def build_impact_report(project: BlueprintProject, node_id: str) -> ImpactReport:
+    """Compute the downstream blast radius for a single ``node_id``.
+
+    Raises :class:`UnknownNodeError` when ``node_id`` is not a known node.
+    """
+
+    by_id, graph, cycle_nodes = _build_context(project)
+    target = by_id.get(node_id)
+    if target is None:
+        raise UnknownNodeError(node_id)
+
+    distances = _blast_radius(graph, node_id)
+
+    affected = [
+        AffectedNode(
+            node_id=dep_id,
+            title=by_id[dep_id].title if dep_id in by_id else "",
+            formal_status=(
+                by_id[dep_id].status.formal.value if dep_id in by_id else "missing"
+            ),
+            distance=distance,
+        )
+        for dep_id, distance in distances.items()
+    ]
+    affected.sort(key=lambda item: (item.distance, item.node_id))
+
+    direct_dependents = sorted(
+        dep for dep in graph.reverse_edges.get(node_id, []) if dep != node_id
+    )
+
+    affected_goals = sorted(
+        dep_id
+        for dep_id in distances
+        if not [child for child in graph.reverse_edges.get(dep_id, []) if child != dep_id]
+    )
+
+    complete_affected = sorted(
+        dep_id
+        for dep_id in distances
+        if dep_id in by_id and by_id[dep_id].status.formal in COMPLETE_FORMAL_STATUSES
+    )
+
+    return ImpactReport(
+        node_id=node_id,
+        title=target.title,
+        formal_status=target.status.formal.value,
+        in_cycle=node_id in cycle_nodes,
+        direct_dependents=direct_dependents,
+        blast_radius=affected,
+        affected_goals=affected_goals,
+        complete_affected=complete_affected,
+    )
+
+
+def build_impact_overview(project: BlueprintProject) -> ImpactOverview:
+    """Rank every node by the size of its downstream blast radius."""
+
+    graph = build_graph(project)
+    cycles = project.validate().cycles
+    rankings = [
+        ImpactRank(
+            node_id=node.id,
+            title=node.title,
+            formal_status=node.status.formal.value,
+            blast_radius_count=len(_blast_radius(graph, node.id)),
+            direct_dependent_count=len(
+                [dep for dep in graph.reverse_edges.get(node.id, []) if dep != node.id]
+            ),
+        )
+        for node in project.nodes
+    ]
+    rankings.sort(key=lambda rank: (-rank.blast_radius_count, rank.node_id))
+
+    return ImpactOverview(
+        project=project.name,
+        node_count=len(project.nodes),
+        rankings=rankings,
+        cycles=[list(cycle) for cycle in cycles],
+    )
+
+
+def impact_report_payload(report: ImpactReport) -> dict[str, object]:
+    """Return the JSON payload for a single-node impact report."""
+
+    return report.to_dict()
+
+
+def impact_overview_payload(
+    overview: ImpactOverview, *, top: int | None = None
+) -> dict[str, object]:
+    """Return the JSON payload, optionally limiting the ranking list."""
+
+    payload = overview.to_dict()
+    if top is not None:
+        payload["rankings"] = payload["rankings"][:top]  # type: ignore[index]
+    return payload
+
+
+def render_impact_report(report: ImpactReport, *, top: int = 10) -> str:
+    """Render a single-node blast-radius report as compact Markdown."""
+
+    from isabelle_blueprint import console
+
+    lines = [f"# {report.title or report.node_id} impact", ""]
+    lines.append(
+        f"Target `{report.node_id}` - {report.title} (formal `{report.formal_status}`)"
+    )
+    if report.in_cycle:
+        lines.append(
+            console.warning("Note: this node participates in a dependency cycle.")
+        )
+    lines.append(
+        f"Blast radius: {report.blast_radius_count} node(s) depend on it "
+        f"({len(report.direct_dependents)} directly)."
+    )
+    lines.append("")
+
+    if report.blast_radius_count == 0:
+        lines.append(
+            console.success("Nothing depends on this node - changes are self-contained.")
+        )
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    lines.extend(["## Blast radius", ""])
+    for item in report.blast_radius[:top]:
+        lines.append(
+            f"- `{item.node_id}` - {item.title} "
+            f"(distance `{item.distance}`, formal `{item.formal_status}`)"
+        )
+    hidden = report.blast_radius_count - top
+    if hidden > 0:
+        lines.append(console.dim(f"  ... and {hidden} more"))
+    lines.append("")
+
+    if report.affected_goals:
+        lines.extend(["## Affected goals", ""])
+        for goal_id in report.affected_goals:
+            lines.append(f"- `{goal_id}`")
+        lines.append("")
+
+    if report.complete_affected:
+        lines.extend(["## Complete dependents at risk", ""])
+        lines.append(
+            console.warning(
+                "These trusted (found/proved) facts transitively rest on the target "
+                "and would go stale if it changed:"
+            )
+        )
+        for dep_id in report.complete_affected:
+            lines.append(f"- `{dep_id}`")
+        lines.append("")
+
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def render_impact_overview(overview: ImpactOverview, *, top: int = 10) -> str:
+    """Render the project-wide blast-radius ranking as compact Markdown."""
+
+    from isabelle_blueprint import console
+
+    lines = [f"# {overview.project} impact ranking", ""]
+    if overview.node_count == 0:
+        lines.append(console.dim("No nodes in the blueprint."))
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    ranked = [rank for rank in overview.rankings if rank.blast_radius_count > 0]
+    lines.append(
+        f"{overview.node_count} node(s); {len(ranked)} have downstream dependents."
+    )
+    lines.append("")
+
+    if not ranked:
+        lines.append(
+            console.dim("No node has dependents - every node is independent.")
+        )
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    lines.extend(["## Highest blast radius", ""])
+    for rank in ranked[:top]:
+        lines.append(
+            f"- `{rank.node_id}` - {rank.title} "
+            f"(blast `{rank.blast_radius_count}`, direct `{rank.direct_dependent_count}`, "
+            f"formal `{rank.formal_status}`)"
+        )
+    hidden = len(ranked) - top
+    if hidden > 0:
+        lines.append(console.dim(f"  ... and {hidden} more"))
+    lines.append("")
+
+    if overview.cycles:
+        lines.extend(["## Cycles", ""])
+        lines.append(
+            console.error(
+                "Dependency cycles were detected; blast radii of nodes in a cycle "
+                "include the cyclic dependents:"
+            )
+        )
+        for cycle in overview.cycles:
+            lines.append("- " + " -> ".join(f"`{node_id}`" for node_id in cycle))
+        lines.append("")
+
+    return "\n".join(lines).rstrip("\n") + "\n"

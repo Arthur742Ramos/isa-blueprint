@@ -87,6 +87,15 @@ from isabelle_blueprint.report.github_actions import (
     emit_step_summary,
 )
 from isabelle_blueprint.report.history import render_trend_summary, summarize_trends
+from isabelle_blueprint.report.impact import (
+    UnknownNodeError,
+    build_impact_overview,
+    build_impact_report,
+    impact_overview_payload,
+    impact_report_payload,
+    render_impact_overview,
+    render_impact_report,
+)
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.lint import build_lint_report, render_lint_report
 from isabelle_blueprint.report.markdown_report import write_markdown_report
@@ -730,6 +739,32 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     for failure in failures:
         print(f"critical-path: {failure}", file=sys.stderr)
     return 2 if failures else 0
+
+
+def cmd_impact(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    node = getattr(args, "node", None)
+    if node:
+        try:
+            report = build_impact_report(project, node)
+        except UnknownNodeError:
+            known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+            raise BlueprintError(
+                f"unknown node {node!r}; known node ids: {known}"
+            ) from None
+        if args.json:
+            print(json.dumps(impact_report_payload(report), indent=2))
+        else:
+            print(render_impact_report(report, top=args.top), end="")
+        return 0
+    overview = build_impact_overview(project)
+    if args.json:
+        print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
+    else:
+        print(render_impact_overview(overview, top=args.top), end="")
+    return 0
 
 
 def _resolve_lint_format(args: argparse.Namespace) -> str:
@@ -1820,6 +1855,27 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="exit non-zero (2) when a dependency cycle is present",
     )
     p_critical.set_defaults(func=cmd_critical_path)
+
+    p_impact = sub.add_parser(
+        "impact",
+        help="show the downstream blast radius of a node (what depends on it)",
+    )
+    p_impact.add_argument("project_dir", nargs="?", default=".")
+    p_impact.add_argument(
+        "--node",
+        default=None,
+        metavar="NODE",
+        help="focus on a single node's blast radius (omit for a project-wide ranking)",
+    )
+    p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_impact.add_argument(
+        "--top",
+        type=_positive_int,
+        default=10,
+        metavar="N",
+        help="maximum rows to display, and ranking entries to keep in --json (default: 10)",
+    )
+    p_impact.set_defaults(func=cmd_impact)
 
     p_stats = sub.add_parser(
         "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"
