@@ -74,6 +74,12 @@ from isabelle_blueprint.plugins import run_report_renderers, run_status_provider
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.critical_path import (
+    build_critical_path,
+    critical_path_payload,
+    critical_path_strict_failures,
+    render_critical_path,
+)
 from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
@@ -708,6 +714,22 @@ def cmd_lint(args: argparse.Namespace) -> int:
     if args.strict and not report.ok:
         return 2
     return 0
+
+
+def cmd_critical_path(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    overview = build_critical_path(project)
+    goal = getattr(args, "goal", None)
+    if args.json:
+        print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    else:
+        print(render_critical_path(overview, top=args.top, goal=goal), end="")
+    failures = critical_path_strict_failures(overview) if args.fail_on_cycle else []
+    for failure in failures:
+        print(f"critical-path: {failure}", file=sys.stderr)
+    return 2 if failures else 0
 
 
 def _resolve_lint_format(args: argparse.Namespace) -> str:
@@ -1772,6 +1794,32 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="exit non-zero (2) when any error-severity finding is present",
     )
     p_lint.set_defaults(func=cmd_lint)
+
+    p_critical = sub.add_parser(
+        "critical-path",
+        help="show the longest remaining incomplete dependency chain and bottlenecks",
+    )
+    p_critical.add_argument("project_dir", nargs="?", default=".")
+    p_critical.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical.add_argument(
+        "--top",
+        type=_positive_int,
+        default=5,
+        metavar="N",
+        help="number of bottleneck nodes to display (default: 5)",
+    )
+    p_critical.add_argument(
+        "--goal",
+        default=None,
+        metavar="NODE",
+        help="focus the output on a single goal node's critical chain",
+    )
+    p_critical.add_argument(
+        "--fail-on-cycle",
+        action="store_true",
+        help="exit non-zero (2) when a dependency cycle is present",
+    )
+    p_critical.set_defaults(func=cmd_critical_path)
 
     p_stats = sub.add_parser(
         "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"

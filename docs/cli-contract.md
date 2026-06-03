@@ -533,6 +533,44 @@ is ready; otherwise it starts from the first incomplete node by stage and id. It
 then follows the longest incomplete downstream chain, breaking ties by the total
 number of downstream nodes blocked and then by node id.
 
+### `critical-path`
+
+```text
+isabelle-blueprint critical-path [project_dir]
+                                 [--json]
+                                 [--top N]
+                                 [--goal NODE]
+                                 [--fail-on-cycle]
+```
+
+Prints a longest-pole analysis of the remaining (incomplete) proof work without
+modifying the project. A node is *complete* when its formal status is `found` or
+`proved`; everything else is *incomplete*. A *goal* is an incomplete node that no
+other incomplete node depends on (terminal remaining work).
+
+- For each goal it computes the *critical path*: the longest chain of incomplete
+  dependency ancestors that must be finished first. A node with no incomplete
+  dependencies has depth 1. The single deepest goal chain is reported as
+  `longest`.
+- *Bottlenecks* rank incomplete nodes by *leverage* — the number of incomplete
+  transitive dependents they unblock. `--top N` limits how many bottlenecks are
+  shown (default 5; must be a positive integer).
+- `--goal NODE` focuses the terminal view on a single goal's chain. It does not
+  affect `--json` output.
+- Dependency cycles are excluded from depth/path/leverage ranking and reported in
+  a separate `cycles` section. References to unknown dependency ids
+  (`missing_dependencies`) and complete nodes that still depend on incomplete
+  ones (`inconsistent`) are surfaced separately.
+- `--json` emits a schema-versioned payload (`schema_version`, `project`,
+  `remaining_count`, `goal_count`, `longest`, `goals`, `bottlenecks`, `cycles`,
+  `missing_dependencies`, `inconsistent`).
+- `--fail-on-cycle` exits 2 when the project contains dependency cycles,
+  matching `lint --strict` error semantics.
+
+All ordering is deterministic: dependency and dependent iteration is sorted by
+id, goals are ordered by descending depth then id, and bottlenecks by descending
+leverage then id.
+
 ### `agent-context`
 
 ```text

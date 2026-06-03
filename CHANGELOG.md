@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.0] - 2026-06-03
+### Added
+
+- Added a `critical-path` command that performs longest-pole analysis of the
+  remaining (incomplete) proof work. It reports the critical path of incomplete
+  dependencies behind each goal (a remaining node that no other remaining node
+  depends on), ranks bottleneck nodes by how many incomplete descendants they
+  unblock (leverage), and separately surfaces dependency cycles, references to
+  unknown dependencies, and complete nodes that still depend on incomplete ones.
+  Supports `--json` (schema-versioned payload), `--top N` to limit the bottleneck
+  list, `--goal NODE` to focus the text view on a single goal's chain, and
+  `--fail-on-cycle` (exit code 2 when cycles are present).
 
 ### Added
 
