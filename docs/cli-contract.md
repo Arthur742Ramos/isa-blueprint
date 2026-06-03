@@ -37,7 +37,8 @@ valid `isabelle-blueprint.toml`.
 | --- | --- |
 | `0` | Success |
 | `1` | A `BlueprintError` reached `main()` (e.g. parser/validator error, missing config) |
-| `2` | argparse usage error |
+| `2` | argparse usage error, a structural validation failure on `check`/`dump`, or `lint --strict` found an error-severity finding |
+| `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, or `diff --fail-on-regression` found a regression |
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `check --strict` couldn't run Isabelle; `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
@@ -72,6 +73,9 @@ isabelle-blueprint check [project_dir]
                          [--strict]
                          [--incremental]
                          [--jobs N]
+                         [--watch]
+                         [--interval SECONDS]
+                         [--fail-on STATUS ...]
 ```
 
 Validates the blueprint structure and, if Isabelle is available, runs the
@@ -86,15 +90,102 @@ each declared fact exists and isn't tainted by `sorry` / oracles.
   pins, and upstream dependencies are unchanged.
 - `--jobs N` (added in v0.6) forwards `-j N` to `isabelle build` to
   parallelise upstream session builds.
+- `--watch` re-runs the check whenever the blueprint sources change, polling
+  every `--interval SECONDS` (default `1.0`). Only blueprint inputs are
+  watched; generated reports are excluded to avoid self-triggering.
+- `--fail-on STATUS` exits 5 if any node ends in one of the named
+  formal statuses. Repeat the flag to select multiple statuses; the alias
+  `problem` expands to all problem statuses
+  (`not_found`, `broken`, `failed_check`, `tainted`).
 
 ### `graph`
 
 ```text
-isabelle-blueprint graph [project_dir]
+isabelle-blueprint graph [project_dir] [--format {all,dot,json,svg,mermaid}]
 ```
 
 Emits the dependency graph as `build/graph.dot` and `build/graph.json`; also
 renders `build/graph.svg` if Graphviz `dot` is on `PATH`.
+
+- `--format` (default `all`) selects which artifacts to emit. `mermaid` writes
+  `build/graph.mmd`; `dot`/`json`/`svg` emit just that artifact; `all`
+  preserves the historical behaviour and also includes the Mermaid output.
+
+### `lint`
+
+```text
+isabelle-blueprint lint [project_dir] [--json] [--strict]
+```
+
+Runs structural and quality checks over the blueprint and prints findings with
+a severity (`error`/`warning`/`info`). Codes include `duplicate-id`,
+`missing-dependency`, `cycle`, `broken-formal-status`, `stale-formal-status`,
+`empty-statement`, `missing-informal-proof`, `no-isabelle-fact`, and
+`isolated-node`.
+
+- `--json` emits the machine-readable report.
+- `--strict` exits 2 if any error-severity finding is present.
+
+### `diff`
+
+```text
+isabelle-blueprint diff <baseline.json> [project_dir] [--json] [--fail-on-regression]
+```
+
+Compares the current parsed and checked project against a saved `project.json`
+baseline, reporting added/removed nodes, per-node status changes, and
+regressions.
+
+- `--json` emits the machine-readable diff.
+- `--fail-on-regression` exits 5 if any regression is detected (a proof coming
+  undone, a healthy status becoming a problem status, a removed node, or a
+  slide down the confidence ladder such as `found` -> `named`/`missing`).
+
+### `history`
+
+```text
+isabelle-blueprint history [project_dir] [--json] [--limit N]
+```
+
+Summarises `trends.json`, printing the recorded series and the latest deltas.
+Reads only the trends file, so it keeps working even when the current blueprint
+fails to parse.
+
+- `--json` emits the machine-readable summary.
+- `--limit N` restricts the summary to the most recent `N` entries.
+
+### `assign`
+
+```text
+isabelle-blueprint assign [node_id] [--project-dir DIR] [--owner OWNER] [--note NOTE] [--clear] [--json]
+```
+
+Records, lists, and clears per-node ownership in an `assignments.json` store.
+With no `node_id` it lists current assignments.
+
+- `--owner OWNER` records `OWNER` as the owner of `node_id`.
+- `--note NOTE` stores an optional note alongside the assignment.
+- `--clear` removes the assignment for `node_id`.
+- `--json` emits the machine-readable store.
+
+Mutating operations load the store strictly, so a corrupt file is reported
+rather than silently overwritten.
+
+### `rename`
+
+```text
+isabelle-blueprint rename <old_id> <new_id> [--project-dir DIR] [--dry-run] [--json]
+```
+
+Rewrites blueprint sources (Markdown ids and `uses`, LaTeX `\label`/`\uses`)
+and re-keys agent/sync stores so a node id can be changed in one step. Errors
+if `new_id` already exists or `old_id` is absent.
+
+- `--dry-run` previews the changes without writing.
+- `--json` emits the machine-readable result.
+
+A re-parse safety check runs before any write, and source writes roll back on a
+mid-operation failure.
 
 ### `dump`
 
@@ -295,7 +386,7 @@ are `null` and the command exits 0. If filters exclude existing ready tasks,
 ### `report`
 
 ```text
-isabelle-blueprint report [project_dir]
+isabelle-blueprint report [project_dir] [--fail-on STATUS ...]
 ```
 
 Writes the machine-readable status payload:
@@ -324,6 +415,11 @@ When `$GITHUB_OUTPUT` is set, the stable scalar keys
 `found_count`, `problem_count`, `has_cycles`) are emitted to it. When
 `$GITHUB_STEP_SUMMARY` is set, a compact Markdown summary is appended to it.
 
+`--fail-on STATUS` exits 5 if any node has one of the named formal
+statuses after the report is written. Repeat the flag to select multiple
+statuses (the `problem` alias expands to all
+problem statuses). Report artifacts are still emitted before the gate fires.
+
 ### `status`
 
 ```text
@@ -334,6 +430,7 @@ isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
                           [--memory-state fresh|attempted|stale]
                           [--last-outcome OUTCOME]
                           [--exclude-node NODE_OR_TASK]
+                          [--fail-on STATUS ...]
 ```
 
 Prints a read-only project health overview without writing report artifacts.
@@ -356,6 +453,11 @@ active, JSON payloads add a `filters` object recording the requested view and a
 `filtered_ready_task_count` integer; the text form prints a `Filters:` line
 and annotates `Ready tasks: X total, Y match filters`. Filters matching zero
 tasks emit a short note to stderr listing how many ready tasks were excluded.
+
+`--fail-on STATUS` exits 5 if any node has one of the named formal
+statuses. Repeat the flag to select multiple statuses (the `problem` alias
+expands to all problem statuses). The gate is
+evaluated against the full project, independent of the ready-task filters.
 
 ### `roadmap`
 

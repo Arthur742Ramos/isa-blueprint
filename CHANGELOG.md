@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `lint` command that runs structural and quality checks over the
+  blueprint (duplicate ids, missing dependencies, dependency cycles, broken or
+  stale formal status, empty statements, missing informal proofs, formal-intent
+  nodes without an Isabelle reference, and isolated nodes). Supports `--json`
+  and `--strict` (exit code 2 when any error-severity finding is present).
+- Added a `diff <baseline.json>` command that compares the current parsed and
+  checked project against a saved `project.json`, reporting added/removed nodes,
+  per-node status changes, and regressions. A regression includes a proof coming
+  undone, a healthy status turning into a problem status, and any slide down the
+  confidence ladder (e.g. `found` -> `named`/`missing`). Supports `--json` and
+  `--fail-on-regression` (exit code 5).
+- Added a `history` command that summarises `trends.json`, printing the recorded
+  series and the latest deltas. Supports `--json` and `--limit N`. Reads only the
+  trends file so it keeps working even when the current blueprint fails to parse.
+- Added an `assign` command backed by an `assignments.json` store for recording,
+  listing, and clearing per-node ownership. Supports `--owner`, `--clear`, and
+  `--json`. Mutations load the store strictly so a corrupt file is never
+  silently overwritten.
+- Added a `rename <old> <new>` command that rewrites blueprint sources (Markdown
+  ids/`uses`, LaTeX `\label`/`\uses`) and re-keys agent/sync stores, with a
+  `--dry-run` preview, a re-parse safety check, and best-effort rollback if a
+  write fails part way through.
+- Added a shared `--fail-on STATUS` policy flag to `check`, `report`, and
+  `status` (exit code 5 when any node has a selected formal status; the
+  `problem` alias expands to all problem statuses).
+- Added `check --watch` (with `--interval`) to re-run the check whenever the
+  blueprint sources change.
+- Added `graph --format {all,dot,json,svg,mermaid}`, including a new Mermaid
+  renderer that writes `graph.mmd` (default `all` preserves prior behaviour).
 - Added ready-task filters to `isabelle-blueprint tasks`, matching `next` and
   `attempt` for kind, priority, difficulty, memory state, latest outcome, and
   explicit exclusions.

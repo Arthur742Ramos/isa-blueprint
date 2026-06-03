@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isabelle_blueprint import __version__
+from isabelle_blueprint.agents.assignments import (
+    clear_assignment,
+    load_assignments,
+    set_assignment,
+    write_assignments,
+)
 from isabelle_blueprint.agents.context import (
     DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
     build_agent_context,
@@ -63,16 +69,24 @@ from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
+from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
     emit_step_outputs,
     emit_step_summary,
 )
+from isabelle_blueprint.report.history import render_trend_summary, summarize_trends
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
+from isabelle_blueprint.report.lint import build_lint_report, render_lint_report
 from isabelle_blueprint.report.markdown_report import write_markdown_report
-from isabelle_blueprint.report.metrics import build_status_metrics, output_values
+from isabelle_blueprint.report.metrics import (
+    PROBLEM_FORMAL_STATUSES,
+    build_status_metrics,
+    output_values,
+)
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
@@ -176,6 +190,68 @@ def _positive_int(value: str) -> int:
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
     return parsed
+
+
+# Formal statuses selectable by the shared ``--fail-on`` policy gate.
+FAIL_ON_STATUSES = tuple(status.value for status in FormalStatus)
+
+# A convenient alias expanding to every "problem" formal status.
+FAIL_ON_PROBLEM_ALIAS = "problem"
+
+
+def _resolve_fail_on(statuses: list[str] | None) -> set[str]:
+    """Expand a ``--fail-on`` selection (including the ``problem`` alias)."""
+    if not statuses:
+        return set()
+    resolved: set[str] = set()
+    for status in statuses:
+        if status == FAIL_ON_PROBLEM_ALIAS:
+            resolved.update(PROBLEM_FORMAL_STATUSES)
+        else:
+            resolved.add(status)
+    return resolved
+
+
+def _fail_on_failures(project: BlueprintProject, statuses: set[str]) -> list[str]:
+    """Return ids of nodes whose formal status is in ``statuses`` (sorted)."""
+    if not statuses:
+        return []
+    return sorted(
+        node.id for node in project.nodes if node.status.formal.value in statuses
+    )
+
+
+def _report_fail_on(project: BlueprintProject, raw_statuses: list[str] | None) -> int:
+    """Print and return exit 5 when any node matches the ``--fail-on`` policy.
+
+    Returns 0 when the policy is satisfied (or not requested) so callers can
+    ``return _report_fail_on(...)`` as their final step.
+    """
+    statuses = _resolve_fail_on(raw_statuses)
+    failures = _fail_on_failures(project, statuses)
+    if failures:
+        selected = ", ".join(sorted(statuses))
+        print(
+            f"fail-on policy triggered ({selected}): "
+            + ", ".join(failures),
+            file=sys.stderr,
+        )
+        return 5
+    return 0
+
+
+def _add_fail_on_argument(parser: argparse.ArgumentParser) -> None:
+    """Attach the shared ``--fail-on`` policy flag to a subparser."""
+    parser.add_argument(
+        "--fail-on",
+        action="append",
+        choices=(*FAIL_ON_STATUSES, FAIL_ON_PROBLEM_ALIAS),
+        metavar="STATUS",
+        help=(
+            "exit non-zero (5) if any node has the given formal status; "
+            "repeatable; 'problem' expands to all problem statuses"
+        ),
+    )
 
 
 def _dedupe(values: list[str] | None) -> tuple[str, ...]:
@@ -480,6 +556,12 @@ def _append_stub(existing: str, stub: str, *, format: str) -> str:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    if getattr(args, "watch", False):
+        return _watch_check(args)
+    return _run_check_once(args)
+
+
+def _run_check_once(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     try:
@@ -518,18 +600,183 @@ def cmd_check(args: argparse.Namespace) -> int:
     elif result.return_code != 0:
         print(f"isabelle build failed with exit code {result.return_code}", file=sys.stderr)
         return 4
-    return 0
+    # The policy gate runs last so genuine infrastructure failures (3/4) are
+    # surfaced before a "node still in a bad state" gate.
+    return _report_fail_on(project, getattr(args, "fail_on", None))
+
+
+def _watch_check(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    exit_code = _run_check_once(args)
+    print(f"watching for changes (exit code {exit_code}); press Ctrl-C to stop", file=sys.stderr)
+    snapshot = _snapshot(_check_watch_paths(project_dir))
+    try:
+        while True:
+            time.sleep(max(getattr(args, "interval", 1.0), 0.1))
+            current = _snapshot(_check_watch_paths(project_dir))
+            if current != snapshot:
+                snapshot = current
+                try:
+                    exit_code = _run_check_once(args)
+                except BlueprintError as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    exit_code = 1
+                print(f"re-checked (exit code {exit_code})", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("stopped", file=sys.stderr)
+        return exit_code
 
 
 def cmd_graph(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    written = write_graph_artifacts(project, config.build_dir)
+    fmt = getattr(args, "format", "all")
+    formats = ("dot", "json", "svg", "mermaid") if fmt == "all" else (fmt,)
+    written = write_graph_artifacts(project, config.build_dir, formats=formats)
     for name, path in written.items():
         print(f"{name} -> {path}")
-    if "svg" not in written:
+    if ("svg" in formats) and "svg" not in written:
         print("note: graphviz `dot` not found; install it for SVG output", file=sys.stderr)
+    return 0
+
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_lint_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_lint_report(report), end="")
+    if args.strict and not report.ok:
+        return 2
+    return 0
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    baseline_path = Path(args.baseline).resolve()
+    baseline_nodes = load_baseline(baseline_path)
+    diff = build_diff(baseline_nodes, project)
+    if args.json:
+        print(json.dumps(diff.to_dict(), indent=2))
+    else:
+        print(render_diff(diff), end="")
+    if args.fail_on_regression and diff.has_regression:
+        print(
+            f"regression detected vs baseline ({len(diff.regressions) + len(diff.removed)} node(s))",
+            file=sys.stderr,
+        )
+        return 5
+    return 0
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    # history only needs trends.json, so avoid parsing the (possibly broken)
+    # blueprint - historical data is most useful exactly when the current
+    # blueprint does not load.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    summary = summarize_trends(entries, limit=args.limit)
+    if args.json:
+        print(json.dumps(summary.to_dict(), indent=2))
+    else:
+        print(render_trend_summary(summary), end="")
+    return 0
+
+
+def cmd_assign(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+
+    node_id = args.node_id
+    if node_id is not None and project.by_id().get(node_id) is None:
+        raise BlueprintError(f"node id {node_id!r} not found in the blueprint")
+
+    mutating = node_id is not None and (args.clear or args.owner is not None)
+    # When we are about to write the store back, refuse to start from an empty
+    # store if the existing file is corrupt (which would clobber real data).
+    store = load_assignments(config.assignments_path, strict=mutating)
+
+    mutated = False
+    if node_id is not None and args.clear:
+        removed = clear_assignment(store, node_id)
+        if not removed:
+            print(f"no assignment for {node_id!r}", file=sys.stderr)
+        mutated = removed
+    elif node_id is not None and args.owner is not None:
+        set_assignment(store, node_id, args.owner, note=args.note or "")
+        mutated = True
+    elif node_id is not None:
+        # Lookup of a single node's assignment.
+        pass
+
+    if mutated:
+        write_assignments(store, config.assignments_path)
+
+    payload = _assignments_payload(store, project, node_id)
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(_render_assignments(payload), end="")
+    return 0
+
+
+def _assignments_payload(store, project, node_id):  # type: ignore[no-untyped-def]
+    items = []
+    selected = [node_id] if node_id is not None else sorted(store.nodes)
+    for nid in selected:
+        assignment = store.nodes.get(nid)
+        if assignment is None:
+            if node_id is not None:
+                items.append({"node_id": nid, "owner": None, "note": "", "updated_at": ""})
+            continue
+        items.append(
+            {
+                "node_id": nid,
+                "owner": assignment.owner,
+                "note": assignment.note,
+                "updated_at": assignment.updated_at,
+            }
+        )
+    return {"project": project.name, "assignments": items}
+
+
+def _render_assignments(payload: dict) -> str:
+    items = payload.get("assignments", [])
+    if not items:
+        return "No assignments recorded.\n"
+    lines = [f"{payload.get('project', 'project')}: {len(items)} assignment(s)"]
+    for item in items:
+        owner = item.get("owner") or "(unassigned)"
+        note = item.get("note") or ""
+        suffix = f" - {note}" if note else ""
+        lines.append(f"  {item['node_id']}: {owner}{suffix}")
+    return "\n".join(lines) + "\n"
+
+
+def cmd_rename(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config = load_config(project_dir)
+    result = rename_node(config, args.old_id, args.new_id, dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+        return 0
+    verb = "would rename" if result.dry_run else "renamed"
+    print(f"{verb} {result.old_id!r} -> {result.new_id!r}")
+    for path in result.changed_files:
+        print(f"  source: {path}")
+    for rekey in result.store_rekeys:
+        if rekey.changed:
+            action = "would update" if result.dry_run else "updated"
+            print(f"  {action} {rekey.name} store: {rekey.path}")
+    if not result.changed_files:
+        print("  (no source files referenced this id)")
     return 0
 
 
@@ -700,7 +947,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     summary_md = build_summary_markdown(project.name, metrics.to_dict())
     if emit_step_summary(summary_md):
         print("github summary -> $GITHUB_STEP_SUMMARY")
-    return 0
+    return _report_fail_on(project, getattr(args, "fail_on", None))
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -728,7 +975,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             _no_ready_task_message(len(all_ready_tasks), filters),
             file=sys.stderr,
         )
-    return 0
+    return _report_fail_on(project, getattr(args, "fail_on", None))
 
 
 def cmd_roadmap(args: argparse.Namespace) -> int:
@@ -1326,11 +1573,80 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="forward `-j N` to `isabelle build` to parallelise upstream session builds",
     )
+    p_check.add_argument(
+        "--watch",
+        action="store_true",
+        help="re-run the check whenever the blueprint sources change (Ctrl-C to stop)",
+    )
+    p_check.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="polling interval for --watch (default: 1.0)",
+    )
+    _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
-    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG dependency graph")
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
+    p_graph.add_argument(
+        "--format",
+        choices=("all", "dot", "json", "svg", "mermaid"),
+        default="all",
+        help="which artifact(s) to write (default: all)",
+    )
     p_graph.set_defaults(func=cmd_graph)
+
+    p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
+    p_lint.add_argument("project_dir", nargs="?", default=".")
+    p_lint.add_argument("--json", action="store_true", help="emit findings as JSON")
+    p_lint.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero (2) when any error-severity finding is present",
+    )
+    p_lint.set_defaults(func=cmd_lint)
+
+    p_diff = sub.add_parser("diff", help="compare the current blueprint against a saved project.json")
+    p_diff.add_argument("baseline", help="path to a baseline project.json")
+    p_diff.add_argument("project_dir", nargs="?", default=".")
+    p_diff.add_argument("--json", action="store_true", help="emit the diff as JSON")
+    p_diff.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="exit non-zero (5) when a node regresses or is removed vs the baseline",
+    )
+    p_diff.set_defaults(func=cmd_diff)
+
+    p_history = sub.add_parser("history", help="summarize trends.json coverage history")
+    p_history.add_argument("project_dir", nargs="?", default=".")
+    p_history.add_argument("--json", action="store_true", help="emit the summary as JSON")
+    p_history.add_argument(
+        "--limit",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="only consider the most recent N entries",
+    )
+    p_history.set_defaults(func=cmd_history)
+
+    p_assign = sub.add_parser("assign", help="record or list per-node ownership")
+    p_assign.add_argument("node_id", nargs="?", default=None, help="node id (omit to list all assignments)")
+    p_assign.add_argument("--project-dir", dest="project_dir", default=".")
+    p_assign.add_argument("--owner", default=None, help="owner to assign to the node")
+    p_assign.add_argument("--note", default=None, help="optional note stored with the assignment")
+    p_assign.add_argument("--clear", action="store_true", help="remove the assignment for the node")
+    p_assign.add_argument("--json", action="store_true", help="emit assignments as JSON")
+    p_assign.set_defaults(func=cmd_assign)
+
+    p_rename = sub.add_parser("rename", help="rename a node id across blueprint sources and stores")
+    p_rename.add_argument("old_id", help="existing node id")
+    p_rename.add_argument("new_id", help="new node id")
+    p_rename.add_argument("--project-dir", dest="project_dir", default=".")
+    p_rename.add_argument("--dry-run", action="store_true", help="show changes without writing files")
+    p_rename.add_argument("--json", action="store_true", help="emit the rename result as JSON")
+    p_rename.set_defaults(func=cmd_rename)
 
     p_dump = sub.add_parser("dump", help="run or inspect Isabelle PIDE dump output")
     p_dump.add_argument("project_dir", nargs="?", default=".")
@@ -1467,6 +1783,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
+    _add_fail_on_argument(p_report)
     p_report.set_defaults(func=cmd_report)
 
     p_status = sub.add_parser("status", help="print a concise project health summary")
@@ -1480,6 +1797,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="include the first N ready-task summaries in output",
     )
     _add_ready_task_filter_arguments(p_status)
+    _add_fail_on_argument(p_status)
     p_status.set_defaults(func=cmd_status)
 
     p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")
@@ -1704,6 +2022,17 @@ def _watch_paths(project_dir: Path) -> list[Path]:
             config.project_json_path,
         ]
     )
+    return paths
+
+
+def _check_watch_paths(project_dir: Path) -> list[Path]:
+    """Input-only watch list so `check --watch` never re-triggers on its own output."""
+    paths = [project_dir / "isabelle-blueprint.toml"]
+    try:
+        config = load_config(project_dir)
+    except (OSError, ValueError):
+        return paths
+    paths.extend(config.blueprint_paths)
     return paths
 
 

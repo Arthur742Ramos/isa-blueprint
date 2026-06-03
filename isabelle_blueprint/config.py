@@ -94,6 +94,11 @@ class BlueprintConfig:
         """Persistent node-id to GitHub issue mapping used by task sync."""
         return self.project_root / ".isabelle-blueprint" / "github-sync.json"
 
+    @property
+    def assignments_path(self) -> Path:
+        """Persistent node-id to owner mapping used by the ``assign`` command."""
+        return self.project_root / ".isabelle-blueprint" / "assignments.json"
+
 
 DEFAULT_CONFIG_NAME = "isabelle-blueprint.toml"
 DEFAULT_BLUEPRINT_NAME = "blueprint.md"

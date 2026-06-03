@@ -45,6 +45,34 @@ def render_dot(project: BlueprintProject) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_mermaid(project: BlueprintProject) -> str:
+    """Return a Mermaid ``flowchart`` representation of the dependency graph.
+
+    Mermaid renders inline on GitHub/GitLab and most Markdown viewers, so this
+    gives a zero-dependency picture of the blueprint without needing Graphviz.
+    Nodes are coloured by formal status (agent-ready tasks share the purple used
+    by the DOT/JSON renderers) via per-node ``style`` directives.
+    """
+    g = build_graph(project)
+    by_id = project.by_id()
+    lines = ["flowchart BT"]
+    for node_id in g.nodes:
+        node = by_id[node_id]
+        safe = _mermaid_id(node_id)
+        label = _mermaid_label(f"{node.id}\n{node.title}")
+        lines.append(f'  {safe}["{label}"]')
+    for src, deps in g.edges.items():
+        for dep in deps:
+            lines.append(f"  {_mermaid_id(src)} --> {_mermaid_id(dep)}")
+    for node_id in g.nodes:
+        node = by_id[node_id]
+        color = _color_for_node(node.status.formal, node.status.agent)
+        lines.append(
+            f"  style {_mermaid_id(node_id)} fill:{color},stroke:#1f2937,color:#111827"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def render_json(project: BlueprintProject) -> str:
     """Return a JSON representation of the dependency graph for the web UI."""
     g = build_graph(project)
@@ -93,25 +121,67 @@ def render_svg(dot_source: str, executable: str = "dot") -> str | None:
     return proc.stdout
 
 
-def write_graph_artifacts(project: BlueprintProject, build_dir: Path, *, executable: str = "dot") -> dict[str, Path]:
-    """Write DOT and JSON (and SVG if Graphviz is available) to ``build_dir``.
+def write_graph_artifacts(
+    project: BlueprintProject,
+    build_dir: Path,
+    *,
+    executable: str = "dot",
+    formats: tuple[str, ...] | None = None,
+) -> dict[str, Path]:
+    """Write the requested graph renderings to ``build_dir``.
+
+    ``formats`` selects which artefacts to emit; ``None`` (the default) writes
+    the classic ``dot``/``json``/``svg`` set so existing callers are unchanged.
+    Recognised values are ``"dot"``, ``"json"``, ``"svg"``, and ``"mermaid"``.
+    SVG is only written when Graphviz's ``dot`` binary is available.
 
     Returns a mapping of artefact name -> written path.
     """
+    selected = formats or ("dot", "json", "svg")
     build_dir.mkdir(parents=True, exist_ok=True)
-    dot_text = render_dot(project)
-    json_text = render_json(project)
-    dot_path = build_dir / "graph.dot"
-    json_path = build_dir / "graph.json"
-    dot_path.write_text(dot_text, encoding="utf-8")
-    json_path.write_text(json_text, encoding="utf-8")
-    written = {"dot": dot_path, "json": json_path}
-    svg = render_svg(dot_text, executable=executable)
-    if svg is not None:
-        svg_path = build_dir / "graph.svg"
-        svg_path.write_text(svg, encoding="utf-8")
-        written["svg"] = svg_path
+    written: dict[str, Path] = {}
+
+    dot_text = render_dot(project) if ("dot" in selected or "svg" in selected) else None
+
+    if "dot" in selected and dot_text is not None:
+        dot_path = build_dir / "graph.dot"
+        dot_path.write_text(dot_text, encoding="utf-8")
+        written["dot"] = dot_path
+    if "json" in selected:
+        json_path = build_dir / "graph.json"
+        json_path.write_text(render_json(project), encoding="utf-8")
+        written["json"] = json_path
+    if "mermaid" in selected:
+        mmd_path = build_dir / "graph.mmd"
+        mmd_path.write_text(render_mermaid(project), encoding="utf-8")
+        written["mermaid"] = mmd_path
+    if "svg" in selected and dot_text is not None:
+        svg = render_svg(dot_text, executable=executable)
+        if svg is not None:
+            svg_path = build_dir / "graph.svg"
+            svg_path.write_text(svg, encoding="utf-8")
+            written["svg"] = svg_path
     return written
+
+
+def _mermaid_id(node_id: str) -> str:
+    """Return a Mermaid-safe identifier for ``node_id``.
+
+    Mermaid node ids may only contain alphanumerics and underscores, so any
+    other character (``.``, ``-``, ``/``, ``:`` are all legal in blueprint ids)
+    is replaced with an underscore. A leading ``n_`` keeps ids that start with a
+    digit valid.
+    """
+    safe = "".join(ch if ch.isalnum() else "_" for ch in node_id)
+    return f"n_{safe}"
+
+
+def _mermaid_label(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', "&quot;")
+        .replace("\n", "<br/>")
+    )
 
 
 def _dot_escape(text: str) -> str:
