@@ -561,14 +561,17 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.7.1 release includes the Markdown and LaTeX parsers, Isabelle
-checker, PIDE dump support, AFP compatibility checks, Graphviz output, static
-site, live preview, task packs, project templates, fact suggestions, JSON
-Schemas, plugin API, PR comments, GitHub Release automation, VS Code extension
-support, agent memory, status explanations, theory import bootstrap, and
-dry-run GitHub issue synchronization, plus fast `status` and staged `roadmap`
-planning commands, memory-aware and exclusion-filtered direct `next` /
-`attempt` handoffs, and one-shot `agent-context` bundles.
+The current v1.8.0 release includes the Markdown and LaTeX parsers, Isabelle
+checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
+output, static site, live preview, task packs, project templates, fact
+suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,
+VS Code extension support, agent memory, status explanations, theory import
+bootstrap, and dry-run GitHub issue synchronization, plus fast `status` and
+staged `roadmap` planning commands, memory-aware and exclusion-filtered direct
+`next` / `attempt` handoffs, one-shot `agent-context` bundles, and a workflow
+toolkit of `lint` (text/JSON/SARIF), `diff`, `history`, `assign`, `rename`,
+`stats`, `version`, and `completion` commands with shared `--fail-on` policy,
+`--watch` modes, and `--color` output.
 
 Community docs:
 
