@@ -521,6 +521,75 @@ nullable `current_stage`.
 
 ---
 
+## `critical-path --json`
+
+The critical-path payload is printed by
+`isabelle-blueprint critical-path --json`. It is a command-defined payload (not
+written to a `build/` artifact and not backed by a packaged JSON Schema). A node
+is *complete* when its formal status is `found` or `proved`; everything else is
+*incomplete*.
+
+```json
+{
+  "schema_version": 1,
+  "project": "Group theory demo",
+  "remaining_count": 4,
+  "goal_count": 1,
+  "longest": {
+    "goal_id": "main-theorem",
+    "title": "Main theorem",
+    "formal_status": "missing",
+    "depth": 3,
+    "path": ["lemma-a", "lemma-b", "main-theorem"]
+  },
+  "goals": [
+    {
+      "goal_id": "main-theorem",
+      "title": "Main theorem",
+      "formal_status": "missing",
+      "depth": 3,
+      "path": ["lemma-a", "lemma-b", "main-theorem"]
+    }
+  ],
+  "bottlenecks": [
+    {
+      "node_id": "lemma-a",
+      "title": "Lemma A",
+      "formal_status": "named",
+      "leverage": 2
+    }
+  ],
+  "cycles": [],
+  "missing_dependencies": [],
+  "inconsistent": []
+}
+```
+
+Top-level keys:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 critical-path shape. |
+| `project` | string | Project name from `[project].name`. |
+| `remaining_count` | integer | Number of incomplete nodes. |
+| `goal_count` | integer | Number of goals (incomplete nodes with no incomplete dependents). |
+| `longest` | object or null | The deepest goal chain, or `null` when there is no remaining work. |
+| `goals` | array | One chain per goal, ordered by descending `depth` then `goal_id`. |
+| `bottlenecks` | array | Incomplete nodes ordered by descending `leverage` then `node_id`. Only nodes with `leverage > 0` appear. |
+| `cycles` | array of string arrays | Dependency cycles; nodes in cycles are excluded from chain and leverage ranking. |
+| `missing_dependencies` | array | Nodes referencing unknown dependency ids, each with `node_id` and a sorted `missing` id list. |
+| `inconsistent` | array | Complete nodes that still depend on incomplete ones, each with `node_id` and a sorted `incomplete_dependencies` id list. |
+
+Each goal chain entry contains `goal_id`, nullable `title`, `formal_status`,
+`depth` (the number of incomplete nodes on the critical path, base 1), and
+`path` (the ordered incomplete dependency chain ending at the goal). Each
+bottleneck entry contains `node_id`, nullable `title`, `formal_status`, and
+`leverage` (the number of incomplete transitive dependents unblocked by
+completing the node).
+
+---
+
+
 ## `agent-context --json` / `build/agent-context.json`
 
 The agent-context payload is printed by

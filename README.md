@@ -45,7 +45,7 @@ flowchart LR
 
 | Pain in a growing formalization | What IsabelleBlueprint does |
 | --- | --- |
-| "Which theorem is blocking this proof?" | Builds a validated dependency DAG from your blueprint. |
+| "Which theorem is blocking this proof?" | Builds a validated dependency DAG and a `critical-path` longest-pole view that ranks the bottlenecks behind your remaining goals. |
 | "Did this Isabelle name actually resolve?" | Checks facts against Isabelle sessions and AFP roots. |
 | "Is this proof clean, or did `sorry` sneak in?" | Distinguishes `found`, `proved`, `tainted`, `broken`, and stale facts. |
 | "How do I show progress to collaborators?" | Publishes reports, badges, graphs, and a browsable static site. |
@@ -88,6 +88,7 @@ isabelle-blueprint new theorem my-main-result --append
 isabelle-blueprint report
 isabelle-blueprint status
 isabelle-blueprint roadmap
+isabelle-blueprint critical-path
 isabelle-blueprint graph
 
 # 4. See exactly which proof tasks are unblocked, or hand the whole context to an agent.
@@ -431,6 +432,26 @@ suggests a deterministic path through the next useful proof work, filters large
 plans for handoff views, compares against a previous roadmap, and can fail CI
 with `--strict` when cycles, problem nodes, stale nodes, or missing dependencies
 need attention.
+
+Use `critical-path` when you want the longest-pole view of the remaining proof
+work — which incomplete theorems sit on the critical path behind each goal, and
+which nodes unblock the most downstream work if you finish them next:
+
+```bash
+isabelle-blueprint critical-path .
+isabelle-blueprint critical-path . --json
+isabelle-blueprint critical-path . --top 10
+isabelle-blueprint critical-path . --goal main-theorem
+isabelle-blueprint critical-path . --fail-on-cycle   # exit 2 when cycles are present
+```
+
+It identifies each goal (a remaining node that no other remaining node depends
+on), computes the critical path of incomplete dependencies behind it, ranks
+bottleneck nodes by how many incomplete descendants they unblock (leverage), and
+separately surfaces dependency cycles, references to unknown dependencies, and
+complete nodes that still depend on incomplete ones. Where `roadmap` plans the
+*stages*, `critical-path` highlights the single longest chain and the
+highest-leverage nodes to attack first.
 
 Use `agent-context` when an AI agent needs the whole working brief in one stable
 payload:
