@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
+from isabelle_blueprint import console
 from isabelle_blueprint.agents.tasks import AgentTask
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
@@ -119,7 +120,7 @@ def render_status_overview(overview: StatusOverview) -> str:
         filtered = overview.filtered_ready_task_count or 0
         ready_line = f"Ready tasks: {overview.ready_task_count} total, {filtered} match filters"
     lines = [
-        f"{overview.project}: {overview.health}",
+        f"{overview.project}: {_paint_health(overview.health, metrics)}",
         f"Coverage: {_coverage_text(metrics)}",
         (
             "Nodes: "
@@ -156,6 +157,16 @@ def render_status_overview(overview: StatusOverview) -> str:
         else:
             lines.append(f"{top_label}: none")
     return "\n".join(lines) + "\n"
+
+
+def _paint_health(health: str, metrics: StatusMetrics) -> str:
+    """Colour the health label red/yellow/green by project condition."""
+
+    if metrics.problem_count or metrics.has_cycles:
+        return console.error(health)
+    if metrics.stale_count:
+        return console.warning(health)
+    return console.success(health)
 
 
 _FILTER_LABELS: tuple[tuple[str, str], ...] = (

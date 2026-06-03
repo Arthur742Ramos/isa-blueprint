@@ -287,6 +287,9 @@ already justify.
 | `comment` | Idempotent PR status comments | Pull-request automation. |
 | `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files | Debugging and onboarding existing Isabelle projects. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
+| `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
+| `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
+| `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
 
 The CLI, JSON output, and GitHub Action outputs are stable public contracts:
 
@@ -489,19 +492,21 @@ nodes):
 ```bash
 isabelle-blueprint lint .
 isabelle-blueprint lint . --json
+isabelle-blueprint lint . --format sarif   # SARIF 2.1.0 for GitHub code scanning
 isabelle-blueprint lint . --strict        # exit 2 on any error-severity finding
 ```
 
 Gate CI on proof health from any reporting command with the shared
 `--fail-on STATUS` flag (repeat it to select several statuses; the `problem`
-alias expands to every problem status), and re-run `check` automatically while
-you edit with `--watch`:
+alias expands to every problem status), and re-run `check`, `report`, `status`,
+or `tasks` automatically while you edit with `--watch`:
 
 ```bash
 isabelle-blueprint check . --fail-on problem
 isabelle-blueprint report . --fail-on not_found --fail-on broken
 isabelle-blueprint status . --fail-on problem
 isabelle-blueprint check . --watch --interval 2
+isabelle-blueprint report . --watch        # also on status and tasks
 ```
 
 Compare the current project against a saved `build/project.json` baseline to see

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from isabelle_blueprint import console
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
@@ -237,8 +238,17 @@ def render_lint_report(report: LintReport) -> str:
     lines = [f"{report.project}: {_headline(report)}"]
     for finding in report.findings:
         location = f" [{finding.node_id}]" if finding.node_id else ""
-        lines.append(f"  {finding.severity}: {finding.code}{location} - {finding.message}")
+        severity = _paint_severity(finding.severity)
+        lines.append(f"  {severity}: {finding.code}{location} - {finding.message}")
     return "\n".join(lines) + "\n"
+
+
+def _paint_severity(severity: str) -> str:
+    if severity == SEVERITY_ERROR:
+        return console.error(severity)
+    if severity == SEVERITY_WARNING:
+        return console.warning(severity)
+    return console.info(severity)
 
 
 def _headline(report: LintReport) -> str:
