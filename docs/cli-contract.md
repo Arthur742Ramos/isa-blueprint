@@ -38,6 +38,36 @@ renders. It is accepted both before and after the subcommand. The default
 variable is unset, so machine-readable (`--json`) output and captured text are
 never colourised.
 
+### MCP entry point
+
+```text
+isabelle-blueprint-mcp [--project-dir DIR]
+                       [--transport stdio|streamable-http]
+                       [--host HOST]
+                       [--port PORT]
+                       [--path PATH]
+                       [--allow-writes]
+```
+
+`isabelle-blueprint-mcp` is installed with the optional `mcp` extra
+(`pip install "isabelle-blueprint[mcp]"`). It serves one configured blueprint
+project over MCP. The default transport is `stdio`; `streamable-http` uses
+`--host` (default `127.0.0.1`), `--port` (default `8000`), and `--path` (default
+`/mcp`).
+
+Read tools are always registered: `version`, `status`, `roadmap`, `list_tasks`,
+`next_task`, `agent_context`, `explain_node`, `lint`, `graph`, `schema`,
+`doctor`, and `preview_rename_node`. Resources include `blueprint://project`,
+`blueprint://nodes/{node_id}`, `blueprint://tasks`, `blueprint://roadmap`,
+`blueprint://agent-context`, and `blueprint://schemas/{name}`. The `prove_task`
+prompt returns the selected ready-task proof prompt.
+
+`--allow-writes` registers only the low-risk write tools `record_attempt` and
+`assign_node`. Without the flag, write tools are omitted from `tools/list`.
+Destructive source rewrites are not exposed; `preview_rename_node` is always
+dry-run only. See [`docs/mcp.md`](mcp.md) for the MCP-specific contract and
+client configuration examples.
+
 ---
 
 ## Exit codes

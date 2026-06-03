@@ -290,12 +290,47 @@ already justify.
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 | `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
+| `isabelle-blueprint-mcp` | MCP tools, resources, and prompts | Direct consumption by AI agents and MCP clients. |
 | `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
 
 The CLI, JSON output, and GitHub Action outputs are stable public contracts:
 
 - [`docs/cli-contract.md`](docs/cli-contract.md)
 - [`docs/json-contract.md`](docs/json-contract.md)
+- [`docs/mcp.md`](docs/mcp.md)
+
+## MCP server for AI proof agents
+
+Install the optional MCP extra when you want AI agents to consume a blueprint
+directly:
+
+```bash
+pip install "isabelle-blueprint[mcp]"
+isabelle-blueprint-mcp --project-dir .
+```
+
+The server defaults to MCP stdio transport, so local clients can launch it on
+demand. For example:
+
+```json
+{
+  "mcpServers": {
+    "isabelle-blueprint": {
+      "command": "isabelle-blueprint-mcp",
+      "args": ["--project-dir", "/path/to/formalization"]
+    }
+  }
+}
+```
+
+It exposes read-only tools such as `status`, `roadmap`, `list_tasks`,
+`next_task`, `agent_context`, `explain_node`, `lint`, `graph`, `schema`, and
+`doctor`; resources such as `blueprint://project`, `blueprint://tasks`,
+`blueprint://roadmap`, and `blueprint://nodes/{node_id}`; and a `prove_task`
+prompt for the suggested ready proof task. Add `--allow-writes` only when you
+want low-risk write tools for recording proof-attempt memory and per-node
+assignments. See [`docs/mcp.md`](docs/mcp.md) for the full tool/resource catalog
+and `streamable-http` setup.
 
 ## Three-axis status model
 

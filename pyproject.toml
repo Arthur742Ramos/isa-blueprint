@@ -37,12 +37,17 @@ dev = [
   "pytest-cov>=4.0",
   "ruff>=0.6",
   "mypy>=1.10",
+  "mcp>=1.12.4",
   "types-PyYAML",
   "build",
+]
+mcp = [
+  "mcp>=1.12.4",
 ]
 
 [project.scripts]
 isabelle-blueprint = "isabelle_blueprint.cli:main"
+isabelle-blueprint-mcp = "isabelle_blueprint.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/Arthur742Ramos/isa-blueprint"

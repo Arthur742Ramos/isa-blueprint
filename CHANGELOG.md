@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an optional MCP server entry point, `isabelle-blueprint-mcp`, for AI
+  agents working on Isabelle projects. Install with `pip install
+  "isabelle-blueprint[mcp]"`. The server exposes read tools/resources for
+  status, roadmap, ready tasks, next-task prompts, agent context, explanations,
+  lint findings, dependency graphs, schemas, and diagnostics. It also exposes a
+  `prove_task` prompt, a dry-run rename preview, and launch-gated
+  `--allow-writes` tools for low-risk proof-attempt memory and assignments.
+
 - Added an `impact` command that computes the *downstream* blast radius of a
   node — what depends on it — as the dependent-facing complement to
   `critical-path`. Unlike `critical-path` leverage (which counts only incomplete
