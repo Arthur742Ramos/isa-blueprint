@@ -37,7 +37,7 @@ valid `isabelle-blueprint.toml`.
 | --- | --- |
 | `0` | Success |
 | `1` | A `BlueprintError` reached `main()` (e.g. parser/validator error, missing config) |
-| `2` | argparse usage error |
+| `2` | argparse usage error, a structural validation failure on `check`/`dump`, or `lint --strict` found an error-severity finding |
 | `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, or `diff --fail-on-regression` found a regression |
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `check --strict` couldn't run Isabelle; `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
@@ -75,7 +75,7 @@ isabelle-blueprint check [project_dir]
                          [--jobs N]
                          [--watch]
                          [--interval SECONDS]
-                         [--fail-on STATUS[,STATUS...]]
+                         [--fail-on STATUS ...]
 ```
 
 Validates the blueprint structure and, if Isabelle is available, runs the
@@ -93,8 +93,9 @@ each declared fact exists and isn't tainted by `sorry` / oracles.
 - `--watch` re-runs the check whenever the blueprint sources change, polling
   every `--interval SECONDS` (default `1.0`). Only blueprint inputs are
   watched; generated reports are excluded to avoid self-triggering.
-- `--fail-on STATUS[,STATUS...]` exits 5 if any node ends in one of the named
-  formal statuses. The alias `problem` expands to all problem statuses
+- `--fail-on STATUS` exits 5 if any node ends in one of the named
+  formal statuses. Repeat the flag to select multiple statuses; the alias
+  `problem` expands to all problem statuses
   (`not_found`, `broken`, `failed_check`, `tainted`).
 
 ### `graph`
@@ -385,7 +386,7 @@ are `null` and the command exits 0. If filters exclude existing ready tasks,
 ### `report`
 
 ```text
-isabelle-blueprint report [project_dir] [--fail-on STATUS[,STATUS...]]
+isabelle-blueprint report [project_dir] [--fail-on STATUS ...]
 ```
 
 Writes the machine-readable status payload:
@@ -414,8 +415,9 @@ When `$GITHUB_OUTPUT` is set, the stable scalar keys
 `found_count`, `problem_count`, `has_cycles`) are emitted to it. When
 `$GITHUB_STEP_SUMMARY` is set, a compact Markdown summary is appended to it.
 
-`--fail-on STATUS[,STATUS...]` exits 5 if any node has one of the named formal
-statuses after the report is written (the `problem` alias expands to all
+`--fail-on STATUS` exits 5 if any node has one of the named formal
+statuses after the report is written. Repeat the flag to select multiple
+statuses (the `problem` alias expands to all
 problem statuses). Report artifacts are still emitted before the gate fires.
 
 ### `status`
@@ -428,7 +430,7 @@ isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
                           [--memory-state fresh|attempted|stale]
                           [--last-outcome OUTCOME]
                           [--exclude-node NODE_OR_TASK]
-                          [--fail-on STATUS[,STATUS...]]
+                          [--fail-on STATUS ...]
 ```
 
 Prints a read-only project health overview without writing report artifacts.
@@ -452,8 +454,9 @@ active, JSON payloads add a `filters` object recording the requested view and a
 and annotates `Ready tasks: X total, Y match filters`. Filters matching zero
 tasks emit a short note to stderr listing how many ready tasks were excluded.
 
-`--fail-on STATUS[,STATUS...]` exits 5 if any node has one of the named formal
-statuses (the `problem` alias expands to all problem statuses). The gate is
+`--fail-on STATUS` exits 5 if any node has one of the named formal
+statuses. Repeat the flag to select multiple statuses (the `problem` alias
+expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
 
 ### `roadmap`

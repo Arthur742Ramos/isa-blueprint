@@ -26,9 +26,9 @@ class TrendDelta:
     """The change in a single numeric metric between two trend entries."""
 
     metric: str
-    before: int | None
-    after: int | None
-    delta: int | None
+    before: int | float | None
+    after: int | float | None
+    delta: int | float | None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -73,19 +73,25 @@ def summarize_trends(entries: list[dict], *, limit: int | None = None) -> TrendS
     if total >= 2:
         before, after = entries[-2], entries[-1]
         for key in _DELTA_KEYS:
-            b = _as_int(before.get(key))
-            a = _as_int(after.get(key))
+            b = _as_number(before.get(key))
+            a = _as_number(after.get(key))
             delta = a - b if a is not None and b is not None else None
             deltas.append(TrendDelta(metric=key, before=b, after=a, delta=delta))
 
     return TrendSummary(entry_count=total, entries=list(shown), deltas=deltas)
 
 
-def _as_int(value: object) -> int | None:
+def _as_number(value: object) -> int | float | None:
+    """Return ``value`` as a number, preserving ``int`` vs ``float``.
+
+    Booleans are excluded (``bool`` is a subclass of ``int``) and non-numeric
+    values yield ``None``. Floats are kept as-is so decimal metrics such as
+    ``coverage_percent`` are not silently truncated.
+    """
     if isinstance(value, bool):
-        return int(value)
+        return None
     if isinstance(value, (int, float)):
-        return int(value)
+        return value
     return None
 
 

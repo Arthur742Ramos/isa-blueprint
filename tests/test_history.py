@@ -77,6 +77,9 @@ def test_history_summarizes_delta(tmp_path: Path, capsys) -> None:
     assert data["entry_count"] == 2
     deltas = {d["metric"]: d["delta"] for d in data["deltas"]}
     assert deltas["proved_count"] == 1
+    # Float metrics keep their decimal type instead of being truncated to int.
+    assert deltas["coverage_percent"] == 10.0
+    assert isinstance(deltas["coverage_percent"], float)
 
 
 def test_history_limit(tmp_path: Path, capsys) -> None:

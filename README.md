@@ -493,12 +493,13 @@ isabelle-blueprint lint . --strict        # exit 2 on any error-severity finding
 ```
 
 Gate CI on proof health from any reporting command with the shared
-`--fail-on STATUS` flag (the `problem` alias expands to every problem status),
-and re-run `check` automatically while you edit with `--watch`:
+`--fail-on STATUS` flag (repeat it to select several statuses; the `problem`
+alias expands to every problem status), and re-run `check` automatically while
+you edit with `--watch`:
 
 ```bash
 isabelle-blueprint check . --fail-on problem
-isabelle-blueprint report . --fail-on not_found,broken
+isabelle-blueprint report . --fail-on not_found --fail-on broken
 isabelle-blueprint status . --fail-on problem
 isabelle-blueprint check . --watch --interval 2
 ```
