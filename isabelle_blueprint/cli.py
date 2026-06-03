@@ -294,6 +294,23 @@ def _format_ready_task_filters(filters: ReadyTaskFilters) -> str:
     return "; ".join(parts)
 
 
+def _ready_task_filters_to_argv(filters: ReadyTaskFilters) -> list[str]:
+    """Render filter flags back to argv form for embedding in suggested commands."""
+
+    argv: list[str] = []
+    for flag, values in (
+        ("--kind", filters.kinds),
+        ("--priority", filters.priorities),
+        ("--difficulty", filters.difficulties),
+        ("--memory-state", filters.memory_states),
+        ("--last-outcome", filters.last_outcomes),
+        ("--exclude-node", filters.excluded_nodes),
+    ):
+        for value in values:
+            argv.extend([flag, value])
+    return argv
+
+
 def _no_ready_task_message(ready_task_count: int, filters: ReadyTaskFilters) -> str:
     if filters.active and ready_task_count:
         excluded = (
@@ -692,12 +709,25 @@ def cmd_status(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
-    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-    overview = build_status_overview(project, ready_tasks, top_task_count=args.top_tasks)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    selected_ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    overview = build_status_overview(
+        project,
+        all_ready_tasks,
+        top_task_count=args.top_tasks,
+        selected_ready_tasks=selected_ready_tasks if filters.active else None,
+        filters=filters.to_dict() if filters.active else None,
+    )
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
     else:
         print(render_status_overview(overview), end="")
+    if filters.active and not selected_ready_tasks and all_ready_tasks:
+        print(
+            _no_ready_task_message(len(all_ready_tasks), filters),
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -740,15 +770,20 @@ def cmd_agent_context(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
-    ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
-    status = build_status_overview(project, ready_tasks)
-    roadmap = build_roadmap(project, ready_tasks)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    selected_ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    status = build_status_overview(project, all_ready_tasks)
+    roadmap = build_roadmap(project, all_ready_tasks)
     context = build_agent_context(
         config,
         status,
         roadmap,
-        ready_tasks,
+        all_ready_tasks,
         max_tasks=args.max_tasks,
+        filtered_ready_tasks=selected_ready_tasks if filters.active else None,
+        filters=filters.to_dict() if filters.active else None,
+        filter_argv=_ready_task_filters_to_argv(filters) if filters.active else None,
     )
     written: dict[str, Path] = {}
     if args.write:
@@ -773,6 +808,11 @@ def cmd_agent_context(args: argparse.Namespace) -> int:
         stream = sys.stdout
     for name, path in written.items():
         print(f"{name} -> {path}", file=stream)
+    if filters.active and not selected_ready_tasks and all_ready_tasks:
+        print(
+            _no_ready_task_message(len(all_ready_tasks), filters),
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -1439,6 +1479,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="include the first N ready-task summaries in output",
     )
+    _add_ready_task_filter_arguments(p_status)
     p_status.set_defaults(func=cmd_status)
 
     p_roadmap = sub.add_parser("roadmap", help="plan proof-work stages and suggested path")
@@ -1501,6 +1542,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
         help=f"maximum ready tasks to embed in the context (default: {DEFAULT_AGENT_CONTEXT_TASK_LIMIT})",
     )
+    _add_ready_task_filter_arguments(p_agent_context)
     p_agent_context.set_defaults(func=cmd_agent_context)
 
     p_comment = sub.add_parser(

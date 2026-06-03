@@ -232,3 +232,126 @@ Later.
 """,
         encoding="utf-8",
     )
+
+
+def test_cli_status_filters_top_tasks_by_kind(tmp_path: Path, capsys) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(
+        ["status", str(tmp_path), "--json", "--top-tasks", "5", "--kind", "theorem"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 1
+    assert data["filters"]["kind"] == ["theorem"]
+    assert data["filters"]["priority"] == []
+    assert data["next_task"]["node_id"] == "main"
+    assert [task["node_id"] for task in data["top_ready_tasks"]] == ["main"]
+
+
+def test_cli_status_filters_by_priority_and_difficulty(tmp_path: Path, capsys) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(
+        [
+            "status",
+            str(tmp_path),
+            "--json",
+            "--top-tasks",
+            "5",
+            "--priority",
+            "high",
+            "--difficulty",
+            "medium",
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready_task_count"] == 2
+    assert data["filters"]["priority"] == ["high"]
+    assert data["filters"]["difficulty"] == ["medium"]
+    assert data["filtered_ready_task_count"] >= 1
+    for task in data["top_ready_tasks"]:
+        assert task["priority"] == "high"
+        assert task["difficulty"] == "medium"
+
+
+def test_cli_status_filter_no_match_reports_excluded(
+    tmp_path: Path, capsys
+) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(
+        ["status", str(tmp_path), "--json", "--top-tasks", "5", "--difficulty", "low"]
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 0
+    assert data["filters"]["difficulty"] == ["low"]
+    assert data["next_task"] is None
+    assert data["top_ready_tasks"] == []
+    assert data["health"] == "ready"
+    assert "No ready tasks match the requested filters" in captured.err
+    assert "difficulty=low" in captured.err
+    assert "2 ready tasks were excluded" in captured.err
+
+
+def test_cli_status_human_output_shows_filter_banner(
+    tmp_path: Path, capsys
+) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(
+        ["status", str(tmp_path), "--top-tasks", "5", "--kind", "theorem"]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Filters: kind=theorem" in out
+    assert "Ready tasks: 2 total, 1 match filters" in out
+    assert "Next task matching filters: task-main" in out
+    assert "Top ready tasks matching filters:" in out
+    assert "  1. task-main" in out
+
+
+def test_cli_status_filters_by_exclude_node(tmp_path: Path, capsys) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(
+        [
+            "status",
+            str(tmp_path),
+            "--json",
+            "--top-tasks",
+            "5",
+            "--exclude-node",
+            "main",
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready_task_count"] == 2
+    assert data["filtered_ready_task_count"] == 1
+    assert data["filters"]["exclude_node"] == ["main"]
+    assert data["next_task"]["node_id"] == "helper"
+
+
+def test_cli_status_without_filters_omits_filter_fields(
+    tmp_path: Path, capsys
+) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(["status", str(tmp_path), "--json", "--top-tasks", "2"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "filters" not in data
+    assert "filtered_ready_task_count" not in data
+

@@ -112,9 +112,11 @@ class AgentContext:
     artifacts: dict[str, str]
     commands: list[AgentContextCommand]
     ready_tasks: list[AgentContextTask]
+    filters: dict[str, list[str]] | None = None
+    filtered_ready_task_count: int | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "tool_version": self.tool_version,
             "generated_at": self.generated_at,
@@ -130,6 +132,11 @@ class AgentContext:
             "commands": [command.to_dict() for command in self.commands],
             "ready_tasks": [task.to_dict() for task in self.ready_tasks],
         }
+        if self.filters is not None:
+            payload["filters"] = {key: list(values) for key, values in self.filters.items()}
+        if self.filtered_ready_task_count is not None:
+            payload["filtered_ready_task_count"] = self.filtered_ready_task_count
+        return payload
 
 
 def build_agent_context(
@@ -140,13 +147,30 @@ def build_agent_context(
     *,
     max_tasks: int = DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
     generated_at: str | None = None,
+    filtered_ready_tasks: list[AgentTask] | None = None,
+    filters: dict[str, list[str]] | None = None,
+    filter_argv: list[str] | None = None,
 ) -> AgentContext:
-    """Project status, roadmap, task, and memory data in one agent-friendly payload."""
+    """Project status, roadmap, task, and memory data in one agent-friendly payload.
+
+    ``ready_tasks`` is the canonical (unfiltered) ready set; ``ready_task_count``
+    and warnings (including ``stale_memory`` / ``no_ready_tasks``) are computed
+    from it so the bundle stays a faithful project snapshot.  When ``filters``
+    narrow the embedded list, callers pass the filtered ordering as
+    ``filtered_ready_tasks`` and the active filter flags as ``filter_argv``;
+    the latter is appended to filter-sensitive recommended commands so an
+    agent re-running them stays in the filtered subset.
+    """
 
     if max_tasks < 1:
         raise BlueprintError("agent context max_tasks must be at least 1")
     artifacts = _artifact_paths(config)
-    shown_tasks = ready_tasks[:max_tasks]
+    embedded_source = filtered_ready_tasks if filtered_ready_tasks is not None else ready_tasks
+    shown_tasks = embedded_source[:max_tasks]
+    filters_payload = (
+        {key: list(values) for key, values in filters.items()} if filters is not None else None
+    )
+    filtered_count = len(embedded_source) if filters_payload is not None else None
     return AgentContext(
         schema_version=AGENT_CONTEXT_SCHEMA_VERSION,
         tool_version=__version__,
@@ -161,12 +185,15 @@ def build_agent_context(
         health=status.health,
         metrics=status.metrics.to_dict(),
         ready_task_count=len(ready_tasks),
-        ready_tasks_truncated=len(ready_tasks) > len(shown_tasks),
+        ready_tasks_truncated=len(embedded_source) > len(shown_tasks),
         suggested_next_task=roadmap.suggested_next_task,
         suggested_path=list(roadmap.suggested_path),
         warnings=_context_warnings(status, roadmap, ready_tasks),
         artifacts=artifacts,
-        commands=_recommended_commands(roadmap.suggested_next_task),
+        commands=_recommended_commands(
+            roadmap.suggested_next_task,
+            filter_argv=filter_argv,
+        ),
         ready_tasks=[
             AgentContextTask.from_task(
                 task,
@@ -177,6 +204,8 @@ def build_agent_context(
             )
             for task in shown_tasks
         ],
+        filters=filters_payload,
+        filtered_ready_task_count=filtered_count,
     )
 
 
@@ -201,22 +230,33 @@ def render_agent_context(context: AgentContext) -> str:
     """Render a concise Markdown handoff for humans or chat-oriented agents."""
 
     project_name = str(context.project["name"])
+    filters_active = context.filters is not None
     lines = [
         f"# {project_name} agent context",
         "",
         f"Health: `{context.health}`",
         f"Ready tasks: `{context.ready_task_count}`",
-        (
-            f"Suggested next task: `{context.suggested_next_task}`"
-            if context.suggested_next_task
-            else "Suggested next task: none"
-        ),
-        "Suggested path: "
-        + (" -> ".join(f"`{node_id}`" for node_id in context.suggested_path) or "none"),
-        "",
-        "## Artifacts",
-        "",
     ]
+    if filters_active:
+        formatted = _format_filters_dict(context.filters or {})
+        if formatted:
+            lines.append(f"Filters: `{formatted}`")
+        filtered = context.filtered_ready_task_count or 0
+        lines.append(f"Filtered ready tasks: `{filtered}`")
+    lines.extend(
+        [
+            (
+                f"Suggested next task: `{context.suggested_next_task}`"
+                if context.suggested_next_task
+                else "Suggested next task: none"
+            ),
+            "Suggested path: "
+            + (" -> ".join(f"`{node_id}`" for node_id in context.suggested_path) or "none"),
+            "",
+            "## Artifacts",
+            "",
+        ]
+    )
     for name, path in context.artifacts.items():
         lines.append(f"- `{name}`: `{path}`")
     lines.append("")
@@ -234,9 +274,16 @@ def render_agent_context(context: AgentContext) -> str:
             )
         lines.append("")
 
-    lines.extend(["## Ready tasks", ""])
+    ready_heading = "## Ready tasks matching filters" if filters_active else "## Ready tasks"
+    lines.extend([ready_heading, ""])
     if not context.ready_tasks:
-        lines.append("No ready tasks are currently available.")
+        if filters_active and context.ready_task_count:
+            lines.append(
+                "No ready tasks match the active filters; "
+                f"{context.ready_task_count} canonical ready task(s) excluded."
+            )
+        else:
+            lines.append("No ready tasks are currently available.")
     else:
         for task in context.ready_tasks:
             details = []
@@ -253,9 +300,16 @@ def render_agent_context(context: AgentContext) -> str:
                 f"- `{task.id}` - {task.title}{target}; prompt `{task.prompt_path}`{suffix}"
             )
         if context.ready_tasks_truncated:
-            lines.append(
-                f"- _Ready task list truncated; see `{context.artifacts['tasks_json']}` for all tasks._"
-            )
+            tasks_json = context.artifacts["tasks_json"]
+            if filters_active:
+                lines.append(
+                    "- _Filtered ready task list truncated; see "
+                    f"`{tasks_json}` for the canonical (unfiltered) catalog._"
+                )
+            else:
+                lines.append(
+                    f"- _Ready task list truncated; see `{tasks_json}` for all tasks._"
+                )
     lines.append("")
 
     lines.extend(["## Recommended commands", ""])
@@ -263,6 +317,27 @@ def render_agent_context(context: AgentContext) -> str:
         lines.append(f"- `{command.intent}`: `{' '.join(command.argv)}`")
     lines.append("")
     return "\n".join(lines)
+
+
+_FILTER_LABELS: tuple[tuple[str, str], ...] = (
+    ("kind", "kind"),
+    ("priority", "priority"),
+    ("difficulty", "difficulty"),
+    ("memory_state", "memory-state"),
+    ("last_outcome", "last-outcome"),
+    ("exclude_node", "exclude-node"),
+)
+
+
+def _format_filters_dict(filters: dict[str, list[str]]) -> str:
+    """Render a filter dict (kind/priority/...) into a compact human-readable string."""
+
+    parts: list[str] = []
+    for key, label in _FILTER_LABELS:
+        values = filters.get(key) or []
+        if values:
+            parts.append(f"{label}={','.join(values)}")
+    return "; ".join(parts)
 
 
 def agent_context_timestamp() -> str:
@@ -388,23 +463,28 @@ def _context_warnings(
     return warnings
 
 
-def _recommended_commands(suggested_next_task: str | None) -> list[AgentContextCommand]:
+def _recommended_commands(
+    suggested_next_task: str | None,
+    *,
+    filter_argv: list[str] | None = None,
+) -> list[AgentContextCommand]:
+    extras = list(filter_argv or [])
     commands = [
         AgentContextCommand(
             intent="refresh_context",
             description="Refresh the machine-readable handoff without writing artifacts.",
-            argv=["isabelle-blueprint", "agent-context", ".", "--json"],
+            argv=["isabelle-blueprint", "agent-context", ".", "--json", *extras],
         ),
         AgentContextCommand(
             intent="write_context",
             description="Regenerate the full handoff bundle, task prompts, and roadmap artifacts.",
-            argv=["isabelle-blueprint", "agent-context", ".", "--write"],
+            argv=["isabelle-blueprint", "agent-context", ".", "--write", *extras],
             writes=True,
         ),
         AgentContextCommand(
             intent="next_task_prompt",
             description="Print the highest-priority ready proof-task prompt.",
-            argv=["isabelle-blueprint", "next", "."],
+            argv=["isabelle-blueprint", "next", ".", *extras],
         ),
         AgentContextCommand(
             intent="inspect_roadmap",
