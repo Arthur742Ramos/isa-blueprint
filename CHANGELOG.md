@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an `impact` command that computes the *downstream* blast radius of a
+  node — what depends on it — as the dependent-facing complement to
+  `critical-path`. Unlike `critical-path` leverage (which counts only incomplete
+  work), `impact` counts dependents of *any* formal status, so a `proved`
+  foundational lemma still shows a large blast radius. With `--node NODE` it
+  reports the direct dependents, the transitive blast radius (each with its
+  shortest dependency distance), the affected end goals, and the complete
+  (`found`/`proved`) dependents that would go stale if the node changed; without
+  `--node` it ranks every node by blast-radius size. Supports `--json`
+  (schema-versioned payloads) and `--top N`. Traversal is cycle-safe and all
+  ordering is deterministic.
+
+### Added
+
 - Added a `critical-path` command that performs longest-pole analysis of the
   remaining (incomplete) proof work. It reports the critical path of incomplete
   dependencies behind each goal (a remaining node that no other remaining node

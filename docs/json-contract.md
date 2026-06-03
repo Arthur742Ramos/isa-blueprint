@@ -590,6 +590,73 @@ dependents unblocked by completing the node).
 ---
 
 
+## `impact --json`
+
+The impact payload is printed by `isabelle-blueprint impact --json`. It is a
+command-defined payload (not written to a `build/` artifact and not backed by a
+packaged JSON Schema). It walks *downstream* over dependents, counting nodes of
+*any* formal status (unlike `critical-path`, which counts only incomplete work).
+
+The payload has two shapes selected by whether `--node` is given.
+
+With `--node NODE`, the single-node blast-radius shape:
+
+```json
+{
+  "node_id": "base-lemma",
+  "title": "Base lemma",
+  "formal_status": "proved",
+  "in_cycle": false,
+  "direct_dependent_count": 1,
+  "blast_radius_count": 2,
+  "direct_dependents": ["mid-lemma"],
+  "blast_radius": [
+    {"node_id": "mid-lemma", "title": "Mid lemma", "formal_status": "proved", "distance": 1},
+    {"node_id": "main-theorem", "title": "Main theorem", "formal_status": "missing", "distance": 2}
+  ],
+  "affected_goals": ["main-theorem"],
+  "complete_affected": ["mid-lemma"]
+}
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `node_id` | string | The target node id. |
+| `title` | string | Target title (possibly empty). |
+| `formal_status` | string | Target formal status. |
+| `in_cycle` | boolean | Whether the target participates in a dependency cycle. |
+| `direct_dependent_count` | integer | Number of immediate dependents. |
+| `blast_radius_count` | integer | Number of transitive dependents. |
+| `direct_dependents` | array of strings | Immediate dependent ids, sorted. |
+| `blast_radius` | array | Transitive dependents, each with `node_id`, `title`, `formal_status`, and shortest-hop `distance`; ordered by ascending `distance` then `node_id`. |
+| `affected_goals` | array of strings | Dependents with no further dependents (terminal goals resting on the target), sorted. |
+| `complete_affected` | array of strings | Dependents whose formal status is `found` or `proved` (trusted facts at stale risk), sorted. |
+
+Without `--node`, the project-wide ranking shape:
+
+```json
+{
+  "schema_version": 1,
+  "project": "Group theory demo",
+  "node_count": 3,
+  "rankings": [
+    {"node_id": "base-lemma", "title": "Base lemma", "formal_status": "proved", "blast_radius_count": 2, "direct_dependent_count": 1}
+  ],
+  "cycles": []
+}
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 impact ranking shape. |
+| `project` | string | Project name from `[project].name`. |
+| `node_count` | integer | Total number of nodes. |
+| `rankings` | array | One entry per node, ordered by descending `blast_radius_count` then `node_id`. `--top N` truncates the list. |
+| `cycles` | array of string arrays | Dependency cycles detected in the project. |
+
+---
+
+
 ## `agent-context --json` / `build/agent-context.json`
 
 The agent-context payload is printed by

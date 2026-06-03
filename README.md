@@ -453,6 +453,25 @@ complete nodes that still depend on incomplete ones. Where `roadmap` plans the
 *stages*, `critical-path` highlights the single longest chain and the
 highest-leverage nodes to attack first.
 
+Use `impact` for the *downstream* view — the blast radius of a node, i.e. what
+depends on it. Where `critical-path` walks upstream over remaining work, `impact`
+walks downstream over *all* dependents (any status), so it shows how much of the
+project rests on a node even when that node is already `proved`:
+
+```bash
+isabelle-blueprint impact .                      # rank every node by blast radius
+isabelle-blueprint impact . --node main-lemma    # blast radius for one node
+isabelle-blueprint impact . --node main-lemma --json
+isabelle-blueprint impact . --top 20
+```
+
+For a single node it reports the direct dependents, the transitive blast radius
+(each with its shortest dependency distance), the affected end goals that rest on
+it, and the complete (`found`/`proved`) dependents that would go stale if the
+node changed — a quick way to gauge the risk of touching a foundational fact.
+With no `--node` it ranks every node by blast-radius size so you can spot the
+highest-leverage foundations.
+
 Use `agent-context` when an AI agent needs the whole working brief in one stable
 payload:
 
