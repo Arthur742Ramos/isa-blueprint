@@ -44,8 +44,18 @@ def apply_stored_check_report(project: BlueprintProject, config: BlueprintConfig
         report_data = json.loads(config.check_report_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return
-    result = CheckResult.from_dict(report_data)
-    apply_check_report(project, result)
+    if not isinstance(report_data, dict):
+        return
+    facts = report_data.get("facts")
+    if facts is not None and (
+        not isinstance(facts, list) or any(not isinstance(item, dict) for item in facts)
+    ):
+        return
+    try:
+        result = CheckResult.from_dict(report_data)
+        apply_check_report(project, result)
+    except (BlueprintError, TypeError, ValueError):
+        return
 
 
 def load_project_with_check(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:

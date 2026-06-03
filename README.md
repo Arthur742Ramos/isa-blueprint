@@ -330,7 +330,7 @@ It exposes read-only tools such as `status`, `roadmap`, `list_tasks`,
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
 want low-risk write tools for recording proof-attempt memory and per-node
 assignments. See [`docs/mcp.md`](docs/mcp.md) for the full tool/resource catalog
-and streamable-HTTP setup.
+and `streamable-http` setup.
 
 ## Three-axis status model
 
