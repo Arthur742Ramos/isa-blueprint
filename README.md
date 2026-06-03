@@ -408,9 +408,9 @@ of the first ready tasks without generating prompt files. The same repeatable
 the full project, while `next_task` and `top_ready_tasks` narrow to the
 filtered selection. Use `next` when you want the selected ready-task prompt
 directly on stdout without first generating `build/prompts/`. Add repeatable
-`--kind`, `--priority`, `--difficulty`, `--memory-state`, or `--last-outcome`
-filters to focus the automatic selection without changing the canonical task
-queue. Use `attempt` when you want that handoff written to `build/attempts/`,
+`--kind`, `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
+`--exclude-node` filters to focus the automatic selection without changing the
+canonical task queue. Use `attempt` when you want that handoff written to `build/attempts/`,
 optionally followed by a `check` run and a memory note. Use `roadmap` when you
 want the staged plan:
 

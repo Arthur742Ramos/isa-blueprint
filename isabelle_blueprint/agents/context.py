@@ -483,7 +483,11 @@ def _recommended_commands(
         ),
         AgentContextCommand(
             intent="next_task_prompt",
-            description="Print the highest-priority ready proof-task prompt.",
+            description=(
+                "Print the highest-priority ready proof-task prompt matching the active filters."
+                if extras
+                else "Print the highest-priority ready proof-task prompt."
+            ),
             argv=["isabelle-blueprint", "next", ".", *extras],
         ),
         AgentContextCommand(
