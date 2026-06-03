@@ -573,19 +573,19 @@ Top-level keys:
 | `project` | string | Project name from `[project].name`. |
 | `remaining_count` | integer | Number of incomplete nodes. |
 | `goal_count` | integer | Number of goals (incomplete nodes with no incomplete dependents). |
-| `longest` | object or null | The deepest goal chain, or `null` when there is no remaining work. |
+| `longest` | object or null | The deepest goal chain. It is `null` when there is no remaining work, and also when every remaining incomplete node is excluded from ranking because it participates in a cycle (so there are no goals outside cycles). Consumers must not assume `remaining_count > 0` implies a non-null `longest`. |
 | `goals` | array | One chain per goal, ordered by descending `depth` then `goal_id`. |
 | `bottlenecks` | array | Incomplete nodes ordered by descending `leverage` then `node_id`. Only nodes with `leverage > 0` appear. |
 | `cycles` | array of string arrays | Dependency cycles; nodes in cycles are excluded from chain and leverage ranking. |
 | `missing_dependencies` | array | Nodes referencing unknown dependency ids, each with `node_id` and a sorted `missing` id list. |
 | `inconsistent` | array | Complete nodes that still depend on incomplete ones, each with `node_id` and a sorted `incomplete_dependencies` id list. |
 
-Each goal chain entry contains `goal_id`, nullable `title`, `formal_status`,
-`depth` (the number of incomplete nodes on the critical path, base 1), and
-`path` (the ordered incomplete dependency chain ending at the goal). Each
-bottleneck entry contains `node_id`, nullable `title`, `formal_status`, and
-`leverage` (the number of incomplete transitive dependents unblocked by
-completing the node).
+Each goal chain entry contains `goal_id`, `title` (a string, possibly empty),
+`formal_status`, `depth` (the number of incomplete nodes on the critical path,
+base 1), and `path` (the ordered incomplete dependency chain ending at the
+goal). Each bottleneck entry contains `node_id`, `title` (a string, possibly
+empty), `formal_status`, and `leverage` (the number of incomplete transitive
+dependents unblocked by completing the node).
 
 ---
 

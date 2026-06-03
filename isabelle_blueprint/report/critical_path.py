@@ -295,7 +295,7 @@ def render_critical_path(
     lines = [f"# {overview.project} critical path", ""]
 
     if goal is not None:
-        return "\n".join(_render_single_goal(overview, goal, console))
+        return "\n".join(_render_single_goal(overview, goal, console)).rstrip("\n") + "\n"
 
     if overview.remaining_count == 0:
         lines.append(console.success("All formal targets are complete - no remaining work."))

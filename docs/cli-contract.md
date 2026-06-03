@@ -571,7 +571,11 @@ All ordering is deterministic: dependency and dependent iteration is sorted by
 id, goals are ordered by descending depth then id, and bottlenecks by descending
 leverage then id.
 
+### `agent-context`
 
+```text
+isabelle-blueprint agent-context [project_dir]
+                                  [--json]
                                   [--write]
                                   [--max-tasks N]
                                   [--kind KIND]

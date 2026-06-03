@@ -724,13 +724,11 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
-        stream = sys.stderr
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
-        stream = sys.stdout
     failures = critical_path_strict_failures(overview) if args.fail_on_cycle else []
     for failure in failures:
-        print(f"critical-path: {failure}", file=stream)
+        print(f"critical-path: {failure}", file=sys.stderr)
     return 2 if failures else 0
 
 

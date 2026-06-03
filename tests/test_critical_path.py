@@ -263,6 +263,7 @@ def test_cli_goal_focus(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Goal `b`" in out
     assert "`a` -> `b`" in out
+    assert out.endswith("\n")
 
 
 def test_cli_fail_on_cycle(tmp_path: Path, capsys) -> None:
@@ -295,5 +296,8 @@ Sketch.
     rc = cli_main(["critical-path", str(tmp_path), "--fail-on-cycle"])
 
     assert rc == 2
-    out = capsys.readouterr().out
-    assert "Cycles" in out
+    captured = capsys.readouterr()
+    assert "Cycles" in captured.out
+    # Strict failure messages go to stderr so the rendered report stays parseable on stdout.
+    assert "critical-path:" in captured.err
+    assert "critical-path:" not in captured.out
