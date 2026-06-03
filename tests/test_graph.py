@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
-from isabelle_blueprint.graph.graphviz_render import render_dot, render_json
+from isabelle_blueprint.graph.graphviz_render import (
+    render_dot,
+    render_json,
+    render_mermaid,
+)
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 
@@ -72,3 +76,44 @@ def test_render_json_shape():
     node_ids = {n["id"] for n in data["nodes"]}
     assert node_ids == {"a", "b"}
     assert any(e["source"] == "b" and e["target"] == "a" for e in data["edges"])
+
+
+def test_render_mermaid_contains_flowchart_nodes_and_edges():
+    project = _project(("a", []), ("b", ["a"]))
+    mermaid = render_mermaid(project)
+    assert mermaid.startswith("flowchart BT")
+    assert "-->" in mermaid
+    assert "style" in mermaid
+    # Both node ids appear in the flowchart body.
+    assert "a" in mermaid and "b" in mermaid
+
+
+def test_cli_graph_format_mermaid_writes_mmd(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-fmt"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-fmt
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--format", "mermaid"])
+
+    assert rc == 0
+    capsys.readouterr()
+    mmd = tmp_path / "build" / "graph.mmd"
+    assert mmd.exists()
+    assert mmd.read_text(encoding="utf-8").startswith("flowchart BT")
+    # Only the mermaid artifact should be written for --format mermaid.
+    assert not (tmp_path / "build" / "graph.dot").exists()
+

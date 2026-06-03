@@ -685,6 +685,119 @@ Attempts are capped by the `memory --max-attempts` value when recording
 
 ---
 
+## `lint --json`
+
+Written to stdout by `lint --json`.
+
+```json
+{
+  "project": "demo",
+  "ok": true,
+  "counts": { "error": 0, "warning": 1, "info": 0, "total": 1 },
+  "findings": [
+    {
+      "code": "no-isabelle-fact",
+      "severity": "warning",
+      "node_id": "main-theorem",
+      "message": "formal-intent node has no Isabelle reference"
+    }
+  ]
+}
+```
+
+`ok` is `true` when there are no error-severity findings. `severity` is one of
+`error`, `warning`, `info`. `code` is a stable kebab-case identifier (see the
+CLI contract for the current set).
+
+---
+
+## `diff --json`
+
+Written to stdout by `diff --json`.
+
+```json
+{
+  "project": "demo",
+  "added": ["new-lemma"],
+  "removed": ["old-lemma"],
+  "changes": [
+    {
+      "node_id": "main-theorem",
+      "field": "formal",
+      "before": "found",
+      "after": "named",
+      "regression": true
+    }
+  ],
+  "regression_count": 1,
+  "has_regression": true
+}
+```
+
+`added`/`removed` are node-id lists. Each `changes` entry records a single field
+transition (`formal`, `agent`, or `blueprint`) with a `regression` flag.
+`has_regression` is `true` when any change is a regression or any node was
+removed.
+
+---
+
+## `history --json`
+
+Written to stdout by `history --json`.
+
+```json
+{
+  "entry_count": 2,
+  "entries": [
+    { "timestamp": "2026-06-01T12:00:00Z", "coverage_percent": 40.0, "problem_count": 1 },
+    { "timestamp": "2026-06-02T12:00:00Z", "coverage_percent": 60.0, "problem_count": 0 }
+  ],
+  "deltas": [
+    { "metric": "coverage_percent", "before": 40.0, "after": 60.0, "delta": 20.0 },
+    { "metric": "problem_count", "before": 1, "after": 0, "delta": -1 }
+  ]
+}
+```
+
+`entries` are the recorded `trends.json` rows (most recent last, truncated by
+`--limit`). `deltas` compares the last two entries across `coverage_percent`,
+`proved_count`, `found_count`, `problem_count`, `stale_count`,
+`formal_target_count`, and `node_count`; it is empty when fewer than two
+entries exist, and a metric's `before`/`after`/`delta` is `null` when that row
+lacks a numeric value.
+
+---
+
+## `assign --json` / `assignments.json`
+
+`assign --json` prints a project-scoped view to stdout:
+
+```json
+{
+  "project": "demo",
+  "assignments": [
+    { "node_id": "main-theorem", "owner": "alice", "note": "", "updated_at": "2026-06-01T12:00:00Z" }
+  ]
+}
+```
+
+When a specific `node_id` is queried but unassigned, its entry has `owner:
+null`. The persisted store (the configured `assignments.json`) uses a different,
+keyed shape:
+
+```json
+{
+  "schema_version": 1,
+  "nodes": {
+    "main-theorem": { "owner": "alice", "note": "", "updated_at": "2026-06-01T12:00:00Z" }
+  }
+}
+```
+
+Readers should ignore unknown keys.
+
+---
+
 ## Compatibility rules
 
 For the v1.x line:

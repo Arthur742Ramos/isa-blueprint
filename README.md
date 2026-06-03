@@ -479,6 +479,60 @@ isabelle-blueprint import-theory src/Demo.thy --output blueprint.md \
 The importer is best-effort; review generated statements, suggested
 dependencies, and proof sketches before relying on the result.
 
+## Quality gates, diffs, history, and ownership
+
+Run `lint` for fast structural and quality checks (duplicate ids, missing
+dependencies, cycles, broken or stale formal status, empty statements, missing
+informal proofs, formal-intent nodes without an Isabelle reference, and isolated
+nodes):
+
+```bash
+isabelle-blueprint lint .
+isabelle-blueprint lint . --json
+isabelle-blueprint lint . --strict        # exit 2 on any error-severity finding
+```
+
+Gate CI on proof health from any reporting command with the shared
+`--fail-on STATUS` flag (the `problem` alias expands to every problem status),
+and re-run `check` automatically while you edit with `--watch`:
+
+```bash
+isabelle-blueprint check . --fail-on problem
+isabelle-blueprint report . --fail-on not_found,broken
+isabelle-blueprint status . --fail-on problem
+isabelle-blueprint check . --watch --interval 2
+```
+
+Compare the current project against a saved `build/project.json` baseline to see
+what changed and catch regressions (a proof coming undone, a healthy status
+turning into a problem, a removed node, or a slide down the confidence ladder
+such as `found` to `named`/`missing`):
+
+```bash
+isabelle-blueprint diff build/project.json .
+isabelle-blueprint diff build/project.json . --json
+isabelle-blueprint diff build/project.json . --fail-on-regression   # exit 5
+```
+
+Track coverage over time from the recorded `trends.json`, render the dependency
+graph as Mermaid, record per-node ownership, and rename a node across every
+source and store in one step:
+
+```bash
+isabelle-blueprint history .
+isabelle-blueprint history . --json --limit 10
+isabelle-blueprint graph . --format mermaid        # writes build/graph.mmd
+isabelle-blueprint assign main-theorem --owner alice
+isabelle-blueprint assign                          # list current owners
+isabelle-blueprint assign main-theorem --clear
+isabelle-blueprint rename old-id new-id --dry-run
+isabelle-blueprint rename old-id new-id
+```
+
+`history` reads only `trends.json`, so it keeps working even when the current
+blueprint fails to parse. `rename` runs a re-parse safety check before writing
+and rolls back source edits if a write fails part way through.
+
 ## VS Code extension
 
 The companion extension under [`vscode/`](vscode/) reads `build/project.json`
