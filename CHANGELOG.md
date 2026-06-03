@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-03
+
 ### Added
 
 - Added a `lint` command that runs structural and quality checks over the
@@ -408,7 +410,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.5.2...v1.6.0
