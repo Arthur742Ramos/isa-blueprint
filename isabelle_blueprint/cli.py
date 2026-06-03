@@ -1873,7 +1873,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         type=_positive_int,
         default=10,
         metavar="N",
-        help="number of rows to display in text mode (default: 10)",
+        help="maximum rows to display, and ranking entries to keep in --json (default: 10)",
     )
     p_impact.set_defaults(func=cmd_impact)
 

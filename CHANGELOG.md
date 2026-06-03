@@ -21,8 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (schema-versioned payloads) and `--top N`. Traversal is cycle-safe and all
   ordering is deterministic.
 
-### Added
-
 - Added a `critical-path` command that performs longest-pole analysis of the
   remaining (incomplete) proof work. It reports the critical path of incomplete
   dependencies behind each goal (a remaining node that no other remaining node

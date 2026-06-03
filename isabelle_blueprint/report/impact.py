@@ -224,7 +224,8 @@ def build_impact_report(project: BlueprintProject, node_id: str) -> ImpactReport
 def build_impact_overview(project: BlueprintProject) -> ImpactOverview:
     """Rank every node by the size of its downstream blast radius."""
 
-    by_id, graph, _cycle_nodes = _build_context(project)
+    graph = build_graph(project)
+    cycles = project.validate().cycles
     rankings = [
         ImpactRank(
             node_id=node.id,
@@ -243,7 +244,7 @@ def build_impact_overview(project: BlueprintProject) -> ImpactOverview:
         project=project.name,
         node_count=len(project.nodes),
         rankings=rankings,
-        cycles=[list(cycle) for cycle in project.validate().cycles],
+        cycles=[list(cycle) for cycle in cycles],
     )
 
 
