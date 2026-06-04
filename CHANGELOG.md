@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Exposed the source-only `theory-index` analysis over MCP as a read tool
+  (`theory_index`) plus matching `blueprint://theory-index` resources (with
+  `blueprint://projects/{project}/theory-index` variants), so AI proof agents
+  can read the cross-theory reference graph, import dependencies,
+  `sorry`/`oops` markers, and unreferenced entries without shelling out to the
+  CLI. Like `history`/`compat`, it never parses `blueprint.md`, so it works on
+  partial checkouts, in CI, and even when the blueprint itself fails to load.
+  Theory sources are resolved from `[isabelle].dirs`/`session` (falling back to
+  a `ROOT` or `.thy` files at the project root); the `session` argument
+  overrides the configured session. Resolution is best-effort across multiple
+  configured roots — a root that lacks the selected session is reported under
+  `warnings` instead of aborting the whole index — and the payload echoes the
+  resolved `source_roots`/`theory_files` for transparency.
 - New `theory-index` command: source-only analysis of Isabelle `.thy` files that
   needs no `isabelle` binary, so it runs in CI and on partial checkouts. It
   resolves theories from explicit paths, `--root DIR` (optionally `--session

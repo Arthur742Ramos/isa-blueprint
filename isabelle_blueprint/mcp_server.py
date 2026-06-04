@@ -45,6 +45,7 @@ from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.explain import explain_project
 from isabelle_blueprint.graph.graphviz_render import render_dot, render_json, render_mermaid
 from isabelle_blueprint.isabelle.compat import check_compatibility
+from isabelle_blueprint.isabelle.source_index import build_index, session_theory_files
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.project_io import load_project, load_project_with_check
@@ -388,6 +389,27 @@ def build_server(
         suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
         return {"suggestions": suggestions, "count": len(suggestions)}
 
+    @server.tool(name="theory_index")
+    def theory_index(
+        session: str | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Source-only index of Isabelle ``.thy`` files (mirrors ``theory-index --json``).
+
+        Needs no ``isabelle`` binary and never parses ``blueprint.md``, so it
+        works in CI, on partial checkouts, and even when the blueprint itself
+        fails to load. Theory sources are resolved from ``[isabelle].dirs`` and
+        ``[isabelle].session`` in the project config (falling back to a ``ROOT``
+        or ``.thy`` files at the project root); ``session`` overrides the
+        configured session name. Returns the cross-theory reference (call)
+        graph, theory import dependencies (both directions), ``sorry``/``oops``
+        markers, and entries no other indexed entry references, all in one
+        payload. ``source_roots``/``theory_files`` report what was indexed and
+        ``warnings`` lists configured roots that resolved no theories.
+        """
+
+        return _theory_index_payload(catalog.resolve(project).root, session=session)
+
     @server.tool(name="graph")
     def graph(
         format: GraphFormat = "json",
@@ -502,6 +524,12 @@ def build_server(
         suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
         return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
 
+    @server.resource("blueprint://theory-index", mime_type="application/json")
+    def theory_index_resource() -> str:
+        """Source-only Isabelle ``.thy`` index for the default project."""
+
+        return _json_resource(_theory_index_payload(catalog.resolve(None).root))
+
     @server.resource("blueprint://projects/{project}/project", mime_type="application/json")
     def project_scoped_project_resource(project: str) -> str:
         """Parsed project graph for a selected project id."""
@@ -567,6 +595,14 @@ def build_server(
         snapshot = _snapshot(catalog.resolve(project).root)
         suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
         return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
+
+    @server.resource(
+        "blueprint://projects/{project}/theory-index", mime_type="application/json"
+    )
+    def project_scoped_theory_index_resource(project: str) -> str:
+        """Source-only Isabelle ``.thy`` index for a selected project id."""
+
+        return _json_resource(_theory_index_payload(catalog.resolve(project).root))
 
     @server.resource("blueprint://schemas/{name}", mime_type="application/json")
     def schema_resource(name: str) -> str:
@@ -947,6 +983,52 @@ def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str
     payload = summary.to_dict()
     payload["latest"] = summary.latest
     payload["trends_path"] = str(config.trends_path)
+    return payload
+
+
+def _theory_index_payload(
+    project_dir: Path,
+    *,
+    session: str | None = None,
+) -> dict[str, object]:
+    # Source-only analysis: read .thy files directly and never parse the
+    # (possibly broken) blueprint, so it works on partial checkouts and CI.
+    config = load_config(project_dir)
+    selected_session = session if session is not None else config.isabelle_session
+    roots = config.isabelle_dirs or [config.project_root]
+    files: list[Path] = []
+    seen: set[Path] = set()
+    used_roots: list[Path] = []
+    warnings: list[str] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        try:
+            resolved = session_theory_files(root, selected_session)
+        except ValueError as exc:
+            # A single configured root that lacks the session must not abort the
+            # whole index when other roots still resolve theories; remember it.
+            warnings.append(str(exc))
+            continue
+        if resolved:
+            used_roots.append(root)
+        for path in resolved:
+            if path not in seen:
+                seen.add(path)
+                files.append(path)
+    if not files:
+        if warnings:
+            raise BlueprintError("; ".join(warnings))
+        searched = ", ".join(str(root) for root in roots) or str(config.project_root)
+        raise BlueprintError(
+            f"no .thy files found for project {config.project_root} (searched: {searched}); "
+            f"set [isabelle].dirs in {DEFAULT_CONFIG_NAME} or add a ROOT/theory sources"
+        )
+    payload = build_index(files).to_dict()
+    payload["session"] = selected_session
+    payload["source_roots"] = [str(root) for root in used_roots]
+    payload["theory_files"] = [str(path) for path in files]
+    payload["warnings"] = warnings
     return payload
 
 

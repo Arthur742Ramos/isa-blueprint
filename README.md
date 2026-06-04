@@ -335,11 +335,11 @@ project-specific tools.
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
 `list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
 `critical_path`, `impact`, `stats`, `history`, `compat`, `suggest_facts`,
-`graph`, `schema`, and `doctor`; resources
+`theory_index`, `graph`, `schema`, and `doctor`; resources
 such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, `blueprint://history`, `blueprint://fact-suggestions`,
-and `blueprint://nodes/{node_id}`; and a `prove_task`
+`blueprint://theory-index`, and `blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
 want low-risk write tools for recording proof-attempt memory and per-node
 assignments. See [`docs/mcp.md`](docs/mcp.md) for the full tool/resource catalog
