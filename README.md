@@ -293,6 +293,7 @@ already justify.
 | `staleness` | Terminal or JSON trusted-node trust audit | Finding `proved`/`found` facts that rest on broken, unproven, or newer dependencies. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
 | `burndown` | Terminal or JSON velocity / ETA forecast from `trends.json` | Projecting when full proved coverage lands, and spotting stalls or scope creep. |
+| `portfolio` | Terminal or JSON cross-project roll-up | Aggregating coverage, health, and problems across every blueprint project in a monorepo or umbrella tree. |
 | `isabelle-blueprint-mcp` | MCP tools, resources, and prompts | Direct consumption by AI agents and MCP clients. |
 | `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
 
@@ -337,11 +338,11 @@ project-specific tools.
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
 `list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
 `critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
-`compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and `doctor`;
-resources such as `blueprint://projects`,
+`portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and
+`doctor`; resources such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, `blueprint://history`, `blueprint://burndown`,
-`blueprint://fact-suggestions`,
+`blueprint://portfolio`, `blueprint://fact-suggestions`,
 `blueprint://theory-index`, `blueprint://staleness`, and
 `blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
@@ -666,6 +667,8 @@ isabelle-blueprint history .
 isabelle-blueprint history . --json --limit 10
 isabelle-blueprint burndown .                      # ETA to full proved coverage
 isabelle-blueprint burndown . --json --fail-when-stalled
+isabelle-blueprint portfolio .                     # roll up every project in the tree
+isabelle-blueprint portfolio . --json --fail-on-problem
 isabelle-blueprint graph . --format mermaid        # writes build/graph.mmd
 isabelle-blueprint assign main-theorem --owner alice
 isabelle-blueprint assign                          # list current owners
@@ -678,7 +681,10 @@ isabelle-blueprint rename old-id new-id
 blueprint fails to parse. `burndown` reads the same store and forecasts an ETA to
 full proved coverage from the slope of *remaining* work, so it reflects scope
 growth — proving faster does not move the date if the target grows just as fast —
-and flags `stalled`, `regressing`, or `scope_growing` projects. `rename` runs a
+and flags `stalled`, `regressing`, or `scope_growing` projects. `portfolio` scans a
+directory tree for every blueprint project and rolls up coverage, health, and
+problem/cycle flags into one dashboard (loading is best-effort, so an unparseable
+project becomes an error entry instead of aborting the roll-up). `rename` runs a
 re-parse safety check before writing and rolls back source edits if a write fails
 part way through.
 

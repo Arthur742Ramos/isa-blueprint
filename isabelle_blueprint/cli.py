@@ -140,6 +140,11 @@ from isabelle_blueprint.report.metrics import (
     build_status_metrics,
     output_values,
 )
+from isabelle_blueprint.report.portfolio import (
+    build_portfolio,
+    portfolio_payload,
+    render_portfolio_report,
+)
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
@@ -814,6 +819,22 @@ def cmd_burndown(args: argparse.Namespace) -> int:
         "scope_growing",
         "beyond_horizon",
     }:
+        return 5
+    return 0
+
+
+def cmd_portfolio(args: argparse.Namespace) -> int:
+    root = Path(args.root_dir).resolve()
+    report = build_portfolio(root)
+    if args.json:
+        print(json.dumps(portfolio_payload(report), indent=2))
+    else:
+        print(render_portfolio_report(report), end="")
+    if args.fail_on_problem and (
+        report.totals.projects_with_problems
+        or report.totals.projects_with_cycles
+        or report.totals.error_count
+    ):
         return 5
     return 0
 
@@ -1971,6 +1992,29 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="exit non-zero (5) when work remains but is stalled/regressing/scope-growing",
     )
     p_burndown.set_defaults(func=cmd_burndown)
+
+    p_portfolio = sub.add_parser(
+        "portfolio",
+        help="aggregate status across every blueprint project under a directory",
+    )
+    p_portfolio.add_argument(
+        "root_dir",
+        nargs="?",
+        default=".",
+        help="directory tree to scan for blueprint projects (default: .)",
+    )
+    p_portfolio.add_argument(
+        "--json", action="store_true", help="emit the roll-up as JSON"
+    )
+    p_portfolio.add_argument(
+        "--fail-on-problem",
+        action="store_true",
+        help=(
+            "exit non-zero (5) when any project has problems, dependency "
+            "cycles, or fails to load"
+        ),
+    )
+    p_portfolio.set_defaults(func=cmd_portfolio)
 
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
     p_assign.add_argument(

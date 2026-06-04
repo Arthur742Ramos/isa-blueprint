@@ -64,6 +64,7 @@ from isabelle_blueprint.report.impact import (
     impact_report_payload,
 )
 from isabelle_blueprint.report.lint import build_lint_report
+from isabelle_blueprint.report.portfolio import build_portfolio, portfolio_payload
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
     RoadmapFilters,
@@ -412,6 +413,19 @@ def build_server(
             limit=_positive_or_none(limit, label="limit"),
         )
 
+    @server.tool(name="portfolio")
+    def portfolio() -> dict[str, object]:
+        """Aggregate status across every blueprint project in the workspace.
+
+        Scans the launch root for blueprint projects (mirrors ``portfolio
+        --json``) and rolls up coverage, health, ready-task counts, and
+        problem/cycle flags. This view is workspace-wide and takes no
+        ``project`` argument; unparseable projects are reported as errors
+        without failing the roll-up.
+        """
+
+        return _portfolio_payload(catalog.launch_root)
+
     @server.tool(name="compat")
     def compat(
         isabelle: str | None = None,
@@ -568,6 +582,12 @@ def build_server(
         """Velocity / ETA-to-full-coverage forecast for the default project."""
 
         return _json_resource(_burndown_payload(catalog.resolve(None).root))
+
+    @server.resource("blueprint://portfolio", mime_type="application/json")
+    def portfolio_resource() -> str:
+        """Workspace-wide roll-up across every discovered blueprint project."""
+
+        return _json_resource(_portfolio_payload(catalog.launch_root))
 
     @server.resource("blueprint://fact-suggestions", mime_type="application/json")
     def fact_suggestions_resource() -> str:
@@ -1075,6 +1095,13 @@ def _burndown_payload(
     payload = burndown_payload(report, limit=limit)
     payload["trends_path"] = str(config.trends_path)
     return payload
+
+
+def _portfolio_payload(root: Path) -> dict[str, object]:
+    # Portfolio is workspace-wide: it scans the launch root for every blueprint
+    # project and rolls them up, so it takes the launch root rather than a
+    # single resolved project directory.
+    return portfolio_payload(build_portfolio(root))
 
 
 def _mcp_session_hint(message: str) -> str:

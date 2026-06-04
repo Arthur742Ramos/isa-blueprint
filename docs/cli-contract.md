@@ -236,6 +236,30 @@ The `status` is one of `no_history`, `no_targets`, `complete`,
 - `--fail-when-stalled` exits non-zero (`5`) when work remains but the status is
   `stalled`, `regressing`, `scope_growing`, or `beyond_horizon`.
 
+### `portfolio`
+
+```text
+isabelle-blueprint portfolio [root_dir] [--json] [--fail-on-problem]
+```
+
+Scans `root_dir` (default `.`) for every IsabelleBlueprint project and rolls them
+up into a single dashboard: per-project coverage, health, problem/cycle flags, and
+ready-task counts, plus portfolio-wide totals. Project discovery mirrors the MCP
+catalog — a directory is a project when it holds an `isabelle-blueprint.toml` or
+`blueprint.md` marker, nested projects are not descended into, and noisy
+build/vendor directories (and dotted/symlinked directories) are skipped.
+
+Loading is best-effort: a project that fails to load (missing blueprint, malformed
+TOML, unreadable file) is reported as an `error` entry and excluded from the
+aggregate counts rather than aborting the whole roll-up. `coverage_percent` is
+`null` when a project (or the portfolio) has no formal targets — treat it as
+"unknown", not `0%`.
+
+- `--json` emits the machine-readable roll-up (`schema_version`, `root`, `totals`,
+  and a `projects` list).
+- `--fail-on-problem` exits non-zero (`5`) when any project has problems, has a
+  dependency cycle, or fails to load.
+
 ### `assign`
 
 ```text

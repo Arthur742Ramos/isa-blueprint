@@ -49,6 +49,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
+    assert "portfolio" in read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -281,6 +282,57 @@ def test_mcp_burndown_tool_and_resource(tmp_path: Path) -> None:
     payload = json.loads(contents[0].content)
     assert payload["status"] == "on_track"
     assert payload["eta_date"] == "2026-06-06"
+
+
+def test_mcp_portfolio_tool_and_resource(tmp_path: Path) -> None:
+    # Root is the default mcp-test project (1/2 proved); add a second project
+    # under the launch root so the roll-up spans more than one project.
+    _write_project(tmp_path)
+    sub = tmp_path / "extra"
+    sub.mkdir(parents=True, exist_ok=True)
+    (sub / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "extra"\n', encoding="utf-8"
+    )
+    (sub / "blueprint.md").write_text(
+        "# extra\n\n"
+        "::: lemma {#solo}\n"
+        "title: Solo\n"
+        "isabelle: Demo.solo\n"
+        "status:\n  formal: proved\n\n"
+        "SOLO.\n"
+        ":::\n",
+        encoding="utf-8",
+    )
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "portfolio", {})
+    assert result["schema_version"] == 1
+    assert result["totals"]["project_count"] == 2
+    assert result["totals"]["proved_count"] == 2
+    assert result["totals"]["formal_target_count"] == 3
+    ids = {project["id"] for project in result["projects"]}
+    assert ids == {".", "extra"}
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://portfolio"))))
+    payload = json.loads(contents[0].content)
+    assert payload["totals"]["project_count"] == 2
+    assert {project["id"] for project in payload["projects"]} == {".", "extra"}
+
+
+def test_portfolio_discovery_matches_mcp_catalog(tmp_path: Path) -> None:
+    # The portfolio module re-implements project discovery; guard against it
+    # drifting from the MCP catalog's discovery on a mixed directory tree.
+    from isabelle_blueprint.mcp_server import _discover_project_roots
+    from isabelle_blueprint.report.portfolio import discover_project_roots
+
+    _write_project(tmp_path)  # root is a project
+    _write_project(tmp_path / "alpha")
+    _write_project(tmp_path / "alpha" / "nested")  # nested: must be pruned
+    (tmp_path / "beta").mkdir()
+    (tmp_path / "beta" / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_project(tmp_path / "build" / "ghost")  # inside skip dir: ignored
+
+    assert discover_project_roots(tmp_path) == _discover_project_roots(tmp_path)
 
 
 def test_mcp_resources_are_project_scoped_json(tmp_path: Path) -> None:

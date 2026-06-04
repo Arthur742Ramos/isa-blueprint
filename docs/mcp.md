@@ -111,6 +111,7 @@ Read tools are always registered:
 | `history` | Coverage trend history summary from `trends.json`; supports `limit`. Reads only the trend store, so it works even when the blueprint fails to parse. |
 | `burndown` | Velocity / ETA-to-full-coverage forecast from `trends.json`; forecasts from the slope of *remaining* work (so a growing target shows up) and reports proved/target/net-burndown velocities. Supports `window` and `limit`; reads only the trend store. |
 | `compat` | Isabelle/AFP version-pin and session-visibility check; supports `isabelle`. Read-only (never writes the compat report file). |
+| `portfolio` | Workspace-wide roll-up across every discovered project: per-project coverage / health / ready-task counts plus portfolio totals. Takes no `project` argument (it spans the whole launch root); unparseable projects are reported as error entries without failing the roll-up. |
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
 | `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
@@ -144,6 +145,7 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://theory-index` | Source-only `.thy` index for the default project. |
 | `blueprint://staleness` | Trusted-node staleness audit for the default project. |
 | `blueprint://burndown` | Velocity / ETA-to-full-coverage forecast for the default project. |
+| `blueprint://portfolio` | Workspace-wide roll-up across every discovered project (no project-scoped variant). |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
 | `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
 | `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |

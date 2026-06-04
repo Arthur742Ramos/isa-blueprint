@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `portfolio` command (and matching `portfolio` MCP read tool plus
+  `blueprint://portfolio` resource) rolls up status across **every** blueprint
+  project under a directory tree into one dashboard — per-project coverage,
+  health, problem/cycle flags, and ready-task counts, plus portfolio-wide totals.
+  This is the cross-project view that single-project `status` cannot give, aimed
+  at monorepos and umbrella repositories. Project discovery mirrors the MCP
+  catalog (marker files, nested-project pruning, build/vendor skip dirs), and
+  loading is best-effort: a project that fails to load (missing blueprint,
+  malformed TOML, unreadable file) is reported as an error entry rather than
+  aborting the roll-up. `coverage_percent` is `null` when there are no formal
+  targets. Supports `--json` and `--fail-on-problem` (exit 5 when any project has
+  problems, a dependency cycle, or fails to load). The MCP tool is workspace-wide
+  and takes no `project` argument.
 - New `burndown` command (and matching `burndown` MCP read tool plus
   `blueprint://burndown` resources) forecasts an ETA to full *proved* coverage
   from the recorded `trends.json` history. The forecast regresses **remaining**
