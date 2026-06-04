@@ -73,6 +73,42 @@ _NAME_TOK_RE = re.compile(r'"(?P<q>[^"]+)"|(?P<id>[A-Za-z_][\w\'.]*)')
 _TYPE_ARG_RE = re.compile(r"'[\w']+\s+")
 _SORRY_RE = re.compile(r"(?<![\w'])(?P<tok>sorry|oops)(?![\w'])")
 
+_OPEN_CARTOUCHE, _CLOSE_CARTOUCHE = r"\<open>", r"\<close>"
+
+
+def _blank_cartouches(text: str) -> str:
+    """Replace the contents of Isabelle cartouches ``\\<open>...\\<close>`` with
+    spaces, preserving length and newlines.
+
+    Cartouches hold descriptive prose (for example ``text \\<open>... sorry
+    ...\\<close>``), not proof commands, so scanning their text for ``sorry`` /
+    ``oops`` yields false proof-gap markers. Blanking keeps every offset and line
+    number aligned with the source while removing the prose from the scan.
+    """
+    out = list(text)
+    depth = 0
+    i, n = 0, len(text)
+    olen, clen = len(_OPEN_CARTOUCHE), len(_CLOSE_CARTOUCHE)
+    while i < n:
+        if text.startswith(_OPEN_CARTOUCHE, i):
+            for j in range(i, i + olen):
+                if out[j] != "\n":
+                    out[j] = " "
+            depth += 1
+            i += olen
+            continue
+        if depth > 0 and text.startswith(_CLOSE_CARTOUCHE, i):
+            for j in range(i, i + clen):
+                if out[j] != "\n":
+                    out[j] = " "
+            depth -= 1
+            i += clen
+            continue
+        if depth > 0 and out[i] != "\n":
+            out[i] = " "
+        i += 1
+    return "".join(out)
+
 # Isar lemma/definition keywords that may sit where a name would and must never
 # be captured as one.
 _RESERVED_NAMES = frozenset(
@@ -289,9 +325,10 @@ class SourceIndex:
     def _collect_sorries(
         self, theory: str, path: str, cleaned: str, parsed: list[_ParsedEntry]
     ) -> None:
-        for match in _SORRY_RE.finditer(cleaned):
+        scan_source = _blank_cartouches(cleaned)
+        for match in _SORRY_RE.finditer(scan_source):
             offset = match.start()
-            line = cleaned.count("\n", 0, offset) + 1
+            line = scan_source.count("\n", 0, offset) + 1
             enclosing = next(
                 (p.entry.name for p in parsed if p.start <= offset < p.end), None
             )

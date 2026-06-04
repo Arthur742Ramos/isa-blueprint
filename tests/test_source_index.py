@@ -64,6 +64,21 @@ def test_sorry_and_oops_detection(tmp_path: Path) -> None:
     assert markers == {("sorry", "uses_base"), ("oops", "main_thm")}
 
 
+def test_sorry_in_cartouche_prose_is_ignored(tmp_path: Path) -> None:
+    # `sorry`/`oops` appearing inside text cartouches (prose) must not be
+    # reported as proof gaps; only the real proof gap on the lemma counts.
+    thy = tmp_path / "M.thy"
+    thy.write_text(
+        "theory M imports Main begin\n"
+        "text \\<open>This note mentions sorry and oops in prose.\\<close>\n"
+        'lemma real_gap: "True" sorry\n'
+        "end\n",
+        encoding="utf-8",
+    )
+    index = build_index([thy])
+    assert [(m.token, m.line) for m in index.sorries] == [("sorry", 3)]
+
+
 def test_unreferenced_entries(tmp_path: Path) -> None:
     index = build_index(_session(tmp_path))
     # Both B entries are endpoints: nothing in the tree references them.

@@ -1586,7 +1586,8 @@ def cmd_theory_index(args: argparse.Namespace) -> int:
         else:
             if not result:
                 print("(no unreferenced entries)")
-            print("\n".join(result))
+            else:
+                print("\n".join(result))
         return 0
 
     if args.json:

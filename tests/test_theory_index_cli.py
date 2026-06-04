@@ -71,6 +71,24 @@ def test_theory_index_unreferenced(tmp_path: Path, capsys) -> None:
     assert "B.uses_base" in capsys.readouterr().out
 
 
+def test_theory_index_unreferenced_empty_has_no_blank_line(tmp_path: Path, capsys) -> None:
+    # When every entry is referenced, the section prints only its message with
+    # no trailing blank line.
+    (tmp_path / "ROOT").write_text(
+        "session Demo = HOL +\n  theories\n    M\n", encoding="utf-8"
+    )
+    (tmp_path / "M.thy").write_text(
+        "theory M imports Main begin\n"
+        'lemma alpha: "True" using beta by simp\n'
+        'lemma beta: "True" using alpha by simp\n'
+        "end\n",
+        encoding="utf-8",
+    )
+    rc = cli_main(["theory-index", "--root", str(tmp_path), "--unreferenced"])
+    assert rc == 0
+    assert capsys.readouterr().out == "(no unreferenced entries)\n"
+
+
 def test_import_theory_root_builds_valid_blueprint(tmp_path: Path, capsys) -> None:
     root = _make_session(tmp_path)
     rc = cli_main(["import-theory", "--root", str(root), "--project-name", "Demo"])

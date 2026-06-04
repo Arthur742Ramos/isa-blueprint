@@ -83,7 +83,8 @@ def parse_root_theories(root_path: Path) -> list[str]:
         return []
     theories: list[str] = []
     in_theories = False
-    for line in root_path.read_text(encoding="utf-8", errors="replace").splitlines():
+    cleaned = strip_isabelle_comments(root_path.read_text(encoding="utf-8", errors="replace"))
+    for line in cleaned.splitlines():
         stripped = line.strip()
         if re.match(r"theories\b", stripped):
             in_theories = True
@@ -105,7 +106,8 @@ def parse_root_directories(root_path: Path) -> list[str]:
         return []
     subdirs: list[str] = []
     in_dirs = False
-    for line in root_path.read_text(encoding="utf-8", errors="replace").splitlines():
+    cleaned = strip_isabelle_comments(root_path.read_text(encoding="utf-8", errors="replace"))
+    for line in cleaned.splitlines():
         stripped = line.strip()
         if stripped.startswith("directories"):
             in_dirs = True
@@ -259,7 +261,6 @@ _ROOT_KEYWORDS = {
     "in",
 }
 
-_COMMENT_RE = re.compile(r"\(\*.*?\*\)", re.DOTALL)
 _OLD_DESC_RE = re.compile(r"\{\*.*?\*\}", re.DOTALL)
 _ID_RE = re.compile(r"[A-Za-z0-9_./\-]+")
 _OPEN_CARTOUCHE, _CLOSE_CARTOUCHE = r"\<open>", r"\<close>"
@@ -293,7 +294,7 @@ def _strip_cartouches(text: str) -> str:
 
 
 def _strip_root_comments(text: str) -> str:
-    text = _COMMENT_RE.sub(" ", text)
+    text = strip_isabelle_comments(text)  # nesting-aware (* ... *) removal
     text = _strip_cartouches(text)
     text = _OLD_DESC_RE.sub(" ", text)  # legacy {* ... *} description
     text = _TAG_RE.sub(" ", text)  # lone \<comment> etc. (after cartouches)

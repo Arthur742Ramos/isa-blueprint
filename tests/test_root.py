@@ -82,6 +82,42 @@ def test_parse_thy_imports_ignores_commented_clause(tmp_path: Path) -> None:
     assert parse_thy_imports(thy) == ["Main", "B"]
 
 
+def test_parse_root_theories_ignores_commented_names(tmp_path: Path) -> None:
+    # A bare identifier inside a multi-line comment must not become a phantom
+    # theory.
+    root = _write(
+        tmp_path / "ROOT",
+        "session Demo = HOL +\n  theories\n    Alpha\n"
+        "    (*\n    Phantom\n    *)\n    Beta\n",
+    )
+    assert parse_root_theories(root) == ["Alpha", "Beta"]
+
+
+def test_parse_root_directories_ignores_commented_names(tmp_path: Path) -> None:
+    # A quoted directory name inside a comment must not become a real search
+    # path.
+    root = _write(
+        tmp_path / "ROOT",
+        'session Demo = HOL +\n  directories (* "ghost" *) "real"\n  theories\n    Alpha\n',
+    )
+    assert parse_root_directories(root) == ["real"]
+
+
+def test_parse_root_sessions_handles_nested_comments(tmp_path: Path) -> None:
+    # With a non-nesting comment stripper the inner `*)` would close early and
+    # leak `session Fake ...` as a phantom session; the nesting-aware stripper
+    # removes the whole region.
+    root = _write(
+        tmp_path / "ROOT",
+        "session Demo = HOL +\n"
+        "  (* a (* b *) session Fake = HOL + theories Nope *)\n"
+        "  theories\n    Real\n",
+    )
+    sessions = parse_root_sessions(root)
+    assert [s.name for s in sessions] == ["Demo"]
+    assert sessions[0].theories == [("Real", None)]
+
+
 def test_resolve_thy_file_searches_directories(tmp_path: Path) -> None:
     _write(
         tmp_path / "ROOT",
