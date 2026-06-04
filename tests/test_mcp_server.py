@@ -352,3 +352,204 @@ def _write_project(tmp_path: Path, *, name: str = "mcp-test") -> None:
 def _direct_tool_result(server, name: str, arguments: dict[str, object]) -> dict[str, object]:
     _content, structured = asyncio.run(server.call_tool(name, arguments))
     return structured
+
+
+_THY_A = (
+    "theory A\nimports Main\nbegin\n"
+    'definition foo :: "nat" where "foo = 0"\n'
+    'lemma base: "foo = 0" by (simp add: foo_def)\n'
+    "end\n"
+)
+_THY_B = (
+    "theory B\nimports A\nbegin\n"
+    'lemma uses_base: "foo = 0" using base sorry\n'
+    "end\n"
+)
+
+
+def _write_demo_session(directory: Path, *, session: str = "Demo") -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "ROOT").write_text(
+        f"session {session} = HOL +\n  theories\n    A\n    B\n", encoding="utf-8"
+    )
+    (directory / "A.thy").write_text(_THY_A, encoding="utf-8")
+    (directory / "B.thy").write_text(_THY_B, encoding="utf-8")
+    return directory
+
+
+def test_mcp_theory_index_tool_registered_and_payload(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    _write_demo_session(tmp_path)
+    server = build_server(tmp_path)
+
+    tool_names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert "theory_index" in tool_names
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert payload["has_import_cycle"] is False
+    assert any(marker["token"] == "sorry" for marker in payload["sorries"])
+    assert "B.uses_base" in payload["unreferenced"]
+    assert payload["session"] is None
+    assert payload["warnings"] == []
+    assert all(isinstance(path, str) for path in payload["theory_files"])
+    assert len(payload["source_roots"]) == 1
+
+
+def test_mcp_theory_index_works_with_broken_blueprint(tmp_path: Path) -> None:
+    # Source-only analysis must not parse the blueprint, so it still works when
+    # blueprint.md is malformed (where status/next_task would fail).
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "broken"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text("::: definition {#oops}\n", encoding="utf-8")
+    _write_demo_session(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)):
+        _direct_tool_result(server, "status", {})
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+
+
+def test_mcp_theory_index_errors_without_sources(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError), match="no .thy files"):
+        _direct_tool_result(server, "theory_index", {})
+
+
+def test_mcp_theory_index_honours_isabelle_dirs_and_session(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "dirs"\n\n[isabelle]\ndirs = ["src"]\nsession = "Demo"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "src")
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert payload["session"] == "Demo"
+    assert payload["source_roots"][0].endswith("src")
+
+
+def test_mcp_theory_index_is_best_effort_across_roots(tmp_path: Path) -> None:
+    # One configured root lacks the selected session; it must be recorded as a
+    # warning instead of aborting the whole index when another root resolves.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "multi"\n\n[isabelle]\ndirs = ["a", "b"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    _write_demo_session(tmp_path / "b", session="Other")
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {"session": "Demo"})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert payload["session"] == "Demo"
+    assert len(payload["source_roots"]) == 1
+    assert any("Demo" in warning for warning in payload["warnings"])
+
+
+def test_mcp_theory_index_surfaces_ambiguous_session_error(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "ambig"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    (tmp_path / "ROOT").write_text(
+        "session One = HOL +\n  theories\n    A\n\n"
+        "session Two = HOL +\n  theories\n    B\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "A.thy").write_text(_THY_A, encoding="utf-8")
+    (tmp_path / "B.thy").write_text(_THY_B, encoding="utf-8")
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError), match="multiple sessions"):
+        _direct_tool_result(server, "theory_index", {})
+
+
+def test_mcp_theory_index_warns_on_missing_root(tmp_path: Path) -> None:
+    # A configured root that is absent on disk must be surfaced as a warning
+    # (not silently dropped) when another root still resolves theories.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "missing"\n\n[isabelle]\ndirs = ["a", "gone"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert len(payload["source_roots"]) == 1
+    assert any("does not exist" in warning for warning in payload["warnings"])
+
+
+def test_mcp_theory_index_warns_on_empty_root(tmp_path: Path) -> None:
+    # A configured root that exists but resolves no theory files must be recorded
+    # rather than silently contributing nothing to the index.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "empty"\n\n[isabelle]\ndirs = ["a", "blank"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    (tmp_path / "blank").mkdir()
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert len(payload["source_roots"]) == 1
+    assert any("resolved no theory files" in warning for warning in payload["warnings"])
+
+
+def test_mcp_theory_index_translates_cli_session_hint(tmp_path: Path) -> None:
+    # The ambiguous-session ValueError carries CLI guidance ("pass --session NAME").
+    # When it is collected as a per-root warning it must be rephrased for MCP
+    # callers, who pass a `session` argument instead of a command-line flag.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "hint"\n\n[isabelle]\ndirs = ["a", "ambig"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    ambiguous = tmp_path / "ambig"
+    ambiguous.mkdir()
+    (ambiguous / "ROOT").write_text(
+        "session One = HOL +\n  theories\n    A\n\n"
+        "session Two = HOL +\n  theories\n    B\n",
+        encoding="utf-8",
+    )
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    hints = [w for w in payload["warnings"] if "multiple sessions" in w]
+    assert hints
+    assert all("--session" not in warning for warning in hints)
+    assert any("`session`" in warning for warning in hints)
+
+
+def test_mcp_theory_index_resources_are_json(tmp_path: Path) -> None:
+    _write_project(tmp_path / "alpha", name="alpha")
+    _write_demo_session(tmp_path / "alpha")
+    server = build_server(tmp_path)
+
+    default_contents = list(
+        asyncio.run(server.read_resource(AnyUrl("blueprint://theory-index")))
+    )
+    default_index = json.loads(default_contents[0].content)
+    assert {t["name"] for t in default_index["theories"]} == {"A", "B"}
+
+    scoped_contents = list(
+        asyncio.run(
+            server.read_resource(AnyUrl("blueprint://projects/alpha/theory-index"))
+        )
+    )
+    scoped_index = json.loads(scoped_contents[0].content)
+    assert {t["name"] for t in scoped_index["theories"]} == {"A", "B"}

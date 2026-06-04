@@ -110,6 +110,7 @@ Read tools are always registered:
 | `history` | Coverage trend history summary from `trends.json`; supports `limit`. Reads only the trend store, so it works even when the blueprint fails to parse. |
 | `compat` | Isabelle/AFP version-pin and session-visibility check; supports `isabelle`. Read-only (never writes the compat report file). |
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
+| `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
 | `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
@@ -138,6 +139,7 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://agent-context` | Default agent-context payload. |
 | `blueprint://history` | Coverage trend history summary for the default project. |
 | `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
+| `blueprint://theory-index` | Source-only `.thy` index for the default project. |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
 | `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
 | `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |
@@ -145,11 +147,14 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://projects/{project}/agent-context` | Selected-project agent-context payload. |
 | `blueprint://projects/{project}/history` | Selected-project coverage trend history summary. |
 | `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
+| `blueprint://projects/{project}/theory-index` | Selected-project source-only `.thy` index. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 
-All project-reading surfaces load the blueprint and then apply the latest stored
+Most project-reading surfaces load the blueprint and then apply the latest stored
 `check_report.json`, matching the CLI behavior for `status`, `roadmap`, `tasks`,
-`next`, and `agent-context`.
+`next`, and `agent-context`. The source-only surfaces (`history`,
+`theory-index`) intentionally skip blueprint parsing so they keep working on
+partial checkouts and when the blueprint fails to load.
 
 ## Prompt
 
