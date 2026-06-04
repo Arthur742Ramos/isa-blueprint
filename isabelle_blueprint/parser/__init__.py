@@ -41,7 +41,9 @@ def parse_blueprint_text(
     return parse_markdown_text(text, source=source, project_name=project_name)
 
 
-def parse_blueprint(paths: Iterable[Path | str], *, project_name: str = "blueprint") -> BlueprintProject:
+def parse_blueprint(
+    paths: Iterable[Path | str], *, project_name: str = "blueprint"
+) -> BlueprintProject:
     """Parse one or more Markdown/LaTeX files into a single project.
 
     Raises :class:`BlueprintError` if two source files declare the same node id;

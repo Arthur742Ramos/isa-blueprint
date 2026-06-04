@@ -214,7 +214,9 @@ def test_cli_tasks_filters_github_issue_drafts(tmp_path: Path, capsys):
 def test_cli_next_prints_suggested_prompt(tmp_path: Path, capsys):
     project = _next_project()
     _write_next_project(tmp_path, project)
-    expected = render_task_prompt(generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0])
+    expected = render_task_prompt(
+        generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0]
+    )
 
     rc = cli_main(["next", str(tmp_path)])
 
@@ -227,7 +229,9 @@ def test_cli_next_prints_suggested_prompt(tmp_path: Path, capsys):
 def test_cli_next_json_includes_task_and_prompt(tmp_path: Path, capsys):
     project = _next_project()
     _write_next_project(tmp_path, project)
-    expected = render_task_prompt(generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0])
+    expected = render_task_prompt(
+        generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0]
+    )
 
     rc = cli_main(["next", str(tmp_path), "--json"])
 
@@ -242,7 +246,9 @@ def test_cli_next_json_includes_task_and_prompt(tmp_path: Path, capsys):
 def test_cli_next_output_writes_selected_prompt(tmp_path: Path, capsys):
     project = _next_project()
     _write_next_project(tmp_path, project)
-    expected = render_task_prompt(generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0])
+    expected = render_task_prompt(
+        generate_tasks(project, fact_suggestions=suggest_missing_facts(project))[0]
+    )
     output = tmp_path / "handoff" / "next.md"
 
     rc = cli_main(["next", str(tmp_path), "--output", str(output)])
@@ -270,7 +276,9 @@ def test_cli_next_output_json_includes_prompt_path(tmp_path: Path, capsys):
 
 
 def test_cli_next_output_is_not_written_when_no_task_exists(tmp_path: Path, capsys):
-    project = BlueprintProject.from_nodes("done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
+    project = BlueprintProject.from_nodes(
+        "done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
+    )
     _write_next_project(tmp_path, project)
     output = tmp_path / "handoff" / "next.md"
 
@@ -332,7 +340,11 @@ def test_cli_attempt_records_memory_when_requested(tmp_path: Path, capsys):
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert data["memory"]["outcome"] == "failed"
-    memory = json.loads((tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(encoding="utf-8"))
+    memory = json.loads(
+        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(
+            encoding="utf-8"
+        )
+    )
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp looped"
 
 
@@ -532,7 +544,9 @@ def test_cli_next_reports_last_outcome_mismatch_for_explicit_selector(tmp_path: 
 
 
 def test_cli_next_no_ready_tasks_is_success(tmp_path: Path, capsys):
-    project = BlueprintProject.from_nodes("done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
+    project = BlueprintProject.from_nodes(
+        "done", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
+    )
     _write_next_project(tmp_path, project)
 
     rc = cli_main(["next", str(tmp_path), "--json"])
@@ -617,8 +631,20 @@ def _next_project() -> BlueprintProject:
                 statement="MAIN.",
                 kind=NodeKind.THEOREM,
             ),
-            _node("helper", "Demo.helper", uses=["base"], formal=FormalStatus.NAMED, statement="HELPER."),
-            _node("later", "Demo.later", uses=["main"], formal=FormalStatus.NAMED, statement="LATER."),
+            _node(
+                "helper",
+                "Demo.helper",
+                uses=["base"],
+                formal=FormalStatus.NAMED,
+                statement="HELPER.",
+            ),
+            _node(
+                "later",
+                "Demo.later",
+                uses=["main"],
+                formal=FormalStatus.NAMED,
+                statement="LATER.",
+            ),
         ],
     )
 

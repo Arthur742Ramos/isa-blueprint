@@ -35,7 +35,10 @@ class GitHubIssueClient(Protocol):
 
     def create_issue(self, repo: str, draft: dict[str, Any]) -> dict[str, Any]: ...
 
-    def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]: ...
+    def update_issue(
+        self, repo: str, issue_number: int, draft: dict[str, Any]
+    ) -> dict[str, Any]:
+        ...
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
 
@@ -54,8 +57,12 @@ class GitHubApiClient:
     def create_issue(self, repo: str, draft: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", f"/repos/{repo}/issues", _issue_payload(draft))
 
-    def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]:
-        return self._request("PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft))
+    def update_issue(
+        self, repo: str, issue_number: int, draft: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._request(
+            "PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft)
+        )
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]:
         return self._request(
@@ -64,7 +71,9 @@ class GitHubApiClient:
             {"state": "closed", "state_reason": "completed"},
         )
 
-    def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _request(
+        self, method: str, path: str, payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
         request = urllib.request.Request(
             self.api_url + path,
@@ -83,7 +92,9 @@ class GitHubApiClient:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            raise BlueprintError(f"GitHub API {method} {path} failed with {exc.code}: {body}") from exc
+            raise BlueprintError(
+                f"GitHub API {method} {path} failed with {exc.code}: {body}"
+            ) from exc
         except urllib.error.URLError as exc:
             raise BlueprintError(f"GitHub API {method} {path} failed: {exc.reason}") from exc
 
@@ -132,7 +143,9 @@ def sync_github_issues(
         return dry_run_actions
 
     if not repo:
-        raise BlueprintError("--repo is required for --github-sync-confirm (or set GITHUB_REPOSITORY)")
+        raise BlueprintError(
+            "--repo is required for --github-sync-confirm (or set GITHUB_REPOSITORY)"
+        )
     token = os.environ.get(token_env)
     if not token:
         raise BlueprintError(f"{token_env} is not set; refusing to sync GitHub issues")

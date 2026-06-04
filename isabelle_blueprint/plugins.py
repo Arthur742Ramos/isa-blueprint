@@ -87,7 +87,9 @@ def discover_report_renderers() -> list[LoadedPlugin]:
     return _discover_plugins(REPORT_RENDERER_GROUP, "report renderer")
 
 
-def run_status_providers(project, plugins: list[LoadedPlugin] | None = None) -> list[dict[str, Any]]:
+def run_status_providers(
+    project, plugins: list[LoadedPlugin] | None = None
+) -> list[dict[str, Any]]:
     """Invoke each plugin against ``project`` and return collected annotations.
 
     Each plugin contributes zero or more dicts. A failing plugin is logged

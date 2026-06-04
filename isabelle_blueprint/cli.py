@@ -298,7 +298,10 @@ def _add_ready_task_filter_arguments(parser: argparse.ArgumentParser) -> None:
         "--difficulty",
         action="append",
         choices=READY_TASK_DIFFICULTIES,
-        help="only consider ready tasks with this difficulty; repeat to include multiple difficulties",
+        help=(
+            "only consider ready tasks with this difficulty; repeat to include "
+            "multiple difficulties"
+        ),
     )
     parser.add_argument(
         "--memory-state",
@@ -306,14 +309,18 @@ def _add_ready_task_filter_arguments(parser: argparse.ArgumentParser) -> None:
         choices=READY_TASK_MEMORY_STATES,
         help=(
             "only consider ready tasks with this memory state: fresh (no attempts), "
-            "attempted (has memory), or stale (last attempt input is outdated); repeat to include multiple states"
+            "attempted (has memory), or stale (last attempt input is outdated); repeat "
+            "to include multiple states"
         ),
     )
     parser.add_argument(
         "--last-outcome",
         action="append",
         choices=READY_TASK_LAST_OUTCOMES,
-        help="only consider ready tasks whose latest recorded attempt has this outcome; repeat to include multiple outcomes",
+        help=(
+            "only consider ready tasks whose latest recorded attempt has this outcome; "
+            "repeat to include multiple outcomes"
+        ),
     )
     parser.add_argument(
         "--exclude-node",
@@ -348,9 +355,13 @@ def cmd_init(args: argparse.Namespace) -> int:
     if blueprint_path.exists() and not args.force:
         print(f"refusing to overwrite {blueprint_path}; pass --force to replace", file=sys.stderr)
         return 1
-    blueprint_path.write_text(render_template_blueprint(template, format=args.format), encoding="utf-8")
+    blueprint_path.write_text(
+        render_template_blueprint(template, format=args.format), encoding="utf-8"
+    )
     if not config_path.exists() or args.force:
-        config_path.write_text(render_template_config(template, format=args.format), encoding="utf-8")
+        config_path.write_text(
+            render_template_config(template, format=args.format), encoding="utf-8"
+        )
     workflows = project_dir / ".github" / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
     workflow_file = workflows / "blueprint.yml"
@@ -685,7 +696,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
         print(render_diff(diff), end="")
     if args.fail_on_regression and diff.has_regression:
         print(
-            f"regression detected vs baseline ({len(diff.regressions) + len(diff.removed)} node(s))",
+            f"regression detected vs baseline "
+            f"({len(diff.regressions) + len(diff.removed)} node(s))",
             file=sys.stderr,
         )
         return 5
@@ -831,7 +843,9 @@ def cmd_dump(args: argparse.Namespace) -> int:
 def cmd_compat(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config = load_config(project_dir)
-    report = check_compatibility(config, isabelle_executable=args.isabelle or config.isabelle_executable)
+    report = check_compatibility(
+        config, isabelle_executable=args.isabelle or config.isabelle_executable
+    )
     write_compat_report(report, config.compat_report_path)
     print(f"compat report -> {config.compat_report_path}")
     for issue in report.issues:
@@ -879,7 +893,9 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
         if filters.active
         else None
     )
-    empty_message = _no_ready_task_message(len(all_ready_tasks), filters) if filters.active else None
+    empty_message = (
+        _no_ready_task_message(len(all_ready_tasks), filters) if filters.active else None
+    )
     written = write_tasks(
         project,
         config.build_dir,
@@ -924,7 +940,8 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
         print(_no_ready_task_message(len(all_ready_tasks), filters), file=sys.stderr)
     if filters.active and args.github_sync:
         print(
-            "note: --github-sync reconciles all ready tasks; filters only narrow tasks.json, tasks.md, and issue drafts",
+            "note: --github-sync reconciles all ready tasks; filters only narrow "
+            "tasks.json, tasks.md, and issue drafts",
             file=sys.stderr,
         )
     return 0
@@ -948,12 +965,16 @@ def _run_report_once(args: argparse.Namespace) -> int:
     trend_entry = append_trend_entry(project, config.trends_path)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     if fact_suggestions:
-        suggestions_path = write_fact_suggestions(fact_suggestions, config.build_dir / "fact-suggestions.json")
+        suggestions_path = write_fact_suggestions(
+            fact_suggestions, config.build_dir / "fact-suggestions.json"
+        )
         print(f"fact suggestions -> {suggestions_path}")
     plugin_annotations = run_status_providers(project)
     if plugin_annotations:
         plugin_path = config.build_dir / "plugin-annotations.json"
-        plugin_path.write_text(json.dumps({"annotations": plugin_annotations}, indent=2), encoding="utf-8")
+        plugin_path.write_text(
+            json.dumps({"annotations": plugin_annotations}, indent=2), encoding="utf-8"
+        )
         print(f"plugin annotations -> {plugin_path}")
     for artifact in run_report_renderers(project, config.build_dir):
         if "path" in artifact:
@@ -1437,7 +1458,9 @@ def cmd_import_theory(args: argparse.Namespace) -> int:
         if review_output.exists() and not args.force:
             raise BlueprintError(f"refusing to overwrite {review_output}; pass --force")
         review_output.parent.mkdir(parents=True, exist_ok=True)
-        review_output.write_text(json.dumps(imported_theory_review(facts), indent=2), encoding="utf-8")
+        review_output.write_text(
+            json.dumps(imported_theory_review(facts), indent=2), encoding="utf-8"
+        )
         print(f"import review -> {review_output}", file=sys.stderr)
     if args.output:
         output = Path(args.output).resolve()
@@ -1481,9 +1504,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
-    p_init.add_argument("project_dir", nargs="?", default=".", help="target directory (default: cwd)")
+    p_init.add_argument(
+        "project_dir", nargs="?", default=".", help="target directory (default: cwd)"
+    )
     p_init.add_argument("--force", action="store_true", help="overwrite existing files")
-    p_init.add_argument("--list-templates", action="store_true", help="list starter templates and exit")
+    p_init.add_argument(
+        "--list-templates", action="store_true", help="list starter templates and exit"
+    )
     p_init.add_argument(
         "--format",
         choices=("markdown", "latex"),
@@ -1505,7 +1532,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--timeout",
         type=float,
         default=None,
-        help="max seconds to wait for `isabelle build` before aborting (overrides [isabelle].timeout)",
+        help=(
+            "max seconds to wait for `isabelle build` before aborting "
+            "(overrides [isabelle].timeout)"
+        ),
     )
     p_check.add_argument(
         "--strict",
@@ -1554,7 +1584,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
-    p_lint.add_argument("--json", action="store_true", help="emit findings as JSON (alias for --format json)")
+    p_lint.add_argument(
+        "--json",
+        action="store_true",
+        help="emit findings as JSON (alias for --format json)",
+    )
     p_lint.add_argument(
         "--format",
         choices=("text", "json", "sarif"),
@@ -1632,7 +1666,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_completion.add_argument("shell", choices=SUPPORTED_SHELLS)
     p_completion.set_defaults(func=cmd_completion)
 
-    p_diff = sub.add_parser("diff", help="compare the current blueprint against a saved project.json")
+    p_diff = sub.add_parser(
+        "diff", help="compare the current blueprint against a saved project.json"
+    )
     p_diff.add_argument("baseline", help="path to a baseline project.json")
     p_diff.add_argument("project_dir", nargs="?", default=".")
     p_diff.add_argument("--json", action="store_true", help="emit the diff as JSON")
@@ -1656,7 +1692,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_history.set_defaults(func=cmd_history)
 
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
-    p_assign.add_argument("node_id", nargs="?", default=None, help="node id (omit to list all assignments)")
+    p_assign.add_argument(
+        "node_id",
+        nargs="?",
+        default=None,
+        help="node id (omit to list all assignments)",
+    )
     p_assign.add_argument("--project-dir", dest="project_dir", default=".")
     p_assign.add_argument("--owner", default=None, help="owner to assign to the node")
     p_assign.add_argument("--note", default=None, help="optional note stored with the assignment")
@@ -1668,7 +1709,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_rename.add_argument("old_id", help="existing node id")
     p_rename.add_argument("new_id", help="new node id")
     p_rename.add_argument("--project-dir", dest="project_dir", default=".")
-    p_rename.add_argument("--dry-run", action="store_true", help="show changes without writing files")
+    p_rename.add_argument(
+        "--dry-run", action="store_true", help="show changes without writing files"
+    )
     p_rename.add_argument("--json", action="store_true", help="emit the rename result as JSON")
     p_rename.set_defaults(func=cmd_rename)
 
@@ -1679,25 +1722,48 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--timeout",
         type=float,
         default=None,
-        help="max seconds to wait for `isabelle dump` before aborting (overrides [isabelle].timeout)",
+        help=(
+            "max seconds to wait for `isabelle dump` before aborting "
+            "(overrides [isabelle].timeout)"
+        ),
     )
-    p_dump.add_argument("--from", dest="from_dir", default=None, help="inspect an existing dump directory")
-    p_dump.add_argument("--strict", action="store_true", help="exit non-zero if dump execution/inspection fails")
+    p_dump.add_argument(
+        "--from", dest="from_dir", default=None, help="inspect an existing dump directory"
+    )
+    p_dump.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero if dump execution/inspection fails",
+    )
     p_dump.set_defaults(func=cmd_dump)
 
-    p_compat = sub.add_parser("compat", help="check Isabelle/AFP version pins and session visibility")
+    p_compat = sub.add_parser(
+        "compat", help="check Isabelle/AFP version pins and session visibility"
+    )
     p_compat.add_argument("project_dir", nargs="?", default=".")
     p_compat.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
-    p_compat.add_argument("--strict", action="store_true", help="exit non-zero on compatibility errors")
+    p_compat.add_argument(
+        "--strict", action="store_true", help="exit non-zero on compatibility errors"
+    )
     p_compat.set_defaults(func=cmd_compat)
 
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
-    p_web.add_argument("--watch", action="store_true", help="re-render when blueprint inputs change")
-    p_web.add_argument("--serve", action="store_true", help="serve the rendered site while watching")
-    p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
-    p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
-    p_web.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_web.add_argument(
+        "--watch", action="store_true", help="re-render when blueprint inputs change"
+    )
+    p_web.add_argument(
+        "--serve", action="store_true", help="serve the rendered site while watching"
+    )
+    p_web.add_argument(
+        "--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)"
+    )
+    p_web.add_argument(
+        "--port", type=int, default=8000, help="port for --serve (default: 8000)"
+    )
+    p_web.add_argument(
+        "--interval", type=float, default=1.0, help="watch polling interval in seconds"
+    )
     p_web.add_argument("--allow-ci", action="store_true", help="allow --serve when CI=true")
     p_web.set_defaults(func=cmd_web)
 
@@ -1705,7 +1771,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_serve.add_argument("project_dir", nargs="?", default=".")
     p_serve.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
     p_serve.add_argument("--port", type=int, default=8000, help="port to bind (default: 8000)")
-    p_serve.add_argument("--interval", type=float, default=1.0, help="watch polling interval in seconds")
+    p_serve.add_argument(
+        "--interval", type=float, default=1.0, help="watch polling interval in seconds"
+    )
     p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
     p_serve.set_defaults(func=cmd_serve)
 
@@ -1740,7 +1808,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_tasks.add_argument(
         "--github-sync-state",
         default=None,
-        help="path to persistent node-to-issue mapping (default: .isabelle-blueprint/github-sync.json)",
+        help=(
+            "path to persistent node-to-issue mapping "
+            "(default: .isabelle-blueprint/github-sync.json)"
+        ),
     )
     p_tasks.add_argument(
         "--github-label",
@@ -1752,7 +1823,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--github-assignee",
         action="append",
         default=None,
-        help="GitHub username to assign to generated issue drafts; repeat to add multiple assignees",
+        help=(
+            "GitHub username to assign to generated issue drafts; repeat to add "
+            "multiple assignees"
+        ),
     )
     _add_ready_task_filter_arguments(p_tasks)
     _add_watch_arguments(p_tasks, action="task generation")
@@ -1764,14 +1838,24 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--node",
         default=None,
         metavar="NODE_OR_TASK",
-        help="print the ready prompt for this node id or task id instead of the suggested next task",
+        help=(
+            "print the ready prompt for this node id or task id instead of the "
+            "suggested next task"
+        ),
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
-    p_next.add_argument("--output", default=None, metavar="PATH", help="also write the selected prompt to PATH")
+    p_next.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="also write the selected prompt to PATH",
+    )
     _add_ready_task_filter_arguments(p_next)
     p_next.set_defaults(func=cmd_next)
 
-    p_attempt = sub.add_parser("attempt", help="prepare a proof-attempt handoff and optional check/memory update")
+    p_attempt = sub.add_parser(
+        "attempt", help="prepare a proof-attempt handoff and optional check/memory update"
+    )
     p_attempt.add_argument("project_dir", nargs="?", default=".")
     p_attempt.add_argument(
         "--node",
@@ -1786,11 +1870,19 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="write the prompt to PATH (default: build/attempts/<task-id>.md)",
     )
     p_attempt.add_argument("--json", action="store_true", help="emit machine-readable attempt JSON")
-    p_attempt.add_argument("--check", action="store_true", help="run `check` after writing the handoff prompt")
-    p_attempt.add_argument("--isabelle", default=None, help="path to the `isabelle` binary for --check")
+    p_attempt.add_argument(
+        "--check", action="store_true", help="run `check` after writing the handoff prompt"
+    )
+    p_attempt.add_argument(
+        "--isabelle", default=None, help="path to the `isabelle` binary for --check"
+    )
     p_attempt.add_argument("--timeout", type=float, default=None, help="timeout for --check")
-    p_attempt.add_argument("--incremental", action="store_true", help="use check-cache.json during --check")
-    p_attempt.add_argument("--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check")
+    p_attempt.add_argument(
+        "--incremental", action="store_true", help="use check-cache.json during --check"
+    )
+    p_attempt.add_argument(
+        "--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check"
+    )
     _add_ready_task_filter_arguments(p_attempt)
     p_attempt.add_argument(
         "--record-outcome",
@@ -1798,12 +1890,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         help="record post-attempt memory for the selected node",
     )
-    p_attempt.add_argument("--summary", default="", help="memory summary required with --record-outcome")
+    p_attempt.add_argument(
+        "--summary", default="", help="memory summary required with --record-outcome"
+    )
     p_attempt.add_argument("--details", default="", help="longer memory notes for --record-outcome")
     p_attempt.add_argument("--next-step", default=None, help="recommended next action for memory")
     p_attempt.add_argument("--actor", default=None, help="person or agent that made the attempt")
     p_attempt.add_argument("--tool", default=None, help="tool/model used for the attempt")
-    p_attempt.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
+    p_attempt.add_argument(
+        "--max-attempts", type=int, default=20, help="attempts to keep per node"
+    )
     p_attempt.set_defaults(func=cmd_attempt)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
@@ -1875,7 +1971,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit an AI-agent handoff bundle with status, roadmap, tasks, and commands",
     )
     p_agent_context.add_argument("project_dir", nargs="?", default=".")
-    p_agent_context.add_argument("--json", action="store_true", help="emit machine-readable context JSON")
+    p_agent_context.add_argument(
+        "--json", action="store_true", help="emit machine-readable context JSON"
+    )
     p_agent_context.add_argument(
         "--write",
         action="store_true",
@@ -1885,7 +1983,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--max-tasks",
         type=_positive_int,
         default=DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
-        help=f"maximum ready tasks to embed in the context (default: {DEFAULT_AGENT_CONTEXT_TASK_LIMIT})",
+        help=(
+            "maximum ready tasks to embed in the context "
+            f"(default: {DEFAULT_AGENT_CONTEXT_TASK_LIMIT})"
+        ),
     )
     _add_ready_task_filter_arguments(p_agent_context)
     p_agent_context.set_defaults(func=cmd_agent_context)
@@ -1912,7 +2013,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_doctor.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
     p_doctor.add_argument("--json", action="store_true", help="emit machine-readable diagnostics")
     p_doctor.add_argument("--output", default=None, help="write --json output to a file")
-    p_doctor.add_argument("--strict", action="store_true", help="exit non-zero when an error is found")
+    p_doctor.add_argument(
+        "--strict", action="store_true", help="exit non-zero when an error is found"
+    )
     p_doctor.set_defaults(func=cmd_doctor)
 
     p_schema = sub.add_parser("schema", help="print or export packaged JSON Schemas")
@@ -1926,7 +2029,9 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_memory.add_argument("--memory-file", default=None, help="override agent memory JSON path")
     p_memory.add_argument("--record", action="store_true", help="record a new memory attempt")
     p_memory.add_argument("--outcome", choices=sorted(VALID_OUTCOMES), default="note")
-    p_memory.add_argument("--summary", default="", help="short attempt summary (required with --record)")
+    p_memory.add_argument(
+        "--summary", default="", help="short attempt summary (required with --record)"
+    )
     p_memory.add_argument("--details", default="", help="longer notes for the attempt")
     p_memory.add_argument("--next-step", default=None, help="recommended next action")
     p_memory.add_argument("--actor", default=None, help="person or agent that made the attempt")
@@ -1935,26 +2040,38 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_memory.add_argument("--json", action="store_true", help="list memory as JSON")
     p_memory.set_defaults(func=cmd_memory)
 
-    p_explain = sub.add_parser("explain", help="explain status and dependency problems for blueprint nodes")
+    p_explain = sub.add_parser(
+        "explain", help="explain status and dependency problems for blueprint nodes"
+    )
     p_explain.add_argument("project_dir", nargs="?", default=".")
     p_explain.add_argument("--node", default=None, help="only explain one node id")
     p_explain.add_argument("--json", action="store_true", help="emit machine-readable explanations")
     p_explain.set_defaults(func=cmd_explain)
 
-    p_import = sub.add_parser("import-theory", help="bootstrap a blueprint from Isabelle .thy declarations")
+    p_import = sub.add_parser(
+        "import-theory", help="bootstrap a blueprint from Isabelle .thy declarations"
+    )
     p_import.add_argument("theory", nargs="+", help="Isabelle theory file(s) to scan")
     p_import.add_argument("--project-name", default=None, help="title for the generated blueprint")
     p_import.add_argument("--output", default=None, help="write generated blueprint to this file")
-    p_import.add_argument("--review-output", default=None, help="write dependency-inference review JSON")
+    p_import.add_argument(
+        "--review-output", default=None, help="write dependency-inference review JSON"
+    )
     p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
     p_import.set_defaults(func=cmd_import_theory)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
-    p_new.add_argument("project_dir", nargs="?", default=".", help="project dir (used with --append)")
-    p_new.add_argument("--title", default=None, help="explicit title (default: humanised from id)")
-    p_new.add_argument("--fact", default=None, help="Isabelle fact name (default: suggested from id)")
+    p_new.add_argument(
+        "project_dir", nargs="?", default=".", help="project dir (used with --append)"
+    )
+    p_new.add_argument(
+        "--title", default=None, help="explicit title (default: humanised from id)"
+    )
+    p_new.add_argument(
+        "--fact", default=None, help="Isabelle fact name (default: suggested from id)"
+    )
     p_new.add_argument("--no-fact", action="store_true", help="omit the isabelle: line entirely")
     p_new.add_argument("--uses", nargs="*", default=None, metavar="ID", help="dependency node ids")
     p_new.add_argument("--status", default="stub", help="initial blueprint status (default: stub)")
@@ -1972,7 +2089,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_new.add_argument(
         "--blueprint",
         default=None,
-        help="target blueprint file (required with --append when the project has multiple blueprints)",
+        help=(
+            "target blueprint file (required with --append when the project has "
+            "multiple blueprints)"
+        ),
     )
     p_new.set_defaults(func=cmd_new)
 
@@ -2048,7 +2168,9 @@ def _start_site_server(site_dir: Path, host: str, port: int) -> ThreadingHTTPSer
     server.daemon_threads = True
     import threading
 
-    thread = threading.Thread(target=server.serve_forever, name="isabelle-blueprint-serve", daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, name="isabelle-blueprint-serve", daemon=True
+    )
     thread.start()
     return server
 

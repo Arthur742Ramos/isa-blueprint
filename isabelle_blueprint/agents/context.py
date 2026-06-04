@@ -357,8 +357,12 @@ def agent_context_timestamp() -> str:
 
 def _artifact_paths(config: BlueprintConfig) -> dict[str, str]:
     return {
-        "agent_context_json": _relative_path(config.build_dir / "agent-context.json", config.project_root),
-        "agent_context_md": _relative_path(config.build_dir / "agent-context.md", config.project_root),
+        "agent_context_json": _relative_path(
+            config.build_dir / "agent-context.json", config.project_root
+        ),
+        "agent_context_md": _relative_path(
+            config.build_dir / "agent-context.md", config.project_root
+        ),
         "project_json": _relative_path(config.project_json_path, config.project_root),
         "tasks_json": _relative_path(config.tasks_json_path, config.project_root),
         "tasks_md": _relative_path(config.tasks_md_path, config.project_root),

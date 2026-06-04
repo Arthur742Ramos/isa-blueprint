@@ -51,7 +51,9 @@ def test_compatibility_report_ok_for_matching_version_and_session(tmp_path: Path
     monkeypatch.setattr("shutil.which", lambda _exe: "/fake/isabelle")
 
     def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(["isabelle", "version"], 0, stdout="Isabelle2025-2\n", stderr="")
+        return subprocess.CompletedProcess(
+            ["isabelle", "version"], 0, stdout="Isabelle2025-2\n", stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     report = check_compatibility(load_config(tmp_path))
@@ -77,7 +79,9 @@ def test_compatibility_report_follows_roots_indirection(tmp_path: Path, monkeypa
     monkeypatch.setattr("shutil.which", lambda _exe: "/fake/isabelle")
 
     def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(["isabelle", "version"], 0, stdout="Isabelle2025-2\n", stderr="")
+        return subprocess.CompletedProcess(
+            ["isabelle", "version"], 0, stdout="Isabelle2025-2\n", stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     report = check_compatibility(load_config(tmp_path))
@@ -99,7 +103,9 @@ def test_compatibility_report_errors_on_version_and_session_mismatch(tmp_path: P
     monkeypatch.setattr("shutil.which", lambda _exe: "/fake/isabelle")
 
     def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(["isabelle", "version"], 0, stdout="Isabelle2024\n", stderr="")
+        return subprocess.CompletedProcess(
+            ["isabelle", "version"], 0, stdout="Isabelle2024\n", stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     report = check_compatibility(load_config(tmp_path))

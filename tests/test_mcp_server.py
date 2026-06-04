@@ -112,8 +112,16 @@ def test_mcp_history_tool_reports_trend_deltas(tmp_path: Path) -> None:
             {
                 "schema_version": 1,
                 "entries": [
-                    {"timestamp": "2026-06-01T00:00:00Z", "coverage_percent": 40, "proved_count": 2},
-                    {"timestamp": "2026-06-02T00:00:00Z", "coverage_percent": 60, "proved_count": 5},
+                    {
+                        "timestamp": "2026-06-01T00:00:00Z",
+                        "coverage_percent": 40,
+                        "proved_count": 2,
+                    },
+                    {
+                        "timestamp": "2026-06-02T00:00:00Z",
+                        "coverage_percent": 60,
+                        "proved_count": 5,
+                    },
                 ],
             }
         ),

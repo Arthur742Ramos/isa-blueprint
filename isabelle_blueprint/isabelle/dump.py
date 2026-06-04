@@ -15,10 +15,18 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypedDict
 
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+
+
+class _FactEntry(TypedDict):
+    """Aggregated PIDE-dump metadata for a single fact name."""
+
+    oracles: set[str]
+    source: str
 
 
 @dataclass
@@ -96,7 +104,9 @@ def run_dump(
     """Run ``isabelle dump`` and inspect the generated dump directory."""
     resolved_isabelle = shutil.which(isabelle_executable)
     isabelle_available = resolved_isabelle is not None
-    result = DumpResult(ran=False, isabelle_available=isabelle_available, inspected_dir=str(output_dir))
+    result = DumpResult(
+        ran=False, isabelle_available=isabelle_available, inspected_dir=str(output_dir)
+    )
     if not isabelle_available:
         result.error = f"Isabelle executable {isabelle_executable!r} not found on PATH"
         return _with_reference_facts(result, project)
@@ -166,7 +176,13 @@ def inspect_dump_dir(project: BlueprintProject, dump_dir: Path, *, ran: bool = F
         entry = fact_index.get(fact)
         if entry is None:
             result.facts.append(
-                DumpFact(node.id, fact, node.isabelle.theory, exists=False, proof_status="not_found")
+                DumpFact(
+                    node.id,
+                    fact,
+                    node.isabelle.theory,
+                    exists=False,
+                    proof_status="not_found",
+                )
             )
             continue
         oracles = sorted(entry["oracles"])
@@ -226,8 +242,8 @@ def _with_reference_facts(result: DumpResult, project: BlueprintProject) -> Dump
     return result
 
 
-def _read_fact_index(dump_dir: Path) -> dict[str, dict[str, object]]:
-    index: dict[str, dict[str, object]] = {}
+def _read_fact_index(dump_dir: Path) -> dict[str, _FactEntry]:
+    index: dict[str, _FactEntry] = {}
     for path in dump_dir.rglob("*"):
         if not path.is_file():
             continue
@@ -254,7 +270,11 @@ def _entity_records(text: str) -> list[tuple[dict[str, str], str]]:
 
 
 def _oracles_in_record(record: str) -> set[str]:
-    names = {match.group("value") for match in _ATTR_RE.finditer(record) if match.group("key") == "name"}
+    names = {
+        match.group("value")
+        for match in _ATTR_RE.finditer(record)
+        if match.group("key") == "name"
+    }
     taint = {name for name in names if name in _SKIP_PROOF_NAMES or name.endswith(".skip_proof")}
     if "Pure.skip_proof" in record:
         taint.add("Pure.skip_proof")

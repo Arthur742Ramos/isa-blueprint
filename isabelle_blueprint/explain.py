@@ -71,7 +71,9 @@ def _explain_node(
     validation: ValidationReport,
     suggestion_index: dict[str, FactSuggestion],
 ) -> NodeExplanation:
-    missing_deps = [missing for owner, missing in validation.missing_dependencies if owner == node.id]
+    missing_deps = [
+        missing for owner, missing in validation.missing_dependencies if owner == node.id
+    ]
     cycles = [cycle for cycle in validation.cycles if node.id in cycle]
     reasons: list[str] = []
     suggestions: list[str] = []
@@ -88,12 +90,17 @@ def _explain_node(
     if cycles:
         rendered = [" -> ".join(cycle) for cycle in cycles]
         reasons.append("This node is part of a dependency cycle: " + "; ".join(rendered))
-        next_steps.append("Break the cycle by extracting an earlier lemma or removing a reversed dependency.")
+        next_steps.append(
+            "Break the cycle by extracting an earlier lemma or removing a reversed dependency."
+        )
 
     status = node.status.formal
     if status == FormalStatus.MISSING:
         reasons.append("No Isabelle fact is assigned to this blueprint node.")
-        next_steps.append("Add an `isabelle:` fact name, or leave it blueprint-only if no formal target is intended.")
+        next_steps.append(
+            "Add an `isabelle:` fact name, or leave it blueprint-only if no formal target "
+            "is intended."
+        )
         summary = "No formal target is assigned."
         severity = "info"
     elif status == FormalStatus.NAMED:
@@ -102,31 +109,47 @@ def _explain_node(
         summary = "Formal target is named but unchecked."
         severity = "warning"
     elif status == FormalStatus.NOT_FOUND:
-        reasons.append(f"Checker could not resolve `{node.isabelle.fact}` in the configured Isabelle context.")
+        reasons.append(
+            f"Checker could not resolve `{node.isabelle.fact}` in the configured Isabelle context."
+        )
         if node.id in suggestion_index:
             for fact in suggestion_index[node.id].suggestions:
                 suggestions.append(f"Nearby Isabelle fact: `{fact}`")
-        next_steps.append("Check the theory/session prefix, AFP dirs, and spelling of the fact name.")
+        next_steps.append(
+            "Check the theory/session prefix, AFP dirs, and spelling of the fact name."
+        )
         summary = "Named Isabelle fact was not found."
         severity = "error"
     elif status == FormalStatus.FOUND:
-        reasons.append(f"Fact `{node.isabelle.fact}` exists, but proof trust has not been established.")
-        next_steps.append("Run `dump` or a proof-status-aware `check` to detect sorry/oracle dependencies.")
+        reasons.append(
+            f"Fact `{node.isabelle.fact}` exists, but proof trust has not been established."
+        )
+        next_steps.append(
+            "Run `dump` or a proof-status-aware `check` to detect sorry/oracle "
+            "dependencies."
+        )
         summary = "Fact exists, proof trust still needs confirmation."
         severity = "ok"
     elif status == FormalStatus.PROVED:
-        reasons.append(f"Fact `{node.isabelle.fact}` exists and no sorry/oracle dependency was detected.")
+        reasons.append(
+            f"Fact `{node.isabelle.fact}` exists and no sorry/oracle dependency was detected."
+        )
         summary = "Fact is proved."
         severity = "ok"
     elif status == FormalStatus.TAINTED:
         reasons.append("The proof appears to depend on `sorry`, skipped proof, or another oracle.")
         if node.status.check_error:
             reasons.append(node.status.check_error)
-        next_steps.append("Inspect theorem dependencies and replace the tainted proof path with a completed proof.")
+        next_steps.append(
+            "Inspect theorem dependencies and replace the tainted proof path with a "
+            "completed proof."
+        )
         summary = "Fact is tainted by an oracle or skipped proof."
         severity = "error"
     elif status == FormalStatus.STALE:
-        reasons.append("The blueprint inputs or dependencies changed after the last successful check.")
+        reasons.append(
+            "The blueprint inputs or dependencies changed after the last successful check."
+        )
         next_steps.append("Rerun `isabelle-blueprint check --incremental` to refresh stale facts.")
         summary = "Cached proof status is stale."
         severity = "warning"
@@ -134,7 +157,9 @@ def _explain_node(
         if node.status.check_error:
             reasons.append(node.status.check_error)
         else:
-            reasons.append("The Isabelle check failed before a more precise per-fact status was available.")
+            reasons.append(
+                "The Isabelle check failed before a more precise per-fact status was available."
+            )
         next_steps.append("Open the check report and fix the first Isabelle build error.")
         summary = "Checker failed for this node."
         severity = "error"

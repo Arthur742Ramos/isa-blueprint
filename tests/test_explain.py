@@ -45,7 +45,9 @@ def test_explain_unknown_node():
 
 
 def test_render_explanations_is_human_readable():
-    project = BlueprintProject.from_nodes("p", [_node("a", FormalStatus.TAINTED, error="uses sorry")])
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", FormalStatus.TAINTED, error="uses sorry")]
+    )
 
     text = render_explanations(explain_project(project))
 

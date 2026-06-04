@@ -7,7 +7,7 @@ import shutil
 from collections import Counter, deque
 from enum import Enum
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -168,7 +168,7 @@ def render_site(
 
 def _task_board(project: BlueprintProject, tasks) -> list[dict[str, object]]:
     ready_ids = {task.node_id for task in tasks}
-    columns = {
+    columns: dict[str, list[BlueprintNode]] = {
         AgentStatus.READY.value: [],
         AgentStatus.IN_PROGRESS.value: [],
         AgentStatus.ATTEMPTED.value: [],
@@ -293,7 +293,13 @@ def _dependency_levels(project: BlueprintProject) -> list[DependencyLevel]:
             unlevelled_nodes.append(node)
 
     rows: list[DependencyLevel] = [
-        {"label": f"Level {level}", "level": level, "nodes": nodes, "count": len(nodes), "is_cycle": False}
+        {
+            "label": f"Level {level}",
+            "level": level,
+            "nodes": nodes,
+            "count": len(nodes),
+            "is_cycle": False,
+        }
         for level, nodes in sorted(levels.items())
     ]
     if unlevelled_nodes:
@@ -315,10 +321,10 @@ def _dependency_stats(
 ) -> dict[str, int]:
     by_id = project.by_id()
     max_level = max(
-        (int(row["level"]) for row in levels if row["level"] is not None),
+        (cast(int, row["level"]) for row in levels if row["level"] is not None),
         default=-1,
     )
-    cycle_count = sum(int(row["count"]) for row in levels if row["is_cycle"])
+    cycle_count = sum(cast(int, row["count"]) for row in levels if row["is_cycle"])
     missing_dependency_count = sum(
         1 for node in project.nodes for dep_id in node.uses if dep_id not in by_id
     )

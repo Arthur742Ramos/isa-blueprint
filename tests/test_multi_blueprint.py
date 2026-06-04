@@ -127,7 +127,9 @@ def test_parse_blueprint_raises_on_duplicate_id(tmp_path: Path) -> None:
     assert str(b) in msg
 
 
-def test_cli_check_loads_multi_blueprint(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_check_loads_multi_blueprint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _write_project(
         tmp_path,
         blueprints=["a.md", "b.md"],

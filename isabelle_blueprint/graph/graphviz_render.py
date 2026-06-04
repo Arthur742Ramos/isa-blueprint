@@ -36,7 +36,8 @@ def render_dot(project: BlueprintProject) -> str:
             f"formal={node.status.formal.value} agent={node.status.agent.value}"
         )
         lines.append(
-            f'  "{node_id}" [label="{label}", tooltip="{tooltip}", fillcolor="{color}", color="#1f2937"];'
+            f'  "{node_id}" [label="{label}", tooltip="{tooltip}", '
+            f'fillcolor="{color}", color="#1f2937"];'
         )
     for src, deps in g.edges.items():
         for dep in deps:

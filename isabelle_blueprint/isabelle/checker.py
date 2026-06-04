@@ -15,6 +15,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypedDict
 
 from isabelle_blueprint.errors import CheckerError
 from isabelle_blueprint.isabelle import check_cache
@@ -26,6 +27,13 @@ from isabelle_blueprint.isabelle.theory_gen import (
 )
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+
+
+class _ProofMarker(TypedDict):
+    """Per-fact proof outcome parsed from the checker's status output."""
+
+    status: str
+    oracles: list[str]
 
 
 @dataclass
@@ -145,7 +153,9 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
         if record.exists:
             if record.tainted:
                 node.status.formal = FormalStatus.TAINTED
-                oracle_text = ", ".join(record.oracles) if record.oracles else "detected theorem oracle"
+                oracle_text = (
+                    ", ".join(record.oracles) if record.oracles else "detected theorem oracle"
+                )
                 node.status.check_error = f"fact depends on {oracle_text}"
             elif result.proof_checked and record.proof_status == "proved":
                 node.status.formal = FormalStatus.PROVED
@@ -199,7 +209,7 @@ def run_check(
     cache_entries: dict[str, dict] = {}
     node_hashes: dict[str, str] = {}
     cached_hits: dict[str, FactCheck] = {}
-    if use_cache:
+    if use_cache and cache_path is not None:
         cache_entries = check_cache.load_cache(cache_path)
         context_fingerprint = check_cache.compute_context_fingerprint(
             session_name=session_name,
@@ -240,7 +250,9 @@ def run_check(
         emit_proof_status=proof_status,
         default_import_session=session_name,
         proof_status_file=proof_status_path.name,
-        generation_nonce=check_timestamp if proof_status and not proof_status_path.exists() else None,
+        generation_nonce=(
+            check_timestamp if proof_status and not proof_status_path.exists() else None
+        ),
         include_node_ids=include_filter,
     )
     theory_path = build_dir / "Blueprint_Check.thy"
@@ -270,7 +282,7 @@ def run_check(
     # ``ran=True`` and ``proof_checked`` so that ``apply_check_report`` will
     # honour the cached proof statuses rather than knock everything down to
     # NAMED.
-    if use_cache and cached_hits and not to_check_ids:
+    if use_cache and cached_hits and not to_check_ids and cache_path is not None:
         result.ran = True
         result.return_code = 0
         result.proof_checked = bool(proof_status)
@@ -401,7 +413,7 @@ def run_check(
 
     # Persist the updated cache: keep the cache hits as-is and refresh entries
     # for newly-verified facts. Skip anything that wasn't conclusively proved.
-    if use_cache:
+    if use_cache and cache_path is not None:
         new_cache: dict[str, dict] = {}
         for nid in cached_hits:
             if nid in cache_entries:
@@ -415,10 +427,10 @@ def run_check(
                 continue
             if proof_status and fc.proof_status != "proved":
                 continue
-            h = node_hashes.get(fc.node_id)
-            if not h:
+            cached_hash = node_hashes.get(fc.node_id)
+            if not cached_hash:
                 continue
-            new_cache[fc.node_id] = check_cache.record_entry(asdict(fc), node_hash=h)
+            new_cache[fc.node_id] = check_cache.record_entry(asdict(fc), node_hash=cached_hash)
         try:
             check_cache.save_cache(cache_path, new_cache)
         except OSError:
@@ -451,8 +463,8 @@ def _extract_bad_facts(stderr_text: str) -> dict[str, str]:
     return bad
 
 
-def _extract_proof_status(output_text: str) -> dict[tuple[str, str], dict[str, list[str] | str]]:
-    statuses: dict[tuple[str, str], dict[str, list[str] | str]] = {}
+def _extract_proof_status(output_text: str) -> dict[tuple[str, str], _ProofMarker]:
+    statuses: dict[tuple[str, str], _ProofMarker] = {}
     for line in output_text.splitlines():
         if _PROOF_STATUS_PREFIX not in line:
             continue

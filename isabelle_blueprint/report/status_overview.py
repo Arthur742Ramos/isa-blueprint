@@ -140,7 +140,8 @@ def render_status_overview(overview: StatusOverview) -> str:
     if overview.next_task is None:
         if filters_active and overview.ready_task_count:
             lines.append(
-                f"{next_label}: none ({overview.ready_task_count} ready task(s) excluded by filters)"
+                f"{next_label}: none "
+                f"({overview.ready_task_count} ready task(s) excluded by filters)"
             )
         else:
             lines.append(f"{next_label}: none")

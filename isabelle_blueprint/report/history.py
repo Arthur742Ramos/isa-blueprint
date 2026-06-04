@@ -100,7 +100,10 @@ def render_trend_summary(summary: TrendSummary) -> str:
     if summary.entry_count == 0:
         return "No trend history yet. Run `isabelle-blueprint report` to record a snapshot.\n"
 
-    lines = [f"Trend history ({summary.entry_count} entr{'y' if summary.entry_count == 1 else 'ies'}):"]
+    lines = [
+        f"Trend history ({summary.entry_count} "
+        f"entr{'y' if summary.entry_count == 1 else 'ies'}):"
+    ]
     for entry in summary.entries:
         timestamp = entry.get("timestamp", "?")
         coverage = entry.get("coverage_percent")
@@ -110,7 +113,8 @@ def render_trend_summary(summary: TrendSummary) -> str:
         commit = entry.get("commit_sha")
         commit_str = f" {commit[:8]}" if isinstance(commit, str) and commit else ""
         lines.append(
-            f"  {timestamp}{commit_str}  coverage={coverage_str} proved={proved} problems={problems}"
+            f"  {timestamp}{commit_str}  coverage={coverage_str} proved={proved} "
+            f"problems={problems}"
         )
 
     if summary.deltas:

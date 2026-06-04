@@ -113,7 +113,9 @@ def build_server(
         return {
             "name": "isabelle-blueprint",
             "version": __version__,
-            "project_dir": str(default_project.root if default_project is not None else launch_root),
+            "project_dir": str(
+                default_project.root if default_project is not None else launch_root
+            ),
             "workspace_dir": str(launch_root),
             "default_project": default_project.id if default_project is not None else None,
             "project_count": len(catalog.projects),
@@ -591,7 +593,9 @@ def build_server(
     return server
 
 
-def _register_write_tools(server: Any, catalog: _ProjectCatalog, write_lock: threading.Lock) -> None:
+def _register_write_tools(
+    server: Any, catalog: _ProjectCatalog, write_lock: threading.Lock
+) -> None:
     @server.tool(name="record_attempt")
     def record_attempt(
         node_id: str,
@@ -800,7 +804,9 @@ def _discover_project_roots(launch_root: Path) -> list[Path]:
             roots.append(current.resolve())
             dirnames[:] = []
 
-    return sorted(dict.fromkeys(roots), key=lambda path: _relative_path_for_project(launch_root, path))
+    return sorted(
+        dict.fromkeys(roots), key=lambda path: _relative_path_for_project(launch_root, path)
+    )
 
 
 def _project_entries(launch_root: Path, roots: list[Path]) -> list[_ProjectEntry]:
