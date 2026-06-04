@@ -86,7 +86,9 @@ def test_compute_context_fingerprint_extra_dirs_order_independent(tmp_path: Path
 def test_compute_node_hash_is_deterministic():
     n = _node("a", "Demo.foo", uses=["b", "c"])
     ctx = _ctx()
-    assert check_cache.compute_node_hash(n, context=ctx) == check_cache.compute_node_hash(n, context=ctx)
+    assert check_cache.compute_node_hash(n, context=ctx) == check_cache.compute_node_hash(
+        n, context=ctx
+    )
 
 
 @pytest.mark.parametrize(
@@ -116,7 +118,9 @@ def test_compute_node_hash_uses_order_independent():
     n1 = _node("a", "Demo.foo", uses=["b", "c"])
     n2 = _node("a", "Demo.foo", uses=["c", "b"])
     ctx = _ctx()
-    assert check_cache.compute_node_hash(n1, context=ctx) == check_cache.compute_node_hash(n2, context=ctx)
+    assert check_cache.compute_node_hash(n1, context=ctx) == check_cache.compute_node_hash(
+        n2, context=ctx
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +148,10 @@ def test_save_then_load_round_trip(tmp_path: Path):
 
 def test_load_cache_with_bumped_schema_returns_empty(tmp_path: Path):
     path = tmp_path / "cache.json"
-    path.write_text(json.dumps({"schema": 999999, "entries": {"a": {"hash": "x"}}}), encoding="utf-8")
+    path.write_text(
+        json.dumps({"schema": 999999, "entries": {"a": {"hash": "x"}}}),
+        encoding="utf-8",
+    )
     assert check_cache.load_cache(path) == {}
 
 
@@ -161,7 +168,10 @@ def test_load_cache_filters_malformed_entries(tmp_path: Path):
             {
                 "schema": check_cache.CACHE_SCHEMA_VERSION,
                 "entries": {
-                    "good": {"hash": "h", "fact_check": {"node_id": "good", "fact": "F", "exists": True}},
+                    "good": {
+                        "hash": "h",
+                        "fact_check": {"node_id": "good", "fact": "F", "exists": True},
+                    },
                     "no_hash": {"fact_check": {"node_id": "x"}},
                     "no_fact_check": {"hash": "h"},
                     "not_a_dict": "garbage",
@@ -176,7 +186,10 @@ def test_load_cache_filters_malformed_entries(tmp_path: Path):
 
 def test_save_cache_is_atomic_via_temp_file(tmp_path: Path):
     path = tmp_path / "cache.json"
-    check_cache.save_cache(path, {"a": {"hash": "h", "fact_check": {"node_id": "a", "fact": "F", "exists": True}}})
+    check_cache.save_cache(
+        path,
+        {"a": {"hash": "h", "fact_check": {"node_id": "a", "fact": "F", "exists": True}}},
+    )
     # No leftover .tmp file after a successful save.
     assert not (path.with_suffix(path.suffix + ".tmp")).exists()
     assert path.exists()
@@ -210,18 +223,27 @@ def test_reusable_entry_skips_when_not_exists():
 
 
 def test_reusable_entry_skips_when_oracles_present():
-    assert check_cache.reusable_entry(_entry(oracles=["Pure.skip_proof"]), proof_status_required=True) is None
+    assert (
+        check_cache.reusable_entry(_entry(oracles=["Pure.skip_proof"]), proof_status_required=True)
+        is None
+    )
 
 
 def test_reusable_entry_skips_when_proof_status_not_proved_and_required():
-    assert check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=True) is None
+    assert (
+        check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=True)
+        is None
+    )
     assert check_cache.reusable_entry(_entry(proof_status=None), proof_status_required=True) is None
 
 
 def test_reusable_entry_does_not_require_proof_status_when_not_requested():
     # When proof_status was not requested, a "found" record is still reusable
     # (we only ever verified existence).
-    assert check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=False) is not None
+    assert (
+        check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=False)
+        is not None
+    )
 
 
 def test_reusable_entry_missing_fact_check_returns_none():

@@ -103,7 +103,9 @@ _FRONTMATTER_FENCE = re.compile(r"^---\s*$")
 _META_KEY_RE = re.compile(r"^\s*[A-Za-z_][\w-]*\s*:")
 
 _FENCE_RE = re.compile(r"^(?P<marker>```+|~~~+)")
-_PROOF_HEADING_RE = re.compile(r"^(#{2,4})\s+(?:proof|formal proof|isabelle proof)\s*$", re.IGNORECASE)
+_PROOF_HEADING_RE = re.compile(
+    r"^(#{2,4})\s+(?:proof|formal proof|isabelle proof)\s*$", re.IGNORECASE
+)
 
 
 def _looks_like_meta(line: str) -> bool:
@@ -139,7 +141,9 @@ def parse_blueprint_file(path: Path | str, *, project_name: str | None = None) -
     return parse_blueprint_text(text, source=str(p), project_name=name)
 
 
-def parse_blueprint(paths: Iterable[Path | str], *, project_name: str = "blueprint") -> BlueprintProject:
+def parse_blueprint(
+    paths: Iterable[Path | str], *, project_name: str = "blueprint"
+) -> BlueprintProject:
     """Parse one or more Markdown files into a single project."""
     nodes: list[BlueprintNode] = []
     sources: list[str] = []
@@ -150,7 +154,9 @@ def parse_blueprint(paths: Iterable[Path | str], *, project_name: str = "bluepri
     return BlueprintProject.from_nodes(project_name, nodes, sources)
 
 
-def parse_blueprint_text(text: str, *, source: str = "<text>", project_name: str = "blueprint") -> BlueprintProject:
+def parse_blueprint_text(
+    text: str, *, source: str = "<text>", project_name: str = "blueprint"
+) -> BlueprintProject:
     """Parse a blueprint Markdown string."""
     blocks = _scan_blocks(text, source=source)
     nodes = [_block_to_node(b) for b in blocks]
@@ -314,7 +320,9 @@ def _humanize_id(node_id: str) -> str:
 
 
 def _block_to_node(block: _RawBlock) -> BlueprintNode:
-    metadata = _parse_metadata("\n".join(block.metadata_lines), block.source_file, block.source_line)
+    metadata = _parse_metadata(
+        "\n".join(block.metadata_lines), block.source_file, block.source_line
+    )
     node_id = metadata.pop("id", None) or block.id_hint
     if not node_id:
         raise ParseError(

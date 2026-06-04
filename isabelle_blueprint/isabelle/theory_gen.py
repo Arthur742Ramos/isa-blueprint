@@ -128,11 +128,17 @@ def generate_check_theory(
                 proof_refs.append(ref)
             else:
                 lines.append(
-                    f"ML \\<open>val _ = Thm.prop_of @{{thm {ref.fact}}}\\<close>  (* {ref.node_id} *)"
+                    f"ML \\<open>val _ = Thm.prop_of @{{thm {ref.fact}}}\\<close>  "
+                    f"(* {ref.node_id} *)"
                 )
         lines.append("")
     if emit_proof_status and proof_refs:
-        lines.extend(_proof_status_ml_block(sorted(proof_refs, key=lambda r: (r.theory, r.fact)), proof_status_file=proof_status_file))
+        lines.extend(
+            _proof_status_ml_block(
+                sorted(proof_refs, key=lambda r: (r.theory, r.fact)),
+                proof_status_file=proof_status_file,
+            )
+        )
         lines.append("")
     lines.append("end")
     return "\n".join(lines) + "\n"
@@ -151,7 +157,10 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
     path = _ml_string(proof_status_file)
     row_lines = []
     for ref in refs:
-        row_lines.append(f"    ({_ml_string(ref.node_id)}, {_ml_string(ref.fact)}, @{{thm {ref.fact}}})")
+        row_lines.append(
+            f"    ({_ml_string(ref.node_id)}, {_ml_string(ref.fact)}, "
+            f"@{{thm {ref.fact}}})"
+        )
     rows = ",\n".join(row_lines)
     return [
         "ML \\<open>",
@@ -166,10 +175,12 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
         "      val oracles = Thm_Deps.all_oracles thms",
         "        |> map (fn ((name, _), _) => name)",
         "      val has_skip = Thm_Deps.has_skip_proof thms",
-        "      val status = if has_skip orelse not (null oracles) then \"tainted\" else \"proved\"",
+        "      val status = if has_skip orelse not (null oracles) then "
+        "\"tainted\" else \"proved\"",
         "      val oracle_text = if null oracles then \"-\" else space_implode \",\" oracles",
         "    in",
-        "      \"ISABELLE_BLUEPRINT_FACT\\t\" ^ node_id ^ \"\\t\" ^ fact ^ \"\\t\" ^ status ^ \"\\t\" ^ oracle_text",
+        "      \"ISABELLE_BLUEPRINT_FACT\\t\" ^ node_id ^ \"\\t\" ^ fact ^ \"\\t\" ^ "
+        "status ^ \"\\t\" ^ oracle_text",
         "    end",
         "in",
         f"  File.write (Path.explode {path}) (cat_lines (map render rows) ^ \"\\n\")",

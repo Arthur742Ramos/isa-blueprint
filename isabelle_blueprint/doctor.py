@@ -107,7 +107,9 @@ def _check_blueprints(config: BlueprintConfig) -> list[DoctorCheck]:
         ]
     try:
         if len(config.blueprint_paths) == 1:
-            project = parse_blueprint_file(config.blueprint_paths[0], project_name=config.project_name)
+            project = parse_blueprint_file(
+                config.blueprint_paths[0], project_name=config.project_name
+            )
         else:
             project = parse_blueprint(config.blueprint_paths, project_name=config.project_name)
         project.validate().raise_if_failed()
@@ -144,7 +146,9 @@ def _check_writable_dir(name: str, path: Path) -> DoctorCheck:
 def _check_graphviz() -> DoctorCheck:
     dot = shutil.which("dot")
     if dot is None:
-        return DoctorCheck("graphviz", "warning", "Graphviz `dot` not found; SVG graphs will be skipped")
+        return DoctorCheck(
+            "graphviz", "warning", "Graphviz `dot` not found; SVG graphs will be skipped"
+        )
     return DoctorCheck("graphviz", "ok", f"Found dot at {dot}")
 
 

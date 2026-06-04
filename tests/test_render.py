@@ -322,4 +322,7 @@ def test_tasks_page_renders_attempted_agent_status_separately(tmp_path: Path):
 
     assert "Attempted" in body
     assert "task-column-attempted" in body
-    assert '<article class="task-column task-column-blocked">\n        <h3>Blocked <span>0</span></h3>' in body
+    assert (
+        '<article class="task-column task-column-blocked">\n        '
+        "<h3>Blocked <span>0</span></h3>" in body
+    )

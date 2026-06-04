@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
 
 
-class NodeKind(str, Enum):
+class NodeKind(StrEnum):
     """Recognised blueprint node kinds.
 
     The parser is tolerant of unknown kinds (they are stored as :attr:`OTHER`),

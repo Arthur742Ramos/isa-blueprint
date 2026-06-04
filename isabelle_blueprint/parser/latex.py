@@ -78,7 +78,9 @@ def parse_latex_file(path: Path | str, *, project_name: str | None = None) -> Bl
     return parse_latex_text(text, source=str(p), project_name=name)
 
 
-def parse_latex_text(text: str, *, source: str = "<text>", project_name: str = "blueprint") -> BlueprintProject:
+def parse_latex_text(
+    text: str, *, source: str = "<text>", project_name: str = "blueprint"
+) -> BlueprintProject:
     """Parse LaTeX theorem-like environments into a :class:`BlueprintProject`."""
     blocks = _scan_latex_blocks(text, source=source)
     nodes = [_block_to_node(block) for block in blocks]
@@ -156,7 +158,9 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
         parts.append(rf"\label{{{node.id}}}")
         if node.isabelle.fact:
             parts.append(rf"\isabelle{{{node.isabelle.fact}}}")
-            if node.isabelle.theory and not node.isabelle.fact.startswith(f"{node.isabelle.theory}."):
+            if node.isabelle.theory and not node.isabelle.fact.startswith(
+                f"{node.isabelle.theory}."
+            ):
                 parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")
         elif node.isabelle.theory:
             parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")

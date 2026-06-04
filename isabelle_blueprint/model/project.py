@@ -108,7 +108,9 @@ class BlueprintProject:
                             report.suggestions[dep] = close
 
         # cycle detection (DFS)
-        adjacency: dict[str, list[str]] = {n.id: [d for d in n.uses if d in all_ids] for n in self.nodes}
+        adjacency: dict[str, list[str]] = {
+            n.id: [d for d in n.uses if d in all_ids] for n in self.nodes
+        }
         visited: set[str] = set()
         path: list[str] = []
         on_stack: set[str] = set()
@@ -182,7 +184,9 @@ class BlueprintProject:
         path.write_text(self.to_json(), encoding="utf-8")
 
     @classmethod
-    def from_nodes(cls, name: str, nodes: Iterable[BlueprintNode], sources: Iterable[str] = ()) -> BlueprintProject:
+    def from_nodes(
+        cls, name: str, nodes: Iterable[BlueprintNode], sources: Iterable[str] = ()
+    ) -> BlueprintProject:
         return cls(name=name, nodes=list(nodes), source_files=list(sources))
 
 

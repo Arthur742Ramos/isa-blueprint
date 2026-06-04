@@ -307,7 +307,10 @@ def filter_roadmap(roadmap: RoadmapOverview, filters: RoadmapFilters) -> Roadmap
     if not filters.active:
         return roadmap
     stages = [
-        RoadmapStage(index=stage.index, items=[item for item in stage.items if filters.matches(item)])
+        RoadmapStage(
+            index=stage.index,
+            items=[item for item in stage.items if filters.matches(item)],
+        )
         for stage in roadmap.stages
     ]
     stages = [stage for stage in stages if stage.items]

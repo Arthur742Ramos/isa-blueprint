@@ -28,7 +28,13 @@ class FakeClient:
 
 
 def _draft(node_id="a"):
-    return {"node_id": node_id, "task_id": f"task-{node_id}", "title": "Formalize A", "body": "body", "labels": []}
+    return {
+        "node_id": node_id,
+        "task_id": f"task-{node_id}",
+        "title": "Formalize A",
+        "body": "body",
+        "labels": [],
+    }
 
 
 def test_github_sync_dry_run_makes_no_network_calls(tmp_path: Path):
@@ -69,7 +75,10 @@ def test_github_sync_updates_state_after_create(tmp_path: Path, monkeypatch):
 def test_github_sync_uses_existing_state_for_update(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "secret")
     state_path = tmp_path / "state.json"
-    state_path.write_text(json.dumps({"schema_version": 1, "nodes": {"a": {"issue_number": 7}}}), encoding="utf-8")
+    state_path.write_text(
+        json.dumps({"schema_version": 1, "nodes": {"a": {"issue_number": 7}}}),
+        encoding="utf-8",
+    )
     client = FakeClient()
 
     actions = sync_github_issues(
@@ -120,7 +129,9 @@ def test_github_sync_dry_run_surfaces_completed_issue_close_hint(tmp_path: Path)
     assert actions[0].issue_number == 7
 
 
-def test_github_sync_confirmed_close_removes_completed_issue_from_state(tmp_path: Path, monkeypatch):
+def test_github_sync_confirmed_close_removes_completed_issue_from_state(
+    tmp_path: Path, monkeypatch
+):
     monkeypatch.setenv("GITHUB_TOKEN", "secret")
     state_path = tmp_path / "state.json"
     state_path.write_text(

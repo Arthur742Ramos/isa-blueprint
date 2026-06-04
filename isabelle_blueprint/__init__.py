@@ -1,3 +1,3 @@
-"""IsabelleBlueprint: planning, dependency tracking, and task orchestration for Isabelle projects."""
+"""IsabelleBlueprint: planning, dependency tracking, and task orchestration for Isabelle."""
 
-__version__ = "1.8.1"
+__version__ = "1.9.0"

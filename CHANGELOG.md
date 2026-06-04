@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-04
+
 ### Added
 
 - Exposed the `critical_path`, `impact`, and `stats` analyses as MCP read tools
@@ -463,7 +465,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...v1.7.1

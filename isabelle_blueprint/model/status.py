@@ -14,10 +14,10 @@ maps to :class:`FormalStatus.FOUND` per the README disclaimer
 """
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class BlueprintStatus(str, Enum):
+class BlueprintStatus(StrEnum):
     """How polished the informal blueprint text is."""
 
     STUB = "stub"
@@ -25,7 +25,7 @@ class BlueprintStatus(str, Enum):
     REVIEWED = "reviewed"
 
 
-class FormalStatus(str, Enum):
+class FormalStatus(StrEnum):
     """State of the corresponding Isabelle fact."""
 
     MISSING = "missing"          # No isabelle ref assigned.
@@ -39,7 +39,7 @@ class FormalStatus(str, Enum):
     FAILED_CHECK = "failed_check"  # Generic check failure (kept for forward compat).
 
 
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     """Whether an autonomous or human agent should attempt this node next."""
 
     BLOCKED = "blocked"

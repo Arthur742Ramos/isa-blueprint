@@ -45,7 +45,9 @@ class CompatibilityReport:
 _SESSION_RE = re.compile(r'^\s*session\s+"?([^"\s=]+)"?\s*=', re.MULTILINE)
 
 
-def check_compatibility(config: BlueprintConfig, *, isabelle_executable: str | None = None) -> CompatibilityReport:
+def check_compatibility(
+    config: BlueprintConfig, *, isabelle_executable: str | None = None
+) -> CompatibilityReport:
     """Check local Isabelle, session, and optional AFP compatibility pins."""
     executable = isabelle_executable or config.isabelle_executable
     report = CompatibilityReport(
@@ -74,7 +76,9 @@ def _check_isabelle_version(report: CompatibilityReport, executable: str) -> Non
     resolved_executable = shutil.which(executable)
     if not resolved_executable:
         report.issues.append(
-            CompatibilityIssue("error", "isabelle-missing", f"Isabelle executable {executable!r} not found")
+            CompatibilityIssue(
+                "error", "isabelle-missing", f"Isabelle executable {executable!r} not found"
+            )
         )
         return
     try:
@@ -87,7 +91,11 @@ def _check_isabelle_version(report: CompatibilityReport, executable: str) -> Non
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         report.issues.append(
-            CompatibilityIssue("error", "isabelle-version-failed", f"Could not run `isabelle version`: {exc}")
+            CompatibilityIssue(
+                "error",
+                "isabelle-version-failed",
+                f"Could not run `isabelle version`: {exc}",
+            )
         )
         return
     if proc.returncode != 0:
@@ -95,17 +103,24 @@ def _check_isabelle_version(report: CompatibilityReport, executable: str) -> Non
             CompatibilityIssue(
                 "error",
                 "isabelle-version-failed",
-                f"`isabelle version` exited {proc.returncode}: {(proc.stderr or proc.stdout).strip()}",
+                f"`isabelle version` exited {proc.returncode}: "
+                f"{(proc.stderr or proc.stdout).strip()}",
             )
         )
         return
-    report.actual_isabelle_version = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
-    if report.expected_isabelle_version and report.actual_isabelle_version != report.expected_isabelle_version:
+    report.actual_isabelle_version = (
+        proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+    )
+    if (
+        report.expected_isabelle_version
+        and report.actual_isabelle_version != report.expected_isabelle_version
+    ):
         report.issues.append(
             CompatibilityIssue(
                 "error",
                 "isabelle-version-mismatch",
-                f"Expected Isabelle {report.expected_isabelle_version}, found {report.actual_isabelle_version}",
+                f"Expected Isabelle {report.expected_isabelle_version}, "
+                f"found {report.actual_isabelle_version}",
             )
         )
 
@@ -127,7 +142,8 @@ def _check_session(report: CompatibilityReport, config: BlueprintConfig) -> None
             CompatibilityIssue(
                 "warning",
                 "session-not-configured",
-                "No [isabelle].session configured; fact checks can only validate blueprint structure",
+                "No [isabelle].session configured; fact checks can only validate "
+                "blueprint structure",
             )
         )
         return
@@ -146,12 +162,16 @@ def _check_afp(report: CompatibilityReport, config: BlueprintConfig) -> None:
     if config.afp_root is None:
         if config.afp_required or config.afp_entry:
             report.issues.append(
-                CompatibilityIssue("error", "afp-root-missing", "[afp].root is required but not configured")
+                CompatibilityIssue(
+                    "error", "afp-root-missing", "[afp].root is required but not configured"
+                )
             )
         return
     if not config.afp_root.exists():
         report.issues.append(
-            CompatibilityIssue("error", "afp-root-not-found", f"AFP root does not exist: {config.afp_root}")
+            CompatibilityIssue(
+                "error", "afp-root-not-found", f"AFP root does not exist: {config.afp_root}"
+            )
         )
         return
     if not ((config.afp_root / "thys").exists() or (config.afp_root / "ROOTS").exists()):
@@ -191,7 +211,9 @@ def _root_files(directory: Path) -> list[Path]:
     return roots
 
 
-def _collect_root_files(directory: Path, roots: list[Path], seen_dirs: set[Path], seen_roots: set[Path]) -> None:
+def _collect_root_files(
+    directory: Path, roots: list[Path], seen_dirs: set[Path], seen_roots: set[Path]
+) -> None:
     directory = directory.resolve()
     if directory in seen_dirs:
         return

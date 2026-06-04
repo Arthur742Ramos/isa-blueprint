@@ -256,10 +256,14 @@ def _filter_mismatch_message(task: AgentTask, filters: ReadyTaskFilters) -> str:
     difficulty = metadata.difficulty if metadata is not None else None
     if filters.priorities and priority not in filters.priorities:
         actual = priority or "unknown"
-        mismatches.append(f"priority={actual} does not match --priority={','.join(filters.priorities)}")
+        mismatches.append(
+            f"priority={actual} does not match --priority={','.join(filters.priorities)}"
+        )
     if filters.difficulties and difficulty not in filters.difficulties:
         actual = difficulty or "unknown"
-        mismatches.append(f"difficulty={actual} does not match --difficulty={','.join(filters.difficulties)}")
+        mismatches.append(
+            f"difficulty={actual} does not match --difficulty={','.join(filters.difficulties)}"
+        )
     if filters.memory_states and not _task_matches_memory_states(task, filters.memory_states):
         mismatches.append(
             f"memory={_format_task_memory_summary(task)} "

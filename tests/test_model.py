@@ -114,3 +114,15 @@ def test_to_dict_roundtrip_shape():
     assert d["nodes"][1]["uses"] == ["a"]
     assert "status" in d["nodes"][0]
     assert "formal" in d["nodes"][0]["status"]
+
+
+def test_status_enums_stringify_to_their_values():
+    """StrEnum members stringify to their value (locks the v1.0 JSON contract)."""
+    assert str(NodeKind.LEMMA) == "lemma"
+    assert f"{NodeKind.THEOREM}" == "theorem"
+    assert str(BlueprintStatus.WRITTEN) == BlueprintStatus.WRITTEN.value
+    assert f"{FormalStatus.FOUND}" == FormalStatus.FOUND.value
+    assert f"{AgentStatus.READY}" == AgentStatus.READY.value
+    # Still plain strings for comparison and dict keys.
+    assert NodeKind.LEMMA == "lemma"
+    assert {NodeKind.LEMMA: 1}["lemma"] == 1

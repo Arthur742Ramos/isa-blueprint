@@ -56,7 +56,10 @@ end
 
 def test_render_imported_blueprint_contains_review_banner(tmp_path: Path):
     thy = tmp_path / "Demo.thy"
-    thy.write_text("theory Demo imports Main begin\nlemma real: \"True\" by simp\nend\n", encoding="utf-8")
+    thy.write_text(
+        "theory Demo imports Main begin\nlemma real: \"True\" by simp\nend\n",
+        encoding="utf-8",
+    )
 
     text = render_imported_blueprint(import_theory_file(thy), project_name="Demo import")
 

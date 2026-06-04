@@ -31,6 +31,7 @@ import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -71,7 +72,7 @@ def _kill_tree(proc: subprocess.Popen, pgid: int | None) -> None:
 
         try:
             if pgid is not None:
-                os.killpg(pgid, signal.SIGKILL)
+                os.killpg(pgid, signal.SIGKILL)  # type: ignore[attr-defined]
             else:
                 proc.kill()
         except (ProcessLookupError, PermissionError):
@@ -99,12 +100,12 @@ def run_capture(
 
     args = [str(part) for part in cmd]
 
-    popen_kwargs = {}
+    popen_kwargs: dict[str, Any] = {}
     pgid: int | None = None
     if os.name == "nt":
         # Lets us optionally send Ctrl events later; taskkill /T does the actual
         # tree walk regardless of this flag.
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
     else:
         popen_kwargs["start_new_session"] = True
 
@@ -119,7 +120,7 @@ def run_capture(
         )
         if os.name != "nt":
             try:
-                pgid = os.getpgid(proc.pid)
+                pgid = os.getpgid(proc.pid)  # type: ignore[attr-defined]
             except OSError:
                 pgid = None
         try:
@@ -130,7 +131,7 @@ def run_capture(
             err.seek(0)
             raise subprocess.TimeoutExpired(
                 args,
-                timeout,
+                timeout if timeout is not None else 0.0,
                 output=out.read().decode(encoding, "replace"),
                 stderr=err.read().decode(encoding, "replace"),
             ) from None

@@ -386,7 +386,10 @@ def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
                 continue
             seen.add(current)
             current_node = by_id.get(current)
-            if current_node and current_node.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+            if current_node and current_node.status.formal not in {
+                FormalStatus.FOUND,
+                FormalStatus.PROVED,
+            }:
                 counts[node.id] = counts.get(node.id, 0) + 1
             stack.extend(reverse.get(current, []))
     return counts

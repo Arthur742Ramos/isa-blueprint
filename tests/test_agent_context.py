@@ -214,7 +214,14 @@ def test_cli_agent_context_without_filters_omits_filter_fields(
     assert "filters" not in data
     assert "filtered_ready_task_count" not in data
     for cmd in data["commands"]:
-        for token in ("--kind", "--priority", "--difficulty", "--memory-state", "--last-outcome", "--exclude-node"):
+        for token in (
+            "--kind",
+            "--priority",
+            "--difficulty",
+            "--memory-state",
+            "--last-outcome",
+            "--exclude-node",
+        ):
             assert token not in cmd["argv"]
 
 

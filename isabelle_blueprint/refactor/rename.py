@@ -195,7 +195,9 @@ def _verify_rename(
     if new_id not in new_ids:
         raise BlueprintError(f"rename aborted: new id {new_id!r} missing after rewrite")
 
-    project = BlueprintProject.from_nodes(config.project_name, nodes, sources=[str(p) for p in paths])
+    project = BlueprintProject.from_nodes(
+        config.project_name, nodes, sources=[str(p) for p in paths]
+    )
     for node in project.nodes:
         if old_id in node.uses:
             raise BlueprintError(
