@@ -70,6 +70,7 @@ from isabelle_blueprint.report.roadmap import (
     roadmap_payload,
 )
 from isabelle_blueprint.report.stats import build_stats_report
+from isabelle_blueprint.report.staleness import build_staleness_report, staleness_payload
 from isabelle_blueprint.report.status_overview import build_status_overview
 from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
@@ -347,6 +348,29 @@ def build_server(
         memory = load_agent_memory(config.agent_memory_path)
         return build_stats_report(memory, parsed).to_dict()
 
+    @server.tool(name="staleness")
+    def staleness(
+        top: int | None = None,
+        max_causes: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Audit trusted (found/proved) nodes resting on shaky dependencies.
+
+        Scans every trusted node and walks its dependencies to flag ones whose
+        status is not justified: a ``problem`` dependency (broken/tainted/
+        missing/cyclic), an ``incomplete`` one (unproven), or an ``outdated`` one
+        (a dependency re-checked more recently than this node). ``top`` limits the
+        number of stale nodes returned; ``max_causes`` limits causes per node.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        report = build_staleness_report(parsed)
+        return staleness_payload(
+            report,
+            top=_positive_or_none(top, label="top"),
+            max_causes=_positive_or_none(max_causes, label="max_causes"),
+        )
+
     @server.tool(name="history")
     def history(
         limit: int | None = None,
@@ -530,6 +554,13 @@ def build_server(
 
         return _json_resource(_theory_index_payload(catalog.resolve(None).root))
 
+    @server.resource("blueprint://staleness", mime_type="application/json")
+    def staleness_resource() -> str:
+        """Trusted-node staleness audit for the default project."""
+
+        snapshot = _snapshot(catalog.resolve(None).root)
+        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
+
     @server.resource("blueprint://projects/{project}/project", mime_type="application/json")
     def project_scoped_project_resource(project: str) -> str:
         """Parsed project graph for a selected project id."""
@@ -603,6 +634,15 @@ def build_server(
         """Source-only Isabelle ``.thy`` index for a selected project id."""
 
         return _json_resource(_theory_index_payload(catalog.resolve(project).root))
+
+    @server.resource(
+        "blueprint://projects/{project}/staleness", mime_type="application/json"
+    )
+    def project_scoped_staleness_resource(project: str) -> str:
+        """Trusted-node staleness audit for a selected project id."""
+
+        snapshot = _snapshot(catalog.resolve(project).root)
+        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
 
     @server.resource("blueprint://schemas/{name}", mime_type="application/json")
     def schema_resource(name: str) -> str:

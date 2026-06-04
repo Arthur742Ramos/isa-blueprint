@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `staleness` command (and matching `staleness` MCP read tool plus
+  `blueprint://staleness` resources) audits every trusted (`found`/`proved`)
+  node and walks its dependencies to flag the ones whose green status is not
+  actually justified — because a dependency is broken/tainted/missing
+  (`problem`), unproven (`incomplete`), itself `stale`, or was re-checked more
+  recently than the node (`outdated`). It also flags trusted nodes that sit in a
+  dependency cycle or `uses:` a non-existent node, counts trusted nodes that have
+  never been checked (unknown freshness), and supports `--top`, `--max-causes`,
+  and `--fail-on-problem` (exit 5) for CI. This is the project-wide inverse of
+  `impact`: where `impact` asks "what rests on X?", `staleness` asks "is X's
+  trust well-founded?".
 - `completion --install` / `completion --dest PATH` write the generated script
   straight to the shell's conventional completion location (or an explicit path),
   creating parent directories and printing the destination plus any activation

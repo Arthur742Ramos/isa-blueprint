@@ -152,6 +152,11 @@ from isabelle_blueprint.report.roadmap import (
 )
 from isabelle_blueprint.report.sarif import render_sarif
 from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
+from isabelle_blueprint.report.staleness import (
+    build_staleness_report,
+    render_staleness_report,
+    staleness_payload,
+)
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -720,6 +725,31 @@ def cmd_stats(args: argparse.Namespace) -> int:
         print(json.dumps(report.to_dict(), indent=2))
     else:
         print(render_stats_report(report), end="")
+    return 0
+
+
+def cmd_staleness(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_staleness_report(project)
+    if args.json:
+        payload = staleness_payload(
+            report, top=args.top, max_causes=args.max_causes
+        )
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            render_staleness_report(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
+    if args.fail_on_problem and report.problem_count > 0:
+        print(
+            f"{report.problem_count} trusted node(s) rest on broken/missing "
+            "dependencies",
+            file=sys.stderr,
+        )
+        return 5
     return 0
 
 
@@ -1812,6 +1842,33 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_stats.add_argument("project_dir", nargs="?", default=".")
     p_stats.add_argument("--json", action="store_true", help="emit stats as JSON")
     p_stats.set_defaults(func=cmd_stats)
+
+    p_staleness = sub.add_parser(
+        "staleness",
+        help="audit trusted nodes whose found/proved status rests on shaky dependencies",
+    )
+    p_staleness.add_argument("project_dir", nargs="?", default=".")
+    p_staleness.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_staleness.add_argument(
+        "--top",
+        type=_positive_int,
+        default=10,
+        metavar="N",
+        help="maximum stale nodes to display / keep in --json (default: 10)",
+    )
+    p_staleness.add_argument(
+        "--max-causes",
+        type=_positive_int,
+        default=5,
+        metavar="N",
+        help="maximum causes to show per stale node (default: 5)",
+    )
+    p_staleness.add_argument(
+        "--fail-on-problem",
+        action="store_true",
+        help="exit non-zero (5) when any trusted node rests on broken/missing deps",
+    )
+    p_staleness.set_defaults(func=cmd_staleness)
 
     p_version = sub.add_parser("version", help="print version, Python, and schema information")
     p_version.add_argument("--json", action="store_true", help="emit version info as JSON")

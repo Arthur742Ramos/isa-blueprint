@@ -106,6 +106,7 @@ Read tools are always registered:
 | `lint` | Structural and quality findings without invoking Isabelle. |
 | `critical_path` | Longest-pole proof-dependency analysis; supports `top` to limit bottlenecks. |
 | `impact` | Downstream blast-radius ranking, or one node's impact report when `node` is set (`top` limits rankings; ignored with `node`). |
+| `staleness` | Trust audit of `found`/`proved` nodes: flags ones resting on broken/missing (`problem`), unproven (`incomplete`), `stale`, or newer-checked (`outdated`) dependencies, plus cycle members; supports `top` and `max_causes`. |
 | `stats` | Agent-memory analytics: attempts, outcomes, and success rates. |
 | `history` | Coverage trend history summary from `trends.json`; supports `limit`. Reads only the trend store, so it works even when the blueprint fails to parse. |
 | `compat` | Isabelle/AFP version-pin and session-visibility check; supports `isabelle`. Read-only (never writes the compat report file). |
@@ -140,6 +141,7 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://history` | Coverage trend history summary for the default project. |
 | `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
 | `blueprint://theory-index` | Source-only `.thy` index for the default project. |
+| `blueprint://staleness` | Trusted-node staleness audit for the default project. |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
 | `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
 | `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |
@@ -148,6 +150,7 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://projects/{project}/history` | Selected-project coverage trend history summary. |
 | `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
 | `blueprint://projects/{project}/theory-index` | Selected-project source-only `.thy` index. |
+| `blueprint://projects/{project}/staleness` | Selected-project trusted-node staleness audit. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 
 Most project-reading surfaces load the blueprint and then apply the latest stored

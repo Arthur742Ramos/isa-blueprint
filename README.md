@@ -290,6 +290,7 @@ already justify.
 | `theory-index` | Source-only call graph, theory deps, `sorry`/`oops`, and unreferenced-entry analysis (no Isabelle needed) | Offline inspection of `.thy` trees in CI or on partial checkouts. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 | `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
+| `staleness` | Terminal or JSON trusted-node trust audit | Finding `proved`/`found` facts that rest on broken, unproven, or newer dependencies. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
 | `isabelle-blueprint-mcp` | MCP tools, resources, and prompts | Direct consumption by AI agents and MCP clients. |
 | `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
@@ -334,12 +335,13 @@ project-specific tools.
 
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
 `list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
-`critical_path`, `impact`, `stats`, `history`, `compat`, `suggest_facts`,
-`theory_index`, `graph`, `schema`, and `doctor`; resources
+`critical_path`, `impact`, `staleness`, `stats`, `history`, `compat`,
+`suggest_facts`, `theory_index`, `graph`, `schema`, and `doctor`; resources
 such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, `blueprint://history`, `blueprint://fact-suggestions`,
-`blueprint://theory-index`, and `blueprint://nodes/{node_id}`; and a `prove_task`
+`blueprint://theory-index`, `blueprint://staleness`, and
+`blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
 want low-risk write tools for recording proof-attempt memory and per-node
 assignments. See [`docs/mcp.md`](docs/mcp.md) for the full tool/resource catalog
@@ -519,6 +521,20 @@ it, and the complete (`found`/`proved`) dependents that would go stale if the
 node changed — a quick way to gauge the risk of touching a foundational fact.
 With no `--node` it ranks every node by blast-radius size so you can spot the
 highest-leverage foundations.
+
+Use `staleness` for the project-wide *trust audit* — the inverse of `impact`.
+Where `impact` asks "what rests on X?", `staleness` asks "is X's own `found`/
+`proved` status well-founded?". It scans every trusted node and walks its
+dependencies, flagging the ones that rest on a broken/missing dependency
+(`problem`), an unproven one (`incomplete`), or a dependency that was re-checked
+more recently than the node (`outdated`), plus trusted nodes caught in a cycle:
+
+```bash
+isabelle-blueprint staleness .                   # audit every trusted node
+isabelle-blueprint staleness . --json
+isabelle-blueprint staleness . --top 20 --max-causes 3
+isabelle-blueprint staleness . --fail-on-problem   # exit 5 on broken/missing deps
+```
 
 Use `agent-context` when an AI agent needs the whole working brief in one stable
 payload:

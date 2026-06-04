@@ -48,7 +48,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
-    assert {"history", "compat", "suggest_facts"} <= read_only_names
+    assert {"history", "compat", "suggest_facts", "staleness"} <= read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -200,6 +200,48 @@ def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
     message = str(excinfo.value)
     assert "unknown node 'nope'" in message
     assert "base" in message and "main" in message
+
+
+_STALE_BLUEPRINT = """# Stale MCP test
+
+::: definition {#base}
+title: Base
+isabelle: Demo.base
+status: broken
+
+BASE.
+:::
+
+::: theorem {#main}
+title: Main
+isabelle: Demo.main
+uses:
+  - base
+status: proved
+
+MAIN.
+:::
+"""
+
+
+def test_mcp_staleness_tool_and_resource(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "stale-mcp"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(_STALE_BLUEPRINT, encoding="utf-8")
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "staleness", {"top": 5})
+    assert result["project"] == "stale-mcp"
+    assert result["stale_count"] == 1
+    stale = result["stale_nodes"][0]
+    assert stale["node_id"] == "main"
+    assert stale["severity"] == "problem"
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://staleness"))))
+    payload = json.loads(contents[0].content)
+    assert payload["stale_nodes"][0]["node_id"] == "main"
 
 
 def test_mcp_resources_are_project_scoped_json(tmp_path: Path) -> None:

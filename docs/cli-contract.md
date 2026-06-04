@@ -860,6 +860,34 @@ outcome. The text form is a compact report; `--json` emits the same data in a
 lightweight shape. This analytics payload is **not** part of the frozen JSON
 contract and may evolve.
 
+### `staleness`
+
+```text
+isabelle-blueprint staleness [project_dir]
+                             [--json] [--top N] [--max-causes N]
+                             [--fail-on-problem]
+```
+
+Audits every **trusted** node (formal status `found` or `proved`) and walks its
+dependencies to decide whether that trust is justified. A trusted node is
+reported as *stale* when it rests on a dependency that undermines it, with each
+offending dependency recorded as a *cause* whose `reason` is one of (strongest
+first): `missing` (a `uses:` entry points at a non-existent node), `cycle` (the
+node is in a dependency cycle), `problem` (a dependency is
+`not_found`/`broken`/`tainted`/`failed_check`), `incomplete` (a dependency is
+`named`/`missing`, i.e. unproven), `stale_dep` (a dependency is itself `stale`),
+or `outdated` (a dependency's `last_checked` is strictly newer than this node's,
+so the node was verified before the dependency moved). Reasons roll up into three
+severity buckets — `problem`, `incomplete`, `outdated` — and a node's severity is
+the strongest bucket among its causes.
+
+`--top` limits the number of stale nodes shown (and kept in `--json`), and
+`--max-causes` limits the causes listed per node; `cause_count` always reports
+the true total. `--fail-on-problem` exits non-zero (5) when any trusted node has
+a `problem`-severity cause (broken or missing dependency), which is useful in
+CI. The `--json` payload carries a `schema_version` but, like the other
+analytics commands, is **not** part of the frozen JSON contract and may evolve.
+
 ### `version`
 
 ```text
