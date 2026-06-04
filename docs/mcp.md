@@ -9,13 +9,15 @@ files.
 ## Install
 
 MCP support is an optional dependency group so the core CLI and GitHub Action
-stay lightweight:
+stay lightweight. Install the package with the `mcp` extra before launching
+`isabelle-blueprint-mcp`; a plain `pip install isabelle-blueprint` does not
+include the MCP runtime dependency:
 
 ```bash
 pip install "isabelle-blueprint[mcp]"
 ```
 
-The package installs a second console script:
+The package installs a second console script for MCP clients:
 
 ```bash
 isabelle-blueprint-mcp --project-dir .
@@ -127,4 +129,3 @@ uses the same task selection and diagnostics as `next_task`.
    run it.
 5. If `--allow-writes` is enabled, call `record_attempt` with the outcome and next
    step so future prompts include the attempt memory.
-
