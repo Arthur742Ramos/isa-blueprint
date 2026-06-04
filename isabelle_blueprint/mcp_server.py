@@ -48,6 +48,17 @@ from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.project_io import load_project, load_project_with_check
 from isabelle_blueprint.refactor import rename_node
+from isabelle_blueprint.report.critical_path import (
+    build_critical_path,
+    critical_path_payload,
+)
+from isabelle_blueprint.report.impact import (
+    UnknownNodeError,
+    build_impact_overview,
+    build_impact_report,
+    impact_overview_payload,
+    impact_report_payload,
+)
 from isabelle_blueprint.report.lint import build_lint_report
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
@@ -55,6 +66,7 @@ from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     roadmap_payload,
 )
+from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
@@ -282,6 +294,52 @@ def build_server(
 
         snapshot = _snapshot(catalog.resolve(project).root)
         return build_lint_report(snapshot.project).to_dict()
+
+    @server.tool(name="critical_path")
+    def critical_path(
+        top: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return longest-pole proof-dependency analysis (bottlenecks and goal chains)."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        overview = build_critical_path(parsed)
+        return critical_path_payload(overview, top=_positive_or_none(top, label="top"))
+
+    @server.tool(name="impact")
+    def impact(
+        node: str | None = None,
+        top: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return downstream blast-radius analysis.
+
+        With ``node`` set, return that node's full impact report (``top`` is
+        ignored). Without ``node``, return every node ranked by blast radius,
+        limited to ``top`` rankings when provided.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        top_value = _positive_or_none(top, label="top")
+        if node:
+            try:
+                report = build_impact_report(parsed, node)
+            except UnknownNodeError:
+                known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
+                raise BlueprintError(
+                    f"unknown node {node!r}; known node ids: {known}"
+                ) from None
+            return impact_report_payload(report)
+        overview = build_impact_overview(parsed)
+        return impact_overview_payload(overview, top=top_value)
+
+    @server.tool(name="stats")
+    def stats(project: str | None = None) -> dict[str, object]:
+        """Return agent-memory analytics (attempts, outcomes, and success rates)."""
+
+        config, parsed = load_project(catalog.resolve(project).root)
+        memory = load_agent_memory(config.agent_memory_path)
+        return build_stats_report(memory, parsed).to_dict()
 
     @server.tool(name="graph")
     def graph(
@@ -910,11 +968,11 @@ def _dedupe(values: list[str] | None) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values or ()))
 
 
-def _positive_or_none(value: int | None) -> int | None:
+def _positive_or_none(value: int | None, *, label: str = "top_tasks") -> int | None:
     if value is None:
         return None
     if value < 1:
-        raise BlueprintError("top_tasks must be at least 1")
+        raise BlueprintError(f"{label} must be at least 1")
     return value
 
 

@@ -104,6 +104,9 @@ Read tools are always registered:
 | `agent_context` | Compact handoff bundle matching `agent-context --json`. |
 | `explain_node` | Status/blocker explanations for one node or all nodes. |
 | `lint` | Structural and quality findings without invoking Isabelle. |
+| `critical_path` | Longest-pole proof-dependency analysis; supports `top` to limit bottlenecks. |
+| `impact` | Downstream blast-radius ranking, or one node's impact report when `node` is set (`top` limits rankings; ignored with `node`). |
+| `stats` | Agent-memory analytics: attempts, outcomes, and success rates. |
 | `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |

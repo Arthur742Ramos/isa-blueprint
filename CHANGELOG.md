@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Exposed the `critical_path`, `impact`, and `stats` analyses as MCP read tools
+  so AI proof agents can run longest-pole, downstream blast-radius, and
+  agent-memory analytics over MCP without shelling out to the CLI. The tools
+  mirror the CLI JSON payloads, accept the optional `project` selector, support
+  `top` (and `node` for `impact`), and are always registered as pure reads.
+
 ## [1.8.1] - 2026-06-04
 
 ### Added
