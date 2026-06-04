@@ -107,6 +107,9 @@ Read tools are always registered:
 | `critical_path` | Longest-pole proof-dependency analysis; supports `top` to limit bottlenecks. |
 | `impact` | Downstream blast-radius ranking, or one node's impact report when `node` is set (`top` limits rankings; ignored with `node`). |
 | `stats` | Agent-memory analytics: attempts, outcomes, and success rates. |
+| `history` | Coverage trend history summary from `trends.json`; supports `limit`. Reads only the trend store, so it works even when the blueprint fails to parse. |
+| `compat` | Isabelle/AFP version-pin and session-visibility check; supports `isabelle`. Read-only (never writes the compat report file). |
+| `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
@@ -133,11 +136,15 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://tasks` | Ready-task catalog and suggested next task. |
 | `blueprint://roadmap` | Unfiltered roadmap payload. |
 | `blueprint://agent-context` | Default agent-context payload. |
+| `blueprint://history` | Coverage trend history summary for the default project. |
+| `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
 | `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
 | `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |
 | `blueprint://projects/{project}/roadmap` | Selected-project roadmap payload. |
 | `blueprint://projects/{project}/agent-context` | Selected-project agent-context payload. |
+| `blueprint://projects/{project}/history` | Selected-project coverage trend history summary. |
+| `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 
 All project-reading surfaces load the blueprint and then apply the latest stored

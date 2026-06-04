@@ -39,11 +39,12 @@ from isabelle_blueprint.agents.selection import (
     selection_metadata,
 )
 from isabelle_blueprint.agents.tasks import generate_tasks, render_task_prompt
-from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME
+from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.explain import explain_project
 from isabelle_blueprint.graph.graphviz_render import render_dot, render_json, render_mermaid
+from isabelle_blueprint.isabelle.compat import check_compatibility
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.project_io import load_project, load_project_with_check
@@ -52,6 +53,7 @@ from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
 )
+from isabelle_blueprint.report.history import summarize_trends
 from isabelle_blueprint.report.impact import (
     UnknownNodeError,
     build_impact_overview,
@@ -68,6 +70,7 @@ from isabelle_blueprint.report.roadmap import (
 )
 from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
+from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
 GraphFormat = Literal["json", "dot", "mermaid"]
@@ -341,6 +344,48 @@ def build_server(
         memory = load_agent_memory(config.agent_memory_path)
         return build_stats_report(memory, parsed).to_dict()
 
+    @server.tool(name="history")
+    def history(
+        limit: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Summarize the ``trends.json`` coverage history (mirrors ``history --json``).
+
+        Reads only the recorded trend store, so it still works when the current
+        blueprint fails to parse — historical movement is most useful exactly
+        then. ``limit`` keeps only the most recent N entries in the view; the
+        latest delta is always computed from the two newest entries.
+        """
+
+        return _history_payload(
+            catalog.resolve(project).root,
+            limit=_positive_or_none(limit, label="limit"),
+        )
+
+    @server.tool(name="compat")
+    def compat(
+        isabelle: str | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Check Isabelle/AFP version pins and session visibility (read-only).
+
+        Mirrors the ``compat`` JSON payload, including the per-issue severity
+        list and the overall ``ok`` flag. Unlike the CLI command, this does not
+        write the report file to disk.
+        """
+
+        config = load_config(catalog.resolve(project).root)
+        report = check_compatibility(config, isabelle_executable=isabelle)
+        return report.to_dict()
+
+    @server.tool(name="suggest_facts")
+    def suggest_facts(project: str | None = None) -> dict[str, object]:
+        """Return fuzzy fact-name suggestions for unresolved formal targets."""
+
+        snapshot = _snapshot(catalog.resolve(project).root)
+        suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
+        return {"suggestions": suggestions, "count": len(suggestions)}
+
     @server.tool(name="graph")
     def graph(
         format: GraphFormat = "json",
@@ -441,6 +486,20 @@ def build_server(
         )
         return _json_resource(context.to_dict())
 
+    @server.resource("blueprint://history", mime_type="application/json")
+    def history_resource() -> str:
+        """Coverage trend history summary for the default project."""
+
+        return _json_resource(_history_payload(catalog.resolve(None).root))
+
+    @server.resource("blueprint://fact-suggestions", mime_type="application/json")
+    def fact_suggestions_resource() -> str:
+        """Fuzzy fact-name suggestions for the default project."""
+
+        snapshot = _snapshot(catalog.resolve(None).root)
+        suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
+        return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
+
     @server.resource("blueprint://projects/{project}/project", mime_type="application/json")
     def project_scoped_project_resource(project: str) -> str:
         """Parsed project graph for a selected project id."""
@@ -490,6 +549,22 @@ def build_server(
             snapshot.ready_tasks,
         )
         return _json_resource(context.to_dict())
+
+    @server.resource("blueprint://projects/{project}/history", mime_type="application/json")
+    def project_scoped_history_resource(project: str) -> str:
+        """Coverage trend history summary for a selected project id."""
+
+        return _json_resource(_history_payload(catalog.resolve(project).root))
+
+    @server.resource(
+        "blueprint://projects/{project}/fact-suggestions", mime_type="application/json"
+    )
+    def project_scoped_fact_suggestions_resource(project: str) -> str:
+        """Fuzzy fact-name suggestions for a selected project id."""
+
+        snapshot = _snapshot(catalog.resolve(project).root)
+        suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
+        return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
 
     @server.resource("blueprint://schemas/{name}", mime_type="application/json")
     def schema_resource(name: str) -> str:
@@ -854,6 +929,19 @@ class _ProjectSnapshot:
 
 def _snapshot(project_dir: Path) -> _ProjectSnapshot:
     return _ProjectSnapshot(project_dir)
+
+
+def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str, object]:
+    # History only needs trends.json, so avoid parsing the (possibly broken)
+    # blueprint: historical data is most useful exactly when the current
+    # blueprint does not load.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    summary = summarize_trends(entries, limit=limit)
+    payload = summary.to_dict()
+    payload["latest"] = summary.latest
+    payload["trends_path"] = str(config.trends_path)
+    return payload
 
 
 def _next_task_payload(

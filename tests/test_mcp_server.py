@@ -48,6 +48,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
+    assert {"history", "compat", "suggest_facts"} <= read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -92,6 +93,94 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"
     assert stats["total_attempts"] == 0
+
+
+def test_mcp_history_tool_reports_trend_deltas(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    empty = _direct_tool_result(server, "history", {})
+    assert empty["entry_count"] == 0
+    assert empty["entries"] == []
+    assert empty["latest"] is None
+    assert empty["trends_path"].endswith("trends.json")
+
+    trends_path = tmp_path / "build" / "trends.json"
+    trends_path.parent.mkdir(parents=True, exist_ok=True)
+    trends_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {"timestamp": "2026-06-01T00:00:00Z", "coverage_percent": 40, "proved_count": 2},
+                    {"timestamp": "2026-06-02T00:00:00Z", "coverage_percent": 60, "proved_count": 5},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = _direct_tool_result(server, "history", {})
+    assert summary["entry_count"] == 2
+    assert summary["latest"]["coverage_percent"] == 60
+    coverage_delta = next(d for d in summary["deltas"] if d["metric"] == "coverage_percent")
+    assert coverage_delta["before"] == 40
+    assert coverage_delta["after"] == 60
+    assert coverage_delta["delta"] == 20
+
+    limited = _direct_tool_result(server, "history", {"limit": 1})
+    assert len(limited["entries"]) == 1
+    assert limited["entries"][0]["coverage_percent"] == 60
+
+
+def test_mcp_history_rejects_non_positive_limit(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError), match="limit must be at least 1"):
+        _direct_tool_result(server, "history", {"limit": 0})
+
+
+def test_mcp_compat_tool_is_read_only(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    report = _direct_tool_result(server, "compat", {"isabelle": "definitely-not-isabelle"})
+    assert isinstance(report["ok"], bool)
+    assert report["isabelle_available"] is False
+    assert isinstance(report["issues"], list)
+    assert any(issue["code"] == "isabelle-missing" for issue in report["issues"])
+    # The MCP tool must not write the compat report file (CLI-only side effect).
+    assert not (tmp_path / "build" / "compat_report.json").exists()
+
+
+def test_mcp_suggest_facts_tool_returns_suggestions(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "suggest_facts", {})
+    suggestions = payload["suggestions"]
+    assert isinstance(suggestions, list)
+    assert payload["count"] == len(suggestions)
+    known_ids = {"base", "main"}
+    for suggestion in suggestions:
+        assert suggestion["node_id"] in known_ids
+        assert isinstance(suggestion["suggestions"], list)
+
+
+def test_mcp_history_and_fact_suggestion_resources(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    history_contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://history"))))
+    history = json.loads(history_contents[0].content)
+    assert history["entry_count"] == 0
+
+    facts_contents = list(
+        asyncio.run(server.read_resource(AnyUrl("blueprint://fact-suggestions")))
+    )
+    facts = json.loads(facts_contents[0].content)
+    assert facts["count"] == len(facts["suggestions"])
 
 
 def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
