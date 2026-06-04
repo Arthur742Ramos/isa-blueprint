@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `theory-index` command: source-only analysis of Isabelle `.thy` files that
+  needs no `isabelle` binary, so it runs in CI and on partial checkouts. It
+  resolves theories from explicit paths, `--root DIR` (optionally `--session
+  NAME`), or the nearest discovered `ROOT`, and reports a cross-theory reference
+  (call) graph (`--callers`/`--callees`, optionally `--transitive`), theory
+  import dependencies (`--deps THEORY`, forward and reverse), `sorry`/`oops`
+  markers with their enclosing entry (`--sorry`), and entries no other indexed
+  entry references (`--unreferenced`). Emits a text summary by default or a full
+  structured index with `--json`.
+- `import-theory --root DIR` imports every theory a session `ROOT` declares
+  (with `--session NAME` to disambiguate multi-session ROOTs) and infers
+  cross-theory `uses` dependencies from the source reference graph, restricted to
+  facts earlier in a global import-topological order so the generated blueprint
+  stays acyclic. Importing explicit file paths is unchanged.
+- New vendored ROOT/session parser (`isabelle_blueprint.isabelle.root`) and
+  source index engine (`isabelle_blueprint.isabelle.source_index`). The ROOT
+  parser is adapted from [`ott2/isabelle-query`](https://github.com/ott2/isabelle-query)
+  (MIT) and understands `theories`/`directories` blocks, multi-session ROOTs,
+  per-theory and session-level `in <subdir>` clauses, parents after `=`,
+  option groups, comments, and cartouches. Theory `imports ... begin` clauses
+  are read from comment-stripped source, so licence headers and commented-out
+  import lines neither hide real imports nor inject phantom ones.
+
+### Fixed
+
+- ROOT parser: a per-theory `in "<subdir>"` override is no longer dropped when
+  the preceding theory is flushed, so session theories declared in subdirectories
+  now resolve correctly.
+
 ## [1.9.0] - 2026-06-04
 
 ### Added

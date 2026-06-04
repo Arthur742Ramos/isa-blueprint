@@ -190,6 +190,16 @@ def _unique_node_id(node_id: str, used: set[str]) -> str:
     return candidate
 
 
+def make_node_id(theory: str, name: str, used: set[str]) -> str:
+    """Return a unique, slugified blueprint node id for ``theory.name``.
+
+    ``used`` is mutated to record the returned id, so repeated calls produce
+    distinct ids. Shared with the source-index importer so both code paths use
+    the same id convention.
+    """
+    return _unique_node_id(_node_id(theory, name), used)
+
+
 def _infer_uses(snippet: str, previous: list[ImportedTheoryFact]) -> list[str]:
     uses: list[str] = []
     for fact in previous:
