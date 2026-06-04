@@ -53,17 +53,27 @@ isabelle-blueprint-mcp [--project-dir DIR]
 (`pip install "isabelle-blueprint[mcp]"`). Plain installs
 (`pip install isabelle-blueprint`) keep the base CLI and GitHub Action
 lightweight and do not install the MCP runtime dependency. The entry point
-serves one configured blueprint project over MCP. The default transport is `stdio`;
+serves one configured blueprint project, or a repository containing multiple
+project subdirectories, over MCP. The default transport is `stdio`;
 `streamable-http` uses
 `--host` (default `127.0.0.1`), `--port` (default `8000`), and `--path` (default
 `/mcp`).
 
-Read tools are always registered: `version`, `status`, `roadmap`, `list_tasks`,
-`next_task`, `agent_context`, `explain_node`, `lint`, `graph`, `schema`,
-`doctor`, and `preview_rename_node`. Resources include `blueprint://project`,
-`blueprint://nodes/{node_id}`, `blueprint://tasks`, `blueprint://roadmap`,
-`blueprint://agent-context`, and `blueprint://schemas/{name}`. The `prove_task`
-prompt returns the selected ready-task proof prompt.
+Read tools are always registered: `version`, `list_projects`, `status`,
+`roadmap`, `list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
+`graph`, `schema`, `doctor`, and `preview_rename_node`. Project-specific tools
+accept an optional `project` selector. It may be a project id from
+`list_projects`, a relative path, an absolute path under `--project-dir`, or a
+unique configured project name. If the launch directory is itself a project, it
+is the default for legacy calls; otherwise multiple discovered projects require
+an explicit selector.
+
+Resources include `blueprint://projects`, default-project resources
+`blueprint://project`, `blueprint://nodes/{node_id}`, `blueprint://tasks`,
+`blueprint://roadmap`, `blueprint://agent-context`, selected-project resources
+under `blueprint://projects/{project}/...`, and `blueprint://schemas/{name}`.
+The `prove_task` prompt returns the selected ready-task proof prompt and accepts
+the same optional `project` selector.
 
 `--allow-writes` registers only the low-risk write tools `record_attempt` and
 `assign_node`. Without the flag, write tools are omitted from `tools/list`.

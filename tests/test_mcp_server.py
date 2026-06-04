@@ -11,6 +11,7 @@ pytest.importorskip("mcp")
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import AnyUrl
 
 from isabelle_blueprint.errors import BlueprintError
@@ -101,6 +102,80 @@ def test_mcp_record_attempt_writes_memory_when_enabled(tmp_path: Path) -> None:
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp did not close the goal"
 
 
+def test_mcp_lists_and_selects_projects_from_repo_root(tmp_path: Path) -> None:
+    _write_project(tmp_path / "alpha", name="alpha-project")
+    _write_project(tmp_path / "beta", name="beta-project")
+    server = build_server(tmp_path, allow_writes=True)
+
+    projects = _direct_tool_result(server, "list_projects", {})
+    assert projects["default_project"] is None
+    assert [project["id"] for project in projects["projects"]] == ["alpha", "beta"]
+
+    with pytest.raises(ToolError, match="project is required"):
+        _direct_tool_result(server, "status", {})
+
+    alpha_status = _direct_tool_result(server, "status", {"project": "alpha", "top_tasks": 1})
+    assert alpha_status["health"] == "ready"
+    assert alpha_status["next_task"]["node_id"] == "main"
+
+    beta_status = _direct_tool_result(server, "status", {"project": "beta-project"})
+    assert beta_status["ready_task_count"] == 1
+
+    beta_attempt = _direct_tool_result(
+        server,
+        "record_attempt",
+        {
+            "project": "beta",
+            "node_id": "main",
+            "outcome": "failed",
+            "summary": "needs a different induction",
+        },
+    )
+    assert beta_attempt["memory_file"] == str(
+        tmp_path / "beta" / ".isabelle-blueprint" / "agent-memory.json"
+    )
+    assert not (tmp_path / "alpha" / ".isabelle-blueprint" / "agent-memory.json").exists()
+
+
+def test_mcp_project_scoped_resources_work_for_repo_root(tmp_path: Path) -> None:
+    _write_project(tmp_path / "alpha", name="alpha-project")
+    _write_project(tmp_path / "beta", name="beta-project")
+    server = build_server(tmp_path)
+
+    contents = list(
+        asyncio.run(server.read_resource(AnyUrl("blueprint://projects/alpha/nodes/main")))
+    )
+    node = json.loads(contents[0].content)
+
+    assert node["id"] == "main"
+    assert node["uses"] == ["base"]
+
+
+def test_mcp_launch_dir_project_remains_default_with_child_projects(tmp_path: Path) -> None:
+    _write_project(tmp_path, name="root-project")
+    _write_project(tmp_path / "child", name="child-project")
+    server = build_server(tmp_path)
+
+    projects = _direct_tool_result(server, "list_projects", {})
+    assert projects["default_project"] == "root"
+
+    status = _direct_tool_result(server, "status", {"top_tasks": 1})
+    assert status["health"] == "ready"
+    assert status["next_task"]["node_id"] == "main"
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://nodes/main"))))
+    node = json.loads(contents[0].content)
+    assert node["id"] == "main"
+
+
+def test_mcp_rejects_project_selectors_outside_catalog(tmp_path: Path) -> None:
+    _write_project(tmp_path / "alpha", name="alpha-project")
+    server = build_server(tmp_path)
+
+    with pytest.raises(ToolError, match="unknown project"):
+        _direct_tool_result(server, "status", {"project": "../alpha"})
+
+
 def test_mcp_roadmap_filters_validate_kind() -> None:
     with pytest.raises(BlueprintError, match="unknown roadmap kind"):
         _roadmap_filters(kind=["not-a-kind"])
@@ -133,9 +208,10 @@ def test_mcp_stdio_client_can_list_tools_and_call_status(tmp_path: Path) -> None
     assert status["next_task"]["node_id"] == "main"
 
 
-def _write_project(tmp_path: Path) -> None:
+def _write_project(tmp_path: Path, *, name: str = "mcp-test") -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "mcp-test"\n',
+        f'[project]\nname = "{name}"\n',
         encoding="utf-8",
     )
     (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
