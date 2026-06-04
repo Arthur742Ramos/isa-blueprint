@@ -1784,7 +1784,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_version.set_defaults(func=cmd_version)
 
     p_completion = sub.add_parser(
-        "completion", help="print a shell completion script (bash, zsh, or fish)"
+        "completion", help="print a shell completion script (bash, zsh, fish, or powershell)"
     )
     p_completion.add_argument("shell", choices=SUPPORTED_SHELLS)
     p_completion.set_defaults(func=cmd_completion)

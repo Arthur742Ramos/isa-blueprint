@@ -24,11 +24,18 @@ def test_fish_completion_emits_per_command_lines() -> None:
     assert "-a status" in script
 
 
+def test_powershell_completion_registers_argument_completer() -> None:
+    script = render_completion("powershell", "isabelle-blueprint", ["lint", "status"])
+    assert "Register-ArgumentCompleter" in script
+    assert "-CommandName 'isabelle-blueprint'" in script
+    assert "'lint', 'status'" in script
+
+
 def test_unsupported_shell_raises() -> None:
     try:
-        render_completion("powershell", "isabelle-blueprint", ["lint"])
+        render_completion("tcsh", "isabelle-blueprint", ["lint"])
     except ValueError as exc:
-        assert "powershell" in str(exc)
+        assert "tcsh" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected ValueError")
 

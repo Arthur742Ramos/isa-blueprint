@@ -874,13 +874,16 @@ schema `schemas`. (The top-level `--version` flag remains available and prints
 ### `completion`
 
 ```text
-isabelle-blueprint completion {bash,zsh,fish}
+isabelle-blueprint completion {bash,zsh,fish,powershell}
 ```
 
 Emits a shell completion script for the named shell to stdout. The script
 completes the subcommand names and otherwise falls back to file completion. It
 has no runtime dependencies; redirect it into your shell's completion directory
-or source it from your shell profile.
+or source it from your shell profile. The PowerShell script registers a native
+argument completer — load it with
+`isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
+(add that line to your `$PROFILE` to persist it).
 
 ### `new`
 

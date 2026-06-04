@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `completion powershell` generates a PowerShell completion script that registers
+  a native argument completer (`Register-ArgumentCompleter`) for the subcommand
+  names, falling back to PowerShell's default file completion for arguments. Load
+  it with `isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
+  (add that line to your `$PROFILE` to persist it). This brings Windows/pwsh to
+  parity with the existing bash/zsh/fish scripts and, like them, is generated
+  from the live subcommand list so it never drifts from the parser.
 - Exposed the source-only `theory-index` analysis over MCP as a read tool
   (`theory_index`) plus matching `blueprint://theory-index` resources (with
   `blueprint://projects/{project}/theory-index` variants), so AI proof agents

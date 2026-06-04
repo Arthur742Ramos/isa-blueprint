@@ -1,14 +1,14 @@
 """Shell completion script generation.
 
-``isabelle-blueprint completion {bash,zsh,fish}`` prints a ready-to-source
-completion script.  The scripts are generated from the live list of subcommands
-so they never drift from the parser, and they complete subcommand names (then
-fall back to the shell's default file completion for arguments).  No third-party
-dependency (such as argcomplete) is required.
+``isabelle-blueprint completion {bash,zsh,fish,powershell}`` prints a
+ready-to-source completion script.  The scripts are generated from the live list
+of subcommands so they never drift from the parser, and they complete subcommand
+names (then fall back to the shell's default file completion for arguments).  No
+third-party dependency (such as argcomplete) is required.
 """
 from __future__ import annotations
 
-SUPPORTED_SHELLS = ("bash", "zsh", "fish")
+SUPPORTED_SHELLS = ("bash", "zsh", "fish", "powershell")
 
 
 def render_completion(shell: str, prog: str, commands: list[str]) -> str:
@@ -24,6 +24,8 @@ def render_completion(shell: str, prog: str, commands: list[str]) -> str:
         return _zsh(prog, commands)
     if shell == "fish":
         return _fish(prog, commands)
+    if shell == "powershell":
+        return _powershell(prog, commands)
     raise ValueError(f"unsupported shell {shell!r}; choose one of: {', '.join(SUPPORTED_SHELLS)}")
 
 
@@ -80,3 +82,24 @@ def _fish(prog: str, commands: list[str]) -> str:
             f"complete -c {prog} -n '__fish_use_subcommand' -a {command}"
         )
     return "\n".join(lines) + "\n"
+
+
+def _powershell(prog: str, commands: list[str]) -> str:
+    words = ", ".join(f"'{command}'" for command in commands)
+    return f"""# PowerShell completion for {prog}
+# Install (current session): {prog} completion powershell | Out-String | Invoke-Expression
+# Persist: add the line above to your PowerShell $PROFILE
+Register-ArgumentCompleter -Native -CommandName '{prog}' -ScriptBlock {{
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $commands = @({words})
+    $priorCount = $commandAst.CommandElements.Count
+    if ($wordToComplete) {{ $priorCount-- }}
+    if ($priorCount -le 1) {{
+        $commands |
+            Where-Object {{ $_ -like "$wordToComplete*" }} |
+            ForEach-Object {{
+                [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+            }}
+    }}
+}}
+"""
