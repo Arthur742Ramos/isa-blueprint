@@ -286,7 +286,8 @@ already justify.
 | `dump` | PIDE-derived status | Deeper proof inspection from Isabelle dump output. |
 | `compat` | Isabelle/AFP diagnostics | Reproducible session and version setup. |
 | `comment` | Idempotent PR status comments | Pull-request automation. |
-| `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files | Debugging and onboarding existing Isabelle projects. |
+| `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files (`import-theory --root` imports a whole session) | Debugging and onboarding existing Isabelle projects. |
+| `theory-index` | Source-only call graph, theory deps, `sorry`/`oops`, and unreferenced-entry analysis (no Isabelle needed) | Offline inspection of `.thy` trees in CI or on partial checkouts. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 | `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
@@ -559,15 +560,46 @@ board. Use `explain` when a node is blocked or red:
 isabelle-blueprint explain . --node main-theorem
 ```
 
-Existing Isabelle projects can bootstrap an initial blueprint from theory files:
+Existing Isabelle projects can bootstrap an initial blueprint from theory files.
+Import individual files, or pass `--root DIR` to import every theory a session
+`ROOT` declares — cross-theory dependencies are then inferred from the source
+reference graph (no Isabelle install required):
 
 ```bash
 isabelle-blueprint import-theory src/Demo.thy --output blueprint.md \
   --review-output import-review.json
+
+# whole-session import with cross-theory dependency inference
+isabelle-blueprint import-theory --root src --output blueprint.md
+# pick one session when the ROOT declares several
+isabelle-blueprint import-theory --root . --session Demo --output blueprint.md
 ```
 
 The importer is best-effort; review generated statements, suggested
 dependencies, and proof sketches before relying on the result.
+
+### Source-only theory analysis (`theory-index`)
+
+`theory-index` analyses `.thy` sources directly — no `isabelle` binary needed —
+so it works on partial trees and in CI without a build. Point it at explicit
+files, a `--root DIR` (optionally `--session NAME`), or let it discover the
+nearest `ROOT`:
+
+```bash
+isabelle-blueprint theory-index --root src            # summary
+isabelle-blueprint theory-index --root src --json     # full structured index
+isabelle-blueprint theory-index --root src --callers base --transitive
+isabelle-blueprint theory-index --root src --callees uses_base
+isabelle-blueprint theory-index --root src --deps B   # imports / imported-by
+isabelle-blueprint theory-index --root src --sorry    # sorry/oops markers
+isabelle-blueprint theory-index --root src --unreferenced
+```
+
+`--unreferenced` lists entries no other indexed entry references; it is a
+reference-graph signal, not dead-code analysis. Reference matching is
+best-effort textual (honours primes and dotted qualified names; it does not
+model mixfix or generated facts). The ROOT/session parser is adapted from
+[`ott2/isabelle-query`](https://github.com/ott2/isabelle-query) (MIT).
 
 ## Quality gates, diffs, history, and ownership
 

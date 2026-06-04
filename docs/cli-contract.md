@@ -771,7 +771,9 @@ unresolved facts, stale cache entries, tainted proofs, and check failures.
 ### `import-theory`
 
 ```text
-isabelle-blueprint import-theory THEORY.thy [THEORY.thy ...]
+isabelle-blueprint import-theory [THEORY.thy ...]
+                                      [--root DIR]
+                                      [--session NAME]
                                       [--project-name NAME]
                                       [--output PATH]
                                       [--review-output PATH]
@@ -788,6 +790,50 @@ reviewed by a human.
 `--review-output PATH` (added in v1.6) writes JSON review metadata including the
 line, qualified name, node id, and best-effort dependency suggestions for each
 imported fact. `--force` gates both `--output` and `--review-output`.
+
+`--root DIR` (added in v1.10) imports every theory the session `ROOT` under
+`DIR` declares instead of explicit file paths, inferring cross-theory `uses`
+dependencies from the source reference graph. Dependencies are restricted to
+facts that come earlier in a global import-topological order, so the generated
+blueprint is acyclic. `--session NAME` selects one session when the ROOT
+declares several; a multi-session ROOT with no `--session` is an error. Passing
+both file paths and `--root`, or neither, is an error. An import cycle between
+theories is reported as an error (import the files individually to bypass).
+Importing explicit file paths is unchanged.
+
+### `theory-index`
+
+```text
+isabelle-blueprint theory-index [THEORY.thy ...]
+                                     [--root DIR]
+                                     [--session NAME]
+                                     [--json]
+                                     [--callers NAME]
+                                     [--callees NAME]
+                                     [--transitive]
+                                     [--deps THEORY]
+                                     [--sorry]
+                                     [--unreferenced]
+```
+
+Source-only analysis of Isabelle `.thy` files; it never invokes the `isabelle`
+binary, so it runs on partial checkouts and in CI without a build. Theory files
+are resolved from explicit positional paths, `--root DIR` (optionally
+`--session NAME`), or — when neither is given — the nearest discovered `ROOT`.
+
+Exactly one section is printed per invocation, in this precedence: `--callers
+NAME` and `--callees NAME` list entries on either side of the reference (call)
+graph (add `--transitive` for the closure); `--deps THEORY` prints a theory's
+imports and importers; `--sorry` lists `sorry`/`oops` markers with their
+enclosing entry; `--unreferenced` lists entries no other indexed entry
+references. With no section flag, a text summary is printed (or the full
+structured index with `--json`); `--json` also formats the individual sections.
+
+`--unreferenced` is a reference-graph signal, **not** dead-code analysis, and
+reference matching is best-effort textual (it honours primes and dotted
+qualified names but does not model mixfix operators or generated facts such as
+`foo.simps`). The ROOT/session parser is adapted from
+[`ott2/isabelle-query`](https://github.com/ott2/isabelle-query) (MIT).
 
 ### `schema`
 
@@ -865,7 +911,8 @@ For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
    `serve`, `tasks`, `next`, `attempt`, `report`, `status`, `roadmap`,
-   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `schema`, `new`,
+   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `theory-index`,
+   `schema`, `new`,
    `stats`, `version`, `completion`)
    will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or

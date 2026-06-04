@@ -79,6 +79,12 @@ from isabelle_blueprint.isabelle.dump import (
     run_dump,
     write_dump_report,
 )
+from isabelle_blueprint.isabelle.root import default_session_dir
+from isabelle_blueprint.isabelle.source_index import (
+    SourceIndex,
+    build_index,
+    session_theory_files,
+)
 from isabelle_blueprint.isabelle.suggestions import (
     suggest_missing_facts,
     write_fact_suggestions,
@@ -1448,10 +1454,53 @@ def cmd_explain(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_index_files(args: argparse.Namespace) -> list[Path]:
+    """Resolve the ``.thy`` files for a source-only command from its args.
+
+    Honors explicit positional paths first, then ``--root DIR`` (optionally with
+    ``--session NAME``), then falls back to the discovered default session dir.
+    """
+    explicit = [Path(p).resolve() for p in getattr(args, "theory", []) or []]
+    root_dir = getattr(args, "root", None)
+    session = getattr(args, "session", None)
+    if explicit and root_dir:
+        raise BlueprintError("pass either theory paths or --root, not both")
+    if explicit:
+        missing = [p for p in explicit if not p.is_file()]
+        if missing:
+            raise BlueprintError(f"theory file not found: {missing[0]}")
+        return explicit
+    base = Path(root_dir).resolve() if root_dir else default_session_dir()
+    if not base.exists():
+        raise BlueprintError(f"theory root not found: {base}")
+    try:
+        files = session_theory_files(base, session)
+    except ValueError as exc:
+        raise BlueprintError(str(exc)) from exc
+    if not files:
+        raise BlueprintError(f"no .thy files found under {base}")
+    return files
+
+
 def cmd_import_theory(args: argparse.Namespace) -> int:
-    facts = []
-    for theory_path in args.theory:
-        facts.extend(import_theory_file(Path(theory_path).resolve()))
+    if args.root:
+        files = _resolve_index_files(args)
+        index = build_index(files)
+        if index.has_import_cycle:
+            raise BlueprintError(
+                "theory import graph contains a cycle; cannot derive an acyclic "
+                "blueprint (resolve the cyclic imports or import files individually)"
+            )
+        facts = index.imported_facts()
+    else:
+        if not args.theory:
+            raise BlueprintError("provide one or more theory paths or use --root DIR")
+        facts = []
+        for theory_path in args.theory:
+            resolved = Path(theory_path).resolve()
+            if not resolved.is_file():
+                raise BlueprintError(f"theory file not found: {resolved}")
+            facts.extend(import_theory_file(resolved))
     blueprint = render_imported_blueprint(facts, project_name=args.project_name)
     if args.review_output:
         review_output = Path(args.review_output).resolve()
@@ -1471,6 +1520,80 @@ def cmd_import_theory(args: argparse.Namespace) -> int:
         print(f"imported {len(facts)} declaration(s) -> {output}")
     else:
         sys.stdout.write(blueprint)
+    return 0
+
+
+def _theory_index_summary(index: SourceIndex) -> str:
+    lines = [
+        f"theories: {len(index.theory_order)}",
+        f"entries:  {len(index.entries)}",
+        f"sorry/oops markers: {len(index.sorries)}",
+    ]
+    if index.has_import_cycle:
+        lines.append("WARNING: theory import graph contains a cycle")
+    for theory in index.theory_order:
+        deps, _ = index.theory_deps(theory)
+        count = sum(1 for entry in index.entries if entry.theory == theory)
+        dep_note = f" imports {', '.join(deps)}" if deps else ""
+        lines.append(f"  {theory}: {count} entr{'y' if count == 1 else 'ies'}{dep_note}")
+    return "\n".join(lines)
+
+
+def cmd_theory_index(args: argparse.Namespace) -> int:
+    files = _resolve_index_files(args)
+    index = build_index(files)
+
+    if args.callers is not None:
+        result = index.callers(args.callers, transitive=args.transitive)
+        if args.json:
+            print(json.dumps({"callers": result}, indent=2))
+        else:
+            print("\n".join(result) if result else "(no callers)")
+        return 0
+    if args.callees is not None:
+        result = index.callees(args.callees, transitive=args.transitive)
+        if args.json:
+            print(json.dumps({"callees": result}, indent=2))
+        else:
+            print("\n".join(result) if result else "(no callees)")
+        return 0
+    if args.deps is not None:
+        forward, reverse = index.theory_deps(args.deps)
+        if args.json:
+            print(json.dumps({"imports": forward, "imported_by": reverse}, indent=2))
+        else:
+            print(f"imports: {', '.join(forward) if forward else '(none)'}")
+            print(f"imported_by: {', '.join(reverse) if reverse else '(none)'}")
+        return 0
+    if args.sorry:
+        markers = [
+            {"theory": m.theory, "line": m.line, "token": m.token, "entry": m.entry}
+            for m in index.sorries
+        ]
+        if args.json:
+            print(json.dumps({"sorries": markers}, indent=2))
+        else:
+            if not markers:
+                print("(no sorry/oops markers)")
+            for marker in markers:
+                entry = marker["entry"] or "(top level)"
+                print(f"{marker['theory']}:{marker['line']} {marker['token']} in {entry}")
+        return 0
+    if args.unreferenced:
+        result = index.unreferenced_entries()
+        if args.json:
+            print(json.dumps({"unreferenced": result}, indent=2))
+        else:
+            if not result:
+                print("(no unreferenced entries)")
+            else:
+                print("\n".join(result))
+        return 0
+
+    if args.json:
+        print(json.dumps(index.to_dict(), indent=2))
+    else:
+        print(_theory_index_summary(index))
     return 0
 
 
@@ -2051,7 +2174,26 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_import = sub.add_parser(
         "import-theory", help="bootstrap a blueprint from Isabelle .thy declarations"
     )
-    p_import.add_argument("theory", nargs="+", help="Isabelle theory file(s) to scan")
+    p_import.add_argument(
+        "theory",
+        nargs="*",
+        help="Isabelle theory file(s) to scan (omit when using --root)",
+    )
+    p_import.add_argument(
+        "--root",
+        default=None,
+        metavar="DIR",
+        help=(
+            "import every theory a session ROOT declares under DIR, inferring "
+            "cross-theory dependencies from the source reference graph"
+        ),
+    )
+    p_import.add_argument(
+        "--session",
+        default=None,
+        metavar="NAME",
+        help="select one session when the ROOT under --root declares several",
+    )
     p_import.add_argument("--project-name", default=None, help="title for the generated blueprint")
     p_import.add_argument("--output", default=None, help="write generated blueprint to this file")
     p_import.add_argument(
@@ -2059,6 +2201,52 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
     p_import.set_defaults(func=cmd_import_theory)
+
+    p_tindex = sub.add_parser(
+        "theory-index",
+        help="source-only analysis of Isabelle .thy files (no Isabelle needed)",
+    )
+    p_tindex.add_argument(
+        "theory",
+        nargs="*",
+        help="theory file(s) to index (omit to use --root or the discovered session)",
+    )
+    p_tindex.add_argument(
+        "--root",
+        default=None,
+        metavar="DIR",
+        help="index every theory a session ROOT declares under DIR",
+    )
+    p_tindex.add_argument(
+        "--session",
+        default=None,
+        metavar="NAME",
+        help="select one session when the ROOT under --root declares several",
+    )
+    p_tindex.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_tindex.add_argument(
+        "--callers", default=None, metavar="NAME", help="list entries that reference NAME"
+    )
+    p_tindex.add_argument(
+        "--callees", default=None, metavar="NAME", help="list entries that NAME references"
+    )
+    p_tindex.add_argument(
+        "--transitive",
+        action="store_true",
+        help="follow the reference graph transitively for --callers/--callees",
+    )
+    p_tindex.add_argument(
+        "--deps", default=None, metavar="THEORY", help="show THEORY's imports and importers"
+    )
+    p_tindex.add_argument(
+        "--sorry", action="store_true", help="list sorry/oops markers with their enclosing entry"
+    )
+    p_tindex.add_argument(
+        "--unreferenced",
+        action="store_true",
+        help="list entries not referenced by any other indexed entry (not dead-code analysis)",
+    )
+    p_tindex.set_defaults(func=cmd_theory_index)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
