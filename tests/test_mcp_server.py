@@ -47,6 +47,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only = build_server(tmp_path)
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
+    assert {"critical_path", "impact", "stats"} <= read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -68,6 +69,40 @@ def test_mcp_status_and_next_task_payloads(tmp_path: Path) -> None:
     next_task = _direct_tool_result(server, "next_task", {})
     assert next_task["task"]["node_id"] == "main"
     assert "Acceptance criteria" in next_task["prompt"]
+
+
+def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    critical = _direct_tool_result(server, "critical_path", {"top": 1})
+    assert critical["project"] == "mcp-test"
+    assert len(critical["bottlenecks"]) <= 1
+
+    overview = _direct_tool_result(server, "impact", {"top": 1})
+    assert overview["node_count"] == 2
+    assert len(overview["rankings"]) == 1
+    assert overview["rankings"][0]["node_id"] == "base"
+
+    report = _direct_tool_result(server, "impact", {"node": "base"})
+    assert report["node_id"] == "base"
+    assert report["direct_dependents"] == ["main"]
+    assert any(node["node_id"] == "main" for node in report["blast_radius"])
+
+    stats = _direct_tool_result(server, "stats", {})
+    assert stats["project"] == "mcp-test"
+    assert stats["total_attempts"] == 0
+
+
+def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(server, "impact", {"node": "nope"})
+    message = str(excinfo.value)
+    assert "unknown node 'nope'" in message
+    assert "base" in message and "main" in message
 
 
 def test_mcp_resources_are_project_scoped_json(tmp_path: Path) -> None:

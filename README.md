@@ -332,8 +332,9 @@ returned project `id` (or a relative path / unique project name) as the optional
 project-specific tools.
 
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
-`list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`, `graph`,
-`schema`, and `doctor`; resources such as `blueprint://projects`,
+`list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
+`critical_path`, `impact`, `stats`, `graph`, `schema`, and `doctor`; resources
+such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, and `blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
