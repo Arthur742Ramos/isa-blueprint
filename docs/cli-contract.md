@@ -50,10 +50,10 @@ isabelle-blueprint-mcp [--project-dir DIR]
 ```
 
 `isabelle-blueprint-mcp` requires the optional `mcp` extra
-(`pip install "isabelle-blueprint[mcp]"`); a plain `pip install
-isabelle-blueprint` keeps the base CLI and GitHub Action lightweight and does
-not install the MCP runtime dependency. The entry point serves one configured
-blueprint project over MCP. The default transport is `stdio`;
+(`pip install "isabelle-blueprint[mcp]"`). Plain installs
+(`pip install isabelle-blueprint`) keep the base CLI and GitHub Action
+lightweight and do not install the MCP runtime dependency. The entry point
+serves one configured blueprint project over MCP. The default transport is `stdio`;
 `streamable-http` uses
 `--host` (default `127.0.0.1`), `--port` (default `8000`), and `--path` (default
 `/mcp`).
