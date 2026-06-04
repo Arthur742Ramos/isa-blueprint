@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mirror the CLI JSON payloads, accept the optional `project` selector, support
   `top` (and `node` for `impact`), and are always registered as pure reads.
 
+- Exposed the `history`, `compat`, and `suggest_facts` analyses as MCP read
+  tools, broadening the read surface for AI proof agents. `history` mirrors
+  `history --json` (coverage trend deltas) and reads only `trends.json`, so it
+  still works when the blueprint itself fails to parse; it accepts `limit`.
+  `compat` mirrors the `compat` payload (Isabelle/AFP version pins and session
+  visibility) but is read-only and never writes the report file; it accepts
+  `isabelle`. `suggest_facts` returns fuzzy fact-name suggestions for unresolved
+  formal targets. All three accept the optional `project` selector. The server
+  also adds matching `blueprint://history` and `blueprint://fact-suggestions`
+  resources (with `blueprint://projects/{project}/...` variants).
+
 ## [1.8.1] - 2026-06-04
 
 ### Added
