@@ -312,22 +312,29 @@ isabelle-blueprint-mcp --project-dir .
 
 `isabelle-blueprint-mcp` is the console script installed for MCP clients. The
 server defaults to MCP stdio transport, so local clients can launch it on demand.
-For example:
+Point `--project-dir` at a single project or at a repository root that contains
+multiple IsabelleBlueprint project subdirectories. For example:
 
 ```json
 {
   "mcpServers": {
     "isabelle-blueprint": {
       "command": "isabelle-blueprint-mcp",
-      "args": ["--project-dir", "/path/to/formalization"]
+      "args": ["--project-dir", "/path/to/repo-or-formalization"]
     }
   }
 }
 ```
 
-It exposes read-only tools such as `status`, `roadmap`, `list_tasks`,
-`next_task`, `agent_context`, `explain_node`, `lint`, `graph`, `schema`, and
-`doctor`; resources such as `blueprint://project`, `blueprint://tasks`,
+Use `list_projects` when a repo contains more than one project, then pass the
+returned project `id` (or a relative path / unique project name) as the optional
+`project` argument to `status`, `next_task`, `agent_context`, and other
+project-specific tools.
+
+It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
+`list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`, `graph`,
+`schema`, and `doctor`; resources such as `blueprint://projects`,
+`blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, and `blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
 want low-risk write tools for recording proof-attempt memory and per-node

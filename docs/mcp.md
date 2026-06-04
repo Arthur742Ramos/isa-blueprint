@@ -1,6 +1,7 @@
 # MCP server
 
-`isabelle-blueprint-mcp` serves one IsabelleBlueprint project over the
+`isabelle-blueprint-mcp` serves one IsabelleBlueprint project, or a repository
+containing multiple IsabelleBlueprint projects, over the
 [Model Context Protocol](https://modelcontextprotocol.io/), so AI agents can
 inspect formalization status, choose ready proof tasks, retrieve proof prompts,
 and record handoff memory without guessing CLI commands or parsing generated
@@ -28,18 +29,37 @@ clients expect.
 
 ## Client configuration
 
-Point your MCP client at the project root containing `isabelle-blueprint.toml`:
+Point your MCP client at either a project root containing `isabelle-blueprint.toml`
+or a repository root containing multiple project subdirectories:
 
 ```json
 {
   "mcpServers": {
     "isabelle-blueprint": {
       "command": "isabelle-blueprint-mcp",
-      "args": ["--project-dir", "/path/to/formalization"]
+      "args": ["--project-dir", "/path/to/repo-or-formalization"]
     }
   }
 }
 ```
+
+When the launch directory contains more than one IsabelleBlueprint project and is
+not itself a project, call `list_projects` first and pass a returned project
+`id`, relative path, absolute path, or unique project name as the optional
+`project` argument to project-specific tools:
+
+```json
+{
+  "project": "examples-group-theory",
+  "top_tasks": 3
+}
+```
+
+If the launch directory is itself a project, it remains the default for legacy
+clients even when child directories also contain projects. A single discovered
+child project is also selected by default. This is separate from
+`[project].blueprints`, which combines multiple blueprint files inside one
+IsabelleBlueprint project.
 
 Use `--allow-writes` only for agents you trust to update local handoff stores:
 
@@ -75,7 +95,8 @@ Read tools are always registered:
 
 | Tool | Purpose |
 | --- | --- |
-| `version` | Package version, schema names, project directory, and write-mode status. |
+| `version` | Package version, schema names, launch/default project directories, and write-mode status. |
+| `list_projects` | Discovered project catalog with ids, names, paths, and the default project if one is unambiguous. |
 | `status` | Same project health shape as `isabelle-blueprint status --json`; supports ready-task filters and `top_tasks`. |
 | `roadmap` | Staged proof-work roadmap; supports `status`, `stage`, and `kind` filters. |
 | `list_tasks` | Ready proof tasks using the same ordering and filters as the CLI. |
@@ -103,11 +124,17 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 
 | URI | Content |
 | --- | --- |
-| `blueprint://project` | Parsed `project.json`-style graph with stored check results applied. |
+| `blueprint://projects` | Discovered project catalog. |
+| `blueprint://project` | Parsed `project.json`-style graph for the default project, with stored check results applied. |
 | `blueprint://nodes/{node_id}` | One node using the stable node JSON shape. |
 | `blueprint://tasks` | Ready-task catalog and suggested next task. |
 | `blueprint://roadmap` | Unfiltered roadmap payload. |
 | `blueprint://agent-context` | Default agent-context payload. |
+| `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
+| `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
+| `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |
+| `blueprint://projects/{project}/roadmap` | Selected-project roadmap payload. |
+| `blueprint://projects/{project}/agent-context` | Selected-project agent-context payload. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 
 All project-reading surfaces load the blueprint and then apply the latest stored
@@ -117,8 +144,9 @@ All project-reading surfaces load the blueprint and then apply the latest stored
 ## Prompt
 
 `prove_task` returns the rendered proof prompt for the suggested ready task, or
-for a selected node/task id when the optional `node` argument is supplied. It
-uses the same task selection and diagnostics as `next_task`.
+for a selected node/task id when the optional `node` argument is supplied. In
+multi-project servers, pass the optional `project` argument just like `next_task`.
+It uses the same task selection and diagnostics as `next_task`.
 
 ## Typical agent loop
 
