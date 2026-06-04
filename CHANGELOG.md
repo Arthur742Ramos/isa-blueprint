@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Shell completion scripts now complete **per-subcommand options**, not just
+  subcommand names. After a subcommand, any word starting with `-` completes
+  that subcommand's flags (e.g. `lint --<tab>` offers `--json`, `--strict`, …),
+  otherwise the shell falls back to file completion. The option lists are
+  generated from the live argparse parser for every shell (bash, zsh, fish, and
+  PowerShell), so they never drift from the real flags.
 - `completion powershell` generates a PowerShell completion script that registers
   a native argument completer (`Register-ArgumentCompleter`) for the subcommand
   names, falling back to PowerShell's default file completion for arguments. Load

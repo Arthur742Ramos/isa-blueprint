@@ -656,6 +656,26 @@ def _subcommand_names() -> list[str]:
     return []
 
 
+def _subcommand_options() -> dict[str, list[str]]:
+    """Map each registered subcommand to its sorted option strings.
+
+    Generated from the live parser so the completion scripts never drift from
+    the actual flags a subcommand accepts.
+    """
+
+    parser = _build_parser()
+    result: dict[str, list[str]] = {}
+    for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
+        if isinstance(action, argparse._SubParsersAction):
+            for name, subparser in action.choices.items():
+                opts: list[str] = []
+                for sub_action in subparser._actions:  # noqa: SLF001
+                    opts.extend(sub_action.option_strings)
+                result[name] = sorted(dict.fromkeys(opts))
+            break
+    return result
+
+
 def cmd_version(args: argparse.Namespace) -> int:
     info = {
         "name": PROG_NAME,
@@ -673,7 +693,12 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 
 def cmd_completion(args: argparse.Namespace) -> int:
-    print(render_completion(args.shell, PROG_NAME, _subcommand_names()), end="")
+    print(
+        render_completion(
+            args.shell, PROG_NAME, _subcommand_names(), _subcommand_options()
+        ),
+        end="",
+    )
     return 0
 
 

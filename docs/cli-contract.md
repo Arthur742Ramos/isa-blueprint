@@ -878,10 +878,12 @@ isabelle-blueprint completion {bash,zsh,fish,powershell}
 ```
 
 Emits a shell completion script for the named shell to stdout. The script
-completes the subcommand names and otherwise falls back to file completion. It
-has no runtime dependencies; redirect it into your shell's completion directory
-or source it from your shell profile. The PowerShell script registers a native
-argument completer — load it with
+completes the subcommand names, then the options of the chosen subcommand (any
+word starting with `-`), and otherwise falls back to file completion. The option
+lists are generated from the live parser, so they never drift from the flags a
+subcommand actually accepts. It has no runtime dependencies; redirect it into
+your shell's completion directory or source it from your shell profile. The
+PowerShell script registers a native argument completer — load it with
 `isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
 (add that line to your `$PROFILE` to persist it).
 
