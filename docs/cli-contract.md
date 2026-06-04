@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.8.0. Subcommand names, flag names, default values,
+command-line tool as of v1.8.1. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -49,9 +49,12 @@ isabelle-blueprint-mcp [--project-dir DIR]
                        [--allow-writes]
 ```
 
-`isabelle-blueprint-mcp` is installed with the optional `mcp` extra
-(`pip install "isabelle-blueprint[mcp]"`). It serves one configured blueprint
-project over MCP. The default transport is `stdio`; `streamable-http` uses
+`isabelle-blueprint-mcp` requires the optional `mcp` extra
+(`pip install "isabelle-blueprint[mcp]"`); a plain `pip install
+isabelle-blueprint` keeps the base CLI and GitHub Action lightweight and does
+not install the MCP runtime dependency. The entry point serves one configured
+blueprint project over MCP. The default transport is `stdio`;
+`streamable-http` uses
 `--host` (default `127.0.0.1`), `--port` (default `8000`), and `--path` (default
 `/mcp`).
 

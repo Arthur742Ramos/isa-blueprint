@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-06-04
+
 ### Added
 
 - Added an optional MCP server entry point, `isabelle-blueprint-mcp`, for AI
   agents working on Isabelle projects. Install with `pip install
-  "isabelle-blueprint[mcp]"`. The server exposes read tools/resources for
+  "isabelle-blueprint[mcp]"`; plain `pip install isabelle-blueprint` keeps the
+  base CLI and GitHub Action lightweight and does not include the MCP runtime
+  dependency. The server exposes read tools/resources for
   status, roadmap, ready tasks, next-task prompts, agent context, explanations,
   lint findings, dependency graphs, schemas, and diagnostics. It also exposes a
   `prove_task` prompt, a dry-run rename preview, and launch-gated
@@ -440,7 +444,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.6.0...v1.7.0

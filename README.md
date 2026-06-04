@@ -302,15 +302,17 @@ The CLI, JSON output, and GitHub Action outputs are stable public contracts:
 ## MCP server for AI proof agents
 
 Install the optional MCP extra when you want AI agents to consume a blueprint
-directly:
+directly. A plain `pip install isabelle-blueprint` keeps the CLI and GitHub
+Action lightweight and does not include the MCP runtime dependency:
 
 ```bash
 pip install "isabelle-blueprint[mcp]"
 isabelle-blueprint-mcp --project-dir .
 ```
 
-The server defaults to MCP stdio transport, so local clients can launch it on
-demand. For example:
+`isabelle-blueprint-mcp` is the console script installed for MCP clients. The
+server defaults to MCP stdio transport, so local clients can launch it on demand.
+For example:
 
 ```json
 {
@@ -636,7 +638,7 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.8.0 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.8.1 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
 output, static site, live preview, task packs, project templates, fact
 suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,
@@ -646,7 +648,7 @@ staged `roadmap` planning commands, memory-aware and exclusion-filtered direct
 `next` / `attempt` handoffs, one-shot `agent-context` bundles, and a workflow
 toolkit of `lint` (text/JSON/SARIF), `diff`, `history`, `assign`, `rename`,
 `stats`, `version`, and `completion` commands with shared `--fail-on` policy,
-`--watch` modes, and `--color` output.
+`--watch` modes, `--color` output, and the optional MCP server entry point.
 
 Community docs:
 
