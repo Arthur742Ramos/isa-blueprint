@@ -875,6 +875,7 @@ schema `schemas`. (The top-level `--version` flag remains available and prints
 
 ```text
 isabelle-blueprint completion {bash,zsh,fish,powershell}
+                              [--install] [--dest PATH]
 ```
 
 Emits a shell completion script for the named shell to stdout. The script
@@ -886,6 +887,12 @@ your shell's completion directory or source it from your shell profile. The
 PowerShell script registers a native argument completer — load it with
 `isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
 (add that line to your `$PROFILE` to persist it).
+
+`--install` writes the script to the shell's conventional completion location
+instead of stdout (honouring `XDG_DATA_HOME`/`XDG_CONFIG_HOME` where relevant)
+and prints the destination plus any activation hint. `--dest PATH` writes to an
+explicit path (creating parent directories as needed); it implies install
+behaviour. Both are convenience wrappers and emit the same script content.
 
 ### `new`
 

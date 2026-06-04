@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `completion --install` / `completion --dest PATH` write the generated script
+  straight to the shell's conventional completion location (or an explicit path),
+  creating parent directories and printing the destination plus any activation
+  hint, so users no longer have to know where each shell looks for completions.
 - Shell completion scripts now complete **per-subcommand options**, not just
   subcommand names. After a subcommand, any word starting with `-` completes
   that subcommand's flags (e.g. `lint --<tab>` offers `--json`, `--strict`, …),

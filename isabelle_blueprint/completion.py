@@ -9,6 +9,10 @@ fall back to the shell's default file completion.  No third-party dependency
 """
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+from pathlib import Path
+
 SUPPORTED_SHELLS = ("bash", "zsh", "fish", "powershell")
 
 
@@ -40,6 +44,78 @@ def render_completion(
 
 def _func_slug(prog: str) -> str:
     return prog.replace("-", "_").replace(".", "_")
+
+
+def completion_install_path(
+    shell: str,
+    prog: str,
+    env: Mapping[str, str],
+    home: Path,
+) -> Path:
+    """Return the default per-user path the completion script should install to.
+
+    Honours ``XDG_DATA_HOME`` / ``XDG_CONFIG_HOME`` and falls back to the usual
+    ``~/.local/share`` and ``~/.config`` locations. The bash, fish, and zsh
+    targets are directories the respective completion systems auto-load; the
+    PowerShell target is a standalone script meant to be dot-sourced from
+    ``$PROFILE``.
+    """
+
+    xdg_data = env.get("XDG_DATA_HOME")
+    xdg_config = env.get("XDG_CONFIG_HOME")
+    data_home = Path(xdg_data) if xdg_data else home / ".local" / "share"
+    config_home = Path(xdg_config) if xdg_config else home / ".config"
+    if shell == "bash":
+        return data_home / "bash-completion" / "completions" / prog
+    if shell == "zsh":
+        return home / ".zsh" / "completions" / f"_{prog}"
+    if shell == "fish":
+        return config_home / "fish" / "completions" / f"{prog}.fish"
+    if shell == "powershell":
+        return config_home / "powershell" / f"{prog}.completion.ps1"
+    raise ValueError(f"unsupported shell {shell!r}; choose one of: {', '.join(SUPPORTED_SHELLS)}")
+
+
+def completion_install_hint(shell: str, path: Path) -> str | None:
+    """Return a one-line follow-up instruction after installing, if any."""
+
+    if shell == "zsh":
+        return (
+            f"Ensure your ~/.zshrc adds the directory to fpath before compinit: "
+            f"fpath+=({path.parent})"
+        )
+    if shell == "powershell":
+        return f"Add this line to your PowerShell $PROFILE: . '{path}'"
+    return None
+
+
+def install_completion(
+    shell: str,
+    prog: str,
+    commands: list[str],
+    options: dict[str, list[str]] | None = None,
+    *,
+    dest: str | None = None,
+    env: Mapping[str, str] | None = None,
+    home: Path | None = None,
+) -> tuple[Path, str | None]:
+    """Render and write a completion script to disk.
+
+    Returns the path written and an optional follow-up hint. When ``dest`` is
+    given it is used verbatim; otherwise :func:`completion_install_path` picks a
+    per-user default. Parent directories are created as needed.
+    """
+
+    resolved_env = os.environ if env is None else env
+    resolved_home = Path.home() if home is None else home
+    if dest:
+        target = Path(dest).expanduser()
+    else:
+        target = completion_install_path(shell, prog, resolved_env, resolved_home)
+    content = render_completion(shell, prog, commands, options)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return target, completion_install_hint(shell, target)
 
 
 def _bash(prog: str, commands: list[str], options: dict[str, list[str]]) -> str:

@@ -61,7 +61,11 @@ from isabelle_blueprint.agents.tasks import (
     render_task_prompt,
     write_tasks,
 )
-from isabelle_blueprint.completion import SUPPORTED_SHELLS, render_completion
+from isabelle_blueprint.completion import (
+    SUPPORTED_SHELLS,
+    install_completion,
+    render_completion,
+)
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
@@ -693,12 +697,17 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 
 def cmd_completion(args: argparse.Namespace) -> int:
-    print(
-        render_completion(
-            args.shell, PROG_NAME, _subcommand_names(), _subcommand_options()
-        ),
-        end="",
-    )
+    commands = _subcommand_names()
+    options = _subcommand_options()
+    if args.install or args.dest:
+        target, hint = install_completion(
+            args.shell, PROG_NAME, commands, options, dest=args.dest
+        )
+        print(f"Wrote {args.shell} completion to {target}")
+        if hint:
+            print(hint)
+        return 0
+    print(render_completion(args.shell, PROG_NAME, commands, options), end="")
     return 0
 
 
@@ -1812,6 +1821,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "completion", help="print a shell completion script (bash, zsh, fish, or powershell)"
     )
     p_completion.add_argument("shell", choices=SUPPORTED_SHELLS)
+    p_completion.add_argument(
+        "--install",
+        action="store_true",
+        help="write the script to a per-user completion path instead of stdout",
+    )
+    p_completion.add_argument(
+        "--dest",
+        help="install destination path (implies --install; parent dirs are created)",
+    )
     p_completion.set_defaults(func=cmd_completion)
 
     p_diff = sub.add_parser(

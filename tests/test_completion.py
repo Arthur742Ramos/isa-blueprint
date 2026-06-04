@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from isabelle_blueprint.cli import main as cli_main
-from isabelle_blueprint.completion import render_completion
+from isabelle_blueprint.completion import (
+    completion_install_path,
+    install_completion,
+    render_completion,
+)
 
 
 def test_bash_completion_lists_commands_and_registers_complete() -> None:
@@ -92,6 +98,64 @@ def test_cli_completion_emits_real_subcommand_options(capsys) -> None:
     assert "--json" in out
     assert "--help" in out
     assert 'case "$sub" in' in out
+
+
+def test_completion_install_default_paths() -> None:
+    home = Path("/home/user")
+    env: dict[str, str] = {}
+    assert completion_install_path("bash", "isabelle-blueprint", env, home) == (
+        home / ".local" / "share" / "bash-completion" / "completions" / "isabelle-blueprint"
+    )
+    assert completion_install_path("fish", "isabelle-blueprint", env, home) == (
+        home / ".config" / "fish" / "completions" / "isabelle-blueprint.fish"
+    )
+    assert completion_install_path("zsh", "isabelle-blueprint", env, home) == (
+        home / ".zsh" / "completions" / "_isabelle-blueprint"
+    )
+    assert completion_install_path("powershell", "isabelle-blueprint", env, home) == (
+        home / ".config" / "powershell" / "isabelle-blueprint.completion.ps1"
+    )
+
+
+def test_completion_install_honours_xdg() -> None:
+    home = Path("/home/user")
+    env = {"XDG_CONFIG_HOME": "/cfg", "XDG_DATA_HOME": "/data"}
+    assert completion_install_path("bash", "isabelle-blueprint", env, home) == (
+        Path("/data") / "bash-completion" / "completions" / "isabelle-blueprint"
+    )
+    assert completion_install_path("fish", "isabelle-blueprint", env, home) == (
+        Path("/cfg") / "fish" / "completions" / "isabelle-blueprint.fish"
+    )
+
+
+def test_install_completion_writes_file(tmp_path) -> None:
+    dest = tmp_path / "nested" / "ib.bash"
+    target, hint = install_completion(
+        "bash", "isabelle-blueprint", ["lint"], {"lint": ["--json"]}, dest=str(dest)
+    )
+    assert target == dest
+    assert dest.read_text(encoding="utf-8").startswith("# bash completion")
+    assert hint is None
+
+
+def test_install_completion_powershell_hint(tmp_path) -> None:
+    dest = tmp_path / "ib.ps1"
+    target, hint = install_completion(
+        "powershell", "isabelle-blueprint", ["lint"], dest=str(dest)
+    )
+    assert target.exists()
+    assert hint is not None
+    assert "$PROFILE" in hint
+
+
+def test_cli_completion_install_writes_file(tmp_path, capsys) -> None:
+    dest = tmp_path / "comp.bash"
+    rc = cli_main(["completion", "bash", "--dest", str(dest)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert dest.exists()
+    assert "Wrote bash completion" in out
+    assert "--json" in dest.read_text(encoding="utf-8")
 
 
 def test_cli_completion_rejects_unknown_shell(capsys) -> None:
