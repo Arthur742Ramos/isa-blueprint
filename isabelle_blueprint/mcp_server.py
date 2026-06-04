@@ -986,6 +986,13 @@ def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str
     return payload
 
 
+def _mcp_session_hint(message: str) -> str:
+    # session_theory_files() raises CLI-flavored guidance ("pass --session NAME").
+    # This payload is surfaced over MCP, where callers pass a `session` argument
+    # rather than a command-line flag, so translate the advice before exposing it.
+    return message.replace("pass --session NAME", "pass the `session` argument")
+
+
 def _theory_index_payload(
     project_dir: Path,
     *,
@@ -996,22 +1003,34 @@ def _theory_index_payload(
     config = load_config(project_dir)
     selected_session = session if session is not None else config.isabelle_session
     roots = config.isabelle_dirs or [config.project_root]
+    # Per-root warnings about missing/empty roots are only meaningful when several
+    # roots are configured; for a single root the friendly "no .thy files" error
+    # below already names what was searched.
+    report_root_gaps = len(roots) > 1
     files: list[Path] = []
     seen: set[Path] = set()
     used_roots: list[Path] = []
     warnings: list[str] = []
     for root in roots:
         if not root.exists():
+            # A configured root that is absent on disk would otherwise silently
+            # shrink the index; surface it so the gap is never invisible.
+            if report_root_gaps:
+                warnings.append(f"configured source root {root} does not exist")
             continue
         try:
             resolved = session_theory_files(root, selected_session)
         except ValueError as exc:
             # A single configured root that lacks the session must not abort the
             # whole index when other roots still resolve theories; remember it.
-            warnings.append(str(exc))
+            warnings.append(_mcp_session_hint(str(exc)))
             continue
         if resolved:
             used_roots.append(root)
+        elif report_root_gaps:
+            # Present but contributes nothing (e.g. no session declaration and no
+            # loose .thy files); record it so a partial index stays transparent.
+            warnings.append(f"configured source root {root} resolved no theory files")
         for path in resolved:
             if path not in seen:
                 seen.add(path)

@@ -473,6 +473,68 @@ def test_mcp_theory_index_surfaces_ambiguous_session_error(tmp_path: Path) -> No
         _direct_tool_result(server, "theory_index", {})
 
 
+def test_mcp_theory_index_warns_on_missing_root(tmp_path: Path) -> None:
+    # A configured root that is absent on disk must be surfaced as a warning
+    # (not silently dropped) when another root still resolves theories.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "missing"\n\n[isabelle]\ndirs = ["a", "gone"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert len(payload["source_roots"]) == 1
+    assert any("does not exist" in warning for warning in payload["warnings"])
+
+
+def test_mcp_theory_index_warns_on_empty_root(tmp_path: Path) -> None:
+    # A configured root that exists but resolves no theory files must be recorded
+    # rather than silently contributing nothing to the index.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "empty"\n\n[isabelle]\ndirs = ["a", "blank"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    (tmp_path / "blank").mkdir()
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    assert len(payload["source_roots"]) == 1
+    assert any("resolved no theory files" in warning for warning in payload["warnings"])
+
+
+def test_mcp_theory_index_translates_cli_session_hint(tmp_path: Path) -> None:
+    # The ambiguous-session ValueError carries CLI guidance ("pass --session NAME").
+    # When it is collected as a per-root warning it must be rephrased for MCP
+    # callers, who pass a `session` argument instead of a command-line flag.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "hint"\n\n[isabelle]\ndirs = ["a", "ambig"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_demo_session(tmp_path / "a")
+    ambiguous = tmp_path / "ambig"
+    ambiguous.mkdir()
+    (ambiguous / "ROOT").write_text(
+        "session One = HOL +\n  theories\n    A\n\n"
+        "session Two = HOL +\n  theories\n    B\n",
+        encoding="utf-8",
+    )
+    server = build_server(tmp_path)
+
+    payload = _direct_tool_result(server, "theory_index", {})
+    assert {t["name"] for t in payload["theories"]} == {"A", "B"}
+    hints = [w for w in payload["warnings"] if "multiple sessions" in w]
+    assert hints
+    assert all("--session" not in warning for warning in hints)
+    assert any("`session`" in warning for warning in hints)
+
+
 def test_mcp_theory_index_resources_are_json(tmp_path: Path) -> None:
     _write_project(tmp_path / "alpha", name="alpha")
     _write_demo_session(tmp_path / "alpha")
