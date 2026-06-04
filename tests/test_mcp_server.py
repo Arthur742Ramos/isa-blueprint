@@ -48,7 +48,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
-    assert {"history", "compat", "suggest_facts", "staleness"} <= read_only_names
+    assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -242,6 +242,45 @@ def test_mcp_staleness_tool_and_resource(tmp_path: Path) -> None:
     contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://staleness"))))
     payload = json.loads(contents[0].content)
     assert payload["stale_nodes"][0]["node_id"] == "main"
+
+
+def test_mcp_burndown_tool_and_resource(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    empty = _direct_tool_result(server, "burndown", {})
+    assert empty["status"] == "no_history"
+    assert empty["trends_path"].endswith("trends.json")
+
+    trends_path = tmp_path / "build" / "trends.json"
+    trends_path.parent.mkdir(parents=True, exist_ok=True)
+    trends_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "timestamp": f"2026-06-0{day}T00:00:00Z",
+                        "proved_count": proved,
+                        "formal_target_count": 10,
+                    }
+                    for day, proved in ((1, 0), (2, 2), (3, 4), (4, 6), (5, 8))
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _direct_tool_result(server, "burndown", {"limit": 2})
+    assert result["status"] == "on_track"
+    assert result["eta_date"] == "2026-06-06"
+    assert result["forecast"]["net_burndown_per_day"] == 2.0
+    assert len(result["points"]) == 2
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://burndown"))))
+    payload = json.loads(contents[0].content)
+    assert payload["status"] == "on_track"
+    assert payload["eta_date"] == "2026-06-06"
 
 
 def test_mcp_resources_are_project_scoped_json(tmp_path: Path) -> None:

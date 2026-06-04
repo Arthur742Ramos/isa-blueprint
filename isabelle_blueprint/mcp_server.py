@@ -50,6 +50,7 @@ from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.project_io import load_project, load_project_with_check
 from isabelle_blueprint.refactor import rename_node
+from isabelle_blueprint.report.burndown import build_burndown_report, burndown_payload
 from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
@@ -69,8 +70,8 @@ from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     roadmap_payload,
 )
-from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.staleness import build_staleness_report, staleness_payload
+from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
 from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
@@ -389,6 +390,28 @@ def build_server(
             limit=_positive_or_none(limit, label="limit"),
         )
 
+    @server.tool(name="burndown")
+    def burndown(
+        window: int | None = None,
+        limit: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Forecast an ETA to full proved coverage (mirrors ``burndown --json``).
+
+        Reads only the recorded ``trends.json`` series, so it still forecasts
+        when the current blueprint fails to parse. The ETA is derived from the
+        slope of *remaining* work over time (so a growing target is reflected),
+        with proved/target velocities reported for context. ``window`` sets how
+        many recent snapshots feed the recent velocity; ``limit`` only trims the
+        displayed points.
+        """
+
+        return _burndown_payload(
+            catalog.resolve(project).root,
+            window=_positive_or_none(window, label="window"),
+            limit=_positive_or_none(limit, label="limit"),
+        )
+
     @server.tool(name="compat")
     def compat(
         isabelle: str | None = None,
@@ -540,6 +563,12 @@ def build_server(
 
         return _json_resource(_history_payload(catalog.resolve(None).root))
 
+    @server.resource("blueprint://burndown", mime_type="application/json")
+    def burndown_resource() -> str:
+        """Velocity / ETA-to-full-coverage forecast for the default project."""
+
+        return _json_resource(_burndown_payload(catalog.resolve(None).root))
+
     @server.resource("blueprint://fact-suggestions", mime_type="application/json")
     def fact_suggestions_resource() -> str:
         """Fuzzy fact-name suggestions for the default project."""
@@ -616,6 +645,12 @@ def build_server(
         """Coverage trend history summary for a selected project id."""
 
         return _json_resource(_history_payload(catalog.resolve(project).root))
+
+    @server.resource("blueprint://projects/{project}/burndown", mime_type="application/json")
+    def project_scoped_burndown_resource(project: str) -> str:
+        """Velocity / ETA-to-full-coverage forecast for a selected project id."""
+
+        return _json_resource(_burndown_payload(catalog.resolve(project).root))
 
     @server.resource(
         "blueprint://projects/{project}/fact-suggestions", mime_type="application/json"
@@ -1022,6 +1057,22 @@ def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str
     summary = summarize_trends(entries, limit=limit)
     payload = summary.to_dict()
     payload["latest"] = summary.latest
+    payload["trends_path"] = str(config.trends_path)
+    return payload
+
+
+def _burndown_payload(
+    project_dir: Path,
+    *,
+    window: int | None = None,
+    limit: int | None = None,
+) -> dict[str, object]:
+    # Like history, burndown reads only trends.json, so it still forecasts when
+    # the current blueprint fails to parse.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    report = build_burndown_report(entries, recent_window=window or 5)
+    payload = burndown_payload(report, limit=limit)
     payload["trends_path"] = str(config.trends_path)
     return payload
 

@@ -210,6 +210,32 @@ fails to parse.
 - `--json` emits the machine-readable summary.
 - `--limit N` restricts the summary to the most recent `N` entries.
 
+### `burndown`
+
+```text
+isabelle-blueprint burndown [project_dir] [--json] [--limit N] [--window N] [--fail-when-stalled]
+```
+
+Forecasts an ETA to full *proved* coverage from `trends.json`. Like `history`, it
+reads only the trend store, so it keeps forecasting when the current blueprint
+fails to parse. The ETA is derived from the slope of **remaining** work over time
+(so a growing `formal_target_count` is reflected — proving faster does not help if
+the target grows just as fast), with proved/target/net-burndown velocities
+reported for context.
+
+The `status` is one of `no_history`, `no_targets`, `complete`,
+`insufficient_history`, `on_track`, `stalled`, `scope_growing`, `regressing`, or
+`beyond_horizon`.
+
+- `--json` emits the machine-readable forecast (including the velocity blocks and
+  per-snapshot points).
+- `--limit N` only displays the most recent `N` snapshots; the velocity/ETA
+  always use the full usable series.
+- `--window N` sets how many recent snapshots feed the "recent" velocity used for
+  the forecast (default `5`).
+- `--fail-when-stalled` exits non-zero (`5`) when work remains but the status is
+  `stalled`, `regressing`, `scope_growing`, or `beyond_horizon`.
+
 ### `assign`
 
 ```text

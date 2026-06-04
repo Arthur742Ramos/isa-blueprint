@@ -105,6 +105,11 @@ from isabelle_blueprint.project_io import apply_stored_check_report, load_projec
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.burndown import (
+    build_burndown_report,
+    burndown_payload,
+    render_burndown_report,
+)
 from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
@@ -151,12 +156,12 @@ from isabelle_blueprint.report.roadmap import (
     write_roadmap,
 )
 from isabelle_blueprint.report.sarif import render_sarif
-from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
     render_staleness_report,
     staleness_payload,
 )
+from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -786,6 +791,30 @@ def cmd_history(args: argparse.Namespace) -> int:
         print(json.dumps(summary.to_dict(), indent=2))
     else:
         print(render_trend_summary(summary), end="")
+    return 0
+
+
+def cmd_burndown(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    # Like history, burndown reads only trends.json, so it still forecasts when
+    # the current blueprint fails to parse.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    report = build_burndown_report(entries, recent_window=args.window)
+    if args.json:
+        payload = burndown_payload(report, limit=args.limit)
+        payload["trends_path"] = str(config.trends_path)
+        print(json.dumps(payload, indent=2))
+    else:
+        limit = args.limit if args.limit is not None else 10
+        print(render_burndown_report(report, limit=limit), end="")
+    if args.fail_when_stalled and report.remaining and report.status in {
+        "stalled",
+        "regressing",
+        "scope_growing",
+        "beyond_horizon",
+    }:
+        return 5
     return 0
 
 
@@ -1913,6 +1942,35 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="only consider the most recent N entries",
     )
     p_history.set_defaults(func=cmd_history)
+
+    p_burndown = sub.add_parser(
+        "burndown",
+        help="forecast an ETA to full proved coverage from trends.json",
+    )
+    p_burndown.add_argument("project_dir", nargs="?", default=".")
+    p_burndown.add_argument(
+        "--json", action="store_true", help="emit the forecast as JSON"
+    )
+    p_burndown.add_argument(
+        "--limit",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="only display the most recent N snapshots (velocity always uses all)",
+    )
+    p_burndown.add_argument(
+        "--window",
+        type=_positive_int,
+        default=5,
+        metavar="N",
+        help="number of most-recent snapshots used for the recent velocity (default: 5)",
+    )
+    p_burndown.add_argument(
+        "--fail-when-stalled",
+        action="store_true",
+        help="exit non-zero (5) when work remains but is stalled/regressing/scope-growing",
+    )
+    p_burndown.set_defaults(func=cmd_burndown)
 
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
     p_assign.add_argument(

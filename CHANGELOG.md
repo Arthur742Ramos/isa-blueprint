@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `burndown` command (and matching `burndown` MCP read tool plus
+  `blueprint://burndown` resources) forecasts an ETA to full *proved* coverage
+  from the recorded `trends.json` history. The forecast regresses **remaining**
+  work over time rather than completed velocity, so a growing
+  `formal_target_count` is reflected — proving faster does not move the date if
+  the target grows just as fast. It reports proved/target/net-burndown
+  velocities (overall and over a recent window), classifies the project as
+  `on_track`, `stalled`, `regressing`, `scope_growing`, `complete`, or
+  `beyond_horizon`, and supports `--window`, `--limit`, and `--fail-when-stalled`
+  (exit 5) for CI. Like `history`, it reads only the trend store, so it keeps
+  forecasting when the current blueprint fails to parse.
 - New `staleness` command (and matching `staleness` MCP read tool plus
   `blueprint://staleness` resources) audits every trusted (`found`/`proved`)
   node and walks its dependencies to flag the ones whose green status is not
