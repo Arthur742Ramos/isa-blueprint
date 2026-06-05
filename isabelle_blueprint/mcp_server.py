@@ -56,7 +56,11 @@ from isabelle_blueprint.isabelle.compat import check_compatibility
 from isabelle_blueprint.isabelle.source_index import build_index, session_theory_files
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
-from isabelle_blueprint.project_io import load_project, load_project_with_check
+from isabelle_blueprint.project_io import (
+    load_config_checked,
+    load_project,
+    load_project_with_check,
+)
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.report.burndown import build_burndown_report, burndown_payload
 from isabelle_blueprint.report.critical_path import (
@@ -559,9 +563,10 @@ def build_server(
         """Preview a node rename without writing files."""
 
         # Mirror the CLI's cmd_rename: rename_node only needs the config, so
-        # avoid re-parsing the whole blueprint (which would surface a parse
-        # error from a tool that does not need the parsed project).
-        config = load_config(catalog.resolve(project).root)
+        # avoid re-parsing the whole blueprint. Use the checked loader so a
+        # malformed config surfaces as a BlueprintError (consistent with the
+        # other entrypoints) instead of leaking a raw ValueError/OSError.
+        config = load_config_checked(catalog.resolve(project).root)
         return rename_node(config, old_id, new_id, dry_run=True).to_dict()
 
     @server.resource("blueprint://projects", mime_type="application/json")

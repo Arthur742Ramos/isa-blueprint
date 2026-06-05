@@ -11,18 +11,28 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 
 
+def load_config_checked(project_dir: Path) -> BlueprintConfig:
+    """Load the project config, surfacing malformed-config errors cleanly.
+
+    ``load_config`` raises ValueError (incl. tomllib.TOMLDecodeError and float()
+    conversion errors) and OSError on a malformed or unreadable
+    isabelle-blueprint.toml. Callers that present errors to a user (the CLI's
+    main() handler, the MCP tools) want a BlueprintError one-liner rather than a
+    leaked internal exception type, so wrap those here. ``load_config`` itself
+    keeps raising ValueError, which doctor.py and the multi-blueprint tests rely
+    on catching.
+    """
+
+    try:
+        return load_config(project_dir)
+    except (ValueError, OSError) as exc:
+        raise BlueprintError(f"could not load configuration in {project_dir}: {exc}") from exc
+
+
 def load_project(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:
     """Load configured blueprint sources without applying generated artifacts."""
 
-    # ``load_config`` raises ValueError (incl. tomllib.TOMLDecodeError and float()
-    # conversion errors) on a malformed isabelle-blueprint.toml. Surface those as
-    # a BlueprintError so the CLI's main() handler prints a clean one-line error
-    # instead of an uncaught traceback. ``load_config`` itself keeps raising
-    # ValueError, which doctor.py and the multi-blueprint tests rely on catching.
-    try:
-        config = load_config(project_dir)
-    except (ValueError, OSError) as exc:
-        raise BlueprintError(f"could not load configuration in {project_dir}: {exc}") from exc
+    config = load_config_checked(project_dir)
     paths = config.blueprint_paths
     missing = [p for p in paths if not p.exists()]
     if missing:

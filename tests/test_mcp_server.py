@@ -241,6 +241,34 @@ def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
     assert "base" in message and "main" in message
 
 
+def test_mcp_preview_rename_node_dry_run(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(
+        server, "preview_rename_node", {"old_id": "base", "new_id": "renamed_base"}
+    )
+
+    assert result["dry_run"] is True
+
+
+def test_mcp_preview_rename_node_malformed_config_raises_blueprint_error(tmp_path: Path) -> None:
+    # preview_rename_node loads only the config; a malformed TOML must surface as
+    # a BlueprintError (the user-facing type) rather than leaking a raw
+    # ValueError/OSError from load_config.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "oops\n', encoding="utf-8"  # unterminated string
+    )
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(
+            server, "preview_rename_node", {"old_id": "base", "new_id": "x"}
+        )
+    assert "could not load configuration" in str(excinfo.value)
+
+
 _STALE_BLUEPRINT = """# Stale MCP test
 
 ::: definition {#base}

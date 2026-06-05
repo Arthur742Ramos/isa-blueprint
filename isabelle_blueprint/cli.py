@@ -114,7 +114,11 @@ from isabelle_blueprint.isabelle.theory_import import (
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.model.status import AgentStatus, FormalStatus
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
-from isabelle_blueprint.project_io import apply_stored_check_report, load_project
+from isabelle_blueprint.project_io import (
+    apply_stored_check_report,
+    load_config_checked,
+    load_project,
+)
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
@@ -868,7 +872,10 @@ def cmd_assign(args: argparse.Namespace) -> int:
     # the owner/note/clear was applied when it was not).
     if node_id is None and (args.owner is not None or args.note is not None or args.clear):
         raise BlueprintError("--owner/--note/--clear require a node id")
-    if node_id is not None and args.note is not None and args.owner is None and not args.clear:
+    if args.clear and (args.owner is not None or args.note is not None):
+        raise BlueprintError("--clear cannot be combined with --owner/--note")
+    # (clear+note is already rejected above, so here a note implies no --clear.)
+    if node_id is not None and args.note is not None and args.owner is None:
         raise BlueprintError("--note requires --owner (a note is stored alongside an owner)")
 
     mutating = node_id is not None and (args.clear or args.owner is not None)
@@ -935,7 +942,7 @@ def _render_assignments(payload: dict) -> str:
 
 def cmd_rename(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     result = rename_node(config, args.old_id, args.new_id, dry_run=args.dry_run)
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))

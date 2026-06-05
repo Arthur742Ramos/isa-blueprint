@@ -111,6 +111,28 @@ def test_coverage_truncates_so_barely_started_is_not_false_zero():
     assert metrics.coverage_percent == 33
 
 
+def test_coverage_clamps_sub_one_percent_progress_to_one():
+    # 1 proved across 200 targets truncates to 0, but some progress was made, so
+    # the metric must report 1 -- 0% is reserved for "none proved". (199 NAMED +
+    # 1 PROVED = 200 formal targets.)
+    nodes = [_node("p", FormalStatus.PROVED)]
+    nodes += [_node(f"n{i}", FormalStatus.NAMED) for i in range(199)]
+    metrics = build_status_metrics(_project(*nodes))
+    assert metrics.formal_target_count == 200
+    assert metrics.proved_count == 1
+    assert metrics.coverage_percent == 1
+
+
+def test_coverage_is_zero_only_when_nothing_proved():
+    project = _project(
+        _node("a", FormalStatus.NAMED),
+        _node("b", FormalStatus.FOUND),
+    )
+    metrics = build_status_metrics(project)
+    assert metrics.proved_count == 0
+    assert metrics.coverage_percent == 0
+
+
 def test_problem_statuses_flip_has_problems():
     project = _project(
         _node("a", FormalStatus.PROVED),

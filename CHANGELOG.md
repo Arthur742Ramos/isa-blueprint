@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously used `round(proved / formal_targets * 100)`, so a project at
   999/1000 proved reported **100%** — and was mislabelled `complete` by the
   health check — while 1/1000 reported **0%**. Coverage is now truncated
-  (`proved * 100 // formal_targets`), so 100 means genuinely all-proved and 0
-  means none proved. Exact fractions (33%, 50%, 100%) are unchanged.
+  (`proved * 100 // formal_targets`), so 100 means genuinely all-proved; a
+  non-zero ratio that truncates below 1% is clamped up to **1%**, so 0% is
+  reserved for "nothing proved". Exact fractions (33%, 50%, 100%) are unchanged.
 - **`discover_roots` no longer skips every ROOT when the project lives under a
   dotted directory.** The hidden-directory filter compared the *absolute* path
   components, so any project under e.g. `~/.local/share/...` or a `.worktrees/`
@@ -63,10 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`assign` validates flag combinations that were previously silent no-ops.**
   Running `assign --owner NAME` with no node id (the owner was discarded),
   `assign NODE --note TEXT` with no `--owner` (the note was dropped, since a
-  note is only stored alongside an owner), or `assign --clear` with no node id
-  now raise a clear `BlueprintError` instead of silently listing assignments and
-  exiting 0 — matching the existing validation on sibling commands and the MCP
-  `assign_node` tool.
+  note is only stored alongside an owner), `assign --clear` with no node id, or
+  `assign NODE --clear --owner NAME` (the `--clear` branch runs first, so the
+  owner/note would be ignored) now raise a clear `BlueprintError` instead of
+  silently listing assignments and exiting 0 — matching the existing validation
+  on sibling commands and the MCP `assign_node` tool.
 - **`check`/`attempt` `--jobs` rejects non-positive values.** `--jobs 0` and
   `--jobs -N` were accepted and silently forwarded as a no-op; they are now
   rejected like the other count flags (argparse exit 2).
