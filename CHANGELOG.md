@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The VS Code extension gains parity with the new analytics and the owner
+  store: three commands — **Audit Staleness** (`staleness`), **Forecast
+  Burndown** (`burndown`), and **Show Critical Path** (`critical-path`) — run the
+  read-only analyses straight into the output panel, and the **Blueprint Nodes**
+  tree now shows `@owner` annotations (full owner in the tooltip) sourced from
+  `.isabelle-blueprint/assignments.json`, refreshing automatically when
+  assignments change. The analyses already expose dedicated MCP tools and the
+  extension is a separate consumer, so no new MCP surface was needed.
 - The static site's graph page now overlays a **critical-path panel** — the
   longest remaining dependency chain to a goal plus the highest-leverage
   bottlenecks (reusing the same analysis as the `critical-path` command) — and,

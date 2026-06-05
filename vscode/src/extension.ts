@@ -40,6 +40,7 @@ interface LoadedProject {
   folder: vscode.WorkspaceFolder;
   jsonPath: string;
   project: BlueprintProject;
+  owners: Map<string, string>;
 }
 
 interface NextTaskPayload {
@@ -53,6 +54,20 @@ interface PreviewTarget {
   loaded: LoadedProject;
   node: BlueprintNode;
 }
+
+interface RunCommandOptions {
+  /** Re-read project.json + diagnostics after the command. Defaults to true. */
+  refreshAfter?: boolean;
+}
+
+/** On-disk shape of `.isabelle-blueprint/assignments.json` (only fields we read). */
+interface AssignmentsFile {
+  schema_version?: number;
+  nodes?: Record<string, { owner?: string | null } | undefined>;
+}
+
+/** Longest owner string shown inline in a tree row; full value stays in the tooltip. */
+const OWNER_DESCRIPTION_MAX = 24;
 
 class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private readonly changeEmitter = new vscode.EventEmitter<TreeItem | undefined | null | void>();
@@ -137,8 +152,10 @@ class NodeItem extends vscode.TreeItem {
     readonly node: BlueprintNode,
   ) {
     super(`${node.id}: ${node.title}`, vscode.TreeItemCollapsibleState.Collapsed);
-    this.description = `${node.kind} | ${node.status.formal} | ${node.status.agent}`;
-    this.tooltip = tooltipForNode(node);
+    const owner = sanitizeOwner(loaded.owners.get(node.id));
+    const base = `${node.kind} | ${node.status.formal} | ${node.status.agent}`;
+    this.description = owner ? `${base} | @${truncate(owner, OWNER_DESCRIPTION_MAX)}` : base;
+    this.tooltip = owner ? `${tooltipForNode(node)}\nOwner: ${owner}` : tooltipForNode(node);
     this.iconPath = new vscode.ThemeIcon(iconForStatus(node.status.formal));
     this.contextValue = "isabelleBlueprintNode";
     this.command = {
@@ -422,6 +439,27 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runStaleness", async () => {
+      await runBlueprintCommand("staleness", provider, diagnostics, output, running, {
+        refreshAfter: false,
+      });
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runBurndown", async () => {
+      await runBlueprintCommand("burndown", provider, diagnostics, output, running, {
+        refreshAfter: false,
+      });
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runCriticalPath", async () => {
+      await runBlueprintCommand("critical-path", provider, diagnostics, output, running, {
+        refreshAfter: false,
+      });
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("isabelleBlueprint.openNextTaskPrompt", async () => {
       await openNextTaskPrompt(output, running);
     }),
@@ -490,6 +528,15 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(watcher.onDidChange(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(watcher.onDidCreate(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(watcher.onDidDelete(async () => refresh(provider, diagnostics)));
+
+  // Owner annotations are read from `.isabelle-blueprint/assignments.json`; keep
+  // the tree in sync when assignments change. The fixed glob matches the fixed
+  // path readAssignments() uses, so the watcher and reader never drift apart.
+  const assignmentsWatcher = vscode.workspace.createFileSystemWatcher("**/assignments.json");
+  context.subscriptions.push(assignmentsWatcher);
+  context.subscriptions.push(assignmentsWatcher.onDidChange(async () => refresh(provider, diagnostics)));
+  context.subscriptions.push(assignmentsWatcher.onDidCreate(async () => refresh(provider, diagnostics)));
+  context.subscriptions.push(assignmentsWatcher.onDidDelete(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(async () => refresh(provider, diagnostics)));
 
   void refresh(provider, diagnostics);
@@ -511,7 +558,8 @@ async function refresh(
     const jsonPath = path.resolve(folder.uri.fsPath, configuredPath);
     const project = await readProject(jsonPath);
     if (project) {
-      projects.push({ folder, jsonPath, project });
+      const owners = await readAssignments(folder);
+      projects.push({ folder, jsonPath, project, owners });
     }
   }
   provider.setProjects(projects);
@@ -522,11 +570,20 @@ async function refresh(
 }
 
 async function runBlueprintCommand(
-  command: "report" | "check" | "tasks" | "roadmap" | "agent-context",
+  command:
+    | "report"
+    | "check"
+    | "tasks"
+    | "roadmap"
+    | "agent-context"
+    | "staleness"
+    | "burndown"
+    | "critical-path",
   provider: BlueprintTreeProvider,
   diagnostics: vscode.DiagnosticCollection,
   output: vscode.OutputChannel,
   running: Set<string>,
+  options: RunCommandOptions = {},
 ): Promise<void> {
   const folder = await pickWorkspaceFolder();
   if (!folder) {
@@ -551,7 +608,11 @@ async function runBlueprintCommand(
     if (stderr.trim()) {
       output.appendLine(stderr.trimEnd());
     }
-    await refresh(provider, diagnostics);
+    // Read-only analyses (staleness/burndown/critical-path) do not regenerate
+    // build/project.json, so a refresh would be wasted work.
+    if (options.refreshAfter ?? true) {
+      await refresh(provider, diagnostics);
+    }
     void vscode.window.showInformationMessage(`IsabelleBlueprint ${command} completed.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -778,6 +839,46 @@ function execFilePromise(
       resolve({ stdout, stderr });
     });
   });
+}
+
+function sanitizeOwner(raw: string | null | undefined): string {
+  return (raw ?? "").trim().replace(/\s+/g, " ");
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text;
+}
+
+/**
+ * Reads owner assignments from the fixed `.isabelle-blueprint/assignments.json`
+ * path (the same default the CLI writes). A missing file is normal and means
+ * "no owners". Malformed or future-schema content is treated as empty rather
+ * than surfaced as a popup, so a bad file never spams warnings on every save.
+ */
+async function readAssignments(folder: vscode.WorkspaceFolder): Promise<Map<string, string>> {
+  const owners = new Map<string, string>();
+  const jsonPath = path.resolve(folder.uri.fsPath, ".isabelle-blueprint", "assignments.json");
+  let raw: string;
+  try {
+    raw = await fs.readFile(jsonPath, "utf8");
+  } catch {
+    return owners;
+  }
+  try {
+    const parsed = JSON.parse(raw) as AssignmentsFile;
+    if (!parsed || parsed.schema_version !== 1 || typeof parsed.nodes !== "object" || parsed.nodes === null) {
+      return owners;
+    }
+    for (const [nodeId, record] of Object.entries(parsed.nodes)) {
+      const owner = sanitizeOwner(record?.owner);
+      if (owner) {
+        owners.set(nodeId, owner);
+      }
+    }
+  } catch {
+    return owners;
+  }
+  return owners;
 }
 
 async function readProject(jsonPath: string): Promise<BlueprintProject | undefined> {
