@@ -50,6 +50,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     assert {"critical_path", "impact", "stats"} <= read_only_names
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
     assert "portfolio" in read_only_names
+    assert "agent_run_plan" in read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -94,6 +95,43 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"
     assert stats["total_attempts"] == 0
+
+
+def test_mcp_agent_run_plan_is_read_only(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    plan = _direct_tool_result(
+        server, "agent_run_plan", {"command": "solver --in {prompt_file} --node {node_id}"}
+    )
+    assert plan["task"]["node_id"] == "main"
+    assert plan["command_argv_preview"][0] == "solver"
+    assert plan["command_argv_preview"][-1] == "main"
+    assert any(part.endswith(".md") for part in plan["command_argv_preview"])
+    assert plan["command_error"] is None
+    assert plan["cli_argv"][:2] == ["isabelle-blueprint", "agent-run"]
+    assert plan["outcome_mapping"]["spawn_error"] == "blocked"
+    assert "CLI-only" in plan["execution_note"]
+    # The planning tool must never execute or write the prompt file.
+    assert not (tmp_path / "build" / "agent-run").exists()
+
+    malformed = _direct_tool_result(server, "agent_run_plan", {"command": "solver {bogus}"})
+    assert "unknown command placeholder" in malformed["command_error"]
+    assert malformed["command_argv_preview"] is None
+
+    without_command = _direct_tool_result(server, "agent_run_plan", {})
+    assert without_command["command_argv_preview"] is None
+    assert without_command["cli_argv"][-2:] == ["--command", "<solver> {prompt_file}"]
+
+    # A command that omits {prompt_file} is permitted by the planner, but the
+    # suggested cli_argv must stay runnable by mirroring --allow-missing-prompt.
+    missing_prompt = _direct_tool_result(
+        server, "agent_run_plan", {"command": "solver --quiet"}
+    )
+    assert missing_prompt["command_error"] is None
+    assert missing_prompt["command_argv_preview"] == ["solver", "--quiet"]
+    assert "--allow-missing-prompt" in missing_prompt["cli_argv"]
+    assert "--allow-missing-prompt" not in plan["cli_argv"]
 
 
 def test_mcp_history_tool_reports_trend_deltas(tmp_path: Path) -> None:

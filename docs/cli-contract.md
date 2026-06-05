@@ -494,13 +494,86 @@ metadata, and ready-task counts. When no ready task exists, those object fields
 are `null` and the command exits 0. If filters exclude existing ready tasks,
 `message` reports that filtered state instead of implying the project is empty.
 
+### `agent-run`
+
+```text
+isabelle-blueprint agent-run [project_dir]
+                            [--node NODE_OR_TASK]
+                            (--command TEMPLATE | --exec PROGRAM [--arg ARG ...])
+                            [--allow-missing-prompt]
+                            [--timeout SECONDS]
+                            [--max-output-bytes N]
+                            [--output PATH]
+                            [--dry-run]
+                            [--json]
+                            [--kind KIND]
+                            [--priority high|medium|low]
+                            [--difficulty low|medium|high]
+                            [--memory-state fresh|attempted|stale]
+                            [--last-outcome OUTCOME]
+                            [--exclude-node NODE_OR_TASK]
+                            [--failure-outcome failed|blocked|needs_human]
+                            [--no-record]
+                            [--summary TEXT]
+                            [--details TEXT]
+                            [--next-step TEXT]
+                            [--actor TEXT]
+                            [--tool TEXT]
+                            [--max-attempts N]
+                            [--fail-on-failure]
+```
+
+Added in v1.10. Selects the next ready task (like `next`/`attempt`), renders its
+prompt, runs an **external solver** against it, and records the outcome in agent
+memory — closing the select → prompt → run → record loop in one command. The
+solver is run **without a shell**; placeholder values are substituted per-argv
+token so they cannot inject extra arguments.
+
+Supply the command in one of two mutually exclusive ways:
+
+- `--exec PROGRAM` plus repeated `--arg ARG` is the **argv-native** form and is
+  recommended on Windows because it never tokenises backslash paths. Because
+  argparse consumes a leading-dash value as an option, pass flag-style arguments
+  with the `--arg=-c` form (not `--arg -c`).
+- `--command "TEMPLATE"` is a convenience string tokenised with POSIX `shlex`
+  quoting.
+
+Both forms support the placeholders `{prompt_file}` (absolute path to the
+rendered prompt), `{node_id}`, `{task_id}`, and `{project_dir}`. Unknown
+`{placeholder}` tokens are rejected. The command must reference `{prompt_file}`
+unless `--allow-missing-prompt` is given, since otherwise the solver never sees
+the prompt. The prompt is passed by file (not stdin).
+
+The prompt is written to `build/agent-run/<task>.md` by default; `--output`
+overrides this (relative paths resolve against the project dir). `--timeout`
+(default 900s) kills the solver and its child process tree. `--max-output-bytes`
+(default 10 MiB; `0` disables) caps captured stdout+stderr so a runaway solver
+cannot flood the disk. Only bounded tails of stdout/stderr are surfaced and
+recorded.
+
+Outcome mapping: exit 0 → `succeeded`; non-zero / timeout / output-limit →
+`--failure-outcome` (default `failed`); a spawn error (the executable could not
+start) → `blocked`. A spawn error is treated as a harness/config failure, **not**
+a proof attempt: it is never recorded against the node and always exits 1.
+
+`--dry-run` selects and renders the task and resolves the command **without**
+running it, writing the prompt, or recording memory. `--no-record` runs the
+solver but skips the memory write. By default the command exits 0 even when the
+solver fails (the harness succeeded); pass `--fail-on-failure` to exit 5 when the
+recorded outcome is not `succeeded`. The ready-task filters and `--node`
+selector behave exactly as in `next`/`attempt`.
+
+`--json` emits the run result (`task`, `command`, `outcome`, `return_code`,
+`recorded`, `memory`, `stdout_tail`, `stderr_tail`, `prompt_path`, filter
+metadata, and counts). When no ready task exists those fields are `null` and the
+command exits 0.
+
 ### `report`
 
 ```text
 isabelle-blueprint report [project_dir] [--fail-on STATUS ...]
                           [--watch] [--interval SECONDS]
 ```
-
 Writes the machine-readable status payload:
 
 - `build/project.json` — the full node graph (see

@@ -30,6 +30,14 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
+from isabelle_blueprint.agents.runner import (
+    PROMPT_PLACEHOLDER,
+    RUN_PLACEHOLDERS,
+    safe_prompt_filename,
+    split_command_string,
+    substitute_command,
+    validate_command_tokens,
+)
 from isabelle_blueprint.agents.selection import (
     filter_ready_tasks,
     no_ready_task_message,
@@ -236,6 +244,39 @@ def build_server(
 
         return _next_task_payload(
             catalog.resolve(project).root,
+            node=node,
+            kind=kind,
+            priority=priority,
+            difficulty=difficulty,
+            memory_state=memory_state,
+            last_outcome=last_outcome,
+            exclude_node=exclude_node,
+        )
+
+    @server.tool(name="agent_run_plan")
+    def agent_run_plan(
+        command: str | None = None,
+        node: str | None = None,
+        kind: list[str] | None = None,
+        priority: list[str] | None = None,
+        difficulty: list[str] | None = None,
+        memory_state: list[str] | None = None,
+        last_outcome: list[str] | None = None,
+        exclude_node: list[str] | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Plan an ``agent-run`` invocation WITHOUT executing anything.
+
+        Returns the selected task, its prompt, where the CLI would write the
+        prompt, the outcome mapping, and a suggested local ``isabelle-blueprint
+        agent-run`` invocation. If a ``command`` template is supplied its resolved
+        argv is echoed as a read-only preview. Executing solver commands is
+        intentionally CLI-only -- this tool never spawns a process.
+        """
+
+        return _agent_run_plan_payload(
+            catalog.resolve(project).root,
+            command=command,
             node=node,
             kind=kind,
             priority=priority,
@@ -1216,6 +1257,86 @@ def _next_task_payload(
         **metadata,
     }
 
+
+_AGENT_RUN_OUTCOME_MAPPING = {
+    "exit_zero": "succeeded",
+    "nonzero": "failed",
+    "timeout": "failed",
+    "output_limit_exceeded": "failed",
+    "spawn_error": "blocked",
+}
+
+
+def _agent_run_plan_payload(
+    project_root: Path,
+    *,
+    command: str | None = None,
+    node: str | None = None,
+    kind: list[str] | None = None,
+    priority: list[str] | None = None,
+    difficulty: list[str] | None = None,
+    memory_state: list[str] | None = None,
+    last_outcome: list[str] | None = None,
+    exclude_node: list[str] | None = None,
+) -> dict[str, object]:
+    base = _next_task_payload(
+        project_root,
+        node=node,
+        kind=kind,
+        priority=priority,
+        difficulty=difficulty,
+        memory_state=memory_state,
+        last_outcome=last_outcome,
+        exclude_node=exclude_node,
+    )
+    plan: dict[str, object] = {
+        **base,
+        "command_template": command,
+        "command_argv_preview": None,
+        "command_error": None,
+        "prompt_path": None,
+        "cli_argv": None,
+        "outcome_mapping": dict(_AGENT_RUN_OUTCOME_MAPPING),
+        "placeholders": list(RUN_PLACEHOLDERS),
+        "execution_note": (
+            "Execution is intentionally CLI-only; this tool never runs commands. "
+            "Run the suggested cli_argv locally with `isabelle-blueprint agent-run`."
+        ),
+    }
+    task = base.get("task")
+    if not isinstance(task, dict):
+        return plan
+    task_id = str(task["id"])
+    node_id = str(task["node_id"])
+    config = load_config(project_root)
+    prompt_path = config.build_dir / "agent-run" / safe_prompt_filename(task_id)
+    plan["prompt_path"] = str(prompt_path)
+    cli_argv = ["isabelle-blueprint", "agent-run", str(project_root), "--node", task_id]
+    if command:
+        prompt_in_command = PROMPT_PLACEHOLDER in command
+        try:
+            tokens = split_command_string(command)
+            validate_command_tokens(tokens, require_prompt=False)
+        except BlueprintError as exc:
+            plan["command_error"] = str(exc)
+        else:
+            substitutions = {
+                "prompt_file": str(prompt_path),
+                "node_id": node_id,
+                "task_id": task_id,
+                "project_dir": str(project_root),
+            }
+            plan["command_argv_preview"] = substitute_command(tokens, substitutions)
+        cli_argv += ["--command", command]
+        # Keep the suggested CLI runnable: agent-run requires {prompt_file} unless
+        # --allow-missing-prompt is passed, so mirror that here when the planned
+        # command omits the placeholder.
+        if not prompt_in_command:
+            cli_argv.append("--allow-missing-prompt")
+    else:
+        cli_argv += ["--command", "<solver> {prompt_file}"]
+    plan["cli_argv"] = cli_argv
+    return plan
 
 def _ready_filters(
     *,

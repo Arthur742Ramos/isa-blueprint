@@ -101,6 +101,7 @@ Read tools are always registered:
 | `roadmap` | Staged proof-work roadmap; supports `status`, `stage`, and `kind` filters. |
 | `list_tasks` | Ready proof tasks using the same ordering and filters as the CLI. |
 | `next_task` | Selected ready task plus the rendered Markdown proof prompt. |
+| `agent_run_plan` | Plans an `agent-run` invocation for the next ready task: returns the selected task, the resolved `command_argv_preview` (placeholders substituted), the `prompt_path`, the exact `cli_argv` to run locally, and the outcome mapping. **Never executes the command or writes the prompt** — it is a read-only planner. Supply `command` to preview substitution; an invalid template is reported in `command_error` rather than raising. |
 | `agent_context` | Compact handoff bundle matching `agent-context --json`. |
 | `explain_node` | Status/blocker explanations for one node or all nodes. |
 | `lint` | Structural and quality findings without invoking Isabelle. |
@@ -129,6 +130,13 @@ When `--allow-writes` is supplied, two low-risk write tools are also registered:
 Write tools are launch-gated rather than tool-parameter gated: without
 `--allow-writes`, they do not appear in `tools/list`. The server serializes write
 tool calls inside one process to avoid overlapping load/modify/write operations.
+
+Running a solver is deliberately **not** an MCP tool. Spawning arbitrary local
+processes is a different trust boundary from the server's read/append-JSON
+surface, so `agent_run_plan` only *plans* the invocation and hands back the exact
+`cli_argv`; actually executing it is left to `isabelle-blueprint agent-run` on the
+operator's machine, where the timeout, output cap, and shell-free argv handling
+apply.
 
 ## Resources
 

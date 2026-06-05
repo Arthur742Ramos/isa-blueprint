@@ -32,6 +32,18 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
+from isabelle_blueprint.agents.runner import (
+    DEFAULT_MAX_OUTPUT_BYTES,
+    AgentRunResult,
+    classify_run_outcome,
+    default_run_summary,
+    execute_agent_command,
+    safe_prompt_filename,
+    split_command_string,
+    substitute_command,
+    tail,
+    validate_command_tokens,
+)
 from isabelle_blueprint.agents.selection import (
     READY_TASK_DIFFICULTIES,
     READY_TASK_LAST_OUTCOMES,
@@ -1432,6 +1444,198 @@ def _write_next_prompt(prompt: str, output: str | None) -> Path | None:
     return path
 
 
+def _agent_run_command_tokens(args: argparse.Namespace) -> list[str]:
+    """Resolve the solver command from --exec/--arg or --command."""
+
+    if args.exec_program is not None:
+        return [args.exec_program, *(args.arg or [])]
+    if args.arg:
+        raise BlueprintError("--arg requires --exec")
+    if args.command:
+        return split_command_string(args.command)
+    raise BlueprintError(
+        "agent-run requires a solver command: pass --command \"<template>\" or "
+        "--exec PROGRAM [--arg ARG ...]"
+    )
+
+
+def _agent_run_prompt_path(args: argparse.Namespace, config: BlueprintConfig,
+                           project_dir: Path, task_id: str) -> Path:
+    if args.output:
+        path = Path(args.output)
+        if not path.is_absolute():
+            path = project_dir / path
+        return path.resolve()
+    return (config.build_dir / "agent-run" / safe_prompt_filename(task_id)).resolve()
+
+
+def _agent_run_details(result: object, stdout_tail: str, stderr_tail: str) -> str:
+    parts = [f"exit={getattr(result, 'return_code', None)}"]
+    if getattr(result, "timed_out", False):
+        parts.append("timed_out")
+    if getattr(result, "output_limit_exceeded", False):
+        parts.append("output_limit_exceeded")
+    duration = getattr(result, "duration_seconds", None)
+    if duration is not None:
+        parts.append(f"duration={duration:.2f}s")
+    detail = " ".join(parts)
+    if stdout_tail:
+        detail += f"\n[stdout tail]\n{stdout_tail}"
+    if stderr_tail:
+        detail += f"\n[stderr tail]\n{stderr_tail}"
+    return detail
+
+
+def cmd_agent_run(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    task = _select_ready_task(
+        ready_tasks,
+        args.node,
+        project,
+        filters=filters,
+        unfiltered_ready_tasks=all_ready_tasks,
+    )
+    metadata = _selection_metadata(
+        filters,
+        ready_task_count=len(all_ready_tasks),
+        filtered_ready_task_count=len(ready_tasks),
+    )
+
+    # Resolve the solver command early so a misconfigured command fails fast
+    # (before selecting/writing anything).
+    tokens = _agent_run_command_tokens(args)
+    validate_command_tokens(tokens, require_prompt=not args.allow_missing_prompt)
+
+    if task is None:
+        message = _no_ready_task_message(len(all_ready_tasks), filters)
+        payload: dict[str, object] = {
+            "task": None,
+            "command": None,
+            "outcome": None,
+            "recorded": False,
+            "message": message,
+            **metadata,
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(message)
+        return 0
+
+    prompt = render_task_prompt(task)
+    prompt_path = _agent_run_prompt_path(args, config, project_dir, task.id)
+    substitutions = {
+        "prompt_file": str(prompt_path),
+        "node_id": task.node_id,
+        "task_id": task.id,
+        "project_dir": str(project_dir),
+    }
+    command = substitute_command(tokens, substitutions)
+
+    if args.dry_run:
+        dry_payload: dict[str, object] = {
+            "task": task.to_dict(),
+            "prompt": prompt,
+            "prompt_path": str(prompt_path),
+            "command": command,
+            "dry_run": True,
+            "outcome": None,
+            "recorded": False,
+            "message": f"Would run {task.id}.",
+            **metadata,
+        }
+        if args.json:
+            print(json.dumps(dry_payload, indent=2))
+        else:
+            print(f"agent-run (dry-run) {task.id}")
+            print(f"  prompt -> {prompt_path}")
+            print(f"  command: {' '.join(command)}")
+        return 0
+
+    _write_next_prompt(prompt, str(prompt_path))
+    max_output = None if args.max_output_bytes == 0 else args.max_output_bytes
+    result = execute_agent_command(
+        command,
+        cwd=str(project_dir),
+        timeout=args.timeout,
+        max_output_bytes=max_output,
+    )
+    outcome = classify_run_outcome(result, failure_outcome=args.failure_outcome)
+    summary = (
+        args.summary.strip()
+        if args.summary
+        else default_run_summary(command, result, outcome)
+    )
+    stdout_tail = tail(result.stdout)
+    stderr_tail = tail(result.stderr)
+
+    run_result = AgentRunResult(
+        task_id=task.id,
+        node_id=task.node_id,
+        command=command,
+        ran=result.ran,
+        return_code=result.return_code,
+        outcome=outcome,
+        summary=summary,
+        stdout_tail=stdout_tail,
+        stderr_tail=stderr_tail,
+        timed_out=result.timed_out,
+        output_limit_exceeded=result.output_limit_exceeded,
+        error=result.error,
+        duration_seconds=result.duration_seconds,
+    )
+
+    # A spawn error is a harness/config failure, not a proof attempt: never record
+    # it against the node and always exit non-zero.
+    recorded = False
+    if not args.no_record and not result.spawn_error:
+        details = args.details or _agent_run_details(result, stdout_tail, stderr_tail)
+        attempt = record_memory_attempt(
+            config.agent_memory_path,
+            task.node_id,
+            outcome=outcome,
+            summary=summary,
+            actor=args.actor or "agent-run",
+            tool=args.tool or command[0],
+            details=details,
+            next_step=args.next_step,
+            input_hash=node_input_hash(project.by_id()[task.node_id]),
+            max_attempts=args.max_attempts,
+        )
+        run_result.memory = attempt.to_dict()
+        recorded = True
+    run_result.recorded = recorded
+
+    out_payload: dict[str, object] = {
+        **run_result.to_dict(),
+        "prompt_path": str(prompt_path),
+        "message": f"Ran {task.id}.",
+        **metadata,
+    }
+    if args.json:
+        print(json.dumps(out_payload, indent=2))
+    else:
+        print(f"agent-run {task.id} -> {outcome}")
+        print(f"  prompt -> {prompt_path}")
+        if result.error:
+            print(f"  {result.error}", file=sys.stderr)
+        if recorded:
+            print(f"  memory recorded -> {config.agent_memory_path}")
+
+    if result.spawn_error:
+        return 1
+    if args.fail_on_failure and outcome != "succeeded":
+        return 5
+    return 0
+
+
 def _completed_node_ids(project: BlueprintProject) -> set[str]:
     return {
         node.id
@@ -2226,6 +2430,104 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--max-attempts", type=int, default=20, help="attempts to keep per node"
     )
     p_attempt.set_defaults(func=cmd_attempt)
+
+    p_agent_run = sub.add_parser(
+        "agent-run",
+        help="run an external solver against the next ready task and record the outcome",
+    )
+    p_agent_run.add_argument("project_dir", nargs="?", default=".")
+    p_agent_run.add_argument(
+        "--node",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="run this ready node/task instead of the suggested next task",
+    )
+    agent_run_command = p_agent_run.add_mutually_exclusive_group()
+    agent_run_command.add_argument(
+        "--command",
+        default=None,
+        metavar="TEMPLATE",
+        help=(
+            "solver command template, shlex-split (POSIX quoting); supports the "
+            "placeholders {prompt_file} {node_id} {task_id} {project_dir}"
+        ),
+    )
+    agent_run_command.add_argument(
+        "--exec",
+        dest="exec_program",
+        default=None,
+        metavar="PROGRAM",
+        help="solver executable; combine with repeated --arg (argv-native, avoids shell quoting)",
+    )
+    p_agent_run.add_argument(
+        "--arg",
+        dest="arg",
+        action="append",
+        metavar="ARG",
+        help="argument for --exec (repeatable; supports the same placeholders)",
+    )
+    p_agent_run.add_argument(
+        "--allow-missing-prompt",
+        action="store_true",
+        help="permit a command that does not reference {prompt_file}",
+    )
+    p_agent_run.add_argument(
+        "--timeout",
+        type=float,
+        default=900.0,
+        metavar="SECONDS",
+        help="kill the solver (and its children) after SECONDS (default: 900)",
+    )
+    p_agent_run.add_argument(
+        "--max-output-bytes",
+        type=int,
+        default=DEFAULT_MAX_OUTPUT_BYTES,
+        metavar="N",
+        help="cap captured stdout+stderr; 0 disables the cap (default: 10 MiB)",
+    )
+    p_agent_run.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help=(
+            "write the prompt to PATH (default: build/agent-run/<task>.md; "
+            "relative paths resolve against the project dir)"
+        ),
+    )
+    p_agent_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="select and render the task and resolve the command without running or recording",
+    )
+    p_agent_run.add_argument("--json", action="store_true", help="emit machine-readable run JSON")
+    _add_ready_task_filter_arguments(p_agent_run)
+    p_agent_run.add_argument(
+        "--failure-outcome",
+        choices=("failed", "blocked", "needs_human"),
+        default="failed",
+        help="memory outcome recorded when the solver fails (default: failed)",
+    )
+    p_agent_run.add_argument(
+        "--no-record", action="store_true", help="do not write an agent-memory attempt"
+    )
+    p_agent_run.add_argument("--summary", default="", help="override the recorded memory summary")
+    p_agent_run.add_argument("--details", default="", help="override the recorded memory details")
+    p_agent_run.add_argument("--next-step", default=None, help="recommended next action for memory")
+    p_agent_run.add_argument(
+        "--actor", default=None, help="person or agent that ran the solver (default: agent-run)"
+    )
+    p_agent_run.add_argument(
+        "--tool", default=None, help="tool/model label for memory (default: the executable)"
+    )
+    p_agent_run.add_argument(
+        "--max-attempts", type=int, default=20, help="attempts to keep per node"
+    )
+    p_agent_run.add_argument(
+        "--fail-on-failure",
+        action="store_true",
+        help="exit 5 when the recorded outcome is not 'succeeded'",
+    )
+    p_agent_run.set_defaults(func=cmd_agent_run)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")

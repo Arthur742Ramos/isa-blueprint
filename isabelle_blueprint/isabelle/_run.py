@@ -30,8 +30,24 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from typing import Any
+
+
+class OutputLimitExceeded(subprocess.SubprocessError):
+    """Raised when a captured command exceeds ``max_output_bytes``.
+
+    Carries whatever output was captured before the process tree was killed so
+    callers can still surface a bounded tail for diagnostics.
+    """
+
+    def __init__(self, args: list[str], limit: int, *, output: str, stderr: str) -> None:
+        super().__init__(f"command output exceeded {limit} bytes: {args!r}")
+        self.cmd = args
+        self.limit = limit
+        self.output = output
+        self.stderr = stderr
 
 
 @dataclass
@@ -89,6 +105,7 @@ def run_capture(
     cwd=None,
     timeout: float | None = None,
     encoding: str = "utf-8",
+    max_output_bytes: int | None = None,
 ) -> RunResult:
     """Run ``cmd``, capturing stdout/stderr to temp files.
 
@@ -96,6 +113,13 @@ def run_capture(
     process tree is killed and :class:`subprocess.TimeoutExpired` is raised with
     whatever output was captured so far. Decoding uses ``errors="replace"`` so
     stray non-UTF-8 bytes (e.g. cp1252 on a Windows console) never crash us.
+
+    When ``max_output_bytes`` is set, the combined stdout+stderr size is polled
+    while the command runs; if it grows past the limit the process tree is killed
+    and :class:`OutputLimitExceeded` is raised. This guards against arbitrary
+    user-supplied commands (e.g. the ``agent-run`` harness) flooding the disk.
+    Passing ``None`` (the default) keeps the original single-``wait`` behavior used
+    by the Isabelle wrapper callers untouched.
     """
 
     args = [str(part) for part in cmd]
@@ -123,23 +147,73 @@ def run_capture(
                 pgid = os.getpgid(proc.pid)  # type: ignore[attr-defined]
             except OSError:
                 pgid = None
-        try:
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            _kill_tree(proc, pgid)
+
+        def _captured_size() -> int:
+            try:
+                return os.fstat(out.fileno()).st_size + os.fstat(err.fileno()).st_size
+            except OSError:
+                return 0
+
+        def _read_all() -> tuple[str, str]:
             out.seek(0)
             err.seek(0)
-            raise subprocess.TimeoutExpired(
-                args,
-                timeout if timeout is not None else 0.0,
-                output=out.read().decode(encoding, "replace"),
-                stderr=err.read().decode(encoding, "replace"),
-            ) from None
-        out.seek(0)
-        err.seek(0)
+            return (
+                out.read().decode(encoding, "replace"),
+                err.read().decode(encoding, "replace"),
+            )
+
+        if max_output_bytes is None:
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _kill_tree(proc, pgid)
+                stdout_text, stderr_text = _read_all()
+                raise subprocess.TimeoutExpired(
+                    args,
+                    timeout if timeout is not None else 0.0,
+                    output=stdout_text,
+                    stderr=stderr_text,
+                ) from None
+        else:
+            deadline = None if timeout is None else time.monotonic() + timeout
+            while True:
+                try:
+                    proc.wait(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    if _captured_size() > max_output_bytes:
+                        _kill_tree(proc, pgid)
+                        stdout_text, stderr_text = _read_all()
+                        raise OutputLimitExceeded(
+                            args,
+                            max_output_bytes,
+                            output=stdout_text,
+                            stderr=stderr_text,
+                        ) from None
+                    if deadline is not None and time.monotonic() > deadline:
+                        _kill_tree(proc, pgid)
+                        stdout_text, stderr_text = _read_all()
+                        raise subprocess.TimeoutExpired(
+                            args,
+                            timeout if timeout is not None else 0.0,
+                            output=stdout_text,
+                            stderr=stderr_text,
+                        ) from None
+            # The process can exit on its own having flooded output in a single
+            # burst between polls (or before the first poll fired), so the cap
+            # must be re-checked after a clean exit -- not only on the poll path.
+            if _captured_size() > max_output_bytes:
+                stdout_text, stderr_text = _read_all()
+                raise OutputLimitExceeded(
+                    args,
+                    max_output_bytes,
+                    output=stdout_text,
+                    stderr=stderr_text,
+                ) from None
+        stdout_text, stderr_text = _read_all()
         return RunResult(
             args=args,
             returncode=proc.returncode,
-            stdout=out.read().decode(encoding, "replace"),
-            stderr=err.read().decode(encoding, "replace"),
+            stdout=stdout_text,
+            stderr=stderr_text,
         )

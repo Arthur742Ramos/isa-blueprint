@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `agent-run` command (and matching read-only `agent_run_plan` MCP tool) that
+  closes the proof loop end-to-end: it selects the next ready task (using the same
+  filters and `--node` selector as `next`/`attempt`), renders the prompt, runs an
+  **external solver** against it, classifies the result, and records the outcome in
+  agent memory — all in one command. The solver is run **without a shell**: supply
+  it argv-native via `--exec PROGRAM --arg ARG ...` (recommended on Windows; use
+  the `--arg=-c` form for dash-led values) or as a POSIX-`shlex` `--command`
+  string. Placeholder values (`{prompt_file}`, `{node_id}`, `{task_id}`,
+  `{project_dir}`) are substituted per argv token so they cannot inject extra
+  arguments, and unknown placeholders are rejected. A configurable `--timeout`
+  (default 900s, with child-process-tree kill) and `--max-output-bytes` cap
+  (default 10 MiB; `0` disables) guard against hangs and runaway output; only
+  bounded stdout/stderr tails are surfaced and recorded. Exit 0 → `succeeded`;
+  non-zero / timeout / output-limit → `--failure-outcome` (default `failed`); a
+  spawn error → `blocked` and is **never** recorded (it is a harness/config
+  failure, not a proof attempt) and always exits 1. `--dry-run` previews the
+  resolved command without running, writing the prompt, or recording; `--no-record`
+  runs without writing memory; `--fail-on-failure` exits 5 when the outcome is not
+  `succeeded`. The MCP `agent_run_plan` tool **plans** the invocation (returning the
+  selected task, the substituted `command_argv_preview`, the `prompt_path`, the
+  exact `cli_argv`, and the outcome mapping) but never executes a command or writes
+  a file — actually running the solver is intentionally CLI-only because spawning
+  local processes is a different trust boundary from the server's read/append-JSON
+  surface. `run_capture` gained an optional `max_output_bytes` poll-based cap
+  (raising the new `OutputLimitExceeded`); the default `None` path is byte-for-byte
+  unchanged, so the Isabelle wrapper callers are unaffected.
 - New `portfolio` command (and matching `portfolio` MCP read tool plus
   `blueprint://portfolio` resource) rolls up status across **every** blueprint
   project under a directory tree into one dashboard — per-project coverage,

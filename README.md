@@ -276,6 +276,7 @@ already justify.
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
 | `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note | A single proof-attempt handoff/check/record loop. |
+| `agent-run` | Runs an external solver against the next ready task and records the outcome | Closing the select → prompt → run → record loop in one shell-free command. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
@@ -336,8 +337,8 @@ returned project `id` (or a relative path / unique project name) as the optional
 project-specific tools.
 
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
-`list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
-`critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
+`list_tasks`, `next_task`, `agent_run_plan`, `agent_context`, `explain_node`,
+`lint`, `critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
 `portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and
 `doctor`; resources such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
@@ -538,6 +539,31 @@ isabelle-blueprint staleness . --json
 isabelle-blueprint staleness . --top 20 --max-causes 3
 isabelle-blueprint staleness . --fail-on-problem   # exit 5 on broken/missing deps
 ```
+
+Use `agent-run` to close the whole loop in one command — it selects the next
+ready task (honouring the same filters as `next`/`attempt`), renders the prompt,
+runs an **external solver** against it, and records the outcome in agent memory.
+The solver runs without a shell, with a timeout and an output-size cap, and the
+`{prompt_file}` `{node_id}` `{task_id}` `{project_dir}` placeholders are
+substituted per argv token (no argument injection):
+
+```bash
+# argv-native form (recommended on Windows; note --arg=-c for dash-led values)
+isabelle-blueprint agent-run . --exec my-solver --arg=--prompt --arg "{prompt_file}"
+# convenience string form (POSIX shlex quoting)
+isabelle-blueprint agent-run . --command "my-solver --prompt {prompt_file}"
+isabelle-blueprint agent-run . --dry-run --json          # preview without running
+isabelle-blueprint agent-run . --node main-theorem --fail-on-failure   # exit 5 if not solved
+```
+
+Exit 0 maps to the `succeeded` outcome; a non-zero exit, timeout, or output-limit
+maps to `--failure-outcome` (default `failed`); and a solver that cannot start
+maps to `blocked` and is never recorded (it is a config error, not a proof
+attempt). Pass `--dry-run` to preview the resolved command without running it,
+`--no-record` to run without writing memory, and `--fail-on-failure` to exit 5
+when the result is not `succeeded`. The MCP `agent_run_plan` tool returns the same
+plan (selected task, resolved argv, and the exact `cli_argv`) without ever
+executing anything.
 
 Use `agent-context` when an AI agent needs the whole working brief in one stable
 payload:
