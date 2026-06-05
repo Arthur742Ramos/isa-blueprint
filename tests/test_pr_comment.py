@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
@@ -14,6 +15,32 @@ from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
 )
+
+_GITHUB_ENV_VARS = (
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_SHA",
+    "GITHUB_REF",
+)
+
+
+def _clear_github_env(monkeypatch) -> None:
+    for var in _GITHUB_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+
+def _write_cli_project(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "comment-cli"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        "# comment-cli\n\n"
+        "::: lemma {#a}\ntitle: A\nisabelle: Demo.a\nstatus: stub\n\nA statement.\n:::\n",
+        encoding="utf-8",
+    )
+
 
 
 def _project() -> BlueprintProject:
@@ -176,3 +203,42 @@ def test_write_pr_comment_preview(tmp_path: Path, monkeypatch):
     text = out.read_text(encoding="utf-8")
     assert text.startswith(COMMENT_MARKER)
     assert "IsabelleBlueprint status" in text
+
+
+def test_cli_comment_without_github_context_skips_and_exits_zero(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _clear_github_env(monkeypatch)
+    _write_cli_project(tmp_path)
+
+    rc = cli_main(["comment", str(tmp_path)])
+
+    assert rc == 0
+    assert "skipped" in capsys.readouterr().out
+
+
+def test_cli_comment_strict_without_github_context_exits_6(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    # The frozen exit-code contract pins `comment --strict` to 6 when the PR
+    # context (token/repo/PR number) cannot be resolved.
+    _clear_github_env(monkeypatch)
+    _write_cli_project(tmp_path)
+
+    rc = cli_main(["comment", str(tmp_path), "--strict"])
+
+    assert rc == 6
+
+
+def test_cli_comment_preview_writes_body_and_exits_zero(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _clear_github_env(monkeypatch)
+    _write_cli_project(tmp_path)
+
+    rc = cli_main(["comment", str(tmp_path), "--preview"])
+
+    assert rc == 0
+    preview = tmp_path / "build" / "pr-comment.md"
+    assert preview.exists()
+    assert preview.read_text(encoding="utf-8").startswith(COMMENT_MARKER)

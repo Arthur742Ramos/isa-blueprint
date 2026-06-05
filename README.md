@@ -145,14 +145,14 @@ AFP-backed projects:
 | Example | Format | Nodes | Coverage | Demonstrates |
 | --- | --- | ---: | ---: | --- |
 | [`gauss-sum`](examples/gauss-sum) | Markdown | 3 | 100% | A fully proved toy blueprint. |
-| [`sqrt2-irrational`](examples/sqrt2-irrational) | Markdown | 5 | 60% | Mixed statuses and one ready task. |
-| [`euclid-primes`](examples/euclid-primes) | Markdown | 6 | 66.7% | A compact mid-size theorem DAG. |
-| [`fundamental-arithmetic`](examples/fundamental-arithmetic) | Markdown | 10 | 50% | A richer multi-level proof plan. |
+| [`sqrt2-irrational`](examples/sqrt2-irrational) | Markdown | 5 | 50% | Mixed statuses and one ready task. |
+| [`euclid-primes`](examples/euclid-primes) | Markdown | 6 | 40% | A compact mid-size theorem DAG. |
+| [`fundamental-arithmetic`](examples/fundamental-arithmetic) | Markdown | 10 | 33% | A richer multi-level proof plan. |
 | [`minimal`](examples/minimal) | Markdown | 4 | 0% | The smallest authoring template. |
-| [`group-theory`](examples/group-theory) | Markdown | 10 | 50% | Status colors across three dependency levels. |
-| [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 50% | Lean Blueprint-style `.tex` ingestion. |
-| [`agent-workflow`](examples/agent-workflow) | Markdown | 8 | 38% | Ready vs blocked proof-task orchestration. |
-| [`afp-gale-stewart`](examples/afp-gale-stewart) | Markdown | 7 | 100% | A real AFP integration check. |
+| [`group-theory`](examples/group-theory) | Markdown | 10 | 28% | Status colors across three dependency levels. |
+| [`latex-blueprint`](examples/latex-blueprint) | LaTeX | 8 | 0% | Lean Blueprint-style `.tex` ingestion. |
+| [`agent-workflow`](examples/agent-workflow) | Markdown | 8 | 0% | Ready vs blocked proof-task orchestration. |
+| [`afp-gale-stewart`](examples/afp-gale-stewart) | Markdown | 7 | 0% | A real AFP integration check (all facts found, not proved). |
 
 See [`examples/README.md`](examples/README.md) for the full tour.
 

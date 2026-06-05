@@ -43,6 +43,18 @@ def test_init_agent_ready_template_writes_task_workflow(tmp_path: Path) -> None:
     assert "isabelle-blueprint tasks . --github-issues" in workflow
 
 
+def test_init_on_existing_file_reports_clean_error(tmp_path: Path, capsys) -> None:
+    # Pointing init at a path that exists as a regular file used to leak a raw
+    # FileExistsError traceback (mkdir); it should be a clean BlueprintError.
+    target = tmp_path / "README.md"
+    target.write_text("not a directory", encoding="utf-8")
+
+    rc = cli_main(["init", str(target)])
+
+    assert rc == 1
+    assert "is not a directory" in capsys.readouterr().err
+
+
 def test_init_afp_template_writes_required_afp_config(tmp_path: Path) -> None:
     rc = cli_main(["init", str(tmp_path), "--template", "afp"])
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.agents.memory import (
     AgentMemory,
     AgentMemoryAttempt,
@@ -13,6 +15,7 @@ from isabelle_blueprint.agents.memory import (
     summarize_node_memory,
 )
 from isabelle_blueprint.agents.tasks import generate_tasks
+from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
@@ -100,9 +103,18 @@ def test_unreadable_memory_warns_and_returns_empty(tmp_path: Path):
     path = tmp_path / "agent-memory.json"
     path.write_text("{", encoding="utf-8")
 
-    memory = load_agent_memory(path)
+    with pytest.warns(UserWarning, match="ignoring unreadable agent memory"):
+        memory = load_agent_memory(path)
 
     assert memory.nodes == {}
+
+
+def test_unreadable_memory_raises_in_strict_mode(tmp_path: Path):
+    path = tmp_path / "agent-memory.json"
+    path.write_text("{", encoding="utf-8")
+
+    with pytest.raises(BlueprintError):
+        load_agent_memory(path, strict=True)
 
 
 def test_agent_memory_schema_shape(tmp_path: Path):

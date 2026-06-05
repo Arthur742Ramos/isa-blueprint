@@ -37,7 +37,7 @@ inputs:
 
 outputs:
   coverage_percent:
-    description: Percent of formal targets proved or found.
+    description: Percent of formal targets proved (proved / formal targets).
     value: ${{ steps.report.outputs.coverage_percent }}
   node_count:
     description: Number of blueprint nodes.

@@ -127,18 +127,24 @@ closed-determinacy    closed_GSgame.closed_game_determinacy         proved  -
 isabelle-blueprint report
 ```
 
-`build/report.md` folds the proof status back over the blueprint — **100%**
-formalised:
+`build/report.md` folds the formal status back over the blueprint. The
+headline metric is now **coverage = proved / formal targets**; in the
+checked-in blueprint all seven facts are stored as `found`, so coverage reads
+**0%** until a real `check` against the AFP upgrades them to `proved`:
 
 ```text
 # Gale-Stewart determinacy (AFP) - blueprint status
 
 - Nodes: **7**
-- Formalised (found or proved): **7** (100.0%)
+- Formal targets (with Isabelle ref): **7**
+- Proved: **0**
+- Found (exists, not yet trusted): **7**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **0%** (0/7)
 
 | Formal status | Count |
 | --- | ---: |
-| `proved` | 7 |
+| `found` | 7 |
 ```
 
 `graph` and `tasks` work too; `graph` emits `build/graph.dot` and

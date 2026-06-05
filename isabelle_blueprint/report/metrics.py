@@ -89,7 +89,14 @@ def build_status_metrics(
     if node_count == 0 or formal_target_count == 0:
         coverage_percent = None
     else:
-        coverage_percent = round(proved / formal_target_count * 100)
+        # Truncate rather than round so that 100 means *genuinely* all-proved:
+        # round() would report a false 100% for 999/1000 (and floor cannot reach
+        # 100 unless proved == target, since proved <= target). Symmetrically,
+        # reserve 0 for "none proved" -- clamp a non-zero-but-sub-1% ratio (e.g.
+        # 1/1000) up to 1 so real progress is never shown as a misleading 0%.
+        coverage_percent = proved * 100 // formal_target_count
+        if coverage_percent == 0 and proved > 0:
+            coverage_percent = 1
 
     if has_cycles is None:
         has_cycles = bool(project.validate().cycles)

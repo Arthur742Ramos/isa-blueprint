@@ -129,6 +129,42 @@ def test_write_tasks_removes_prompts_for_tasks_that_are_no_longer_ready(tmp_path
     assert (tmp_path / "prompts" / "task-a.md").exists()
 
 
+def test_write_tasks_sanitizes_unsafe_node_ids_into_prompts_dir(tmp_path: Path):
+    # An author-controlled node id with path separators / Windows-illegal chars
+    # must not escape the prompts directory or fail to write. The clean sibling
+    # keeps its verbatim ``task-<id>.md`` name.
+    project = BlueprintProject.from_nodes(
+        "p",
+        [_node("a/b:c", "Demo.abc"), _node("plain", "Demo.plain")],
+    )
+
+    paths = write_tasks(project, tmp_path)
+    prompts_dir = paths["prompts"]
+
+    written = sorted(p.name for p in prompts_dir.glob("*.md"))
+    # Every prompt file lives directly inside prompts_dir (no traversal).
+    for p in prompts_dir.glob("*.md"):
+        assert p.parent == prompts_dir
+        assert ":" not in p.name and "/" not in p.name and "\\" not in p.name
+    # The safe id is preserved verbatim; the unsafe id is slugified + hashed.
+    assert "task-plain.md" in written
+    assert any(name.startswith("task-a-b-c-") for name in written)
+
+
+def test_write_tasks_unsafe_ids_are_not_treated_as_stale_on_rewrite(tmp_path: Path):
+    # Regression: the stale-prompt sweep must use the same filename mapping as
+    # the writer, or sanitized prompts would be deleted on every rewrite.
+    project = BlueprintProject.from_nodes("p", [_node("a/b:c", "Demo.abc")])
+
+    write_tasks(project, tmp_path)
+    first = sorted(p.name for p in (tmp_path / "prompts").glob("*.md"))
+    write_tasks(project, tmp_path)
+    second = sorted(p.name for p in (tmp_path / "prompts").glob("*.md"))
+
+    assert first == second
+    assert len(second) == 1
+
+
 def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
     project = BlueprintProject.from_nodes(
         "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]

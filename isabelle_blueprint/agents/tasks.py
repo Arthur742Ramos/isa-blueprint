@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from isabelle_blueprint.agents.memory import AgentMemory, NodeMemorySummary, summaries_by_node
+from isabelle_blueprint.agents.runner import prompt_filename
 from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
@@ -195,7 +196,8 @@ def write_tasks(
 
     _remove_stale_task_prompts(prompts_dir, prompt_tasks)
     for task in prompt_tasks:
-        (prompts_dir / f"{task.id}.md").write_text(render_task_prompt(task), encoding="utf-8")
+        prompt_name = prompt_filename(task.id)
+        (prompts_dir / prompt_name).write_text(render_task_prompt(task), encoding="utf-8")
 
     written = {"json": json_path, "md": md_path, "prompts": prompts_dir}
     if github_issues:
@@ -211,7 +213,7 @@ def write_tasks(
 
 
 def _remove_stale_task_prompts(prompts_dir: Path, tasks: list[AgentTask]) -> None:
-    current_prompt_names = {f"{task.id}.md" for task in tasks}
+    current_prompt_names = {prompt_filename(task.id) for task in tasks}
     for prompt_path in prompts_dir.glob("task-*.md"):
         if prompt_path.name not in current_prompt_names:
             prompt_path.unlink()

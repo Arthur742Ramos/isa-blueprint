@@ -38,6 +38,7 @@ from isabelle_blueprint.agents.runner import (
     classify_run_outcome,
     default_run_summary,
     execute_agent_command,
+    prompt_filename,
     safe_prompt_filename,
     split_command_string,
     substitute_command,
@@ -111,9 +112,13 @@ from isabelle_blueprint.isabelle.theory_import import (
     render_imported_blueprint,
 )
 from isabelle_blueprint.model.node import NodeKind
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import AgentStatus, FormalStatus
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
-from isabelle_blueprint.project_io import apply_stored_check_report, load_project
+from isabelle_blueprint.project_io import (
+    apply_stored_check_report,
+    load_config_checked,
+    load_project,
+)
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
@@ -162,6 +167,7 @@ from isabelle_blueprint.report.pr_comment import (
     write_pr_comment_preview,
 )
 from isabelle_blueprint.report.roadmap import (
+    COMPLETE_FORMAL_STATUSES,
     ROADMAP_STATUSES,
     RoadmapFilters,
     build_roadmap,
@@ -386,6 +392,8 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     project_dir = Path(args.project_dir).resolve()
     template = TEMPLATES[args.template]
+    if project_dir.exists() and not project_dir.is_dir():
+        raise BlueprintError(f"{project_dir} exists and is not a directory")
     project_dir.mkdir(parents=True, exist_ok=True)
     blueprint_path = project_dir / blueprint_filename(args.format)
     config_path = project_dir / "isabelle-blueprint.toml"
@@ -859,6 +867,17 @@ def cmd_assign(args: argparse.Namespace) -> int:
     if node_id is not None and project.by_id().get(node_id) is None:
         raise BlueprintError(f"node id {node_id!r} not found in the blueprint")
 
+    # Mutating flags only take effect for a specific node; reject combinations
+    # that would otherwise be silently discarded (a footgun: the user believes
+    # the owner/note/clear was applied when it was not).
+    if node_id is None and (args.owner is not None or args.note is not None or args.clear):
+        raise BlueprintError("--owner/--note/--clear require a node id")
+    if args.clear and (args.owner is not None or args.note is not None):
+        raise BlueprintError("--clear cannot be combined with --owner/--note")
+    # (clear+note is already rejected above, so here a note implies no --clear.)
+    if node_id is not None and args.note is not None and args.owner is None:
+        raise BlueprintError("--note requires --owner (a note is stored alongside an owner)")
+
     mutating = node_id is not None and (args.clear or args.owner is not None)
     # When we are about to write the store back, refuse to start from an empty
     # store if the existing file is corrupt (which would clobber real data).
@@ -923,7 +942,7 @@ def _render_assignments(payload: dict) -> str:
 
 def cmd_rename(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     result = rename_node(config, args.old_id, args.new_id, dry_run=args.dry_run)
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
@@ -1355,7 +1374,7 @@ def cmd_attempt(args: argparse.Namespace) -> int:
         return 0
 
     prompt = render_task_prompt(task)
-    output = args.output or str(config.build_dir / "attempts" / f"{task.id}.md")
+    output = args.output or str(config.build_dir / "attempts" / prompt_filename(task.id))
     prompt_path = _write_next_prompt(prompt, output)
     check_payload = _run_attempt_check(args, config, project) if args.check else None
     memory_payload = None
@@ -1513,6 +1532,13 @@ def cmd_agent_run(args: argparse.Namespace) -> int:
     tokens = _agent_run_command_tokens(args)
     validate_command_tokens(tokens, require_prompt=not args.allow_missing_prompt)
 
+    # If we intend to record the outcome, verify the memory store is readable
+    # *before* running the (potentially expensive) solver. Otherwise a corrupt
+    # store is only discovered at record time, after the solver has run, and the
+    # completed attempt is discarded with a non-zero exit.
+    if not args.no_record:
+        load_agent_memory(config.agent_memory_path, strict=True)
+
     if task is None:
         message = _no_ready_task_message(len(all_ready_tasks), filters)
         payload: dict[str, object] = {
@@ -1640,7 +1666,8 @@ def _completed_node_ids(project: BlueprintProject) -> set[str]:
     return {
         node.id
         for node in project.nodes
-        if node.status.formal.value in {"found", "proved"} or node.status.agent.value == "solved"
+        if node.status.formal in COMPLETE_FORMAL_STATUSES
+        or node.status.agent is AgentStatus.SOLVED
     }
 
 
@@ -1993,7 +2020,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_check.add_argument(
         "--jobs",
-        type=int,
+        type=_positive_int,
         default=None,
         metavar="N",
         help="forward `-j N` to `isabelle build` to parallelise upstream session builds",
@@ -2410,7 +2437,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--incremental", action="store_true", help="use check-cache.json during --check"
     )
     p_attempt.add_argument(
-        "--jobs", type=int, default=None, metavar="N", help="forward `-j N` during --check"
+        "--jobs",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="forward `-j N` during --check",
     )
     _add_ready_task_filter_arguments(p_attempt)
     p_attempt.add_argument(

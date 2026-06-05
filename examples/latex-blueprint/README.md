@@ -56,15 +56,21 @@ isabelle-blueprint init my-project --template agent-ready --format latex
 isabelle-blueprint new theorem main-result my-project --append
 ```
 
-`report` shows 8 nodes at 50% formalised — the three definitions carrying
-`\isabelleok` plus the equality lemma come back as `found`, while the
-nodes with a fact but no `\isabelleok` stay `named`:
+`report` shows 8 nodes at 0% coverage (proved / formal targets: 0/8) — the
+headline metric now counts proved facts against formal targets, and nothing
+is proved yet. The three definitions carrying `\isabelleok` plus the equality
+lemma still come back as `found`, while the nodes with a fact but no
+`\isabelleok` stay `named`:
 
 ```text
 # Relations blueprint (LaTeX) - blueprint status
 
 - Nodes: **8**
-- Formalised (found or proved): **4** (50.0%)
+- Formal targets (with Isabelle ref): **8**
+- Proved: **0**
+- Found (exists, not yet trusted): **4**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **0%** (0/8)
 
 | Formal status | Count |
 | --- | ---: |

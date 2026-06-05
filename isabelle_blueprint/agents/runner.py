@@ -170,6 +170,21 @@ def safe_prompt_filename(task_id: str, *, suffix: str = ".md") -> str:
     return f"{slug}-{digest}{suffix}"
 
 
+def prompt_filename(task_id: str, *, suffix: str = ".md") -> str:
+    """Return a prompt filename for ``task_id``, stable for filesystem-safe ids.
+
+    Ids that are already safe (no path separators or Windows-illegal characters)
+    are used verbatim -- ``task-main`` -> ``task-main.md`` -- matching the
+    documented ``build/prompts/<task-id>.md`` layout. Only ids containing unsafe
+    characters are slugified and hash-suffixed (via :func:`safe_prompt_filename`)
+    so they cannot escape the prompts directory or collide on Windows.
+    """
+
+    if _SLUG_RE.search(task_id) or task_id != task_id.strip("-._") or not task_id:
+        return safe_prompt_filename(task_id, suffix=suffix)
+    return f"{task_id}{suffix}"
+
+
 def classify_run_outcome(
     result: CommandResult,
     *,

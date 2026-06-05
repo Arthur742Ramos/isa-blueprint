@@ -30,14 +30,19 @@ isabelle-blueprint tasks examples/group-theory
 
 ## What you'll see
 
-`report` summarises 10 nodes at 50% formalised, with a breakdown across
-`found`, `proved`, `named`, and `missing`:
+`report` summarises 10 nodes with a headline coverage of 28% (2 of 7
+formal targets proved), plus a breakdown across `found`, `proved`,
+`named`, and `missing`:
 
 ```text
 # Group theory demo - blueprint status
 
 - Nodes: **10**
-- Formalised (found or proved): **5** (50.0%)
+- Formal targets (with Isabelle ref): **7**
+- Proved: **2**
+- Found (exists, not yet trusted): **3**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **28%** (2/7)
 
 | Formal status | Count |
 | --- | ---: |

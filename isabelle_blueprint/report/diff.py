@@ -81,7 +81,7 @@ class BlueprintDiff:
             "added": list(self.added),
             "removed": list(self.removed),
             "changes": [c.to_dict() for c in self.changes],
-            "regression_count": len(self.regressions),
+            "regression_count": len(self.regressions) + len(self.removed),
             "has_regression": self.has_regression,
         }
 

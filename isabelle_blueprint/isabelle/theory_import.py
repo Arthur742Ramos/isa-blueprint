@@ -6,9 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DECLARATION_KINDS = ("lemma", "theorem", "corollary", "proposition", "definition")
-_THEORY_RE = re.compile(r"(?m)^\s*theory\s+([A-Za-z_][\w'.]*)\b")
+# Anchor on [ \t]* rather than \s*: in multiline mode \s matches newlines, so
+# ^\s*theory could begin matching on a preceding blank line and report a line
+# number one or more lines too early.
+_THEORY_RE = re.compile(r"(?m)^[ \t]*theory\s+([A-Za-z_][\w'.]*)\b")
 _DECL_RE = re.compile(
-    r"(?m)^\s*"
+    r"(?m)^[ \t]*"
     r"(?P<kind>lemma|theorem|corollary|proposition|definition)\b"
     r"\s*(?:\([^)]+\)\s*)?"
     r"(?:qualified\s+)?"
@@ -33,7 +36,7 @@ class ImportedTheoryFact:
 
 
 def import_theory_file(path: Path) -> list[ImportedTheoryFact]:
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8", errors="replace")
     cleaned = strip_isabelle_comments(text)
     theory_match = _THEORY_RE.search(cleaned)
     theory = theory_match.group(1) if theory_match else path.stem

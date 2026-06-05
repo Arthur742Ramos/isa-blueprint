@@ -339,3 +339,18 @@ def test_extract_proof_status_markers_from_isabelle_output():
     assert statuses[("a", "Demo.a")]["oracles"] == []
     assert statuses[("b", "Demo.b")]["status"] == "tainted"
     assert statuses[("b", "Demo.b")]["oracles"] == ["Pure.skip_proof", "Code_Generator.holds"]
+
+
+def test_check_jobs_rejects_non_positive():
+    # --jobs forwards `-j N` to `isabelle build`; values < 1 are a silent no-op,
+    # so they are rejected like the other count flags (argparse exits with 2).
+    import pytest
+
+    from isabelle_blueprint.cli import _build_parser
+
+    parser = _build_parser()
+    parser.parse_args(["check", ".", "--jobs", "2"])  # valid: no error
+    with pytest.raises(SystemExit):
+        parser.parse_args(["check", ".", "--jobs", "0"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["check", ".", "--jobs", "-3"])

@@ -104,6 +104,33 @@ def test_config_blueprints_empty_list_raises(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+def test_cli_reports_malformed_config_as_clean_error(tmp_path: Path, capsys) -> None:
+    # A malformed isabelle-blueprint.toml used to escape as a raw
+    # tomllib.TOMLDecodeError traceback; load_project now wraps it so the CLI
+    # prints a one-line error and exits 1.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        "[project]\nname = \"oops\n", encoding="utf-8"  # unterminated string
+    )
+
+    rc = cli_main(["status", str(tmp_path)])
+
+    assert rc == 1
+    assert "could not load configuration" in capsys.readouterr().err
+
+
+def test_cli_rename_reports_malformed_config_as_clean_error(tmp_path: Path, capsys) -> None:
+    # cmd_rename loads only the config (not the full project); a malformed TOML
+    # must still surface as a clean BlueprintError, not a raw traceback.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        "[project]\nname = \"oops\n", encoding="utf-8"
+    )
+
+    rc = cli_main(["rename", "old", "new", "--project-dir", str(tmp_path)])
+
+    assert rc == 1
+    assert "could not load configuration" in capsys.readouterr().err
+
+
 def test_parse_blueprint_merges_nodes(tmp_path: Path) -> None:
     a = tmp_path / "a.md"
     a.write_text(_BP_A, encoding="utf-8")

@@ -56,7 +56,11 @@ from isabelle_blueprint.isabelle.compat import check_compatibility
 from isabelle_blueprint.isabelle.source_index import build_index, session_theory_files
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
-from isabelle_blueprint.project_io import load_project, load_project_with_check
+from isabelle_blueprint.project_io import (
+    load_config_checked,
+    load_project,
+    load_project_with_check,
+)
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.report.burndown import build_burndown_report, burndown_payload
 from isabelle_blueprint.report.critical_path import (
@@ -419,7 +423,12 @@ def build_server(
         limit: int | None = None,
         project: str | None = None,
     ) -> dict[str, object]:
-        """Summarize the ``trends.json`` coverage history (mirrors ``history --json``).
+        """Summarize the ``trends.json`` coverage history.
+
+        Returns the same ``entry_count``/``entries``/``deltas`` summary as
+        ``history --json``, plus two convenience keys not in the CLI output:
+        ``latest`` (the newest entry, or ``null`` when there is no history) and
+        ``trends_path`` (the resolved store location).
 
         Reads only the recorded trend store, so it still works when the current
         blueprint fails to parse — historical movement is most useful exactly
@@ -553,7 +562,11 @@ def build_server(
     ) -> dict[str, object]:
         """Preview a node rename without writing files."""
 
-        config, _project = load_project(catalog.resolve(project).root)
+        # Mirror the CLI's cmd_rename: rename_node only needs the config, so
+        # avoid re-parsing the whole blueprint. Use the checked loader so a
+        # malformed config surfaces as a BlueprintError (consistent with the
+        # other entrypoints) instead of leaking a raw ValueError/OSError.
+        config = load_config_checked(catalog.resolve(project).root)
         return rename_node(config, old_id, new_id, dry_run=True).to_dict()
 
     @server.resource("blueprint://projects", mime_type="application/json")

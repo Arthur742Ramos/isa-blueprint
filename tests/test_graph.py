@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
 from isabelle_blueprint.graph.graphviz_render import (
+    _mermaid_id,
     render_dot,
     render_json,
     render_mermaid,
@@ -86,6 +87,24 @@ def test_render_mermaid_contains_flowchart_nodes_and_edges():
     assert "style" in mermaid
     # Both node ids appear in the flowchart body.
     assert "a" in mermaid and "b" in mermaid
+
+
+def test_mermaid_id_is_injective_for_separator_variants():
+    # ``a.b``, ``a-b``, ``a/b`` and ``a:b`` are all distinct blueprint ids; the
+    # old mapping collapsed every separator to ``_`` and made them collide.
+    ids = ["a.b", "a-b", "a/b", "a:b", "a_b"]
+    mapped = [_mermaid_id(i) for i in ids]
+    assert len(set(mapped)) == len(ids)
+
+
+def test_render_mermaid_keeps_separator_distinct_nodes_connected():
+    # Two ids differing only by separator must remain two nodes with a real edge
+    # between them (previously both rendered as the same ``n_a_b`` node).
+    project = _project(("a.b", []), ("a-b", ["a.b"]))
+    mermaid = render_mermaid(project)
+    assert _mermaid_id("a.b") in mermaid
+    assert _mermaid_id("a-b") in mermaid
+    assert f"{_mermaid_id('a-b')} --> {_mermaid_id('a.b')}" in mermaid
 
 
 def test_cli_graph_format_mermaid_writes_mmd(tmp_path, capsys):
