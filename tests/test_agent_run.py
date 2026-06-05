@@ -177,6 +177,17 @@ def test_run_capture_enforces_cap_on_fast_burst() -> None:
         run_capture([sys.executable, "-c", burst], timeout=15, max_output_bytes=1000)
 
 
+def test_run_capture_caps_exception_output_to_bounded_tail() -> None:
+    # A single massive burst must not be read back in full when the cap trips:
+    # the exception carries only a bounded tail so the cap actually bounds the
+    # memory a runaway process can force the harness to allocate.
+    burst = "import sys; sys.stdout.write('x' * 500000); sys.stdout.flush()"
+    with pytest.raises(OutputLimitExceeded) as excinfo:
+        run_capture([sys.executable, "-c", burst], timeout=15, max_output_bytes=1000)
+    assert len(excinfo.value.output) <= 1000
+    assert len(excinfo.value.stderr) <= 1000
+
+
 def test_run_capture_without_cap_returns_normally() -> None:
     result = run_capture([sys.executable, "-c", "print('hi')"], timeout=30)
     assert result.returncode == 0

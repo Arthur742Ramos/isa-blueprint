@@ -154,13 +154,22 @@ def run_capture(
             except OSError:
                 return 0
 
-        def _read_all() -> tuple[str, str]:
-            out.seek(0)
-            err.seek(0)
-            return (
-                out.read().decode(encoding, "replace"),
-                err.read().decode(encoding, "replace"),
-            )
+        def _read_all(cap: int | None = None) -> tuple[str, str]:
+            # When ``cap`` is set, read only a bounded tail of each stream. A
+            # process can flood far past ``max_output_bytes`` in one burst
+            # between polls, so reading the whole temp file back would allocate
+            # an unbounded string and defeat the cap. The tail holds the most
+            # recent (and usually most diagnostic) output.
+            def _read(stream: Any) -> str:
+                stream.seek(0, os.SEEK_END)
+                size = stream.tell()
+                if cap is not None and size > cap:
+                    stream.seek(size - cap)
+                else:
+                    stream.seek(0)
+                return stream.read().decode(encoding, "replace")
+
+            return (_read(out), _read(err))
 
         if max_output_bytes is None:
             try:
@@ -183,7 +192,7 @@ def run_capture(
                 except subprocess.TimeoutExpired:
                     if _captured_size() > max_output_bytes:
                         _kill_tree(proc, pgid)
-                        stdout_text, stderr_text = _read_all()
+                        stdout_text, stderr_text = _read_all(max_output_bytes)
                         raise OutputLimitExceeded(
                             args,
                             max_output_bytes,
@@ -203,7 +212,7 @@ def run_capture(
             # burst between polls (or before the first poll fired), so the cap
             # must be re-checked after a clean exit -- not only on the poll path.
             if _captured_size() > max_output_bytes:
-                stdout_text, stderr_text = _read_all()
+                stdout_text, stderr_text = _read_all(max_output_bytes)
                 raise OutputLimitExceeded(
                     args,
                     max_output_bytes,

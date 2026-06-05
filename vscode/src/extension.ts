@@ -530,9 +530,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(watcher.onDidDelete(async () => refresh(provider, diagnostics)));
 
   // Owner annotations are read from `.isabelle-blueprint/assignments.json`; keep
-  // the tree in sync when assignments change. The fixed glob matches the fixed
-  // path readAssignments() uses, so the watcher and reader never drift apart.
-  const assignmentsWatcher = vscode.workspace.createFileSystemWatcher("**/assignments.json");
+  // the tree in sync when assignments change. The glob is scoped to that exact
+  // path (not a bare `**/assignments.json`) so unrelated files named
+  // `assignments.json` elsewhere in the workspace don't trigger needless
+  // refreshes, and the watcher stays aligned with the path readAssignments() reads.
+  const assignmentsWatcher = vscode.workspace.createFileSystemWatcher(
+    "**/.isabelle-blueprint/assignments.json",
+  );
   context.subscriptions.push(assignmentsWatcher);
   context.subscriptions.push(assignmentsWatcher.onDidChange(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(assignmentsWatcher.onDidCreate(async () => refresh(provider, diagnostics)));
