@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP `list_assignments` read tool** (plus `blueprint://assignments` and
+  `blueprint://projects/{project}/assignments` resources) exposes recorded
+  per-node ownership over MCP **without** `--allow-writes`. Previously the only
+  assignment surface was the write-gated `assign_node` tool, so a read-only
+  agent could not discover who owns a node before starting work — even though
+  CLI `assign` (no flags) lists ownership without writing. Mirrors CLI `assign`
+  list mode.
+
+### Fixed
+
+- **MCP `compat`/`history`/`burndown`/`theory_index` (and the `agent_run_plan`
+  prompt-path helper) no longer leak a raw `ValueError`/`OSError`** on a
+  malformed `isabelle-blueprint.toml`. They now load configuration through the
+  same `load_config_checked` boundary introduced in 1.11.0, so a bad config
+  surfaces as a clean `BlueprintError` consistent with every other entrypoint.
+- **MCP `assign_node` rejects a whitespace-only owner.** The `if not owner`
+  guard treated `"   "` as truthy, so a blank owner was persisted (and rendered
+  as an empty owner badge in the static site). The guard now also rejects
+  whitespace-only owners, and a valid owner is stored stripped.
+
+### Changed
+
+- **MCP `lint`, `graph`, and the staleness resources load more cheaply.** They
+  used the full `_snapshot` loader (which also computes fact suggestions, agent
+  memory, and the ready-task list) but only needed the parsed project, so they
+  now use the lean `load_project_with_check` loader — matching `critical_path`
+  and `impact` and avoiding wasted work per call.
+
 ## [1.11.0] - 2026-06-05
 
 ### Fixed

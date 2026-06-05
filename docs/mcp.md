@@ -119,6 +119,7 @@ Read tools are always registered:
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
 | `preview_rename_node` | Dry-run node rename preview; never writes files. |
+| `list_assignments` | List recorded per-node ownership (owner/note/updated_at); read-only counterpart to `assign_node`. |
 
 When `--allow-writes` is supplied, two low-risk write tools are also registered:
 
@@ -152,6 +153,7 @@ apply.
 | `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
 | `blueprint://theory-index` | Source-only `.thy` index for the default project. |
 | `blueprint://staleness` | Trusted-node staleness audit for the default project. |
+| `blueprint://assignments` | Recorded per-node ownership for the default project. |
 | `blueprint://burndown` | Velocity / ETA-to-full-coverage forecast for the default project. |
 | `blueprint://portfolio` | Workspace-wide roll-up across every discovered project (no project-scoped variant). |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
@@ -163,6 +165,7 @@ apply.
 | `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
 | `blueprint://projects/{project}/theory-index` | Selected-project source-only `.thy` index. |
 | `blueprint://projects/{project}/staleness` | Selected-project trusted-node staleness audit. |
+| `blueprint://projects/{project}/assignments` | Selected-project recorded per-node ownership. |
 | `blueprint://projects/{project}/burndown` | Selected-project velocity / ETA forecast. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 

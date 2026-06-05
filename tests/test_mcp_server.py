@@ -269,6 +269,21 @@ def test_mcp_preview_rename_node_malformed_config_raises_blueprint_error(tmp_pat
     assert "could not load configuration" in str(excinfo.value)
 
 
+@pytest.mark.parametrize("tool_name", ["compat", "history", "burndown", "theory_index"])
+def test_mcp_config_only_tools_wrap_malformed_config(tmp_path: Path, tool_name: str) -> None:
+    # compat/history/burndown/theory_index read only the config (history/burndown
+    # work even when the blueprint can't parse). A malformed isabelle-blueprint.toml
+    # must still surface as a BlueprintError, not a leaked ValueError/OSError.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "oops\n', encoding="utf-8"  # unterminated string
+    )
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(server, tool_name, {})
+    assert "could not load configuration" in str(excinfo.value)
+
+
 _STALE_BLUEPRINT = """# Stale MCP test
 
 ::: definition {#base}
@@ -431,6 +446,109 @@ def test_mcp_record_attempt_writes_memory_when_enabled(tmp_path: Path) -> None:
     assert result["attempt"]["outcome"] == "failed"
     memory = json.loads((tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text())
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp did not close the goal"
+
+
+def test_mcp_record_attempt_rejects_bad_outcome_and_unknown_node(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path, allow_writes=True)
+
+    with pytest.raises((BlueprintError, ToolError), match="unknown memory outcome"):
+        _direct_tool_result(
+            server,
+            "record_attempt",
+            {"node_id": "main", "outcome": "bogus", "summary": "x"},
+        )
+
+    with pytest.raises((BlueprintError, ToolError), match="unknown node id"):
+        _direct_tool_result(
+            server,
+            "record_attempt",
+            {"node_id": "ghost", "outcome": "failed", "summary": "x"},
+        )
+
+
+def test_mcp_assign_node_sets_and_clears_when_enabled(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path, allow_writes=True)
+
+    set_result = _direct_tool_result(
+        server, "assign_node", {"node_id": "main", "owner": "alice", "note": "lead"}
+    )
+    assert set_result["changed"] is True
+    assert set_result["assignment"]["owner"] == "alice"
+    assert set_result["assignment"]["note"] == "lead"
+    store = json.loads((tmp_path / ".isabelle-blueprint" / "assignments.json").read_text())
+    assert store["nodes"]["main"]["owner"] == "alice"
+
+    clear_result = _direct_tool_result(
+        server, "assign_node", {"node_id": "main", "clear": True}
+    )
+    assert clear_result["changed"] is True
+    assert clear_result["assignment"] is None
+
+
+def test_mcp_assign_node_rejects_blank_and_whitespace_owner(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path, allow_writes=True)
+
+    # Empty owner and whitespace-only owner are both rejected -- the latter
+    # previously slipped through (truthy) and persisted a junk blank-owner record.
+    with pytest.raises((BlueprintError, ToolError), match="owner is required"):
+        _direct_tool_result(server, "assign_node", {"node_id": "main"})
+    with pytest.raises((BlueprintError, ToolError), match="owner is required"):
+        _direct_tool_result(server, "assign_node", {"node_id": "main", "owner": "   "})
+    assert not (tmp_path / ".isabelle-blueprint" / "assignments.json").exists()
+
+
+def test_mcp_assign_node_strips_owner_whitespace(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path, allow_writes=True)
+
+    result = _direct_tool_result(
+        server, "assign_node", {"node_id": "main", "owner": "  bob  "}
+    )
+    assert result["assignment"]["owner"] == "bob"
+
+
+def test_mcp_list_assignments_is_read_only_and_mirrors_store(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+
+    # Available on a default (read-only) server -- no --allow-writes needed.
+    read_only = build_server(tmp_path)
+    assert "list_assignments" in {t.name for t in asyncio.run(read_only.list_tools())}
+
+    empty = _direct_tool_result(read_only, "list_assignments", {})
+    assert empty["assignments"] == []
+
+    # Seed an assignment via the write tool, then read it back read-only.
+    writable = build_server(tmp_path, allow_writes=True)
+    _direct_tool_result(
+        writable, "assign_node", {"node_id": "main", "owner": "alice", "note": "lead"}
+    )
+    listed = _direct_tool_result(read_only, "list_assignments", {})
+    owners = {item["node_id"]: item["owner"] for item in listed["assignments"]}
+    assert owners["main"] == "alice"
+
+
+def test_mcp_assignments_resource_registered(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+    uris = {str(r.uri) for r in asyncio.run(server.list_resources())}
+    assert "blueprint://assignments" in uris
+
+
+def test_mcp_prove_task_prompt_is_registered_and_renders(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    # prove_task is the only @server.prompt; assert it is discoverable...
+    prompt_names = {p.name for p in asyncio.run(server.list_prompts())}
+    assert "prove_task" in prompt_names
+
+    # ...and that it renders the ready task's prompt body.
+    result = asyncio.run(server.get_prompt("prove_task", {}))
+    text = result.messages[0].content.text
+    assert "Acceptance criteria" in text
 
 
 def test_mcp_lists_and_selects_projects_from_repo_root(tmp_path: Path) -> None:

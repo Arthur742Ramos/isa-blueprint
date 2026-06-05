@@ -63,8 +63,9 @@ Read tools are always registered: `version`, `list_projects`, `status`,
 `roadmap`, `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`,
 `explain_node`, `lint`, `critical_path`, `impact`, `stats`, `staleness`,
 `history`, `burndown`, `portfolio`, `compat`, `suggest_facts`, `theory_index`,
-`graph`, `schema`, `doctor`, and `preview_rename_node`. The write tools
-`record_attempt` and `assign_node` are registered only with `--allow-writes`.
+`graph`, `schema`, `doctor`, `preview_rename_node`, and `list_assignments`. The
+write tools `record_attempt` and `assign_node` are registered only with
+`--allow-writes`.
 Project-specific tools accept an optional `project` selector. It may be a
 project id from `list_projects`, a relative path, an absolute path under
 `--project-dir`, or a unique configured project name. If the launch directory is

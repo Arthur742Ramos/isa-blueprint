@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from isabelle_blueprint import __version__
 from isabelle_blueprint.agents.assignments import (
+    AssignmentStore,
     clear_assignment,
     load_assignments,
     set_assignment,
@@ -47,7 +48,7 @@ from isabelle_blueprint.agents.selection import (
     selection_metadata,
 )
 from isabelle_blueprint.agents.tasks import generate_tasks, render_task_prompt
-from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME, load_config
+from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.explain import explain_project
@@ -346,8 +347,8 @@ def build_server(
     def lint(project: str | None = None) -> dict[str, object]:
         """Run structural and quality lint checks without invoking Isabelle."""
 
-        snapshot = _snapshot(catalog.resolve(project).root)
-        return build_lint_report(snapshot.project).to_dict()
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_lint_report(parsed).to_dict()
 
     @server.tool(name="critical_path")
     def critical_path(
@@ -488,7 +489,7 @@ def build_server(
         write the report file to disk.
         """
 
-        config = load_config(catalog.resolve(project).root)
+        config = load_config_checked(catalog.resolve(project).root)
         report = check_compatibility(config, isabelle_executable=isabelle)
         return report.to_dict()
 
@@ -528,13 +529,13 @@ def build_server(
     ) -> dict[str, object]:
         """Return the dependency graph as JSON, DOT, or Mermaid without writing files."""
 
-        snapshot = _snapshot(catalog.resolve(project).root)
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
         if format == "json":
-            return {"format": "json", "graph": json.loads(render_json(snapshot.project))}
+            return {"format": "json", "graph": json.loads(render_json(parsed))}
         if format == "dot":
-            return {"format": "dot", "graph": render_dot(snapshot.project)}
+            return {"format": "dot", "graph": render_dot(parsed)}
         if format == "mermaid":
-            return {"format": "mermaid", "graph": render_mermaid(snapshot.project)}
+            return {"format": "mermaid", "graph": render_mermaid(parsed)}
         raise BlueprintError("graph format must be one of: json, dot, mermaid")
 
     @server.tool(name="schema")
@@ -568,6 +569,18 @@ def build_server(
         # other entrypoints) instead of leaking a raw ValueError/OSError.
         config = load_config_checked(catalog.resolve(project).root)
         return rename_node(config, old_id, new_id, dry_run=True).to_dict()
+
+    @server.tool(name="list_assignments")
+    def list_assignments(project: str | None = None) -> dict[str, object]:
+        """List node ownership (owner/note/updated_at) recorded for the project.
+
+        This is the read-only counterpart to the ``assign_node`` write tool: it
+        mirrors CLI ``assign`` list mode, so an agent can discover who owns a node
+        before starting work without needing ``--allow-writes``. A missing or
+        corrupt assignments store is tolerated (returns an empty list).
+        """
+
+        return _assignments_resource_payload(catalog.resolve(project).root)
 
     @server.resource("blueprint://projects", mime_type="application/json")
     def projects_resource() -> str:
@@ -661,8 +674,14 @@ def build_server(
     def staleness_resource() -> str:
         """Trusted-node staleness audit for the default project."""
 
-        snapshot = _snapshot(catalog.resolve(None).root)
-        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(staleness_payload(build_staleness_report(parsed)))
+
+    @server.resource("blueprint://assignments", mime_type="application/json")
+    def assignments_resource() -> str:
+        """Recorded node ownership for the default project."""
+
+        return _json_resource(_assignments_resource_payload(catalog.resolve(None).root))
 
     @server.resource("blueprint://projects/{project}/project", mime_type="application/json")
     def project_scoped_project_resource(project: str) -> str:
@@ -750,8 +769,16 @@ def build_server(
     def project_scoped_staleness_resource(project: str) -> str:
         """Trusted-node staleness audit for a selected project id."""
 
-        snapshot = _snapshot(catalog.resolve(project).root)
-        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(staleness_payload(build_staleness_report(parsed)))
+
+    @server.resource(
+        "blueprint://projects/{project}/assignments", mime_type="application/json"
+    )
+    def project_scoped_assignments_resource(project: str) -> str:
+        """Recorded node ownership for a selected project id."""
+
+        return _json_resource(_assignments_resource_payload(catalog.resolve(project).root))
 
     @server.resource("blueprint://schemas/{name}", mime_type="application/json")
     def schema_resource(name: str) -> str:
@@ -842,9 +869,9 @@ def _register_write_tools(
             if clear:
                 changed = clear_assignment(store, node_id)
             else:
-                if not owner:
+                if not owner or not owner.strip():
                     raise BlueprintError("owner is required unless clear=true")
-                set_assignment(store, node_id, owner, note=note)
+                set_assignment(store, node_id, owner.strip(), note=note)
                 changed = True
             if changed:
                 write_assignments(store, snapshot.config.assignments_path)
@@ -1122,11 +1149,40 @@ def _snapshot(project_dir: Path) -> _ProjectSnapshot:
     return _ProjectSnapshot(project_dir)
 
 
+def _assignments_payload(
+    project_name: str, store: AssignmentStore, assignments_path: Path
+) -> dict[str, object]:
+    """Shape an assignment store the same way CLI ``assign`` list mode does."""
+
+    items = [
+        {
+            "node_id": nid,
+            "owner": assignment.owner,
+            "note": assignment.note,
+            "updated_at": assignment.updated_at,
+        }
+        for nid, assignment in sorted(store.nodes.items())
+    ]
+    return {
+        "project": project_name,
+        "assignments_file": str(assignments_path),
+        "assignments": items,
+    }
+
+
+def _assignments_resource_payload(project_dir: Path) -> dict[str, object]:
+    """Load + shape node ownership for the ``list_assignments`` tool and resource."""
+
+    config, parsed = load_project(project_dir)
+    store = load_assignments(config.assignments_path)
+    return _assignments_payload(parsed.name, store, config.assignments_path)
+
+
 def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str, object]:
     # History only needs trends.json, so avoid parsing the (possibly broken)
     # blueprint: historical data is most useful exactly when the current
     # blueprint does not load.
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     entries = load_trends(config.trends_path)
     summary = summarize_trends(entries, limit=limit)
     payload = summary.to_dict()
@@ -1143,7 +1199,7 @@ def _burndown_payload(
 ) -> dict[str, object]:
     # Like history, burndown reads only trends.json, so it still forecasts when
     # the current blueprint fails to parse.
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     entries = load_trends(config.trends_path)
     report = build_burndown_report(entries, recent_window=window or 5)
     payload = burndown_payload(report, limit=limit)
@@ -1172,7 +1228,7 @@ def _theory_index_payload(
 ) -> dict[str, object]:
     # Source-only analysis: read .thy files directly and never parse the
     # (possibly broken) blueprint, so it works on partial checkouts and CI.
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     selected_session = session if session is not None else config.isabelle_session
     roots = config.isabelle_dirs or [config.project_root]
     # Per-root warnings about missing/empty roots are only meaningful when several
@@ -1321,7 +1377,7 @@ def _agent_run_plan_payload(
         return plan
     task_id = str(task["id"])
     node_id = str(task["node_id"])
-    config = load_config(project_root)
+    config = load_config_checked(project_root)
     prompt_path = config.build_dir / "agent-run" / safe_prompt_filename(task_id)
     plan["prompt_path"] = str(prompt_path)
     cli_argv = ["isabelle-blueprint", "agent-run", str(project_root), "--node", task_id]
