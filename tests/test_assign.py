@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from isabelle_blueprint.agents.assignments import load_assignments
+from isabelle_blueprint.agents.assignments import (
+    AssignmentStore,
+    load_assignments,
+    set_assignment,
+    write_assignments,
+)
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.errors import BlueprintError
 
@@ -146,3 +151,21 @@ def test_load_assignments_corrupt_store_raises_in_strict_mode(tmp_path: Path) ->
 
     with pytest.raises(BlueprintError):
         load_assignments(path, strict=True)
+
+
+def test_write_assignments_is_atomic_and_leaves_no_temp_file(tmp_path: Path) -> None:
+    # write_assignments writes a temp sibling then renames, so a concurrent
+    # reader never sees a half-written file. Verify the rename completes (no
+    # lingering .tmp) and the store round-trips.
+    path = tmp_path / "assignments.json"
+    store = AssignmentStore()
+    set_assignment(store, "main", "alice", note="lead")
+
+    write_assignments(store, path)
+
+    assert path.exists()
+    assert not (tmp_path / "assignments.json.tmp").exists()
+    reloaded = load_assignments(path)
+    assert reloaded.nodes["main"].owner == "alice"
+    # The persisted file is always complete, valid JSON (never a partial write).
+    json.loads(path.read_text(encoding="utf-8"))

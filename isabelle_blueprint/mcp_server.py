@@ -1152,7 +1152,12 @@ def _snapshot(project_dir: Path) -> _ProjectSnapshot:
 def _assignments_payload(
     project_name: str, store: AssignmentStore, assignments_path: Path
 ) -> dict[str, object]:
-    """Shape an assignment store the same way CLI ``assign`` list mode does."""
+    """Shape an assignment store for MCP clients.
+
+    The ``project`` + ``assignments`` list mirrors CLI ``assign`` list mode; an
+    extra ``assignments_file`` key (not in the CLI output) records the resolved
+    store path so an agent can locate it.
+    """
 
     items = [
         {

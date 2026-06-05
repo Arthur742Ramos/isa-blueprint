@@ -151,7 +151,12 @@ def load_agent_memory(path: Path, *, strict: bool = False) -> AgentMemory:
 
 def write_agent_memory(memory: AgentMemory, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(memory.to_dict(), indent=2), encoding="utf-8")
+    # Write to a temp sibling then atomically rename, so a concurrent reader
+    # (e.g. the MCP ``stats`` tool) never observes a half-written file and
+    # treats it as corrupt.
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(memory.to_dict(), indent=2), encoding="utf-8")
+    tmp.replace(path)
     return path
 
 

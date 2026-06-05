@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agent-memory and assignment stores are now written atomically** (temp
+  sibling + rename) instead of truncate-in-place. A concurrent reader — e.g. the
+  MCP `stats` or new `list_assignments` tool running while a write tool updates
+  the store — can no longer observe a half-written file and treat it as corrupt.
 - **MCP `compat`/`history`/`burndown`/`theory_index` (and the `agent_run_plan`
   prompt-path helper) no longer leak a raw `ValueError`/`OSError`** on a
   malformed `isabelle-blueprint.toml`. They now load configuration through the
