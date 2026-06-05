@@ -27,6 +27,9 @@
     "onCommand:isabelleBlueprint.runTasks",
     "onCommand:isabelleBlueprint.runRoadmap",
     "onCommand:isabelleBlueprint.runAgentContext",
+    "onCommand:isabelleBlueprint.runStaleness",
+    "onCommand:isabelleBlueprint.runBurndown",
+    "onCommand:isabelleBlueprint.runCriticalPath",
     "onCommand:isabelleBlueprint.openNextTaskPrompt",
     "onCommand:isabelleBlueprint.previewTaskPrompt",
     "onCommand:isabelleBlueprint.explainNode",
@@ -74,6 +77,18 @@
       {
         "command": "isabelleBlueprint.runAgentContext",
         "title": "IsabelleBlueprint: Generate Agent Context"
+      },
+      {
+        "command": "isabelleBlueprint.runStaleness",
+        "title": "IsabelleBlueprint: Audit Staleness"
+      },
+      {
+        "command": "isabelleBlueprint.runBurndown",
+        "title": "IsabelleBlueprint: Forecast Burndown"
+      },
+      {
+        "command": "isabelleBlueprint.runCriticalPath",
+        "title": "IsabelleBlueprint: Show Critical Path"
       },
       {
         "command": "isabelleBlueprint.openNextTaskPrompt",

@@ -14,6 +14,12 @@ Features:
 - One-click navigation from the tree to the node source.
 - Commands to run `isabelle-blueprint report`, `check`, `tasks`, `roadmap`, and
   `agent-context` from the active workspace.
+- Proof-analytics commands that surface read-only insight in the output panel:
+  **Audit Staleness** (`staleness`), **Forecast Burndown** (`burndown`), and
+  **Show Critical Path** (`critical-path`).
+- Owner annotations in the tree: when `.isabelle-blueprint/assignments.json`
+  assigns an owner to a node, the row shows `@owner` and the tooltip lists the
+  full owner; the tree refreshes automatically when assignments change.
 - Command to open the CLI-selected next ready task prompt without generating
   prompt files first.
 - Task prompt preview from generated `build/prompts/task-<node>.md` files, with

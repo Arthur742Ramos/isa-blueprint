@@ -210,6 +210,56 @@ fails to parse.
 - `--json` emits the machine-readable summary.
 - `--limit N` restricts the summary to the most recent `N` entries.
 
+### `burndown`
+
+```text
+isabelle-blueprint burndown [project_dir] [--json] [--limit N] [--window N] [--fail-when-stalled]
+```
+
+Forecasts an ETA to full *proved* coverage from `trends.json`. Like `history`, it
+reads only the trend store, so it keeps forecasting when the current blueprint
+fails to parse. The ETA is derived from the slope of **remaining** work over time
+(so a growing `formal_target_count` is reflected — proving faster does not help if
+the target grows just as fast), with proved/target/net-burndown velocities
+reported for context.
+
+The `status` is one of `no_history`, `no_targets`, `complete`,
+`insufficient_history`, `on_track`, `stalled`, `scope_growing`, `regressing`, or
+`beyond_horizon`.
+
+- `--json` emits the machine-readable forecast (including the velocity blocks and
+  per-snapshot points).
+- `--limit N` only displays the most recent `N` snapshots; the velocity/ETA
+  always use the full usable series.
+- `--window N` sets how many recent snapshots feed the "recent" velocity used for
+  the forecast (default `5`).
+- `--fail-when-stalled` exits non-zero (`5`) when work remains but the status is
+  `stalled`, `regressing`, `scope_growing`, or `beyond_horizon`.
+
+### `portfolio`
+
+```text
+isabelle-blueprint portfolio [root_dir] [--json] [--fail-on-problem]
+```
+
+Scans `root_dir` (default `.`) for every IsabelleBlueprint project and rolls them
+up into a single dashboard: per-project coverage, health, problem/cycle flags, and
+ready-task counts, plus portfolio-wide totals. Project discovery mirrors the MCP
+catalog — a directory is a project when it holds an `isabelle-blueprint.toml` or
+`blueprint.md` marker, nested projects are not descended into, and noisy
+build/vendor directories (and dotted/symlinked directories) are skipped.
+
+Loading is best-effort: a project that fails to load (missing blueprint, malformed
+TOML, unreadable file) is reported as an `error` entry and excluded from the
+aggregate counts rather than aborting the whole roll-up. `coverage_percent` is
+`null` when a project (or the portfolio) has no formal targets — treat it as
+"unknown", not `0%`.
+
+- `--json` emits the machine-readable roll-up (`schema_version`, `root`, `totals`,
+  and a `projects` list).
+- `--fail-on-problem` exits non-zero (`5`) when any project has problems, has a
+  dependency cycle, or fails to load.
+
 ### `assign`
 
 ```text
@@ -284,6 +334,15 @@ graph viewer, status table, tasks view, roadmap page, roadmap JSON, and trend
 chart. `--watch` (added in v1.1) re-renders when blueprint/check/report inputs
 change. `--serve` also starts a local HTTP server on `127.0.0.1:8000` by
 default.
+
+The graph page also surfaces a **critical-path panel** (the longest remaining
+dependency chain to a goal, plus the highest-leverage bottlenecks) and, when an
+`assignments.json` store exists (see `assign`), **owner badges** with an owner
+filter over the dependency-levels listing; critical-path nodes are flagged with a
+`★` marker on the graph and per-node pages. The same analysis is written to
+`site/critical-path.json` for automation. These overlays are additive: with no
+assignments the owner filter is omitted, and an all-proved project shows an
+empty-state callout instead of a chain.
 
 ### `serve`
 
@@ -444,13 +503,86 @@ metadata, and ready-task counts. When no ready task exists, those object fields
 are `null` and the command exits 0. If filters exclude existing ready tasks,
 `message` reports that filtered state instead of implying the project is empty.
 
+### `agent-run`
+
+```text
+isabelle-blueprint agent-run [project_dir]
+                            [--node NODE_OR_TASK]
+                            (--command TEMPLATE | --exec PROGRAM [--arg ARG ...])
+                            [--allow-missing-prompt]
+                            [--timeout SECONDS]
+                            [--max-output-bytes N]
+                            [--output PATH]
+                            [--dry-run]
+                            [--json]
+                            [--kind KIND]
+                            [--priority high|medium|low]
+                            [--difficulty low|medium|high]
+                            [--memory-state fresh|attempted|stale]
+                            [--last-outcome OUTCOME]
+                            [--exclude-node NODE_OR_TASK]
+                            [--failure-outcome failed|blocked|needs_human]
+                            [--no-record]
+                            [--summary TEXT]
+                            [--details TEXT]
+                            [--next-step TEXT]
+                            [--actor TEXT]
+                            [--tool TEXT]
+                            [--max-attempts N]
+                            [--fail-on-failure]
+```
+
+Added in v1.10. Selects the next ready task (like `next`/`attempt`), renders its
+prompt, runs an **external solver** against it, and records the outcome in agent
+memory — closing the select → prompt → run → record loop in one command. The
+solver is run **without a shell**; placeholder values are substituted per-argv
+token so they cannot inject extra arguments.
+
+Supply the command in one of two mutually exclusive ways:
+
+- `--exec PROGRAM` plus repeated `--arg ARG` is the **argv-native** form and is
+  recommended on Windows because it never tokenises backslash paths. Because
+  argparse consumes a leading-dash value as an option, pass flag-style arguments
+  with the `--arg=-c` form (not `--arg -c`).
+- `--command "TEMPLATE"` is a convenience string tokenised with POSIX `shlex`
+  quoting.
+
+Both forms support the placeholders `{prompt_file}` (absolute path to the
+rendered prompt), `{node_id}`, `{task_id}`, and `{project_dir}`. Unknown
+`{placeholder}` tokens are rejected. The command must reference `{prompt_file}`
+unless `--allow-missing-prompt` is given, since otherwise the solver never sees
+the prompt. The prompt is passed by file (not stdin).
+
+The prompt is written to `build/agent-run/<task>.md` by default; `--output`
+overrides this (relative paths resolve against the project dir). `--timeout`
+(default 900s) kills the solver and its child process tree. `--max-output-bytes`
+(default 10 MiB; `0` disables) caps captured stdout+stderr so a runaway solver
+cannot flood the disk. Only bounded tails of stdout/stderr are surfaced and
+recorded.
+
+Outcome mapping: exit 0 → `succeeded`; non-zero / timeout / output-limit →
+`--failure-outcome` (default `failed`); a spawn error (the executable could not
+start) → `blocked`. A spawn error is treated as a harness/config failure, **not**
+a proof attempt: it is never recorded against the node and always exits 1.
+
+`--dry-run` selects and renders the task and resolves the command **without**
+running it, writing the prompt, or recording memory. `--no-record` runs the
+solver but skips the memory write. By default the command exits 0 even when the
+solver fails (the harness succeeded); pass `--fail-on-failure` to exit 5 when the
+recorded outcome is not `succeeded`. The ready-task filters and `--node`
+selector behave exactly as in `next`/`attempt`.
+
+`--json` emits the run result (`task`, `command`, `outcome`, `return_code`,
+`recorded`, `memory`, `stdout_tail`, `stderr_tail`, `prompt_path`, filter
+metadata, and counts). When no ready task exists those fields are `null` and the
+command exits 0.
+
 ### `report`
 
 ```text
 isabelle-blueprint report [project_dir] [--fail-on STATUS ...]
                           [--watch] [--interval SECONDS]
 ```
-
 Writes the machine-readable status payload:
 
 - `build/project.json` — the full node graph (see
@@ -860,6 +992,34 @@ outcome. The text form is a compact report; `--json` emits the same data in a
 lightweight shape. This analytics payload is **not** part of the frozen JSON
 contract and may evolve.
 
+### `staleness`
+
+```text
+isabelle-blueprint staleness [project_dir]
+                             [--json] [--top N] [--max-causes N]
+                             [--fail-on-problem]
+```
+
+Audits every **trusted** node (formal status `found` or `proved`) and walks its
+dependencies to decide whether that trust is justified. A trusted node is
+reported as *stale* when it rests on a dependency that undermines it, with each
+offending dependency recorded as a *cause* whose `reason` is one of (strongest
+first): `missing` (a `uses:` entry points at a non-existent node), `cycle` (the
+node is in a dependency cycle), `problem` (a dependency is
+`not_found`/`broken`/`tainted`/`failed_check`), `incomplete` (a dependency is
+`named`/`missing`, i.e. unproven), `stale_dep` (a dependency is itself `stale`),
+or `outdated` (a dependency's `last_checked` is strictly newer than this node's,
+so the node was verified before the dependency moved). Reasons roll up into three
+severity buckets — `problem`, `incomplete`, `outdated` — and a node's severity is
+the strongest bucket among its causes.
+
+`--top` limits the number of stale nodes shown (and kept in `--json`), and
+`--max-causes` limits the causes listed per node; `cause_count` always reports
+the true total. `--fail-on-problem` exits non-zero (5) when any trusted node has
+a `problem`-severity cause (broken or missing dependency), which is useful in
+CI. The `--json` payload carries a `schema_version` but, like the other
+analytics commands, is **not** part of the frozen JSON contract and may evolve.
+
 ### `version`
 
 ```text
@@ -874,13 +1034,25 @@ schema `schemas`. (The top-level `--version` flag remains available and prints
 ### `completion`
 
 ```text
-isabelle-blueprint completion {bash,zsh,fish}
+isabelle-blueprint completion {bash,zsh,fish,powershell}
+                              [--install] [--dest PATH]
 ```
 
 Emits a shell completion script for the named shell to stdout. The script
-completes the subcommand names and otherwise falls back to file completion. It
-has no runtime dependencies; redirect it into your shell's completion directory
-or source it from your shell profile.
+completes the subcommand names, then the options of the chosen subcommand (any
+word starting with `-`), and otherwise falls back to file completion. The option
+lists are generated from the live parser, so they never drift from the flags a
+subcommand actually accepts. It has no runtime dependencies; redirect it into
+your shell's completion directory or source it from your shell profile. The
+PowerShell script registers a native argument completer — load it with
+`isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
+(add that line to your `$PROFILE` to persist it).
+
+`--install` writes the script to the shell's conventional completion location
+instead of stdout (honouring `XDG_DATA_HOME`/`XDG_CONFIG_HOME` where relevant)
+and prints the destination plus any activation hint. `--dest PATH` writes to an
+explicit path (creating parent directories as needed); it implies install
+behaviour. Both are convenience wrappers and emit the same script content.
 
 ### `new`
 

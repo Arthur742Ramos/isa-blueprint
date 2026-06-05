@@ -276,10 +276,11 @@ already justify.
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
 | `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note | A single proof-attempt handoff/check/record loop. |
+| `agent-run` | Runs an external solver against the next ready task and records the outcome | Closing the select → prompt → run → record loop in one shell-free command. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
-| `web` / `serve` | Static HTML site plus `site/roadmap.json` | Public progress pages, roadmap boards, and local preview. |
+| `web` / `serve` | Static HTML site plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, roadmap boards, critical-path + owner overlays, and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
@@ -290,7 +291,10 @@ already justify.
 | `theory-index` | Source-only call graph, theory deps, `sorry`/`oops`, and unreferenced-entry analysis (no Isabelle needed) | Offline inspection of `.thy` trees in CI or on partial checkouts. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 | `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
+| `staleness` | Terminal or JSON trusted-node trust audit | Finding `proved`/`found` facts that rest on broken, unproven, or newer dependencies. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
+| `burndown` | Terminal or JSON velocity / ETA forecast from `trends.json` | Projecting when full proved coverage lands, and spotting stalls or scope creep. |
+| `portfolio` | Terminal or JSON cross-project roll-up | Aggregating coverage, health, and problems across every blueprint project in a monorepo or umbrella tree. |
 | `isabelle-blueprint-mcp` | MCP tools, resources, and prompts | Direct consumption by AI agents and MCP clients. |
 | `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
 
@@ -333,13 +337,15 @@ returned project `id` (or a relative path / unique project name) as the optional
 project-specific tools.
 
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
-`list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
-`critical_path`, `impact`, `stats`, `history`, `compat`, `suggest_facts`,
-`theory_index`, `graph`, `schema`, and `doctor`; resources
-such as `blueprint://projects`,
+`list_tasks`, `next_task`, `agent_run_plan`, `agent_context`, `explain_node`,
+`lint`, `critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
+`portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and
+`doctor`; resources such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
-`blueprint://roadmap`, `blueprint://history`, `blueprint://fact-suggestions`,
-`blueprint://theory-index`, and `blueprint://nodes/{node_id}`; and a `prove_task`
+`blueprint://roadmap`, `blueprint://history`, `blueprint://burndown`,
+`blueprint://portfolio`, `blueprint://fact-suggestions`,
+`blueprint://theory-index`, `blueprint://staleness`, and
+`blueprint://nodes/{node_id}`; and a `prove_task`
 prompt for the suggested ready proof task. Add `--allow-writes` only when you
 want low-risk write tools for recording proof-attempt memory and per-node
 assignments. See [`docs/mcp.md`](docs/mcp.md) for the full tool/resource catalog
@@ -520,6 +526,45 @@ node changed — a quick way to gauge the risk of touching a foundational fact.
 With no `--node` it ranks every node by blast-radius size so you can spot the
 highest-leverage foundations.
 
+Use `staleness` for the project-wide *trust audit* — the inverse of `impact`.
+Where `impact` asks "what rests on X?", `staleness` asks "is X's own `found`/
+`proved` status well-founded?". It scans every trusted node and walks its
+dependencies, flagging the ones that rest on a broken/missing dependency
+(`problem`), an unproven one (`incomplete`), or a dependency that was re-checked
+more recently than the node (`outdated`), plus trusted nodes caught in a cycle:
+
+```bash
+isabelle-blueprint staleness .                   # audit every trusted node
+isabelle-blueprint staleness . --json
+isabelle-blueprint staleness . --top 20 --max-causes 3
+isabelle-blueprint staleness . --fail-on-problem   # exit 5 on broken/missing deps
+```
+
+Use `agent-run` to close the whole loop in one command — it selects the next
+ready task (honouring the same filters as `next`/`attempt`), renders the prompt,
+runs an **external solver** against it, and records the outcome in agent memory.
+The solver runs without a shell, with a timeout and an output-size cap, and the
+`{prompt_file}` `{node_id}` `{task_id}` `{project_dir}` placeholders are
+substituted per argv token (no argument injection):
+
+```bash
+# argv-native form (recommended on Windows; note --arg=-c for dash-led values)
+isabelle-blueprint agent-run . --exec my-solver --arg=--prompt --arg "{prompt_file}"
+# convenience string form (POSIX shlex quoting)
+isabelle-blueprint agent-run . --command "my-solver --prompt {prompt_file}"
+isabelle-blueprint agent-run . --dry-run --json          # preview without running
+isabelle-blueprint agent-run . --node main-theorem --fail-on-failure   # exit 5 if not solved
+```
+
+Exit 0 maps to the `succeeded` outcome; a non-zero exit, timeout, or output-limit
+maps to `--failure-outcome` (default `failed`); and a solver that cannot start
+maps to `blocked` and is never recorded (it is a config error, not a proof
+attempt). Pass `--dry-run` to preview the resolved command without running it,
+`--no-record` to run without writing memory, and `--fail-on-failure` to exit 5
+when the result is not `succeeded`. The MCP `agent_run_plan` tool returns the same
+plan (selected task, resolved argv, and the exact `cli_argv`) without ever
+executing anything.
+
 Use `agent-context` when an AI agent needs the whole working brief in one stable
 payload:
 
@@ -646,6 +691,10 @@ source and store in one step:
 ```bash
 isabelle-blueprint history .
 isabelle-blueprint history . --json --limit 10
+isabelle-blueprint burndown .                      # ETA to full proved coverage
+isabelle-blueprint burndown . --json --fail-when-stalled
+isabelle-blueprint portfolio .                     # roll up every project in the tree
+isabelle-blueprint portfolio . --json --fail-on-problem
 isabelle-blueprint graph . --format mermaid        # writes build/graph.mmd
 isabelle-blueprint assign main-theorem --owner alice
 isabelle-blueprint assign                          # list current owners
@@ -655,8 +704,15 @@ isabelle-blueprint rename old-id new-id
 ```
 
 `history` reads only `trends.json`, so it keeps working even when the current
-blueprint fails to parse. `rename` runs a re-parse safety check before writing
-and rolls back source edits if a write fails part way through.
+blueprint fails to parse. `burndown` reads the same store and forecasts an ETA to
+full proved coverage from the slope of *remaining* work, so it reflects scope
+growth — proving faster does not move the date if the target grows just as fast —
+and flags `stalled`, `regressing`, or `scope_growing` projects. `portfolio` scans a
+directory tree for every blueprint project and rolls up coverage, health, and
+problem/cycle flags into one dashboard (loading is best-effort, so an unparseable
+project becomes an error entry instead of aborting the roll-up). `rename` runs a
+re-parse safety check before writing and rolls back source edits if a write fails
+part way through.
 
 ## VS Code extension
 

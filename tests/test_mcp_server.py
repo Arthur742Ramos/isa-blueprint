@@ -48,7 +48,9 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
-    assert {"history", "compat", "suggest_facts"} <= read_only_names
+    assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
+    assert "portfolio" in read_only_names
+    assert "agent_run_plan" in read_only_names
     assert "record_attempt" not in read_only_names
     assert "assign_node" not in read_only_names
 
@@ -93,6 +95,43 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"
     assert stats["total_attempts"] == 0
+
+
+def test_mcp_agent_run_plan_is_read_only(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    plan = _direct_tool_result(
+        server, "agent_run_plan", {"command": "solver --in {prompt_file} --node {node_id}"}
+    )
+    assert plan["task"]["node_id"] == "main"
+    assert plan["command_argv_preview"][0] == "solver"
+    assert plan["command_argv_preview"][-1] == "main"
+    assert any(part.endswith(".md") for part in plan["command_argv_preview"])
+    assert plan["command_error"] is None
+    assert plan["cli_argv"][:2] == ["isabelle-blueprint", "agent-run"]
+    assert plan["outcome_mapping"]["spawn_error"] == "blocked"
+    assert "CLI-only" in plan["execution_note"]
+    # The planning tool must never execute or write the prompt file.
+    assert not (tmp_path / "build" / "agent-run").exists()
+
+    malformed = _direct_tool_result(server, "agent_run_plan", {"command": "solver {bogus}"})
+    assert "unknown command placeholder" in malformed["command_error"]
+    assert malformed["command_argv_preview"] is None
+
+    without_command = _direct_tool_result(server, "agent_run_plan", {})
+    assert without_command["command_argv_preview"] is None
+    assert without_command["cli_argv"][-2:] == ["--command", "<solver> {prompt_file}"]
+
+    # A command that omits {prompt_file} is permitted by the planner, but the
+    # suggested cli_argv must stay runnable by mirroring --allow-missing-prompt.
+    missing_prompt = _direct_tool_result(
+        server, "agent_run_plan", {"command": "solver --quiet"}
+    )
+    assert missing_prompt["command_error"] is None
+    assert missing_prompt["command_argv_preview"] == ["solver", "--quiet"]
+    assert "--allow-missing-prompt" in missing_prompt["cli_argv"]
+    assert "--allow-missing-prompt" not in plan["cli_argv"]
 
 
 def test_mcp_history_tool_reports_trend_deltas(tmp_path: Path) -> None:
@@ -200,6 +239,138 @@ def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
     message = str(excinfo.value)
     assert "unknown node 'nope'" in message
     assert "base" in message and "main" in message
+
+
+_STALE_BLUEPRINT = """# Stale MCP test
+
+::: definition {#base}
+title: Base
+isabelle: Demo.base
+status: broken
+
+BASE.
+:::
+
+::: theorem {#main}
+title: Main
+isabelle: Demo.main
+uses:
+  - base
+status: proved
+
+MAIN.
+:::
+"""
+
+
+def test_mcp_staleness_tool_and_resource(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "stale-mcp"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(_STALE_BLUEPRINT, encoding="utf-8")
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "staleness", {"top": 5})
+    assert result["project"] == "stale-mcp"
+    assert result["stale_count"] == 1
+    stale = result["stale_nodes"][0]
+    assert stale["node_id"] == "main"
+    assert stale["severity"] == "problem"
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://staleness"))))
+    payload = json.loads(contents[0].content)
+    assert payload["stale_nodes"][0]["node_id"] == "main"
+
+
+def test_mcp_burndown_tool_and_resource(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    empty = _direct_tool_result(server, "burndown", {})
+    assert empty["status"] == "no_history"
+    assert empty["trends_path"].endswith("trends.json")
+
+    trends_path = tmp_path / "build" / "trends.json"
+    trends_path.parent.mkdir(parents=True, exist_ok=True)
+    trends_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "timestamp": f"2026-06-0{day}T00:00:00Z",
+                        "proved_count": proved,
+                        "formal_target_count": 10,
+                    }
+                    for day, proved in ((1, 0), (2, 2), (3, 4), (4, 6), (5, 8))
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _direct_tool_result(server, "burndown", {"limit": 2})
+    assert result["status"] == "on_track"
+    assert result["eta_date"] == "2026-06-06"
+    assert result["forecast"]["net_burndown_per_day"] == 2.0
+    assert len(result["points"]) == 2
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://burndown"))))
+    payload = json.loads(contents[0].content)
+    assert payload["status"] == "on_track"
+    assert payload["eta_date"] == "2026-06-06"
+
+
+def test_mcp_portfolio_tool_and_resource(tmp_path: Path) -> None:
+    # Root is the default mcp-test project (1/2 proved); add a second project
+    # under the launch root so the roll-up spans more than one project.
+    _write_project(tmp_path)
+    sub = tmp_path / "extra"
+    sub.mkdir(parents=True, exist_ok=True)
+    (sub / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "extra"\n', encoding="utf-8"
+    )
+    (sub / "blueprint.md").write_text(
+        "# extra\n\n"
+        "::: lemma {#solo}\n"
+        "title: Solo\n"
+        "isabelle: Demo.solo\n"
+        "status:\n  formal: proved\n\n"
+        "SOLO.\n"
+        ":::\n",
+        encoding="utf-8",
+    )
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "portfolio", {})
+    assert result["schema_version"] == 1
+    assert result["totals"]["project_count"] == 2
+    assert result["totals"]["proved_count"] == 2
+    assert result["totals"]["formal_target_count"] == 3
+    ids = {project["id"] for project in result["projects"]}
+    assert ids == {".", "extra"}
+
+    contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://portfolio"))))
+    payload = json.loads(contents[0].content)
+    assert payload["totals"]["project_count"] == 2
+    assert {project["id"] for project in payload["projects"]} == {".", "extra"}
+
+
+def test_portfolio_discovery_matches_mcp_catalog(tmp_path: Path) -> None:
+    # The portfolio module re-implements project discovery; guard against it
+    # drifting from the MCP catalog's discovery on a mixed directory tree.
+    from isabelle_blueprint.mcp_server import _discover_project_roots
+    from isabelle_blueprint.report.portfolio import discover_project_roots
+
+    _write_project(tmp_path)  # root is a project
+    _write_project(tmp_path / "alpha")
+    _write_project(tmp_path / "alpha" / "nested")  # nested: must be pruned
+    (tmp_path / "beta").mkdir()
+    (tmp_path / "beta" / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    _write_project(tmp_path / "build" / "ghost")  # inside skip dir: ignored
+
+    assert discover_project_roots(tmp_path) == _discover_project_roots(tmp_path)
 
 
 def test_mcp_resources_are_project_scoped_json(tmp_path: Path) -> None:

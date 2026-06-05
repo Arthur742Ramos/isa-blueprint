@@ -40,11 +40,79 @@
   </div>
 {% endif %}
 
+<section class="critical-path-panel">
+  <h2>Critical path</h2>
+  {% if critical_path.longest %}
+    <p class="lede">
+      The longest remaining dependency chain to a goal &mdash; {{ critical_path.longest.depth }} step(s)
+      ending at <a href="nodes/{{ critical_path.longest.goal_id }}.html"><code>{{ critical_path.longest.goal_id }}</code></a>.
+      Clearing these in order unblocks the most downstream work.
+    </p>
+    <ol class="critical-path-chain">
+      {% for node_id in critical_path_ids %}
+        <li data-critical-step="{{ loop.index }}">
+          <a href="nodes/{{ node_id }}.html"><code>{{ node_id }}</code></a>
+          {% if has_owner_assignments and owners_by_node.get(node_id) %}
+            <span class="owner-badge" data-owner="{{ owners_by_node[node_id] }}">{{ owners_by_node[node_id] }}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    {% if critical_path.bottlenecks %}
+      <h3>Bottlenecks</h3>
+      <p class="lede">Incomplete nodes ranked by how much downstream work they unblock.</p>
+      <ul class="bottleneck-list">
+        {% for b in critical_path.bottlenecks[:8] %}
+          <li>
+            <a href="nodes/{{ b.node_id }}.html"><code>{{ b.node_id }}</code></a>
+            <span class="bottleneck-leverage">unblocks {{ b.leverage }}</span>
+            {% if has_owner_assignments and owners_by_node.get(b.node_id) %}
+              <span class="owner-badge" data-owner="{{ owners_by_node[b.node_id] }}">{{ owners_by_node[b.node_id] }}</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if critical_path.cycles %}
+      <p class="swimlane-note">Heads up: {{ critical_path.cycles|length }} dependency cycle(s) also remain and are excluded from this chain &mdash; see the cycle lane below.</p>
+    {% endif %}
+  {% elif critical_path.remaining_count == 0 %}
+    <div class="callout success">
+      <p>Everything is proved or found &mdash; no critical path remains. 🎉</p>
+    </div>
+  {% elif critical_path.cycles %}
+    <div class="callout warning">
+      <p>Remaining work is tangled in dependency cycles, so no acyclic critical path can be ordered. Resolve the cycles flagged below to surface one.</p>
+    </div>
+  {% else %}
+    <div class="callout warning">
+      <p>No acyclic terminal goal could be determined &mdash; check for missing or inconsistent dependencies.</p>
+    </div>
+  {% endif %}
+</section>
+
 <section>
   <h2>Dependency levels</h2>
   <p class="lede">
     Nodes are grouped by longest dependency distance: level 0 nodes have no known dependencies, and higher levels can build on earlier lanes.
   </p>
+  {% if has_owner_assignments %}
+    <section class="filters" aria-label="Filter dependency levels by owner" data-filter-scope="graph-owners">
+      <div class="filter-row">
+        <span class="filter-label">Owner</span>
+        {% for facet in owner_facets %}
+          <button type="button" class="filter-pill" data-filter-dim="owner" data-filter-value="{{ facet.owner }}">{{ facet.owner }} <small>({{ facet.count }})</small></button>
+        {% endfor %}
+        {% if unassigned_count > 0 %}
+          <button type="button" class="filter-pill" data-filter-dim="owner" data-filter-value="__unassigned">Unassigned <small>({{ unassigned_count }})</small></button>
+        {% endif %}
+      </div>
+      <div class="filter-row filter-row-actions">
+        <button type="button" class="filter-clear" data-filter-clear>Clear filters</button>
+        <span class="filter-count"><span data-filter-count>{{ project.nodes|length }} / {{ project.nodes|length }}</span> nodes shown</span>
+      </div>
+    </section>
+  {% endif %}
   <div class="swimlanes">
     {% for row in dependency_levels %}
       <section class="swimlane {{ 'cycle' if row.is_cycle }}" data-level="{{ row.level if row.level is not none else 'cycle' }}">
@@ -54,9 +122,17 @@
         {% endif %}
         <ul>
           {% for node in row.nodes %}
-            <li>
+            <li
+              data-filter-item
+              data-owner="{{ owners_by_node.get(node.id, '__unassigned') }}"
+              {% if node.id in critical_path_set %}data-critical="true"{% endif %}
+            >
+              {% if node.id in critical_path_set %}<span class="critical-marker" title="On the critical path">★</span> {% endif %}
               <a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a>
               <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
+              {% if has_owner_assignments and owners_by_node.get(node.id) %}
+                <span class="owner-badge" data-owner="{{ owners_by_node[node.id] }}">{{ owners_by_node[node.id] }}</span>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>

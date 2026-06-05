@@ -30,6 +30,14 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
+from isabelle_blueprint.agents.runner import (
+    PROMPT_PLACEHOLDER,
+    RUN_PLACEHOLDERS,
+    safe_prompt_filename,
+    split_command_string,
+    substitute_command,
+    validate_command_tokens,
+)
 from isabelle_blueprint.agents.selection import (
     filter_ready_tasks,
     no_ready_task_message,
@@ -50,6 +58,7 @@ from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.project_io import load_project, load_project_with_check
 from isabelle_blueprint.refactor import rename_node
+from isabelle_blueprint.report.burndown import build_burndown_report, burndown_payload
 from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
@@ -63,12 +72,14 @@ from isabelle_blueprint.report.impact import (
     impact_report_payload,
 )
 from isabelle_blueprint.report.lint import build_lint_report
+from isabelle_blueprint.report.portfolio import build_portfolio, portfolio_payload
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
     RoadmapFilters,
     build_roadmap,
     roadmap_payload,
 )
+from isabelle_blueprint.report.staleness import build_staleness_report, staleness_payload
 from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
 from isabelle_blueprint.report.trends import load_trends
@@ -242,6 +253,39 @@ def build_server(
             exclude_node=exclude_node,
         )
 
+    @server.tool(name="agent_run_plan")
+    def agent_run_plan(
+        command: str | None = None,
+        node: str | None = None,
+        kind: list[str] | None = None,
+        priority: list[str] | None = None,
+        difficulty: list[str] | None = None,
+        memory_state: list[str] | None = None,
+        last_outcome: list[str] | None = None,
+        exclude_node: list[str] | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Plan an ``agent-run`` invocation WITHOUT executing anything.
+
+        Returns the selected task, its prompt, where the CLI would write the
+        prompt, the outcome mapping, and a suggested local ``isabelle-blueprint
+        agent-run`` invocation. If a ``command`` template is supplied its resolved
+        argv is echoed as a read-only preview. Executing solver commands is
+        intentionally CLI-only -- this tool never spawns a process.
+        """
+
+        return _agent_run_plan_payload(
+            catalog.resolve(project).root,
+            command=command,
+            node=node,
+            kind=kind,
+            priority=priority,
+            difficulty=difficulty,
+            memory_state=memory_state,
+            last_outcome=last_outcome,
+            exclude_node=exclude_node,
+        )
+
     @server.tool(name="agent_context")
     def agent_context(
         max_tasks: int = DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
@@ -347,6 +391,29 @@ def build_server(
         memory = load_agent_memory(config.agent_memory_path)
         return build_stats_report(memory, parsed).to_dict()
 
+    @server.tool(name="staleness")
+    def staleness(
+        top: int | None = None,
+        max_causes: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Audit trusted (found/proved) nodes resting on shaky dependencies.
+
+        Scans every trusted node and walks its dependencies to flag ones whose
+        status is not justified: a ``problem`` dependency (broken/tainted/
+        missing/cyclic), an ``incomplete`` one (unproven), or an ``outdated`` one
+        (a dependency re-checked more recently than this node). ``top`` limits the
+        number of stale nodes returned; ``max_causes`` limits causes per node.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        report = build_staleness_report(parsed)
+        return staleness_payload(
+            report,
+            top=_positive_or_none(top, label="top"),
+            max_causes=_positive_or_none(max_causes, label="max_causes"),
+        )
+
     @server.tool(name="history")
     def history(
         limit: int | None = None,
@@ -364,6 +431,41 @@ def build_server(
             catalog.resolve(project).root,
             limit=_positive_or_none(limit, label="limit"),
         )
+
+    @server.tool(name="burndown")
+    def burndown(
+        window: int | None = None,
+        limit: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Forecast an ETA to full proved coverage (mirrors ``burndown --json``).
+
+        Reads only the recorded ``trends.json`` series, so it still forecasts
+        when the current blueprint fails to parse. The ETA is derived from the
+        slope of *remaining* work over time (so a growing target is reflected),
+        with proved/target velocities reported for context. ``window`` sets how
+        many recent snapshots feed the recent velocity; ``limit`` only trims the
+        displayed points.
+        """
+
+        return _burndown_payload(
+            catalog.resolve(project).root,
+            window=_positive_or_none(window, label="window"),
+            limit=_positive_or_none(limit, label="limit"),
+        )
+
+    @server.tool(name="portfolio")
+    def portfolio() -> dict[str, object]:
+        """Aggregate status across every blueprint project in the workspace.
+
+        Scans the launch root for blueprint projects (mirrors ``portfolio
+        --json``) and rolls up coverage, health, ready-task counts, and
+        problem/cycle flags. This view is workspace-wide and takes no
+        ``project`` argument; unparseable projects are reported as errors
+        without failing the roll-up.
+        """
+
+        return _portfolio_payload(catalog.launch_root)
 
     @server.tool(name="compat")
     def compat(
@@ -516,6 +618,18 @@ def build_server(
 
         return _json_resource(_history_payload(catalog.resolve(None).root))
 
+    @server.resource("blueprint://burndown", mime_type="application/json")
+    def burndown_resource() -> str:
+        """Velocity / ETA-to-full-coverage forecast for the default project."""
+
+        return _json_resource(_burndown_payload(catalog.resolve(None).root))
+
+    @server.resource("blueprint://portfolio", mime_type="application/json")
+    def portfolio_resource() -> str:
+        """Workspace-wide roll-up across every discovered blueprint project."""
+
+        return _json_resource(_portfolio_payload(catalog.launch_root))
+
     @server.resource("blueprint://fact-suggestions", mime_type="application/json")
     def fact_suggestions_resource() -> str:
         """Fuzzy fact-name suggestions for the default project."""
@@ -529,6 +643,13 @@ def build_server(
         """Source-only Isabelle ``.thy`` index for the default project."""
 
         return _json_resource(_theory_index_payload(catalog.resolve(None).root))
+
+    @server.resource("blueprint://staleness", mime_type="application/json")
+    def staleness_resource() -> str:
+        """Trusted-node staleness audit for the default project."""
+
+        snapshot = _snapshot(catalog.resolve(None).root)
+        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
 
     @server.resource("blueprint://projects/{project}/project", mime_type="application/json")
     def project_scoped_project_resource(project: str) -> str:
@@ -586,6 +707,12 @@ def build_server(
 
         return _json_resource(_history_payload(catalog.resolve(project).root))
 
+    @server.resource("blueprint://projects/{project}/burndown", mime_type="application/json")
+    def project_scoped_burndown_resource(project: str) -> str:
+        """Velocity / ETA-to-full-coverage forecast for a selected project id."""
+
+        return _json_resource(_burndown_payload(catalog.resolve(project).root))
+
     @server.resource(
         "blueprint://projects/{project}/fact-suggestions", mime_type="application/json"
     )
@@ -603,6 +730,15 @@ def build_server(
         """Source-only Isabelle ``.thy`` index for a selected project id."""
 
         return _json_resource(_theory_index_payload(catalog.resolve(project).root))
+
+    @server.resource(
+        "blueprint://projects/{project}/staleness", mime_type="application/json"
+    )
+    def project_scoped_staleness_resource(project: str) -> str:
+        """Trusted-node staleness audit for a selected project id."""
+
+        snapshot = _snapshot(catalog.resolve(project).root)
+        return _json_resource(staleness_payload(build_staleness_report(snapshot.project)))
 
     @server.resource("blueprint://schemas/{name}", mime_type="application/json")
     def schema_resource(name: str) -> str:
@@ -986,6 +1122,29 @@ def _history_payload(project_dir: Path, *, limit: int | None = None) -> dict[str
     return payload
 
 
+def _burndown_payload(
+    project_dir: Path,
+    *,
+    window: int | None = None,
+    limit: int | None = None,
+) -> dict[str, object]:
+    # Like history, burndown reads only trends.json, so it still forecasts when
+    # the current blueprint fails to parse.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    report = build_burndown_report(entries, recent_window=window or 5)
+    payload = burndown_payload(report, limit=limit)
+    payload["trends_path"] = str(config.trends_path)
+    return payload
+
+
+def _portfolio_payload(root: Path) -> dict[str, object]:
+    # Portfolio is workspace-wide: it scans the launch root for every blueprint
+    # project and rolls them up, so it takes the launch root rather than a
+    # single resolved project directory.
+    return portfolio_payload(build_portfolio(root))
+
+
 def _mcp_session_hint(message: str) -> str:
     # session_theory_files() raises CLI-flavored guidance ("pass --session NAME").
     # This payload is surfaced over MCP, where callers pass a `session` argument
@@ -1098,6 +1257,86 @@ def _next_task_payload(
         **metadata,
     }
 
+
+_AGENT_RUN_OUTCOME_MAPPING = {
+    "exit_zero": "succeeded",
+    "nonzero": "failed",
+    "timeout": "failed",
+    "output_limit_exceeded": "failed",
+    "spawn_error": "blocked",
+}
+
+
+def _agent_run_plan_payload(
+    project_root: Path,
+    *,
+    command: str | None = None,
+    node: str | None = None,
+    kind: list[str] | None = None,
+    priority: list[str] | None = None,
+    difficulty: list[str] | None = None,
+    memory_state: list[str] | None = None,
+    last_outcome: list[str] | None = None,
+    exclude_node: list[str] | None = None,
+) -> dict[str, object]:
+    base = _next_task_payload(
+        project_root,
+        node=node,
+        kind=kind,
+        priority=priority,
+        difficulty=difficulty,
+        memory_state=memory_state,
+        last_outcome=last_outcome,
+        exclude_node=exclude_node,
+    )
+    plan: dict[str, object] = {
+        **base,
+        "command_template": command,
+        "command_argv_preview": None,
+        "command_error": None,
+        "prompt_path": None,
+        "cli_argv": None,
+        "outcome_mapping": dict(_AGENT_RUN_OUTCOME_MAPPING),
+        "placeholders": list(RUN_PLACEHOLDERS),
+        "execution_note": (
+            "Execution is intentionally CLI-only; this tool never runs commands. "
+            "Run the suggested cli_argv locally with `isabelle-blueprint agent-run`."
+        ),
+    }
+    task = base.get("task")
+    if not isinstance(task, dict):
+        return plan
+    task_id = str(task["id"])
+    node_id = str(task["node_id"])
+    config = load_config(project_root)
+    prompt_path = config.build_dir / "agent-run" / safe_prompt_filename(task_id)
+    plan["prompt_path"] = str(prompt_path)
+    cli_argv = ["isabelle-blueprint", "agent-run", str(project_root), "--node", task_id]
+    if command:
+        prompt_in_command = PROMPT_PLACEHOLDER in command
+        try:
+            tokens = split_command_string(command)
+            validate_command_tokens(tokens, require_prompt=False)
+        except BlueprintError as exc:
+            plan["command_error"] = str(exc)
+        else:
+            substitutions = {
+                "prompt_file": str(prompt_path),
+                "node_id": node_id,
+                "task_id": task_id,
+                "project_dir": str(project_root),
+            }
+            plan["command_argv_preview"] = substitute_command(tokens, substitutions)
+        cli_argv += ["--command", command]
+        # Keep the suggested CLI runnable: agent-run requires {prompt_file} unless
+        # --allow-missing-prompt is passed, so mirror that here when the planned
+        # command omits the placeholder.
+        if not prompt_in_command:
+            cli_argv.append("--allow-missing-prompt")
+    else:
+        cli_argv += ["--command", "<solver> {prompt_file}"]
+    plan["cli_argv"] = cli_argv
+    return plan
 
 def _ready_filters(
     *,

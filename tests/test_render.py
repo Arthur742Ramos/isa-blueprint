@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from isabelle_blueprint.agents.assignments import AssignmentStore, set_assignment
 from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, add_memory_attempt
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -326,3 +327,156 @@ def test_tasks_page_renders_attempted_agent_status_separately(tmp_path: Path):
         '<article class="task-column task-column-blocked">\n        '
         "<h3>Blocked <span>0</span></h3>" in body
     )
+
+
+# ---------------------------------------------------------------------------
+# v1.10 critical-path overlay + owner annotations
+# ---------------------------------------------------------------------------
+
+
+def _proved_project():
+    a = BlueprintNode(
+        id="def-a",
+        kind=NodeKind.DEFINITION,
+        title="A",
+        isabelle=IsabelleRef(fact="Demo.a_def"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.PROVED),
+    )
+    return BlueprintProject.from_nodes("proved", [a], sources=["proved.md"])
+
+
+def test_graph_page_renders_critical_path_panel(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert "Critical path" in body
+    # The sample nodes are NAMED (incomplete), so a real chain def-a -> lem-b exists.
+    assert 'data-critical="true"' in body
+    assert "★" in body
+    # def-a unblocks lem-b, so it surfaces as a bottleneck.
+    assert "Bottlenecks" in body
+    assert "unblocks 1" in body
+
+
+def test_render_site_writes_critical_path_json(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    payload = json.loads((tmp_path / "critical-path.json").read_text(encoding="utf-8"))
+    assert payload["longest"]["goal_id"] == "lem-b"
+    assert payload["longest"]["path"] == ["def-a", "lem-b"]
+
+
+def test_critical_path_panel_empty_state_when_all_proved(tmp_path: Path):
+    render_site(_proved_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert "Critical path" in body
+    assert "no critical path remains" in body
+    assert 'data-critical="true"' not in body
+
+
+def test_graph_page_renders_owner_filter_and_badges(tmp_path: Path):
+    store = AssignmentStore()
+    set_assignment(store, "def-a", "alice")
+    render_site(_project(), tmp_path, assignments=store)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    # Owner filter toolbar wired for filters.js.
+    assert 'data-filter-scope="graph-owners"' in body
+    assert 'data-filter-dim="owner"' in body
+    assert 'data-filter-value="alice"' in body
+    # lem-b is unassigned, so the sentinel chip + row value appear.
+    assert 'data-filter-value="__unassigned"' in body
+    assert 'data-owner="alice"' in body
+    assert 'data-owner="__unassigned"' in body
+    # The assigned owner is rendered as a badge.
+    assert "alice" in body
+
+
+def test_graph_page_has_no_owner_toolbar_without_assignments(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    assert 'data-filter-scope="graph-owners"' not in body
+    assert 'data-filter-dim="owner"' not in body
+
+
+def test_graph_page_ignores_stale_owner_assignments(tmp_path: Path):
+    store = AssignmentStore()
+    set_assignment(store, "ghost-node", "nobody")
+    render_site(_project(), tmp_path, assignments=store)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    # The stale id matches no project node, so no owner UI should appear.
+    assert "nobody" not in body
+    assert 'data-filter-scope="graph-owners"' not in body
+
+
+def test_node_page_shows_owner_and_critical_marker(tmp_path: Path):
+    store = AssignmentStore()
+    set_assignment(store, "def-a", "alice")
+    render_site(_project(), tmp_path, assignments=store)
+    text = (tmp_path / "nodes" / "def-a.html").read_text(encoding="utf-8")
+    assert "Owner" in text
+    assert "alice" in text
+    assert "on the critical path" in text
+
+
+def test_critical_path_panel_flags_cycles(tmp_path: Path):
+    a = BlueprintNode(
+        id="a",
+        kind=NodeKind.LEMMA,
+        title="A",
+        uses=["b"],
+        isabelle=IsabelleRef(fact="Demo.a"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    b = BlueprintNode(
+        id="b",
+        kind=NodeKind.LEMMA,
+        title="B",
+        uses=["a"],
+        isabelle=IsabelleRef(fact="Demo.b"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    render_site(BlueprintProject.from_nodes("cycle", [a, b]), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    # All remaining work is cycle-tangled, so no acyclic chain can be ordered.
+    assert "tangled in dependency cycles" in body
+    assert 'data-critical="true"' not in body
+
+
+def test_critical_path_panel_warns_about_coexisting_cycles(tmp_path: Path):
+    # An acyclic chain (def-a -> lem-b) plus a separate incomplete cycle (x <-> y):
+    # the panel renders the chain but must still flag the lingering cycle.
+    a = BlueprintNode(
+        id="def-a",
+        kind=NodeKind.DEFINITION,
+        title="A",
+        isabelle=IsabelleRef(fact="Demo.a_def"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    b = BlueprintNode(
+        id="lem-b",
+        kind=NodeKind.LEMMA,
+        title="B",
+        uses=["def-a"],
+        isabelle=IsabelleRef(fact="Demo.b"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    x = BlueprintNode(
+        id="cyc-x",
+        kind=NodeKind.LEMMA,
+        title="X",
+        uses=["cyc-y"],
+        isabelle=IsabelleRef(fact="Demo.x"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    y = BlueprintNode(
+        id="cyc-y",
+        kind=NodeKind.LEMMA,
+        title="Y",
+        uses=["cyc-x"],
+        isabelle=IsabelleRef(fact="Demo.y"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    render_site(BlueprintProject.from_nodes("mixed", [a, b, x, y]), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    # The acyclic chain still renders...
+    assert 'data-critical="true"' in body
+    # ...but the lingering cycle is also called out.
+    assert "dependency cycle(s) also remain" in body

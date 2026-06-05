@@ -528,9 +528,46 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
 .roadmap-status-problem { border-left-color: #dc2626; --pill-accent: #dc2626; }
 .roadmap-status-stale { border-left-color: #f59e0b; --pill-accent: #f59e0b; }
 
+/* v1.10: critical-path overlay + owner annotations on the graph page. */
+.critical-path-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 5px solid #8b5cf6;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.critical-path-chain { margin: 0.5rem 0; padding-left: 1.5rem; }
+.critical-path-chain li { padding: 0.2rem 0; }
+.bottleneck-list { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.bottleneck-list li {
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.bottleneck-leverage { color: var(--muted); font-size: 0.85rem; }
+.critical-marker { color: #8b5cf6; font-weight: 700; }
+.owner-badge {
+  background: var(--surface-muted, #eef2ff);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  font-size: 0.75rem;
+  padding: 0.05rem 0.5rem;
+}
+.swimlane li[data-critical="true"] {
+  border-left: 3px solid #8b5cf6;
+  padding-left: 0.4rem;
+}
+.callout.success { background: #ecfdf5; border-color: #6ee7b7; }
+
 @media (prefers-color-scheme: dark) {
   .callout { background: #172554; }
   .callout.warning { background: #431407; }
+  .callout.success { background: #052e1a; border-color: #065f46; }
   .swimlane.cycle { background: #450a0a; }
   pre { background: #020617; }
 }

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import isabelle_blueprint.cli as cli
 from isabelle_blueprint.cli import main as cli_main
+from isabelle_blueprint.config import load_config
 
 _PROJECT = """# watch-test
 
@@ -70,3 +71,11 @@ def test_report_without_watch_is_single_shot(tmp_path: Path, capsys) -> None:
     assert rc == 0
     err = capsys.readouterr().err
     assert "watching for changes" not in err
+
+
+def test_web_watch_paths_include_assignments(tmp_path: Path) -> None:
+    # The static site now renders owner data from assignments.json, so the web
+    # watch loop must re-render when that file changes.
+    _write_project(tmp_path)
+    config = load_config(tmp_path)
+    assert config.assignments_path in cli._watch_paths(tmp_path)

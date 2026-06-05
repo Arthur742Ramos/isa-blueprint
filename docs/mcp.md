@@ -101,14 +101,18 @@ Read tools are always registered:
 | `roadmap` | Staged proof-work roadmap; supports `status`, `stage`, and `kind` filters. |
 | `list_tasks` | Ready proof tasks using the same ordering and filters as the CLI. |
 | `next_task` | Selected ready task plus the rendered Markdown proof prompt. |
+| `agent_run_plan` | Plans an `agent-run` invocation for the next ready task: returns the selected task, the resolved `command_argv_preview` (placeholders substituted), the `prompt_path`, the exact `cli_argv` to run locally, and the outcome mapping. **Never executes the command or writes the prompt** — it is a read-only planner. Supply `command` to preview substitution; an invalid template is reported in `command_error` rather than raising. |
 | `agent_context` | Compact handoff bundle matching `agent-context --json`. |
 | `explain_node` | Status/blocker explanations for one node or all nodes. |
 | `lint` | Structural and quality findings without invoking Isabelle. |
 | `critical_path` | Longest-pole proof-dependency analysis; supports `top` to limit bottlenecks. |
 | `impact` | Downstream blast-radius ranking, or one node's impact report when `node` is set (`top` limits rankings; ignored with `node`). |
+| `staleness` | Trust audit of `found`/`proved` nodes: flags ones resting on broken/missing (`problem`), unproven (`incomplete`), `stale`, or newer-checked (`outdated`) dependencies, plus cycle members; supports `top` and `max_causes`. |
 | `stats` | Agent-memory analytics: attempts, outcomes, and success rates. |
 | `history` | Coverage trend history summary from `trends.json`; supports `limit`. Reads only the trend store, so it works even when the blueprint fails to parse. |
+| `burndown` | Velocity / ETA-to-full-coverage forecast from `trends.json`; forecasts from the slope of *remaining* work (so a growing target shows up) and reports proved/target/net-burndown velocities. Supports `window` and `limit`; reads only the trend store. |
 | `compat` | Isabelle/AFP version-pin and session-visibility check; supports `isabelle`. Read-only (never writes the compat report file). |
+| `portfolio` | Workspace-wide roll-up across every discovered project: per-project coverage / health / ready-task counts plus portfolio totals. Takes no `project` argument (it spans the whole launch root); unparseable projects are reported as error entries without failing the roll-up. |
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
 | `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
@@ -127,6 +131,13 @@ Write tools are launch-gated rather than tool-parameter gated: without
 `--allow-writes`, they do not appear in `tools/list`. The server serializes write
 tool calls inside one process to avoid overlapping load/modify/write operations.
 
+Running a solver is deliberately **not** an MCP tool. Spawning arbitrary local
+processes is a different trust boundary from the server's read/append-JSON
+surface, so `agent_run_plan` only *plans* the invocation and hands back the exact
+`cli_argv`; actually executing it is left to `isabelle-blueprint agent-run` on the
+operator's machine, where the timeout, output cap, and shell-free argv handling
+apply.
+
 ## Resources
 
 | URI | Content |
@@ -140,6 +151,9 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://history` | Coverage trend history summary for the default project. |
 | `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
 | `blueprint://theory-index` | Source-only `.thy` index for the default project. |
+| `blueprint://staleness` | Trusted-node staleness audit for the default project. |
+| `blueprint://burndown` | Velocity / ETA-to-full-coverage forecast for the default project. |
+| `blueprint://portfolio` | Workspace-wide roll-up across every discovered project (no project-scoped variant). |
 | `blueprint://projects/{project}/project` | Parsed project graph for a selected project id. |
 | `blueprint://projects/{project}/nodes/{node_id}` | One selected-project node. |
 | `blueprint://projects/{project}/tasks` | Selected-project ready-task catalog. |
@@ -148,11 +162,13 @@ tool calls inside one process to avoid overlapping load/modify/write operations.
 | `blueprint://projects/{project}/history` | Selected-project coverage trend history summary. |
 | `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
 | `blueprint://projects/{project}/theory-index` | Selected-project source-only `.thy` index. |
+| `blueprint://projects/{project}/staleness` | Selected-project trusted-node staleness audit. |
+| `blueprint://projects/{project}/burndown` | Selected-project velocity / ETA forecast. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
 
 Most project-reading surfaces load the blueprint and then apply the latest stored
 `check_report.json`, matching the CLI behavior for `status`, `roadmap`, `tasks`,
-`next`, and `agent-context`. The source-only surfaces (`history`,
+`next`, and `agent-context`. The source-only surfaces (`history`, `burndown`,
 `theory-index`) intentionally skip blueprint parsing so they keep working on
 partial checkouts and when the blueprint fails to load.
 

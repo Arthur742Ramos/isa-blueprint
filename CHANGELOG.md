@@ -9,6 +9,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The VS Code extension gains parity with the new analytics and the owner
+  store: three commands — **Audit Staleness** (`staleness`), **Forecast
+  Burndown** (`burndown`), and **Show Critical Path** (`critical-path`) — run the
+  read-only analyses straight into the output panel, and the **Blueprint Nodes**
+  tree now shows `@owner` annotations (full owner in the tooltip) sourced from
+  `.isabelle-blueprint/assignments.json`, refreshing automatically when
+  assignments change. The analyses already expose dedicated MCP tools and the
+  extension is a separate consumer, so no new MCP surface was needed.
+- The static site's graph page now overlays a **critical-path panel** — the
+  longest remaining dependency chain to a goal plus the highest-leverage
+  bottlenecks (reusing the same analysis as the `critical-path` command) — and,
+  when an `assignments.json` store is present, **owner badges** with an owner
+  filter over the dependency-levels listing (wired through the existing generic
+  `filters.js`, so no new JavaScript). Critical-path nodes are flagged with a
+  `★` marker on both the graph and per-node pages, and the full analysis is also
+  written to `site/critical-path.json` for automation. The overlays are
+  additive and backward-compatible: stale assignment ids (no matching node) are
+  ignored, projects with no assignments omit the owner filter, and an all-proved
+  project renders an empty-state callout. (The critical-path analysis already
+  has a dedicated `critical_path` MCP tool, so no new MCP surface was needed.)
+- New `agent-run` command (and matching read-only `agent_run_plan` MCP tool) that
+  closes the proof loop end-to-end: it selects the next ready task (using the same
+  filters and `--node` selector as `next`/`attempt`), renders the prompt, runs an
+  **external solver** against it, classifies the result, and records the outcome in
+  agent memory — all in one command. The solver is run **without a shell**: supply
+  it argv-native via `--exec PROGRAM --arg ARG ...` (recommended on Windows; use
+  the `--arg=-c` form for dash-led values) or as a POSIX-`shlex` `--command`
+  string. Placeholder values (`{prompt_file}`, `{node_id}`, `{task_id}`,
+  `{project_dir}`) are substituted per argv token so they cannot inject extra
+  arguments, and unknown placeholders are rejected. A configurable `--timeout`
+  (default 900s, with child-process-tree kill) and `--max-output-bytes` cap
+  (default 10 MiB; `0` disables) guard against hangs and runaway output; only
+  bounded stdout/stderr tails are surfaced and recorded. Exit 0 → `succeeded`;
+  non-zero / timeout / output-limit → `--failure-outcome` (default `failed`); a
+  spawn error → `blocked` and is **never** recorded (it is a harness/config
+  failure, not a proof attempt) and always exits 1. `--dry-run` previews the
+  resolved command without running, writing the prompt, or recording; `--no-record`
+  runs without writing memory; `--fail-on-failure` exits 5 when the outcome is not
+  `succeeded`. The MCP `agent_run_plan` tool **plans** the invocation (returning the
+  selected task, the substituted `command_argv_preview`, the `prompt_path`, the
+  exact `cli_argv`, and the outcome mapping) but never executes a command or writes
+  a file — actually running the solver is intentionally CLI-only because spawning
+  local processes is a different trust boundary from the server's read/append-JSON
+  surface. `run_capture` gained an optional `max_output_bytes` poll-based cap
+  (raising the new `OutputLimitExceeded`); the default `None` path is byte-for-byte
+  unchanged, so the Isabelle wrapper callers are unaffected.
+- New `portfolio` command (and matching `portfolio` MCP read tool plus
+  `blueprint://portfolio` resource) rolls up status across **every** blueprint
+  project under a directory tree into one dashboard — per-project coverage,
+  health, problem/cycle flags, and ready-task counts, plus portfolio-wide totals.
+  This is the cross-project view that single-project `status` cannot give, aimed
+  at monorepos and umbrella repositories. Project discovery mirrors the MCP
+  catalog (marker files, nested-project pruning, build/vendor skip dirs), and
+  loading is best-effort: a project that fails to load (missing blueprint,
+  malformed TOML, unreadable file) is reported as an error entry rather than
+  aborting the roll-up. `coverage_percent` is `null` when there are no formal
+  targets. Supports `--json` and `--fail-on-problem` (exit 5 when any project has
+  problems, a dependency cycle, or fails to load). The MCP tool is workspace-wide
+  and takes no `project` argument.
+- New `burndown` command (and matching `burndown` MCP read tool plus
+  `blueprint://burndown` resources) forecasts an ETA to full *proved* coverage
+  from the recorded `trends.json` history. The forecast regresses **remaining**
+  work over time rather than completed velocity, so a growing
+  `formal_target_count` is reflected — proving faster does not move the date if
+  the target grows just as fast. It reports proved/target/net-burndown
+  velocities (overall and over a recent window), classifies the project as
+  `on_track`, `stalled`, `regressing`, `scope_growing`, `complete`, or
+  `beyond_horizon`, and supports `--window`, `--limit`, and `--fail-when-stalled`
+  (exit 5) for CI. Like `history`, it reads only the trend store, so it keeps
+  forecasting when the current blueprint fails to parse.
+- New `staleness` command (and matching `staleness` MCP read tool plus
+  `blueprint://staleness` resources) audits every trusted (`found`/`proved`)
+  node and walks its dependencies to flag the ones whose green status is not
+  actually justified — because a dependency is broken/tainted/missing
+  (`problem`), unproven (`incomplete`), itself `stale`, or was re-checked more
+  recently than the node (`outdated`). It also flags trusted nodes that sit in a
+  dependency cycle or `uses:` a non-existent node, counts trusted nodes that have
+  never been checked (unknown freshness), and supports `--top`, `--max-causes`,
+  and `--fail-on-problem` (exit 5) for CI. This is the project-wide inverse of
+  `impact`: where `impact` asks "what rests on X?", `staleness` asks "is X's
+  trust well-founded?".
+- `completion --install` / `completion --dest PATH` write the generated script
+  straight to the shell's conventional completion location (or an explicit path),
+  creating parent directories and printing the destination plus any activation
+  hint, so users no longer have to know where each shell looks for completions.
+- Shell completion scripts now complete **per-subcommand options**, not just
+  subcommand names. After a subcommand, any word starting with `-` completes
+  that subcommand's flags (e.g. `lint --<tab>` offers `--json`, `--strict`, …),
+  otherwise the shell falls back to file completion. The option lists are
+  generated from the live argparse parser for every shell (bash, zsh, fish, and
+  PowerShell), so they never drift from the real flags.
+- `completion powershell` generates a PowerShell completion script that registers
+  a native argument completer (`Register-ArgumentCompleter`) for the subcommand
+  names, falling back to PowerShell's default file completion for arguments. Load
+  it with `isabelle-blueprint completion powershell | Out-String | Invoke-Expression`
+  (add that line to your `$PROFILE` to persist it). This brings Windows/pwsh to
+  parity with the existing bash/zsh/fish scripts and, like them, is generated
+  from the live subcommand list so it never drifts from the parser.
 - Exposed the source-only `theory-index` analysis over MCP as a read tool
   (`theory_index`) plus matching `blueprint://theory-index` resources (with
   `blueprint://projects/{project}/theory-index` variants), so AI proof agents

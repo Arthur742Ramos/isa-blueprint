@@ -32,6 +32,18 @@ from isabelle_blueprint.agents.memory import (
     node_input_hash,
     record_memory_attempt,
 )
+from isabelle_blueprint.agents.runner import (
+    DEFAULT_MAX_OUTPUT_BYTES,
+    AgentRunResult,
+    classify_run_outcome,
+    default_run_summary,
+    execute_agent_command,
+    safe_prompt_filename,
+    split_command_string,
+    substitute_command,
+    tail,
+    validate_command_tokens,
+)
 from isabelle_blueprint.agents.selection import (
     READY_TASK_DIFFICULTIES,
     READY_TASK_LAST_OUTCOMES,
@@ -61,7 +73,11 @@ from isabelle_blueprint.agents.tasks import (
     render_task_prompt,
     write_tasks,
 )
-from isabelle_blueprint.completion import SUPPORTED_SHELLS, render_completion
+from isabelle_blueprint.completion import (
+    SUPPORTED_SHELLS,
+    install_completion,
+    render_completion,
+)
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
@@ -101,6 +117,11 @@ from isabelle_blueprint.project_io import apply_stored_check_report, load_projec
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.burndown import (
+    build_burndown_report,
+    burndown_payload,
+    render_burndown_report,
+)
 from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
@@ -131,6 +152,11 @@ from isabelle_blueprint.report.metrics import (
     build_status_metrics,
     output_values,
 )
+from isabelle_blueprint.report.portfolio import (
+    build_portfolio,
+    portfolio_payload,
+    render_portfolio_report,
+)
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
@@ -147,6 +173,11 @@ from isabelle_blueprint.report.roadmap import (
     write_roadmap,
 )
 from isabelle_blueprint.report.sarif import render_sarif
+from isabelle_blueprint.report.staleness import (
+    build_staleness_report,
+    render_staleness_report,
+    staleness_payload,
+)
 from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
@@ -656,6 +687,26 @@ def _subcommand_names() -> list[str]:
     return []
 
 
+def _subcommand_options() -> dict[str, list[str]]:
+    """Map each registered subcommand to its sorted option strings.
+
+    Generated from the live parser so the completion scripts never drift from
+    the actual flags a subcommand accepts.
+    """
+
+    parser = _build_parser()
+    result: dict[str, list[str]] = {}
+    for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
+        if isinstance(action, argparse._SubParsersAction):
+            for name, subparser in action.choices.items():
+                opts: list[str] = []
+                for sub_action in subparser._actions:  # noqa: SLF001
+                    opts.extend(sub_action.option_strings)
+                result[name] = sorted(dict.fromkeys(opts))
+            break
+    return result
+
+
 def cmd_version(args: argparse.Namespace) -> int:
     info = {
         "name": PROG_NAME,
@@ -673,7 +724,17 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 
 def cmd_completion(args: argparse.Namespace) -> int:
-    print(render_completion(args.shell, PROG_NAME, _subcommand_names()), end="")
+    commands = _subcommand_names()
+    options = _subcommand_options()
+    if args.install or args.dest:
+        target, hint = install_completion(
+            args.shell, PROG_NAME, commands, options, dest=args.dest
+        )
+        print(f"Wrote {args.shell} completion to {target}")
+        if hint:
+            print(hint)
+        return 0
+    print(render_completion(args.shell, PROG_NAME, commands, options), end="")
     return 0
 
 
@@ -686,6 +747,31 @@ def cmd_stats(args: argparse.Namespace) -> int:
         print(json.dumps(report.to_dict(), indent=2))
     else:
         print(render_stats_report(report), end="")
+    return 0
+
+
+def cmd_staleness(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_staleness_report(project)
+    if args.json:
+        payload = staleness_payload(
+            report, top=args.top, max_causes=args.max_causes
+        )
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            render_staleness_report(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
+    if args.fail_on_problem and report.problem_count > 0:
+        print(
+            f"{report.problem_count} trusted node(s) rest on broken/missing "
+            "dependencies",
+            file=sys.stderr,
+        )
+        return 5
     return 0
 
 
@@ -722,6 +808,46 @@ def cmd_history(args: argparse.Namespace) -> int:
         print(json.dumps(summary.to_dict(), indent=2))
     else:
         print(render_trend_summary(summary), end="")
+    return 0
+
+
+def cmd_burndown(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    # Like history, burndown reads only trends.json, so it still forecasts when
+    # the current blueprint fails to parse.
+    config = load_config(project_dir)
+    entries = load_trends(config.trends_path)
+    report = build_burndown_report(entries, recent_window=args.window)
+    if args.json:
+        payload = burndown_payload(report, limit=args.limit)
+        payload["trends_path"] = str(config.trends_path)
+        print(json.dumps(payload, indent=2))
+    else:
+        limit = args.limit if args.limit is not None else 10
+        print(render_burndown_report(report, limit=limit), end="")
+    if args.fail_when_stalled and report.remaining and report.status in {
+        "stalled",
+        "regressing",
+        "scope_growing",
+        "beyond_horizon",
+    }:
+        return 5
+    return 0
+
+
+def cmd_portfolio(args: argparse.Namespace) -> int:
+    root = Path(args.root_dir).resolve()
+    report = build_portfolio(root)
+    if args.json:
+        print(json.dumps(portfolio_payload(report), indent=2))
+    else:
+        print(render_portfolio_report(report), end="")
+    if args.fail_on_problem and (
+        report.totals.projects_with_problems
+        or report.totals.projects_with_cycles
+        or report.totals.error_count
+    ):
+        return 5
     return 0
 
 
@@ -1318,6 +1444,198 @@ def _write_next_prompt(prompt: str, output: str | None) -> Path | None:
     return path
 
 
+def _agent_run_command_tokens(args: argparse.Namespace) -> list[str]:
+    """Resolve the solver command from --exec/--arg or --command."""
+
+    if args.exec_program is not None:
+        return [args.exec_program, *(args.arg or [])]
+    if args.arg:
+        raise BlueprintError("--arg requires --exec")
+    if args.command:
+        return split_command_string(args.command)
+    raise BlueprintError(
+        "agent-run requires a solver command: pass --command \"<template>\" or "
+        "--exec PROGRAM [--arg ARG ...]"
+    )
+
+
+def _agent_run_prompt_path(args: argparse.Namespace, config: BlueprintConfig,
+                           project_dir: Path, task_id: str) -> Path:
+    if args.output:
+        path = Path(args.output)
+        if not path.is_absolute():
+            path = project_dir / path
+        return path.resolve()
+    return (config.build_dir / "agent-run" / safe_prompt_filename(task_id)).resolve()
+
+
+def _agent_run_details(result: object, stdout_tail: str, stderr_tail: str) -> str:
+    parts = [f"exit={getattr(result, 'return_code', None)}"]
+    if getattr(result, "timed_out", False):
+        parts.append("timed_out")
+    if getattr(result, "output_limit_exceeded", False):
+        parts.append("output_limit_exceeded")
+    duration = getattr(result, "duration_seconds", None)
+    if duration is not None:
+        parts.append(f"duration={duration:.2f}s")
+    detail = " ".join(parts)
+    if stdout_tail:
+        detail += f"\n[stdout tail]\n{stdout_tail}"
+    if stderr_tail:
+        detail += f"\n[stderr tail]\n{stderr_tail}"
+    return detail
+
+
+def cmd_agent_run(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
+    memory = load_agent_memory(config.agent_memory_path)
+    all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
+    filters = _ready_task_filters_from_args(args)
+    ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    task = _select_ready_task(
+        ready_tasks,
+        args.node,
+        project,
+        filters=filters,
+        unfiltered_ready_tasks=all_ready_tasks,
+    )
+    metadata = _selection_metadata(
+        filters,
+        ready_task_count=len(all_ready_tasks),
+        filtered_ready_task_count=len(ready_tasks),
+    )
+
+    # Resolve the solver command early so a misconfigured command fails fast
+    # (before selecting/writing anything).
+    tokens = _agent_run_command_tokens(args)
+    validate_command_tokens(tokens, require_prompt=not args.allow_missing_prompt)
+
+    if task is None:
+        message = _no_ready_task_message(len(all_ready_tasks), filters)
+        payload: dict[str, object] = {
+            "task": None,
+            "command": None,
+            "outcome": None,
+            "recorded": False,
+            "message": message,
+            **metadata,
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(message)
+        return 0
+
+    prompt = render_task_prompt(task)
+    prompt_path = _agent_run_prompt_path(args, config, project_dir, task.id)
+    substitutions = {
+        "prompt_file": str(prompt_path),
+        "node_id": task.node_id,
+        "task_id": task.id,
+        "project_dir": str(project_dir),
+    }
+    command = substitute_command(tokens, substitutions)
+
+    if args.dry_run:
+        dry_payload: dict[str, object] = {
+            "task": task.to_dict(),
+            "prompt": prompt,
+            "prompt_path": str(prompt_path),
+            "command": command,
+            "dry_run": True,
+            "outcome": None,
+            "recorded": False,
+            "message": f"Would run {task.id}.",
+            **metadata,
+        }
+        if args.json:
+            print(json.dumps(dry_payload, indent=2))
+        else:
+            print(f"agent-run (dry-run) {task.id}")
+            print(f"  prompt -> {prompt_path}")
+            print(f"  command: {' '.join(command)}")
+        return 0
+
+    _write_next_prompt(prompt, str(prompt_path))
+    max_output = None if args.max_output_bytes == 0 else args.max_output_bytes
+    result = execute_agent_command(
+        command,
+        cwd=str(project_dir),
+        timeout=args.timeout,
+        max_output_bytes=max_output,
+    )
+    outcome = classify_run_outcome(result, failure_outcome=args.failure_outcome)
+    summary = (
+        args.summary.strip()
+        if args.summary
+        else default_run_summary(command, result, outcome)
+    )
+    stdout_tail = tail(result.stdout)
+    stderr_tail = tail(result.stderr)
+
+    run_result = AgentRunResult(
+        task_id=task.id,
+        node_id=task.node_id,
+        command=command,
+        ran=result.ran,
+        return_code=result.return_code,
+        outcome=outcome,
+        summary=summary,
+        stdout_tail=stdout_tail,
+        stderr_tail=stderr_tail,
+        timed_out=result.timed_out,
+        output_limit_exceeded=result.output_limit_exceeded,
+        error=result.error,
+        duration_seconds=result.duration_seconds,
+    )
+
+    # A spawn error is a harness/config failure, not a proof attempt: never record
+    # it against the node and always exit non-zero.
+    recorded = False
+    if not args.no_record and not result.spawn_error:
+        details = args.details or _agent_run_details(result, stdout_tail, stderr_tail)
+        attempt = record_memory_attempt(
+            config.agent_memory_path,
+            task.node_id,
+            outcome=outcome,
+            summary=summary,
+            actor=args.actor or "agent-run",
+            tool=args.tool or command[0],
+            details=details,
+            next_step=args.next_step,
+            input_hash=node_input_hash(project.by_id()[task.node_id]),
+            max_attempts=args.max_attempts,
+        )
+        run_result.memory = attempt.to_dict()
+        recorded = True
+    run_result.recorded = recorded
+
+    out_payload: dict[str, object] = {
+        **run_result.to_dict(),
+        "prompt_path": str(prompt_path),
+        "message": f"Ran {task.id}.",
+        **metadata,
+    }
+    if args.json:
+        print(json.dumps(out_payload, indent=2))
+    else:
+        print(f"agent-run {task.id} -> {outcome}")
+        print(f"  prompt -> {prompt_path}")
+        if result.error:
+            print(f"  {result.error}", file=sys.stderr)
+        if recorded:
+            print(f"  memory recorded -> {config.agent_memory_path}")
+
+    if result.spawn_error:
+        return 1
+    if args.fail_on_failure and outcome != "succeeded":
+        return 5
+    return 0
+
+
 def _completed_node_ids(project: BlueprintProject) -> set[str]:
     return {
         node.id
@@ -1779,14 +2097,50 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_stats.add_argument("--json", action="store_true", help="emit stats as JSON")
     p_stats.set_defaults(func=cmd_stats)
 
+    p_staleness = sub.add_parser(
+        "staleness",
+        help="audit trusted nodes whose found/proved status rests on shaky dependencies",
+    )
+    p_staleness.add_argument("project_dir", nargs="?", default=".")
+    p_staleness.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_staleness.add_argument(
+        "--top",
+        type=_positive_int,
+        default=10,
+        metavar="N",
+        help="maximum stale nodes to display / keep in --json (default: 10)",
+    )
+    p_staleness.add_argument(
+        "--max-causes",
+        type=_positive_int,
+        default=5,
+        metavar="N",
+        help="maximum causes to show per stale node (default: 5)",
+    )
+    p_staleness.add_argument(
+        "--fail-on-problem",
+        action="store_true",
+        help="exit non-zero (5) when any trusted node rests on broken/missing deps",
+    )
+    p_staleness.set_defaults(func=cmd_staleness)
+
     p_version = sub.add_parser("version", help="print version, Python, and schema information")
     p_version.add_argument("--json", action="store_true", help="emit version info as JSON")
     p_version.set_defaults(func=cmd_version)
 
     p_completion = sub.add_parser(
-        "completion", help="print a shell completion script (bash, zsh, or fish)"
+        "completion", help="print a shell completion script (bash, zsh, fish, or powershell)"
     )
     p_completion.add_argument("shell", choices=SUPPORTED_SHELLS)
+    p_completion.add_argument(
+        "--install",
+        action="store_true",
+        help="write the script to a per-user completion path instead of stdout",
+    )
+    p_completion.add_argument(
+        "--dest",
+        help="install destination path (implies --install; parent dirs are created)",
+    )
     p_completion.set_defaults(func=cmd_completion)
 
     p_diff = sub.add_parser(
@@ -1813,6 +2167,58 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="only consider the most recent N entries",
     )
     p_history.set_defaults(func=cmd_history)
+
+    p_burndown = sub.add_parser(
+        "burndown",
+        help="forecast an ETA to full proved coverage from trends.json",
+    )
+    p_burndown.add_argument("project_dir", nargs="?", default=".")
+    p_burndown.add_argument(
+        "--json", action="store_true", help="emit the forecast as JSON"
+    )
+    p_burndown.add_argument(
+        "--limit",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="only display the most recent N snapshots (velocity always uses all)",
+    )
+    p_burndown.add_argument(
+        "--window",
+        type=_positive_int,
+        default=5,
+        metavar="N",
+        help="number of most-recent snapshots used for the recent velocity (default: 5)",
+    )
+    p_burndown.add_argument(
+        "--fail-when-stalled",
+        action="store_true",
+        help="exit non-zero (5) when work remains but is stalled/regressing/scope-growing",
+    )
+    p_burndown.set_defaults(func=cmd_burndown)
+
+    p_portfolio = sub.add_parser(
+        "portfolio",
+        help="aggregate status across every blueprint project under a directory",
+    )
+    p_portfolio.add_argument(
+        "root_dir",
+        nargs="?",
+        default=".",
+        help="directory tree to scan for blueprint projects (default: .)",
+    )
+    p_portfolio.add_argument(
+        "--json", action="store_true", help="emit the roll-up as JSON"
+    )
+    p_portfolio.add_argument(
+        "--fail-on-problem",
+        action="store_true",
+        help=(
+            "exit non-zero (5) when any project has problems, dependency "
+            "cycles, or fails to load"
+        ),
+    )
+    p_portfolio.set_defaults(func=cmd_portfolio)
 
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
     p_assign.add_argument(
@@ -2024,6 +2430,104 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--max-attempts", type=int, default=20, help="attempts to keep per node"
     )
     p_attempt.set_defaults(func=cmd_attempt)
+
+    p_agent_run = sub.add_parser(
+        "agent-run",
+        help="run an external solver against the next ready task and record the outcome",
+    )
+    p_agent_run.add_argument("project_dir", nargs="?", default=".")
+    p_agent_run.add_argument(
+        "--node",
+        default=None,
+        metavar="NODE_OR_TASK",
+        help="run this ready node/task instead of the suggested next task",
+    )
+    agent_run_command = p_agent_run.add_mutually_exclusive_group()
+    agent_run_command.add_argument(
+        "--command",
+        default=None,
+        metavar="TEMPLATE",
+        help=(
+            "solver command template, shlex-split (POSIX quoting); supports the "
+            "placeholders {prompt_file} {node_id} {task_id} {project_dir}"
+        ),
+    )
+    agent_run_command.add_argument(
+        "--exec",
+        dest="exec_program",
+        default=None,
+        metavar="PROGRAM",
+        help="solver executable; combine with repeated --arg (argv-native, avoids shell quoting)",
+    )
+    p_agent_run.add_argument(
+        "--arg",
+        dest="arg",
+        action="append",
+        metavar="ARG",
+        help="argument for --exec (repeatable; supports the same placeholders)",
+    )
+    p_agent_run.add_argument(
+        "--allow-missing-prompt",
+        action="store_true",
+        help="permit a command that does not reference {prompt_file}",
+    )
+    p_agent_run.add_argument(
+        "--timeout",
+        type=float,
+        default=900.0,
+        metavar="SECONDS",
+        help="kill the solver (and its children) after SECONDS (default: 900)",
+    )
+    p_agent_run.add_argument(
+        "--max-output-bytes",
+        type=int,
+        default=DEFAULT_MAX_OUTPUT_BYTES,
+        metavar="N",
+        help="cap captured stdout+stderr; 0 disables the cap (default: 10 MiB)",
+    )
+    p_agent_run.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help=(
+            "write the prompt to PATH (default: build/agent-run/<task>.md; "
+            "relative paths resolve against the project dir)"
+        ),
+    )
+    p_agent_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="select and render the task and resolve the command without running or recording",
+    )
+    p_agent_run.add_argument("--json", action="store_true", help="emit machine-readable run JSON")
+    _add_ready_task_filter_arguments(p_agent_run)
+    p_agent_run.add_argument(
+        "--failure-outcome",
+        choices=("failed", "blocked", "needs_human"),
+        default="failed",
+        help="memory outcome recorded when the solver fails (default: failed)",
+    )
+    p_agent_run.add_argument(
+        "--no-record", action="store_true", help="do not write an agent-memory attempt"
+    )
+    p_agent_run.add_argument("--summary", default="", help="override the recorded memory summary")
+    p_agent_run.add_argument("--details", default="", help="override the recorded memory details")
+    p_agent_run.add_argument("--next-step", default=None, help="recommended next action for memory")
+    p_agent_run.add_argument(
+        "--actor", default=None, help="person or agent that ran the solver (default: agent-run)"
+    )
+    p_agent_run.add_argument(
+        "--tool", default=None, help="tool/model label for memory (default: the executable)"
+    )
+    p_agent_run.add_argument(
+        "--max-attempts", type=int, default=20, help="attempts to keep per node"
+    )
+    p_agent_run.add_argument(
+        "--fail-on-failure",
+        action="store_true",
+        help="exit 5 when the recorded outcome is not 'succeeded'",
+    )
+    p_agent_run.set_defaults(func=cmd_agent_run)
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
@@ -2312,12 +2816,14 @@ def _render_web_once(project_dir: Path) -> Path:
     trends = load_trends(config.trends_path)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
+    assignments = load_assignments(config.assignments_path)
     return render_site(
         project,
         config.site_dir,
         trends=trends,
         fact_suggestions=fact_suggestions,
         memory=memory,
+        assignments=assignments,
     )
 
 
@@ -2376,6 +2882,7 @@ def _watch_paths(project_dir: Path) -> list[Path]:
             config.dump_report_path,
             config.trends_path,
             config.project_json_path,
+            config.assignments_path,
         ]
     )
     return paths
