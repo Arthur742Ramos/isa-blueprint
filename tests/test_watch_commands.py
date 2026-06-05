@@ -79,3 +79,18 @@ def test_web_watch_paths_include_assignments(tmp_path: Path) -> None:
     _write_project(tmp_path)
     config = load_config(tmp_path)
     assert config.assignments_path in cli._watch_paths(tmp_path)
+
+
+def test_web_single_shot_renders_site(tmp_path: Path, capsys) -> None:
+    # `web` without --watch/--serve renders the static site once and reports the
+    # written index path. This pins the common (non-watch) code path.
+    _write_project(tmp_path)
+
+    rc = cli_main(["web", str(tmp_path)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("site -> ")
+    site_dir = tmp_path / "site"
+    assert (site_dir / "index.html").exists()
+    assert (site_dir / "status.html").exists()

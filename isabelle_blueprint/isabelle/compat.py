@@ -132,7 +132,9 @@ def _check_session(report: CompatibilityReport, config: BlueprintConfig) -> None
     sessions: set[str] = set()
     for root_file in roots:
         try:
-            sessions.update(_SESSION_RE.findall(root_file.read_text(encoding="utf-8")))
+            sessions.update(
+                _SESSION_RE.findall(root_file.read_text(encoding="utf-8", errors="replace"))
+            )
         except OSError:
             continue
     report.discovered_sessions = sorted(sessions)
@@ -230,7 +232,7 @@ def _collect_root_files(
     if not roots_file.exists():
         return
     try:
-        lines = roots_file.read_text(encoding="utf-8").splitlines()
+        lines = roots_file.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return
     for line in lines:

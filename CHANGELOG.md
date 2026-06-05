@@ -7,7 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.10.0] - 2026-06-05
+## [1.11.0] - 2026-06-05
+
+### Fixed
+
+- **Coverage percentage no longer rounds to a false 100% (or 0%).** The
+  `status`/`report` `coverage_percent` metric (and the portfolio roll-up)
+  previously used `round(proved / formal_targets * 100)`, so a project at
+  999/1000 proved reported **100%** — and was mislabelled `complete` by the
+  health check — while 1/1000 reported **0%**. Coverage is now truncated
+  (`proved * 100 // formal_targets`), so 100 means genuinely all-proved and 0
+  means none proved. Exact fractions (33%, 50%, 100%) are unchanged.
+- **`discover_roots` no longer skips every ROOT when the project lives under a
+  dotted directory.** The hidden-directory filter compared the *absolute* path
+  components, so any project under e.g. `~/.local/share/...` or a `.worktrees/`
+  checkout had all of its ROOT files silently skipped. The check is now relative
+  to the search root, so only dot-directories *inside* the project are pruned.
+- **`diff --json` `regression_count` now includes removed nodes.** A removed
+  proved node counts as a regression for `has_regression` and the rendered
+  "N regression(s)" headline, but the JSON `regression_count` counted only
+  changed nodes, so the field disagreed with the rest of the report. It now
+  matches.
+- **Agent-task prompt filenames are sanitised for unsafe node ids.** Node ids
+  containing path separators or Windows-illegal characters (`:`, `/`, `\`, …)
+  could escape the `prompts/` directory or fail to write. The `tasks` and
+  `attempt`/`next` commands now route prompt filenames through a shared helper:
+  filesystem-safe ids keep the documented `build/prompts/<task-id>.md` layout
+  verbatim, while unsafe ids are slugified and hash-suffixed so they stay inside
+  the prompts directory and never collide. (The stale-prompt sweep uses the same
+  mapping, so sanitised prompts are not deleted on rewrite.)
+- **Mermaid graph node ids are now collision-free.** `_mermaid_id` collapsed
+  every non-alphanumeric character to `_`, so blueprint ids differing only in
+  their separators (`a.b` vs `a-b`) rendered as the same Mermaid node and lost
+  edges. Disallowed characters are now escaped by codepoint, making the mapping
+  injective.
+- **Theory import reports the correct line numbers** for declarations that
+  follow blank lines (the multiline `^\s*` anchor could match a preceding blank
+  line and report a line too early), and **tolerates non-UTF-8 bytes** in theory
+  sources and `ROOT`/`ROOTS` files (reads now use `errors="replace"` instead of
+  crashing with a `UnicodeDecodeError` that the surrounding `except OSError`
+  did not catch).
+- **`parse_root_directories` now accepts unquoted directory names.** A
+  `directories src lib` clause (bare, unquoted — valid Isabelle) was silently
+  ignored because only double-quoted names were collected; quoted and unquoted
+  forms are now both handled.
+- **Malformed configuration and bad `init` targets produce a clean error**
+  instead of a raw traceback. A malformed `isabelle-blueprint.toml` now surfaces
+  as a one-line `error: could not load configuration …` (wrapped at the
+  `load_project` boundary, so `load_config` still raises `ValueError` for its
+  existing callers), and `init` pointed at a path that exists as a regular file
+  reports `… is not a directory` rather than leaking a `FileExistsError`.
+
+### Changed
+
+- **`assign` validates flag combinations that were previously silent no-ops.**
+  Running `assign --owner NAME` with no node id (the owner was discarded),
+  `assign NODE --note TEXT` with no `--owner` (the note was dropped, since a
+  note is only stored alongside an owner), or `assign --clear` with no node id
+  now raise a clear `BlueprintError` instead of silently listing assignments and
+  exiting 0 — matching the existing validation on sibling commands and the MCP
+  `assign_node` tool.
+- **`check`/`attempt` `--jobs` rejects non-positive values.** `--jobs 0` and
+  `--jobs -N` were accepted and silently forwarded as a no-op; they are now
+  rejected like the other count flags (argparse exit 2).
+- **`agent-run` fails fast on a corrupt agent-memory store.** When recording is
+  enabled, a corrupt `agent-memory.json` was only detected at record time —
+  *after* the (possibly expensive) solver had already run — discarding the
+  completed attempt. The store is now validated before the solver is spawned, so
+  the failure is reported up front. `--no-record` runs are unaffected.
+- Documentation corrections: the frozen exit-code contract now documents codes
+  `3` (degraded `check`/`dump --strict`) and `4` (`isabelle build` non-zero)
+  and no longer attributes them to code `6` (which is `comment --strict` only);
+  the always-registered MCP read-tool list is complete (24 tools); the `--color`
+  scope lists every colourising command; the GitHub Action `coverage_percent`
+  output is described as proved-only; and the README/example gallery coverage
+  figures and quoted `report` excerpts were regenerated against the current tool
+  output.
 
 ### Added
 

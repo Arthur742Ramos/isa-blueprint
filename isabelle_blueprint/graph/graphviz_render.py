@@ -168,12 +168,14 @@ def write_graph_artifacts(
 def _mermaid_id(node_id: str) -> str:
     """Return a Mermaid-safe identifier for ``node_id``.
 
-    Mermaid node ids may only contain alphanumerics and underscores, so any
-    other character (``.``, ``-``, ``/``, ``:`` are all legal in blueprint ids)
-    is replaced with an underscore. A leading ``n_`` keeps ids that start with a
-    digit valid.
+    Mermaid node ids may only contain ASCII alphanumerics and underscores, so
+    any other character (``.``, ``-``, ``/``, ``:`` are all legal in blueprint
+    ids, as are non-ASCII letters) is escaped by codepoint. A leading ``n_``
+    keeps ids that start with a digit valid. The escaping is injective, so
+    distinct blueprint ids that differ only in their separators (e.g. ``a.b``
+    vs ``a-b``) never collapse onto the same Mermaid node.
     """
-    safe = "".join(ch if ch.isalnum() else "_" for ch in node_id)
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
     return f"n_{safe}"
 
 

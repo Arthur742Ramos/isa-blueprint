@@ -32,11 +32,11 @@ valid `isabelle-blueprint.toml`.
 ### Global options
 
 `--color {auto,always,never}` (with `--no-color` as an alias for `never`)
-controls ANSI colour in the human-readable `lint`, `status`, and `doctor`
-renders. It is accepted both before and after the subcommand. The default
-`auto` enables colour only when stdout is a TTY and the `NO_COLOR` environment
-variable is unset, so machine-readable (`--json`) output and captured text are
-never colourised.
+controls ANSI colour in the human-readable renders of commands such as `lint`,
+`status`, `doctor`, `critical-path`, `impact`, and `staleness`. It is accepted
+both before and after the subcommand. The default `auto` enables colour only
+when stdout is a TTY and the `NO_COLOR` environment variable is unset, so
+machine-readable (`--json`) output and captured text are never colourised.
 
 ### MCP entry point
 
@@ -60,13 +60,16 @@ project subdirectories, over MCP. The default transport is `stdio`;
 `/mcp`).
 
 Read tools are always registered: `version`, `list_projects`, `status`,
-`roadmap`, `list_tasks`, `next_task`, `agent_context`, `explain_node`, `lint`,
-`graph`, `schema`, `doctor`, and `preview_rename_node`. Project-specific tools
-accept an optional `project` selector. It may be a project id from
-`list_projects`, a relative path, an absolute path under `--project-dir`, or a
-unique configured project name. If the launch directory is itself a project, it
-is the default for legacy calls; otherwise multiple discovered projects require
-an explicit selector.
+`roadmap`, `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`,
+`explain_node`, `lint`, `critical_path`, `impact`, `stats`, `staleness`,
+`history`, `burndown`, `portfolio`, `compat`, `suggest_facts`, `theory_index`,
+`graph`, `schema`, `doctor`, and `preview_rename_node`. The write tools
+`record_attempt` and `assign_node` are registered only with `--allow-writes`.
+Project-specific tools accept an optional `project` selector. It may be a
+project id from `list_projects`, a relative path, an absolute path under
+`--project-dir`, or a unique configured project name. If the launch directory is
+itself a project, it is the default for legacy calls; otherwise multiple
+discovered projects require an explicit selector.
 
 Resources include `blueprint://projects`, default-project resources
 `blueprint://project`, `blueprint://nodes/{node_id}`, `blueprint://tasks`,
@@ -90,8 +93,10 @@ client configuration examples.
 | `0` | Success |
 | `1` | A `BlueprintError` reached `main()` (e.g. parser/validator error, missing config) |
 | `2` | argparse usage error, a structural validation failure on `check`/`dump`, or `lint --strict` found an error-severity finding |
+| `3` | `check --strict` or `dump --strict` ran in degraded mode (Isabelle unavailable, or the build/dump never ran) |
+| `4` | `check` found Isabelle but `isabelle build` exited non-zero |
 | `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, or `diff --fail-on-regression` found a regression |
-| `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `check --strict` couldn't run Isabelle; `comment --strict` couldn't resolve the PR context) |
+| `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
 | `9` | `roadmap --strict` found cycles, problem nodes, stale nodes, or missing dependencies |
@@ -136,7 +141,8 @@ each declared fact exists and isn't tainted by `sorry` / oracles.
 
 - `--isabelle PATH` overrides the `isabelle` binary location.
 - `--timeout SECONDS` overrides `[isabelle].timeout` from the config.
-- `--strict` exits 6 if Isabelle isn't available or the build never ran.
+- `--strict` exits 3 if Isabelle isn't available or the build never ran, and
+  exits 4 if the build ran but `isabelle build` returned non-zero.
 - `--incremental` (added in v0.6) reuses results from
   `build/check-cache.json` for facts whose blueprint inputs, theory/session
   pins, and upstream dependencies are unchanged.

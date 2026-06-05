@@ -33,13 +33,17 @@ isabelle-blueprint web examples/gauss-sum
 
 ## What you'll see
 
-`report` shows all three nodes formalised — 100% coverage:
+`report` shows all three nodes proved — 100% coverage (proved / formal targets):
 
 ```text
 # Gauss summation formula - blueprint status
 
 - Nodes: **3**
-- Formalised (found or proved): **3** (100.0%)
+- Formal targets (with Isabelle ref): **3**
+- Proved: **3**
+- Found (exists, not yet trusted): **0**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **100%** (3/3)
 
 | Formal status | Count |
 | --- | ---: |

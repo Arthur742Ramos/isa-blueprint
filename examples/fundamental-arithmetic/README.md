@@ -24,19 +24,24 @@ isabelle-blueprint tasks  examples/fundamental-arithmetic
 
 ## What you'll see
 
-`report` summarises 10 nodes at exactly 50% formalised:
+`report` summarises 10 nodes; its headline coverage — now measured as proved
+over formal targets — is 33% (2 of 6):
 
 ```text
 # fundamental-arithmetic - blueprint status
 
 - Nodes: **10**
-- Formalised (found or proved): **5** (50.0%)
+- Formal targets (with Isabelle ref): **6**
+- Proved: **2**
+- Found (exists, not yet trusted): **1**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **33%** (2/6)
 
 | Formal status | Count |
 | --- | ---: |
-| `found` | 3 |
+| `found` | 1 |
 | `missing` | 4 |
-| `named` | 1 |
+| `named` | 3 |
 | `proved` | 2 |
 ```
 

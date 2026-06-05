@@ -13,6 +13,7 @@ from isabelle_blueprint.agents.runner import (
     classify_run_outcome,
     default_run_summary,
     execute_agent_command,
+    prompt_filename,
     safe_prompt_filename,
     split_command_string,
     substitute_command,
@@ -89,6 +90,17 @@ def test_safe_prompt_filename_sanitizes_unsafe_ids() -> None:
     assert name.endswith(".md")
     # Distinct ids that slugify the same stay unique via the hash suffix.
     assert safe_prompt_filename("a/b") != safe_prompt_filename("a-b")
+
+
+def test_prompt_filename_preserves_safe_ids_and_sanitizes_unsafe() -> None:
+    # Safe ids keep the documented build/prompts/<task-id>.md layout verbatim...
+    assert prompt_filename("task-main") == "task-main.md"
+    assert prompt_filename("task-foo_bar.baz") == "task-foo_bar.baz.md"
+    # ...while unsafe ids are slugified + hash-suffixed and never collide.
+    unsafe = prompt_filename("task-a/b:c")
+    assert "/" not in unsafe and ":" not in unsafe and "\\" not in unsafe
+    assert unsafe.endswith(".md")
+    assert prompt_filename("task-a/b") != prompt_filename("task-a-b")
 
 
 def test_classify_run_outcome_branches() -> None:
@@ -322,6 +334,55 @@ def test_cli_agent_run_no_record(tmp_path: Path, capsys) -> None:
     assert payload["outcome"] == "succeeded"
     assert payload["recorded"] is False
     assert _memory(tmp_path) == {}
+
+
+def test_cli_agent_run_corrupt_memory_fails_before_running_solver(tmp_path: Path) -> None:
+    # A corrupt agent-memory store used to be detected only at record time --
+    # i.e. AFTER the (possibly expensive) solver had already run, discarding the
+    # completed attempt. With recording enabled it must now fail fast, so the
+    # solver is never spawned (the marker file is never created).
+    _write_project(tmp_path)
+    mem = tmp_path / ".isabelle-blueprint" / "agent-memory.json"
+    mem.parent.mkdir(parents=True, exist_ok=True)
+    mem.write_text("{ this is not json", encoding="utf-8")
+    marker = tmp_path / "solver-ran.marker"
+
+    with pytest.warns(UserWarning, match="unreadable agent memory"):
+        code = cli_main(
+            [
+                "agent-run",
+                str(tmp_path),
+                "--command",
+                f"{_py()} -c \"open(r'{marker}','w').close()\" {{prompt_file}}",
+                "--json",
+            ]
+        )
+
+    assert code == 1
+    assert not marker.exists()
+
+
+def test_cli_agent_run_corrupt_memory_tolerated_with_no_record(tmp_path: Path, capsys) -> None:
+    # Without recording, a corrupt store is irrelevant and must not block a run.
+    _write_project(tmp_path)
+    mem = tmp_path / ".isabelle-blueprint" / "agent-memory.json"
+    mem.parent.mkdir(parents=True, exist_ok=True)
+    mem.write_text("{ this is not json", encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="unreadable agent memory"):
+        code = cli_main(
+            [
+                "agent-run",
+                str(tmp_path),
+                "--command",
+                f"{_py()} -c \"pass\" {{prompt_file}}",
+                "--no-record",
+                "--json",
+            ]
+        )
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["outcome"] == "succeeded"
 
 
 def test_cli_agent_run_missing_prompt_placeholder_errors(tmp_path: Path, capsys) -> None:

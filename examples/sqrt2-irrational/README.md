@@ -29,14 +29,18 @@ isabelle-blueprint tasks examples/sqrt2-irrational
 
 ## What you'll see
 
-`report` summarises 5 nodes at 60% formalised, across `proved`, `found`,
-`named`, and `missing`:
+`report` summarises 5 nodes with 50% coverage (2 of 4 formal targets proved),
+across `proved`, `found`, `named`, and `missing`:
 
 ```text
 # Irrationality of sqrt 2 - blueprint status
 
 - Nodes: **5**
-- Formalised (found or proved): **3** (60.0%)
+- Formal targets (with Isabelle ref): **4**
+- Proved: **2**
+- Found (exists, not yet trusted): **1**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **50%** (2/4)
 
 | Formal status | Count |
 | --- | ---: |

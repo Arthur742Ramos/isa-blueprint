@@ -84,6 +84,33 @@ def test_all_proved_hits_one_hundred_percent():
     assert metrics.has_problems is False
 
 
+def test_coverage_truncates_so_near_complete_is_not_false_one_hundred():
+    # 2 proved / 3 targets = 66.67%: must report 66, never round up to 67 and
+    # certainly never to 100. The 100% bucket is reserved for genuinely
+    # all-proved projects (else `status` health falsely reads "complete").
+    project = _project(
+        _node("a", FormalStatus.PROVED),
+        _node("b", FormalStatus.PROVED),
+        _node("c", FormalStatus.NAMED),
+    )
+    metrics = build_status_metrics(project)
+    assert metrics.formal_target_count == 3
+    assert metrics.proved_count == 2
+    assert metrics.coverage_percent == 66
+
+
+def test_coverage_truncates_so_barely_started_is_not_false_zero():
+    # 1 proved / 3 targets = 33% here is exact; the floor guarantee matters most
+    # at the boundaries, but verify a single proved target never reads as 0%.
+    project = _project(
+        _node("a", FormalStatus.PROVED),
+        _node("b", FormalStatus.NAMED),
+        _node("c", FormalStatus.NAMED),
+    )
+    metrics = build_status_metrics(project)
+    assert metrics.coverage_percent == 33
+
+
 def test_problem_statuses_flip_has_problems():
     project = _project(
         _node("a", FormalStatus.PROVED),

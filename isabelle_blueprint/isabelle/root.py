@@ -62,6 +62,10 @@ _ROOT_BLOCK_TERMINATORS = (
     "directories",
 )
 
+# A directory name inside a ``directories`` clause: either a double-quoted
+# string (which may contain spaces) or a bare path-like identifier.
+_DIRECTORY_TOKEN_RE = re.compile(r'"(?P<quoted>[^"]*)"|(?P<bare>[^\s"]+)')
+
 
 def _is_terminator(stripped: str, *, exclude: str) -> bool:
     """True iff ``stripped`` starts with a ROOT block terminator other than
@@ -116,17 +120,15 @@ def parse_root_directories(root_path: Path) -> list[str]:
             in_dirs = False
             continue
         if in_dirs:
-            rest = stripped
-            while '"' in rest:
-                start = rest.index('"')
-                try:
-                    end = rest.index('"', start + 1)
-                except ValueError:
-                    break
-                name = rest[start + 1 : end]
+            # Directory names may be quoted ("src") or bare (src); collect both.
+            # Comments are already stripped and terminator lines have exited the
+            # block above, so every remaining token on the line is a directory.
+            for match in _DIRECTORY_TOKEN_RE.finditer(stripped):
+                name = match.group("quoted")
+                if name is None:
+                    name = match.group("bare")
                 if name:
                     subdirs.append(name)
-                rest = rest[end + 1 :]
     return subdirs
 
 
@@ -470,7 +472,10 @@ def discover_roots(root_dir: Path) -> list[Path]:
         return []
     out: list[Path] = []
     for path in sorted(root_dir.rglob("ROOT")):
-        if any(part.startswith(".") for part in path.parts):
+        # Only skip ROOTs nested under a hidden directory *within* root_dir;
+        # checking path.parts would also match a dotted ancestor of root_dir
+        # itself (e.g. /home/user/.local/proj), wrongly skipping everything.
+        if any(part.startswith(".") for part in path.relative_to(root_dir).parts):
             continue
         if path.is_file():
             out.append(path.resolve())

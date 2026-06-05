@@ -24,19 +24,23 @@ isabelle-blueprint tasks  examples/euclid-primes
 
 ## What you'll see
 
-`report` summarises 6 nodes at about 67% formalised:
+`report` summarises 6 nodes; its headline coverage metric is now proved over
+formal targets, here 40% (2 of 5):
 
 ```text
 # Infinitude of the primes - blueprint status
 
 - Nodes: **6**
-- Formalised (found or proved): **4** (66.7%)
+- Formal targets (with Isabelle ref): **5**
+- Proved: **2**
+- Found (exists, not yet trusted): **0**
+- Problems (broken/not_found/tainted/failed_check): **0**
+- Coverage (proved / formal targets): **40%** (2/5)
 
 | Formal status | Count |
 | --- | ---: |
-| `found` | 2 |
 | `missing` | 1 |
-| `named` | 1 |
+| `named` | 3 |
 | `proved` | 2 |
 ```
 

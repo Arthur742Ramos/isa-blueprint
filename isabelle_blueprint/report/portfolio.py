@@ -208,7 +208,9 @@ def _aggregate(projects: list[PortfolioProject]) -> PortfolioTotals:
 
     targets = total("formal_target_count")
     proved = total("proved_count")
-    coverage = round(proved / targets * 100) if targets else None
+    # Truncate (not round) so portfolio-wide 100% means every formal target is
+    # proved, matching the per-project metric in metrics.py.
+    coverage = proved * 100 // targets if targets else None
     return PortfolioTotals(
         project_count=len(projects),
         loaded_count=len(loaded),

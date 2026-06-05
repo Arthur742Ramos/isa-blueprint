@@ -64,6 +64,11 @@ def test_diff_detects_removed_and_regression(tmp_path: Path, capsys) -> None:
     data = json.loads(capsys.readouterr().out)
     assert "gone" in data["removed"]
     assert data["has_regression"] is True
+    # Two regressions: node `a` downgraded proved->stub (a change) AND `gone`
+    # was removed. The JSON count must include removed nodes -- previously it
+    # counted only `changes` (would report 1 here), contradicting
+    # has_regression and the rendered "N regression(s)" headline.
+    assert data["regression_count"] == 2
 
 
 def test_diff_regression_without_flag_returns_zero(tmp_path: Path, capsys) -> None:

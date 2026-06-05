@@ -48,6 +48,16 @@ def test_parse_root_directories(tmp_path: Path) -> None:
     assert parse_root_directories(root) == ["src", "proofs"]
 
 
+def test_parse_root_directories_accepts_unquoted_names(tmp_path: Path) -> None:
+    # Isabelle allows bare (unquoted) directory names; they must be collected
+    # just like quoted ones, and the two forms may be mixed on one line.
+    root = _write(
+        tmp_path / "ROOT",
+        "session Demo = HOL +\n  directories src \"my proofs\" lib\n  theories\n    Alpha\n",
+    )
+    assert parse_root_directories(root) == ["src", "my proofs", "lib"]
+
+
 def test_parse_thy_imports_plain_and_quoted(tmp_path: Path) -> None:
     thy = _write(
         tmp_path / "A.thy",
@@ -209,6 +219,24 @@ def test_discover_and_iter_sessions_multi_root(tmp_path: Path) -> None:
     assert sorted(s.name for s in sessions) == ["A", "B"]
     files = iter_thy_files(tmp_path)
     assert sorted(p.name for p in files) == ["Alpha.thy", "Beta.thy"]
+
+
+def test_discover_roots_under_dotted_ancestor_directory(tmp_path: Path) -> None:
+    # When the project itself lives under a hidden directory (e.g.
+    # ~/.local/share/proj or a .worktrees/ checkout), discovery must still find
+    # its ROOTs: the hidden-dir skip is only meant to prune dot-dirs *inside*
+    # the search root, not match a dotted ancestor of the root path.
+    hidden_root = tmp_path / ".worktrees" / "proj"
+    hidden_root.mkdir(parents=True)
+    _write(hidden_root / "ROOT", "session A = HOL +\n  theories\n    Alpha\n")
+
+    roots = discover_roots(hidden_root)
+    assert len(roots) == 1
+
+    # A dot-directory *within* the search root is still skipped.
+    (hidden_root / ".ignored").mkdir()
+    _write(hidden_root / ".ignored" / "ROOT", "session Z = HOL +\n  theories\n    Z\n")
+    assert len(discover_roots(hidden_root)) == 1
 
 
 def test_default_session_dir_prefers_env(tmp_path: Path, monkeypatch) -> None:

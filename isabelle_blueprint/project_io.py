@@ -14,7 +14,15 @@ from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 def load_project(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:
     """Load configured blueprint sources without applying generated artifacts."""
 
-    config = load_config(project_dir)
+    # ``load_config`` raises ValueError (incl. tomllib.TOMLDecodeError and float()
+    # conversion errors) on a malformed isabelle-blueprint.toml. Surface those as
+    # a BlueprintError so the CLI's main() handler prints a clean one-line error
+    # instead of an uncaught traceback. ``load_config`` itself keeps raising
+    # ValueError, which doctor.py and the multi-blueprint tests rely on catching.
+    try:
+        config = load_config(project_dir)
+    except (ValueError, OSError) as exc:
+        raise BlueprintError(f"could not load configuration in {project_dir}: {exc}") from exc
     paths = config.blueprint_paths
     missing = [p for p in paths if not p.exists()]
     if missing:
