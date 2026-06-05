@@ -11,6 +11,7 @@ from typing import Any, TypeAlias, cast
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from isabelle_blueprint.agents.assignments import AssignmentStore
 from isabelle_blueprint.agents.memory import AgentMemory, summaries_by_node
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.graph.graphviz_render import (
@@ -28,6 +29,7 @@ from isabelle_blueprint.model.status import (
     FormalStatus,
 )
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
+from isabelle_blueprint.report.critical_path import build_critical_path
 from isabelle_blueprint.report.roadmap import build_roadmap, roadmap_payload
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -53,6 +55,7 @@ def render_site(
     trends: list[dict[str, Any]] | None = None,
     fact_suggestions: list[FactSuggestion] | None = None,
     memory: AgentMemory | None = None,
+    assignments: AssignmentStore | None = None,
 ) -> Path:
     """Render the project to a static HTML site under ``output_dir``.
 
@@ -62,6 +65,11 @@ def render_site(
     :mod:`isabelle_blueprint.report.trends`) used to render the trend
     chart on ``trends.html``. When omitted, the trends page renders an
     empty-state.
+
+    ``assignments`` is an optional :class:`AssignmentStore` mapping node ids
+    to owners. When supplied, owner badges and an owner filter are surfaced on
+    the graph page and per-node pages; stale ids that no longer match a project
+    node are ignored.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     env = _make_env()
@@ -84,6 +92,25 @@ def render_site(
     agent_counts = Counter(n.status.agent.value for n in project.nodes)
     dependency_levels = _dependency_levels(project)
 
+    critical = build_critical_path(project)
+    critical_path_ids = list(critical.longest.path) if critical.longest else []
+    critical_path_set = set(critical_path_ids)
+
+    project_ids = {node.id for node in project.nodes}
+    owners_by_node: dict[str, str] = {}
+    if assignments is not None:
+        owners_by_node = {
+            node_id: assignment.owner
+            for node_id, assignment in assignments.nodes.items()
+            if assignment.owner and node_id in project_ids
+        }
+    has_owner_assignments = bool(owners_by_node)
+    owner_counts = Counter(owners_by_node.values())
+    owner_facets = [
+        {"owner": owner, "count": count} for owner, count in sorted(owner_counts.items())
+    ]
+    unassigned_count = sum(1 for node in project.nodes if node.id not in owners_by_node)
+
     trends_data = list(trends or [])
     (output_dir / "trends.json").write_text(
         json.dumps({"entries": trends_data}, indent=2),
@@ -101,6 +128,13 @@ def render_site(
         "agent_breakdown": _count_breakdown(agent_counts, AgentStatus),
         "dependency_levels": dependency_levels,
         "dependency_stats": _dependency_stats(project, dependency_levels),
+        "critical_path": critical,
+        "critical_path_ids": critical_path_ids,
+        "critical_path_set": critical_path_set,
+        "owners_by_node": owners_by_node,
+        "has_owner_assignments": has_owner_assignments,
+        "owner_facets": owner_facets,
+        "unassigned_count": unassigned_count,
         "has_svg": svg is not None,
         "svg_source": _inline_svg(svg),
         "tasks": tasks,
@@ -153,6 +187,10 @@ def render_site(
     )
     (output_dir / "roadmap.json").write_text(
         json.dumps(roadmap_payload(roadmap), indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "critical-path.json").write_text(
+        json.dumps(critical.to_dict(), indent=2),
         encoding="utf-8",
     )
     if fact_suggestions:

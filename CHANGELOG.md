@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The static site's graph page now overlays a **critical-path panel** — the
+  longest remaining dependency chain to a goal plus the highest-leverage
+  bottlenecks (reusing the same analysis as the `critical-path` command) — and,
+  when an `assignments.json` store is present, **owner badges** with an owner
+  filter over the dependency-levels listing (wired through the existing generic
+  `filters.js`, so no new JavaScript). Critical-path nodes are flagged with a
+  `★` marker on both the graph and per-node pages, and the full analysis is also
+  written to `site/critical-path.json` for automation. The overlays are
+  additive and backward-compatible: stale assignment ids (no matching node) are
+  ignored, projects with no assignments omit the owner filter, and an all-proved
+  project renders an empty-state callout. (The critical-path analysis already
+  has a dedicated `critical_path` MCP tool, so no new MCP surface was needed.)
 - New `agent-run` command (and matching read-only `agent_run_plan` MCP tool) that
   closes the proof loop end-to-end: it selects the next ready task (using the same
   filters and `--node` selector as `next`/`attempt`), renders the prompt, runs an

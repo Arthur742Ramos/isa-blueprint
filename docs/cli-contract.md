@@ -335,6 +335,15 @@ chart. `--watch` (added in v1.1) re-renders when blueprint/check/report inputs
 change. `--serve` also starts a local HTTP server on `127.0.0.1:8000` by
 default.
 
+The graph page also surfaces a **critical-path panel** (the longest remaining
+dependency chain to a goal, plus the highest-leverage bottlenecks) and, when an
+`assignments.json` store exists (see `assign`), **owner badges** with an owner
+filter over the dependency-levels listing; critical-path nodes are flagged with a
+`★` marker on the graph and per-node pages. The same analysis is written to
+`site/critical-path.json` for automation. These overlays are additive: with no
+assignments the owner filter is omitted, and an all-proved project shows an
+empty-state callout instead of a chain.
+
 ### `serve`
 
 ```text

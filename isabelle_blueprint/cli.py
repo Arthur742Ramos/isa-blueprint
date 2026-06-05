@@ -2816,12 +2816,14 @@ def _render_web_once(project_dir: Path) -> Path:
     trends = load_trends(config.trends_path)
     fact_suggestions = suggest_missing_facts(project, dump_report_path=config.dump_report_path)
     memory = load_agent_memory(config.agent_memory_path)
+    assignments = load_assignments(config.assignments_path)
     return render_site(
         project,
         config.site_dir,
         trends=trends,
         fact_suggestions=fact_suggestions,
         memory=memory,
+        assignments=assignments,
     )
 
 
@@ -2880,6 +2882,7 @@ def _watch_paths(project_dir: Path) -> list[Path]:
             config.dump_report_path,
             config.trends_path,
             config.project_json_path,
+            config.assignments_path,
         ]
     )
     return paths

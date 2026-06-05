@@ -280,7 +280,7 @@ already justify.
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
-| `web` / `serve` | Static HTML site plus `site/roadmap.json` | Public progress pages, roadmap boards, and local preview. |
+| `web` / `serve` | Static HTML site plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, roadmap boards, critical-path + owner overlays, and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
