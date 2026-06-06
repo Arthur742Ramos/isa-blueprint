@@ -25,7 +25,7 @@ from isabelle_blueprint.agents.context import (
     render_agent_context,
     write_agent_context,
 )
-from isabelle_blueprint.agents.github_sync import sync_github_issues
+from isabelle_blueprint.agents.github_sync import pull_github_issue_states, sync_github_issues
 from isabelle_blueprint.agents.memory import (
     VALID_OUTCOMES,
     load_agent_memory,
@@ -120,6 +120,7 @@ from isabelle_blueprint.project_io import (
     load_project,
 )
 from isabelle_blueprint.refactor import rename_node
+from isabelle_blueprint.refactor.format import format_blueprint_paths
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.burndown import (
@@ -960,6 +961,29 @@ def cmd_rename(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fmt(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config = load_config_checked(project_dir)
+    paths = [p for p in config.blueprint_paths if p.exists()]
+    result = format_blueprint_paths(
+        paths, project_name=config.project_name, check_only=args.check
+    )
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for entry in result.files:
+            if entry.skipped:
+                print(f"  skipped {entry.path} ({entry.reason})")
+            elif entry.changed:
+                verb = "needs formatting" if args.check else "formatted"
+                print(f"  {verb}: {entry.path}")
+        if not result.would_change:
+            print("All Markdown blueprints are already canonical.")
+    if args.check and result.would_change:
+        return 10
+    return 0
+
+
 def cmd_dump(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -1089,6 +1113,28 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
         written["github_sync"] = sync_path
+    if args.github_sync_pull:
+        states = pull_github_issue_states(
+            state_path=Path(args.github_sync_state).resolve()
+            if args.github_sync_state
+            else config.github_sync_state_path,
+            repo=args.repo or os.environ.get("GITHUB_REPOSITORY"),
+            token_env=args.token_env,
+        )
+        pull_path = config.build_dir / "github-sync-state.json"
+        pull_path.parent.mkdir(parents=True, exist_ok=True)
+        pull_path.write_text(
+            json.dumps({"issues": [s.to_dict() for s in states]}, indent=2),
+            encoding="utf-8",
+        )
+        written["github_sync_state"] = pull_path
+        closed = [s.node_id for s in states if s.state == "closed"]
+        if closed:
+            print(
+                f"note: {len(closed)} tracked issue(s) are closed upstream: "
+                + ", ".join(sorted(closed)),
+                file=sys.stderr,
+            )
     for name, path in written.items():
         print(f"{name} -> {path}")
     if filters.active and not ready_tasks:
@@ -2275,6 +2321,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_rename.add_argument("--json", action="store_true", help="emit the rename result as JSON")
     p_rename.set_defaults(func=cmd_rename)
 
+    p_fmt = sub.add_parser(
+        "fmt", help="rewrite Markdown blueprints into canonical interchange form"
+    )
+    p_fmt.add_argument("project_dir", nargs="?", default=".")
+    p_fmt.add_argument(
+        "--check",
+        action="store_true",
+        help="report non-canonical files and exit non-zero (10) without writing",
+    )
+    p_fmt.add_argument("--json", action="store_true", help="emit the format result as JSON")
+    p_fmt.set_defaults(func=cmd_fmt)
+
     p_dump = sub.add_parser("dump", help="run or inspect Isabelle PIDE dump output")
     p_dump.add_argument("project_dir", nargs="?", default=".")
     p_dump.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
@@ -2358,6 +2416,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--github-sync-confirm",
         action="store_true",
         help="actually create/update GitHub issues for --github-sync",
+    )
+    p_tasks.add_argument(
+        "--github-sync-pull",
+        action="store_true",
+        help="read-only: fetch tracked issues' open/closed state into build/github-sync-state.json",
     )
     p_tasks.add_argument("--repo", default=None, help="GitHub repo for sync, e.g. owner/repo")
     p_tasks.add_argument(

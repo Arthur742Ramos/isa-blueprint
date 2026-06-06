@@ -101,6 +101,7 @@ client configuration examples.
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
 | `9` | `roadmap --strict` found cycles, problem nodes, stale nodes, or missing dependencies |
+| `10` | `fmt --check` found a Markdown blueprint that is not in canonical form |
 
 `--strict` is opt-in for every subcommand that exposes it. Without `--strict`,
 a missing external dependency is downgraded to an informational message and
@@ -300,6 +301,22 @@ if `new_id` already exists or `old_id` is absent.
 A re-parse safety check runs before any write, and source writes roll back on a
 mid-operation failure.
 
+### `fmt`
+
+```text
+isabelle-blueprint fmt [project_dir] [--check] [--json]
+```
+
+Rewrites Markdown blueprint sources into the canonical interchange form (one
+node per `:::` block, fixed metadata order, the full three-axis status block).
+
+- default: rewrites any non-canonical Markdown source in place.
+- `--check`: reports drift and exits `10` without writing (CI gate).
+- `--json`: emits `{check_only, changed, files}`.
+
+LaTeX sources are reported as skipped (the LaTeX writer emits a whole standalone
+document, so in-place reformatting is out of scope).
+
 ### `dump`
 
 ```text
@@ -371,6 +388,7 @@ isabelle-blueprint tasks [project_dir]
                          [--github-issues-file FILENAME]
                          [--github-sync]
                          [--github-sync-confirm]
+                         [--github-sync-pull]
                          [--repo OWNER/REPO]
                          [--token-env ENVVAR]
                          [--github-sync-state PATH]
@@ -404,6 +422,12 @@ default this is a dry-run and performs no network calls. Passing
 `--github-label` and `--github-assignee` (added in v1.6) are repeatable and
 affect generated issue drafts and sync payloads. Sync plans also include
 `would_close` actions for completed nodes that still have a tracked issue.
+
+`--github-sync-pull` (added in v1.12) is the **read-only** reverse direction: it
+fetches each tracked issue's current `open`/`closed` state (a deleted issue is
+reported as `missing`) into `build/github-sync-state.json` and notes on stderr
+which tasks are closed upstream. It never mutates issues or the blueprint, and
+uses the same `--repo`/`--token-env`/`--github-sync-state` inputs.
 
 The ready-task filters mirror `next` and `attempt`: repeat `--kind`,
 `--priority`, `--difficulty`, `--memory-state`, `--last-outcome`, or
@@ -1091,7 +1115,7 @@ For the v1.x line:
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
    `serve`, `tasks`, `next`, `attempt`, `report`, `status`, `roadmap`,
    `comment`, `doctor`, `memory`, `explain`, `import-theory`, `theory-index`,
-   `schema`, `new`,
+   `schema`, `new`, `fmt`,
    `stats`, `version`, `completion`)
    will not be renamed or removed.
 2. **Flag names and short forms** documented above will not be renamed or

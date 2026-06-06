@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-06-06
+
 ### Added
 
+- **`fmt` command** rewrites Markdown blueprints into the canonical interchange
+  form (one node per `:::` block, fixed metadata order, the full three-axis
+  status block). `fmt --check` reports drift and exits non-zero (8) without
+  writing, giving CI a cheap "is the blueprint canonical?" gate. LaTeX sources
+  are reported as skipped (the LaTeX writer emits a whole standalone document).
+- **`explain` now surfaces dependency provenance for proof trust.** Because
+  `sorry`/oracle taint propagates downstream, a `tainted`/`found` node is only as
+  trustworthy as its dependencies. `explain` now points at the direct
+  dependencies that are themselves tainted/broken (the likely cause) or simply
+  not proved yet (the remaining blockers), using the already-known per-node
+  statuses.
+- **`tasks --github-sync-pull`** adds the read side of GitHub issue sync. It
+  fetches the current open/closed state of every tracked issue into
+  `build/github-sync-state.json` (and notes which are closed upstream) **without
+  mutating** any issue or the blueprint, so closed-as-done tasks can be
+  reconciled. A deleted/unreachable issue is reported as `missing`.
 - **MCP `list_assignments` read tool** (plus `blueprint://assignments` and
   `blueprint://projects/{project}/assignments` resources) exposes recorded
   per-node ownership over MCP **without** `--allow-writes`. Previously the only

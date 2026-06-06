@@ -30,6 +30,19 @@ class GitHubSyncAction:
         return asdict(self)
 
 
+@dataclass
+class GitHubIssueState:
+    """Current upstream state of one tracked issue (read-only reconciliation)."""
+
+    node_id: str
+    issue_number: int
+    state: str  # "open", "closed", or "missing"
+    url: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 class GitHubIssueClient(Protocol):
     def search_issue(self, repo: str, node_id: str) -> dict[str, Any] | None: ...
 
@@ -41,6 +54,8 @@ class GitHubIssueClient(Protocol):
         ...
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
+
+    def get_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
 
 
 class GitHubApiClient:
@@ -70,6 +85,9 @@ class GitHubApiClient:
             f"/repos/{repo}/issues/{issue_number}",
             {"state": "closed", "state_reason": "completed"},
         )
+
+    def get_issue(self, repo: str, issue_number: int) -> dict[str, Any]:
+        return self._request("GET", f"/repos/{repo}/issues/{issue_number}")
 
     def _request(
         self, method: str, path: str, payload: dict[str, Any] | None = None
@@ -199,6 +217,56 @@ def sync_github_issues(
 
     _write_state(state_path, state)
     return actions
+
+
+def pull_github_issue_states(
+    state_path: Path,
+    *,
+    repo: str | None,
+    token_env: str = "GITHUB_TOKEN",
+    client: GitHubIssueClient | None = None,
+) -> list[GitHubIssueState]:
+    """Fetch the current open/closed state of every tracked issue from GitHub.
+
+    This is the read side of the sync and is strictly **read-only**: it never
+    mutates GitHub issues or the blueprint. It reconciles the persistent
+    node->issue map against GitHub so callers can see which proof tasks have been
+    closed (done) upstream — a deleted/unreachable issue is reported as
+    ``"missing"`` rather than raising.
+    """
+    state = _load_state(state_path)
+    if not state:
+        return []
+    if not repo:
+        raise BlueprintError(
+            "--repo is required to pull GitHub issue state (or set GITHUB_REPOSITORY)"
+        )
+    token = os.environ.get(token_env)
+    if not token:
+        raise BlueprintError(f"{token_env} is not set; refusing to query GitHub issues")
+    active_client = client or GitHubApiClient(token)
+
+    results: list[GitHubIssueState] = []
+    for node_id, issue_number in sorted(state.items()):
+        try:
+            issue = active_client.get_issue(repo, issue_number)
+        except BlueprintError:
+            results.append(GitHubIssueState(node_id, issue_number, "missing"))
+            continue
+        if not isinstance(issue, dict):
+            results.append(GitHubIssueState(node_id, issue_number, "missing"))
+            continue
+        state_value = str(issue.get("state") or "missing")
+        url = issue.get("html_url")
+        results.append(
+            GitHubIssueState(
+                node_id,
+                issue_number,
+                state_value,
+                url if isinstance(url, str) else None,
+            )
+        )
+    return results
 
 
 def body_with_marker(body: str, node_id: str) -> str:
