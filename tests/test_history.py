@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from isabelle_blueprint.cli import main as cli_main
+from isabelle_blueprint.report.history import render_trend_summary, summarize_trends
 
 _BLUEPRINT = """# history-test
 
@@ -98,3 +99,62 @@ def test_history_limit(tmp_path: Path, capsys) -> None:
     data = json.loads(capsys.readouterr().out)
     assert data["entry_count"] == 3
     assert len(data["entries"]) == 1
+
+
+def test_render_trend_summary_empty():
+    text = render_trend_summary(summarize_trends([]))
+    assert text == (
+        "No trend history yet. Run `isabelle-blueprint report` to record a snapshot.\n"
+    )
+
+
+def test_render_trend_summary_single_entry_has_no_delta():
+    text = render_trend_summary(
+        summarize_trends([{"timestamp": "2024-01-01T00:00:00Z", "proved_count": 1}])
+    )
+    assert "Trend history (1 entry):" in text
+    assert "Latest change: (need at least two entries to compute a delta)" in text
+
+
+def test_render_trend_summary_reports_delta_and_commit():
+    text = render_trend_summary(
+        summarize_trends(
+            [
+                {"timestamp": "2024-01-01T00:00:00Z", "proved_count": 1},
+                {
+                    "timestamp": "2024-01-02T00:00:00Z",
+                    "proved_count": 3,
+                    "coverage_percent": 50.0,
+                    "commit_sha": "abcdef1234567890",
+                },
+            ]
+        )
+    )
+    assert "Trend history (2 entries):" in text
+    assert "abcdef12" in text
+    assert "proved_count: 1 -> 3 (+2)" in text
+    assert "coverage_percent: n/a -> 50.0" in text
+
+
+def test_render_trend_summary_negative_and_no_change_deltas():
+    text = render_trend_summary(
+        summarize_trends(
+            [
+                {"timestamp": "t1", "proved_count": 3, "problem_count": 2},
+                {"timestamp": "t2", "proved_count": 3, "problem_count": 1},
+            ]
+        )
+    )
+    assert "proved_count: 3 -> 3 (no change)" in text
+    assert "problem_count: 2 -> 1 (-1)" in text
+
+
+def test_summarize_trends_ignores_non_numeric_metric():
+    summary = summarize_trends(
+        [
+            {"timestamp": "t1", "proved_count": "oops"},
+            {"timestamp": "t2", "proved_count": "still-bad"},
+        ]
+    )
+    proved = next(d for d in summary.deltas if d.metric == "proved_count")
+    assert proved.before is None and proved.after is None and proved.delta is None

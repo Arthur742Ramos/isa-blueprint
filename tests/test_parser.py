@@ -135,6 +135,20 @@ def test_status_mapping_split_axes():
     assert s.agent == AgentStatus.READY
 
 
+def test_invalid_explicit_status_raises_parse_error():
+    with pytest.raises(ParseError, match="invalid formal status 'typo'"):
+        _parse(
+            """
+            ::: theorem {#thm}
+            status:
+              formal: typo
+            :::
+            Body.
+            :::
+            """
+        )
+
+
 def test_isabelle_shorthand_derives_theory():
     project = _parse(
         """

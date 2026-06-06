@@ -17,7 +17,12 @@ from pathlib import Path
 from isabelle_blueprint.errors import ParseError
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import (
+    AgentStatus,
+    BlueprintStatus,
+    FormalStatus,
+    coerce_status,
+)
 
 _ENV_KINDS = [
     "definition",
@@ -269,17 +274,20 @@ def _parse_latex_status(text: str) -> tuple[NodeStatus, dict[str, bool]]:
             explicit[axis] = True
 
     blueprint = _first(_BLUEPRINT_STATUS_RE, text)
-    if blueprint:
-        status.blueprint = BlueprintStatus(blueprint.strip().lower())
-        explicit["blueprint"] = True
     formal = _first(_FORMAL_STATUS_RE, text)
-    if formal:
-        status.formal = FormalStatus(formal.strip().lower())
-        explicit["formal"] = True
     agent = _first(_AGENT_STATUS_RE, text)
-    if agent:
-        status.agent = AgentStatus(agent.strip().lower())
-        explicit["agent"] = True
+    try:
+        if blueprint:
+            status.blueprint = coerce_status(BlueprintStatus, blueprint)
+            explicit["blueprint"] = True
+        if formal:
+            status.formal = coerce_status(FormalStatus, formal)
+            explicit["formal"] = True
+        if agent:
+            status.agent = coerce_status(AgentStatus, agent)
+            explicit["agent"] = True
+    except ValueError as exc:
+        raise ParseError(str(exc)) from exc
     return status, explicit
 
 

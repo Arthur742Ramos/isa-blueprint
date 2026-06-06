@@ -80,6 +80,20 @@ def test_apply_dump_report_preserves_status_when_report_failed(tmp_path: Path):
     assert by_id["clean"].status.check_error == result.error
 
 
+def test_inspect_dump_dir_availability_reflects_path_not_ran(tmp_path: Path, monkeypatch):
+    """``isabelle_available`` tracks PATH resolution, not whether we ran Isabelle."""
+    from isabelle_blueprint.isabelle import dump as dump_module
+
+    monkeypatch.setattr(dump_module.shutil, "which", lambda _exe: "/opt/isabelle/bin/isabelle")
+    available = inspect_dump_dir(_project(), tmp_path)
+    assert available.ran is False  # offline inspection
+    assert available.isabelle_available is True
+
+    monkeypatch.setattr(dump_module.shutil, "which", lambda _exe: None)
+    missing = inspect_dump_dir(_project(), tmp_path)
+    assert missing.isabelle_available is False
+
+
 def test_run_dump_timeout_is_graceful(tmp_path: Path, monkeypatch):
     """A dump that exceeds the timeout must not propagate and must leave ran=False."""
     import shutil

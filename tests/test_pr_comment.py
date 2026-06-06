@@ -79,6 +79,29 @@ def test_build_comment_body_handles_no_coverage():
     assert "Coverage | n/a" in body
 
 
+def test_build_comment_body_inlines_multiline_check_error():
+    bad = BlueprintNode(
+        id="lem-bad",
+        kind=NodeKind.LEMMA,
+        title="Bad",
+        statement="thing",
+        isabelle=IsabelleRef(fact="Demo.bad"),
+        status=NodeStatus(
+            blueprint=BlueprintStatus.WRITTEN,
+            formal=FormalStatus.NOT_FOUND,
+            check_error="first line\nsecond line\nthird line",
+        ),
+    )
+    project = BlueprintProject.from_nodes("multi", [bad], sources=["x.md"])
+
+    body = build_comment_body(project)
+
+    # The whole error stays on the node's bullet line; a stray newline would
+    # break the surrounding Markdown list.
+    assert "`lem-bad`: not_found — first line second line third line" in body
+    assert "\nsecond line" not in body
+
+
 def test_post_skips_without_token(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GH_TOKEN", raising=False)

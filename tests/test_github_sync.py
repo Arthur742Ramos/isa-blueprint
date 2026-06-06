@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from isabelle_blueprint.agents.github_sync import body_with_marker, sync_github_issues
+from isabelle_blueprint.agents.github_sync import (
+    ISSUE_MARKER,
+    body_with_marker,
+    sync_github_issues,
+)
 
 
 class FakeClient:
@@ -96,7 +100,8 @@ def test_github_sync_uses_existing_state_for_update(tmp_path: Path, monkeypatch)
 def test_github_sync_recovers_by_search_when_state_missing(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "secret")
     client = FakeClient()
-    client.found = {"number": 8}
+    # A real recovered issue carries the marker this tool injects.
+    client.found = {"number": 8, "body": ISSUE_MARKER.format(node_id="a")}
 
     actions = sync_github_issues(
         [_draft()],
@@ -108,6 +113,26 @@ def test_github_sync_recovers_by_search_when_state_missing(tmp_path: Path, monke
 
     assert actions[0].action == "updated"
     assert client.updated[0][1] == 8
+
+
+def test_github_sync_ignores_unmarked_search_match(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret")
+    client = FakeClient()
+    # An unrelated issue that merely mentions the node id (no marker) must not be
+    # adopted — otherwise sync would clobber a foreign issue.
+    client.found = {"number": 99, "body": "Discussion about node a, unrelated."}
+
+    actions = sync_github_issues(
+        [_draft()],
+        repo="owner/repo",
+        state_path=tmp_path / "state.json",
+        confirm=True,
+        client=client,
+    )
+
+    assert actions[0].action == "created"
+    assert client.updated == []
+    assert client.created and client.created[0][0] == "owner/repo"
 
 
 def test_github_sync_dry_run_surfaces_completed_issue_close_hint(tmp_path: Path):

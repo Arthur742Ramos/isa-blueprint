@@ -64,7 +64,12 @@ import yaml
 from isabelle_blueprint.errors import ParseError
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import (
+    AgentStatus,
+    BlueprintStatus,
+    FormalStatus,
+    coerce_status,
+)
 
 # ---------------------------------------------------------------------------
 # Regex helpers
@@ -426,12 +431,15 @@ def _parse_status(metadata: dict) -> NodeStatus:
         return status
     if not isinstance(raw, dict):
         raise ParseError(f"unsupported 'status:' value of type {type(raw).__name__}")
-    if "blueprint" in raw:
-        status.blueprint = BlueprintStatus(str(raw["blueprint"]).strip().lower())
-    if "formal" in raw:
-        status.formal = FormalStatus(str(raw["formal"]).strip().lower())
-    if "agent" in raw:
-        status.agent = AgentStatus(str(raw["agent"]).strip().lower())
+    try:
+        if "blueprint" in raw:
+            status.blueprint = coerce_status(BlueprintStatus, raw["blueprint"])
+        if "formal" in raw:
+            status.formal = coerce_status(FormalStatus, raw["formal"])
+        if "agent" in raw:
+            status.agent = coerce_status(AgentStatus, raw["agent"])
+    except ValueError as exc:
+        raise ParseError(str(exc)) from exc
     return status
 
 

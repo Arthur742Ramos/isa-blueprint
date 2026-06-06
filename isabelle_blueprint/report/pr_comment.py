@@ -63,6 +63,17 @@ def _read_event_pr_number(event_path: str | None) -> int | None:
     return number if isinstance(number, int) else None
 
 
+def _inline(text: str) -> str:
+    """Collapse runs of whitespace (including newlines) to single spaces.
+
+    User-controlled fields — node titles and Isabelle ``check_error`` text — are
+    rendered into Markdown list items. A raw newline would terminate the list
+    item early and let the rest of the text escape into the comment body, so we
+    flatten such fields to a single line first.
+    """
+    return " ".join(text.split())
+
+
 def build_comment_body(
     project: BlueprintProject,
     metrics: StatusMetrics | None = None,
@@ -113,7 +124,7 @@ def build_comment_body(
             if metadata is not None:
                 detail = f" — {metadata.priority} priority, {metadata.difficulty} difficulty"
             fact = f" (`{task.target_fact}`)" if task.target_fact else ""
-            lines.append(f"- `{task.node_id}`: {task.title}{fact}{detail}")
+            lines.append(f"- `{task.node_id}`: {_inline(task.title)}{fact}{detail}")
         if len(ready_tasks) > 8:
             lines.append(f"- …and {len(ready_tasks) - 8} more ready task(s).")
         lines.extend(["", "</details>"])
@@ -125,7 +136,7 @@ def build_comment_body(
     if problem_nodes:
         lines.extend(["", "<details>", "<summary>Problem nodes</summary>", ""])
         for node in problem_nodes[:8]:
-            error = f" — {node.status.check_error}" if node.status.check_error else ""
+            error = f" — {_inline(node.status.check_error)}" if node.status.check_error else ""
             lines.append(f"- `{node.id}`: {node.status.formal.value}{error}")
         if len(problem_nodes) > 8:
             lines.append(f"- …and {len(problem_nodes) - 8} more problem node(s).")

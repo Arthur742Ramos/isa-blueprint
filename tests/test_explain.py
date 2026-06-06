@@ -5,6 +5,7 @@ from pathlib import Path
 
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.explain import explain_project, render_explanations
+from isabelle_blueprint.isabelle.suggestions import FactSuggestion
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
@@ -65,6 +66,54 @@ def test_explain_unknown_node():
 
     assert explanation.node_id == "nope"
     assert explanation.severity == "error"
+
+
+def test_explain_covers_every_formal_status_branch():
+    cases = {
+        FormalStatus.MISSING: ("info", "No formal target"),
+        FormalStatus.NAMED: ("warning", "named but unchecked"),
+        FormalStatus.FOUND: ("ok", "proof trust"),
+        FormalStatus.PROVED: ("ok", "proved"),
+        FormalStatus.STALE: ("warning", "stale"),
+        FormalStatus.BROKEN: ("error", "failed"),
+    }
+    for status, (severity, needle) in cases.items():
+        node = _node("n", status)
+        if status == FormalStatus.MISSING:
+            node.isabelle = IsabelleRef()  # no fact -> genuinely missing
+        explanation = explain_project(BlueprintProject.from_nodes("p", [node]))[0]
+        assert explanation.severity == severity, status
+        assert needle.lower() in explanation.summary.lower(), status
+
+
+def test_explain_broken_uses_check_error_when_present():
+    node = _node("n", FormalStatus.BROKEN, error="theorem foo failed")
+    explanation = explain_project(BlueprintProject.from_nodes("p", [node]))[0]
+    assert any("theorem foo failed" in reason for reason in explanation.reasons)
+
+
+def test_explain_reports_dependency_cycle():
+    a = _node("a", FormalStatus.NAMED, uses=["b"])
+    b = _node("b", FormalStatus.NAMED, uses=["a"])
+    project = BlueprintProject.from_nodes("p", [a, b])
+
+    explanations = explain_project(project)
+
+    assert any(
+        any("cycle" in reason.lower() for reason in e.reasons) for e in explanations
+    )
+
+
+def test_explain_not_found_includes_fact_suggestions():
+    node = _node("a", FormalStatus.NOT_FOUND)
+    project = BlueprintProject.from_nodes("p", [node])
+    suggestions = [
+        FactSuggestion(node_id="a", target_fact="Demo.a", suggestions=["Demo.alpha"])
+    ]
+
+    explanation = explain_project(project, fact_suggestions=suggestions)[0]
+
+    assert any("Demo.alpha" in s for s in explanation.suggestions)
 
 
 def test_render_explanations_is_human_readable():

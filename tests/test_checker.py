@@ -253,6 +253,39 @@ def test_run_check_writes_theory_and_returns_skipped_result(tmp_path: Path):
     assert (tmp_path / "Blueprint_Check.thy").exists()
 
 
+def test_run_check_proof_status_nonce_only_when_tsv_absent(tmp_path: Path):
+    """The generated theory only carries a freshness nonce while the status file
+    is absent.
+
+    This is the mechanism that keeps ``Blueprint_Proof_Status.tsv`` honest: the
+    first proof-status check (no TSV yet) injects a unique nonce comment so
+    Isabelle is forced to re-run the export, while a follow-up check (TSV
+    present) omits the nonce so an *unchanged* theory can reuse Isabelle's cached
+    build and the still-valid status file. Deleting the TSV before every run
+    would defeat that reuse and force a rebuild each time.
+    """
+    project = _proj(_node("a", "Demo.a"))
+    build_dir = tmp_path / "build"
+    unavailable = "definitely-not-installed-isabelle-xyz"
+
+    run_check(
+        project, build_dir=build_dir, session_name="Demo",
+        isabelle_executable=unavailable, proof_status=True,
+    )
+    first = (build_dir / "Blueprint_Check.thy").read_text(encoding="utf-8")
+    assert "Check nonce:" in first
+
+    # Simulate a prior successful run having produced the status file.
+    (build_dir / "Blueprint_Proof_Status.tsv").write_text("", encoding="utf-8")
+
+    run_check(
+        project, build_dir=build_dir, session_name="Demo",
+        isabelle_executable=unavailable, proof_status=True,
+    )
+    second = (build_dir / "Blueprint_Check.thy").read_text(encoding="utf-8")
+    assert "Check nonce:" not in second
+
+
 def test_run_check_no_session_skips_build(tmp_path: Path, monkeypatch):
     """Even with isabelle available, session=None should short-circuit."""
     # Pretend the binary is on PATH.
