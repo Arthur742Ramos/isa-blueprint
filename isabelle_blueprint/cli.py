@@ -970,7 +970,11 @@ def cmd_dump(args: argparse.Namespace) -> int:
         return 2
 
     if args.from_dir:
-        result = inspect_dump_dir(project, Path(args.from_dir))
+        result = inspect_dump_dir(
+            project,
+            Path(args.from_dir),
+            isabelle_executable=args.isabelle or config.isabelle_executable,
+        )
     else:
         result = run_dump(
             project,

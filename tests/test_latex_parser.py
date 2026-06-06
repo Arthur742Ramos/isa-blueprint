@@ -134,6 +134,19 @@ def test_latex_status_shorthand_maps_single_axis():
     assert status.agent == AgentStatus.READY
 
 
+def test_latex_invalid_explicit_status_raises_parse_error():
+    with pytest.raises(ParseError, match="invalid blueprint status 'typo'"):
+        _parse(
+            r"""
+            \begin{lemma}
+            \label{lem-bad}
+            \blueprintstatus{typo}
+            Body.
+            \end{lemma}
+            """
+        )
+
+
 def test_latex_accepts_explicit_isabelle_theory_and_session_macros():
     project = _parse(
         r"""

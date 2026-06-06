@@ -149,7 +149,9 @@ def run_dump(
     if proc.returncode != 0:
         result.error = f"isabelle dump returned {proc.returncode}"
         return _with_reference_facts(result, project)
-    inspected = inspect_dump_dir(project, output_dir, ran=True)
+    inspected = inspect_dump_dir(
+        project, output_dir, ran=True, isabelle_executable=isabelle_executable
+    )
     inspected.invoked_command = result.invoked_command
     inspected.isabelle_available = result.isabelle_available
     inspected.return_code = result.return_code
@@ -159,10 +161,26 @@ def run_dump(
     return inspected
 
 
-def inspect_dump_dir(project: BlueprintProject, dump_dir: Path, *, ran: bool = False) -> DumpResult:
-    """Inspect an existing ``isabelle dump`` output directory."""
+def inspect_dump_dir(
+    project: BlueprintProject,
+    dump_dir: Path,
+    *,
+    ran: bool = False,
+    isabelle_executable: str = "isabelle",
+) -> DumpResult:
+    """Inspect an existing ``isabelle dump`` output directory.
+
+    ``isabelle_available`` reflects whether the Isabelle binary is resolvable on
+    PATH and is independent of ``ran``: inspecting an existing dump directory
+    offline should not be reported as "Isabelle unavailable" merely because this
+    call did not launch an Isabelle process.
+    """
     dump_dir = dump_dir.resolve()
-    result = DumpResult(ran=ran, inspected_dir=str(dump_dir), isabelle_available=ran)
+    result = DumpResult(
+        ran=ran,
+        inspected_dir=str(dump_dir),
+        isabelle_available=shutil.which(isabelle_executable) is not None,
+    )
     if not dump_dir.exists():
         result.error = f"dump directory does not exist: {dump_dir}"
         return _with_reference_facts(result, project)

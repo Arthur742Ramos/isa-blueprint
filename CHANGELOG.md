@@ -19,6 +19,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`dump --from-dir` now reports `isabelle_available` truthfully.** Offline
+  inspection of an existing PIDE dump directory hard-coded `isabelle_available`
+  to `false` (it was derived from whether an Isabelle process had been launched),
+  so the JSON dump report claimed Isabelle was unavailable even when it was on
+  PATH. `inspect_dump_dir` now resolves the configured executable on PATH
+  independently of whether a process was run.
+- **Invalid blueprint `status` values now raise a clean `ParseError` instead of
+  leaking a raw enum `ValueError` (with traceback).** A typo in an explicit
+  status axis — `status.formal: typo` in Markdown, `\blueprintstatus{typo}` in
+  LaTeX — previously crashed the parser with an uncaught
+  `ValueError: 'typo' is not a valid FormalStatus` traceback, since the CLI/MCP
+  boundary only catches `BlueprintError`. Both parsers now coerce status tokens
+  through a shared `coerce_status` helper that reports `error: invalid formal
+  status 'typo'; expected one of: …`, matching every other parse error.
+- **GitHub issue sync no longer adopts an unrelated issue from search.** When
+  local sync state was missing, `sync_github_issues` reused the first issue
+  returned by GitHub's free-text search — which can match any issue that merely
+  mentions the node id — and would then update or even *close* that foreign
+  issue. It now only adopts a searched issue whose body carries the exact
+  `<!-- isabelle-blueprint:task node_id=… -->` marker this tool injects.
+- **GitHub sync state is now written atomically** (temp sibling + rename),
+  matching the agent-memory and assignment stores. An interrupted write can no
+  longer leave a truncated `github-sync` state file that a later run rejects as
+  corrupt.
+- **PR status comments flatten multi-line text into list items.** A node title
+  or Isabelle `check_error` containing newlines previously terminated its
+  Markdown list item early and spilled the remainder into the comment body. Such
+  fields are now collapsed to a single line before rendering.
 - **Agent-memory and assignment stores are now written atomically** (temp
   sibling + rename) instead of truncate-in-place. A concurrent reader — e.g. the
   MCP `stats` or new `list_assignments` tool running while a write tool updates

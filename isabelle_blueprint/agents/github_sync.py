@@ -157,7 +157,8 @@ def sync_github_issues(
         issue_number = state.get(node_id)
         if issue_number is None:
             found = active_client.search_issue(repo, node_id)
-            if found is not None and "number" in found:
+            if _issue_matches_node(found, node_id):
+                assert found is not None  # narrowed by _issue_matches_node
                 issue_number = int(found["number"])
         body = body_with_marker(str(draft["body"]), node_id)
         sync_draft = {**draft, "body": body}
@@ -207,6 +208,21 @@ def body_with_marker(body: str, node_id: str) -> str:
     return f"{marker}\n\n{body}"
 
 
+def _issue_matches_node(issue: dict[str, Any] | None, node_id: str) -> bool:
+    """Return ``True`` only when a searched issue is safe to adopt for ``node_id``.
+
+    GitHub's free-text issue search matches anywhere in the title/body, so it can
+    return an unrelated issue that merely mentions the node id (or the literal
+    ``isabelle-blueprint:task`` string). Reusing such an issue would update — or,
+    once the node completes, *close* — a foreign issue. We therefore only adopt
+    an issue whose body carries the exact machine marker this tool injects.
+    """
+    if not isinstance(issue, dict) or "number" not in issue:
+        return False
+    marker = ISSUE_MARKER.format(node_id=node_id)
+    return marker in (issue.get("body") or "")
+
+
 def _issue_payload(draft: dict[str, Any]) -> dict[str, Any]:
     payload = {
         "title": draft["title"],
@@ -245,4 +261,9 @@ def _write_state(path: Path, state: dict[str, int]) -> None:
             for node_id, issue_number in sorted(state.items())
         },
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Write to a temp sibling then atomically rename, so a concurrent reader
+    # never observes a half-written file (mirrors write_agent_memory /
+    # write_assignments).
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp.replace(path)

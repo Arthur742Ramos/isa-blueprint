@@ -15,6 +15,7 @@ maps to :class:`FormalStatus.FOUND` per the README disclaimer
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TypeVar
 
 
 class BlueprintStatus(StrEnum):
@@ -65,3 +66,32 @@ STATUS_COLORS: dict[str, str] = {
     FormalStatus.BROKEN.value: "#dc2626",        # dark red - build failure
     FormalStatus.FAILED_CHECK.value: "#dc2626",
 }
+
+
+_StatusEnumT = TypeVar("_StatusEnumT", BlueprintStatus, FormalStatus, AgentStatus)
+
+_AXIS_NAMES: dict[type, str] = {
+    BlueprintStatus: "blueprint",
+    FormalStatus: "formal",
+    AgentStatus: "agent",
+}
+
+
+def coerce_status(enum_cls: type[_StatusEnumT], value: object) -> _StatusEnumT:
+    """Coerce a raw token to a status enum member.
+
+    Tokens are normalised (stripped + lower-cased) before lookup. An
+    unrecognised token raises :class:`ValueError` whose message lists the valid
+    values, so the Markdown/LaTeX parsers can surface a clean
+    :class:`~isabelle_blueprint.errors.ParseError` instead of leaking a bare
+    enum ``ValueError`` (and its traceback) to the CLI/MCP boundary.
+    """
+    token = str(value).strip().lower()
+    try:
+        return enum_cls(token)
+    except ValueError:
+        axis = _AXIS_NAMES.get(enum_cls, enum_cls.__name__)
+        valid = ", ".join(member.value for member in enum_cls)
+        raise ValueError(
+            f"invalid {axis} status {token!r}; expected one of: {valid}"
+        ) from None

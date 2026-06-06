@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from isabelle_blueprint import doctor as doctor_module
 from isabelle_blueprint.cli import main as cli_main
-from isabelle_blueprint.doctor import run_doctor
+from isabelle_blueprint.config import BlueprintConfig
+from isabelle_blueprint.doctor import (
+    _check_afp,
+    _check_graphviz,
+    _check_isabelle,
+    run_doctor,
+)
 
 _BLUEPRINT = """# Demo
 
@@ -43,4 +50,95 @@ def test_doctor_json_output(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert '"checks"' in out
     assert '"project_dir"' in out
+
+
+def _config(tmp_path: Path, **kwargs) -> BlueprintConfig:
+    defaults = dict(
+        project_root=tmp_path,
+        blueprint_path=tmp_path / "blueprint.md",
+        build_dir=tmp_path / "build",
+        site_dir=tmp_path / "site",
+    )
+    defaults.update(kwargs)
+    return BlueprintConfig(**defaults)
+
+
+def test_doctor_config_load_error_short_circuits(tmp_path: Path) -> None:
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    (tmp_path / "isabelle-blueprint.toml").write_text("this is = not = valid", encoding="utf-8")
+
+    report = run_doctor(tmp_path, isabelle_executable="__isabelle_absent__")
+
+    config_checks = [c for c in report.checks if c.name == "config"]
+    assert config_checks and config_checks[0].status == "error"
+    assert report.has_errors
+
+
+def test_check_graphviz_found(monkeypatch) -> None:
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: "/usr/bin/dot")
+    check = _check_graphviz()
+    assert check.status == "ok"
+    assert "dot" in check.message
+
+
+def test_check_isabelle_runs_version(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: "/opt/isabelle")
+
+    class _Proc:
+        returncode = 0
+        stdout = "Isabelle2024: April 2024"
+        stderr = ""
+
+    monkeypatch.setattr(doctor_module.subprocess, "run", lambda *a, **k: _Proc())
+    check = _check_isabelle(_config(tmp_path), isabelle_executable=None)
+    assert check.status == "ok"
+    assert "Isabelle2024" in check.message
+
+
+def test_check_isabelle_version_mismatch_warns(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: "/opt/isabelle")
+
+    class _Proc:
+        returncode = 0
+        stdout = "Isabelle2024"
+        stderr = ""
+
+    monkeypatch.setattr(doctor_module.subprocess, "run", lambda *a, **k: _Proc())
+    check = _check_isabelle(
+        _config(tmp_path, isabelle_version="Isabelle2025"), isabelle_executable=None
+    )
+    assert check.status == "warning"
+    assert "Expected" in check.message
+
+
+def test_check_afp_not_required(tmp_path: Path) -> None:
+    [check] = _check_afp(_config(tmp_path))
+    assert check.status == "ok"
+    assert "not required" in check.message
+
+
+def test_check_afp_required_but_unconfigured(tmp_path: Path) -> None:
+    [check] = _check_afp(_config(tmp_path, afp_required=True))
+    assert check.status == "error"
+
+
+def test_check_afp_root_missing(tmp_path: Path) -> None:
+    [check] = _check_afp(_config(tmp_path, afp_root=tmp_path / "no-afp", afp_required=True))
+    assert check.status == "error"
+    assert "does not exist" in check.message
+
+
+def test_check_afp_entry_missing(tmp_path: Path) -> None:
+    afp = tmp_path / "afp"
+    afp.mkdir()
+    [check] = _check_afp(_config(tmp_path, afp_root=afp, afp_entry="Missing_Entry"))
+    assert check.status == "warning"
+    assert "entry not found" in check.message.lower()
+
+
+def test_check_afp_ok(tmp_path: Path) -> None:
+    afp = tmp_path / "afp"
+    (afp / "thys" / "Good_Entry").mkdir(parents=True)
+    [check] = _check_afp(_config(tmp_path, afp_root=afp, afp_entry="Good_Entry"))
+    assert check.status == "ok"
 
