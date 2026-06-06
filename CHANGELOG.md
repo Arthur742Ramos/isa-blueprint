@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`fmt` command** rewrites Markdown blueprints into the canonical interchange
   form (one node per `:::` block, fixed metadata order, the full three-axis
-  status block). `fmt --check` reports drift and exits non-zero (8) without
+  status block). `fmt --check` reports drift and exits non-zero (10) without
   writing, giving CI a cheap "is the blueprint canonical?" gate. LaTeX sources
   are reported as skipped (the LaTeX writer emits a whole standalone document).
 - **`explain` now surfaces dependency provenance for proof trust.** Because
