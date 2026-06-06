@@ -5,9 +5,12 @@ from pathlib import Path
 
 from isabelle_blueprint.agents.github_sync import (
     ISSUE_MARKER,
+    GitHubIssueState,
     body_with_marker,
+    pull_github_issue_states,
     sync_github_issues,
 )
+from isabelle_blueprint.errors import BlueprintError
 
 
 class FakeClient:
@@ -177,3 +180,86 @@ def test_github_sync_confirmed_close_removes_completed_issue_from_state(
     assert actions[0].issue_number == 7
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["nodes"] == {}
+
+
+class _PullClient:
+    def __init__(self, issues: dict):
+        self.issues = issues
+
+    def get_issue(self, repo: str, issue_number: int):
+        item = self.issues.get(issue_number)
+        if item is None:
+            raise BlueprintError(f"issue {issue_number} not found")
+        return item
+
+
+def _write_state_file(path: Path, mapping: dict[str, int]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "nodes": {nid: {"issue_number": n} for nid, n in mapping.items()},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_pull_returns_empty_without_state(tmp_path: Path):
+    states = pull_github_issue_states(
+        tmp_path / "absent.json", repo="owner/repo", client=_PullClient({})
+    )
+    assert states == []
+
+
+def test_pull_reports_open_closed_and_missing(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret")
+    state_path = tmp_path / "state.json"
+    _write_state_file(state_path, {"a": 1, "b": 2, "gone": 3})
+    client = _PullClient(
+        {
+            1: {"state": "open", "html_url": "https://example/1"},
+            2: {"state": "closed", "html_url": "https://example/2"},
+            # issue 3 is absent -> get_issue raises -> "missing"
+        }
+    )
+
+    states = pull_github_issue_states(state_path, repo="owner/repo", client=client)
+
+    by_id = {s.node_id: s for s in states}
+    assert by_id["a"].state == "open"
+    assert by_id["b"].state == "closed"
+    assert by_id["b"].url == "https://example/2"
+    assert by_id["gone"].state == "missing"
+    assert isinstance(states[0], GitHubIssueState)
+
+
+def test_pull_requires_repo(tmp_path: Path):
+    state_path = tmp_path / "state.json"
+    _write_state_file(state_path, {"a": 1})
+
+    try:
+        pull_github_issue_states(
+            state_path, repo=None, client=_PullClient({1: {"state": "open"}})
+        )
+    except BlueprintError as exc:
+        assert "repo" in str(exc).lower()
+    else:  # pragma: no cover - guard
+        raise AssertionError("expected BlueprintError when repo is missing")
+
+
+def test_pull_requires_token(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    state_path = tmp_path / "state.json"
+    _write_state_file(state_path, {"a": 1})
+
+    try:
+        pull_github_issue_states(
+            state_path, repo="owner/repo", client=_PullClient({1: {"state": "open"}})
+        )
+    except BlueprintError as exc:
+        assert "GITHUB_TOKEN" in str(exc)
+    else:  # pragma: no cover - guard
+        raise AssertionError("expected BlueprintError when token is missing")
+

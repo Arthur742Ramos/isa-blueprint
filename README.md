@@ -296,6 +296,8 @@ already justify.
 | `burndown` | Terminal or JSON velocity / ETA forecast from `trends.json` | Projecting when full proved coverage lands, and spotting stalls or scope creep. |
 | `portfolio` | Terminal or JSON cross-project roll-up | Aggregating coverage, health, and problems across every blueprint project in a monorepo or umbrella tree. |
 | `isabelle-blueprint-mcp` | MCP tools, resources, and prompts | Direct consumption by AI agents and MCP clients. |
+| `rename` | Rewrites ids/`uses`/labels across sources and re-keys stores | Safely renaming a node id in one step. |
+| `fmt` | Canonical Markdown blueprint (in place, or `--check` CI gate) | Keeping diffs small and reviewable. |
 | `version` / `completion` | Version/schema info and shell completion scripts | Scripting, diagnostics, and shell setup. |
 
 The CLI, JSON output, and GitHub Action outputs are stable public contracts:
@@ -736,17 +738,18 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.10.0 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.12.0 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
 output, static site, live preview, task packs, project templates, fact
 suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,
-VS Code extension support, agent memory, status explanations, theory import
-bootstrap, and dry-run GitHub issue synchronization, plus fast `status` and
-staged `roadmap` planning commands, memory-aware and exclusion-filtered direct
-`next` / `attempt` handoffs, one-shot `agent-context` bundles, and a workflow
-toolkit of `lint` (text/JSON/SARIF), `diff`, `history`, `assign`, `rename`,
-`stats`, `version`, and `completion` commands with shared `--fail-on` policy,
-`--watch` modes, `--color` output, and the optional MCP server entry point.
+VS Code extension support, agent memory, dependency-aware status explanations,
+theory import bootstrap, and bidirectional GitHub issue synchronization, plus a
+canonical `fmt` formatter, fast `status` and staged `roadmap` planning commands,
+memory-aware and exclusion-filtered direct `next` / `attempt` handoffs, one-shot
+`agent-context` bundles, and a workflow toolkit of `lint` (text/JSON/SARIF),
+`diff`, `history`, `assign`, `rename`, `stats`, `version`, and `completion`
+commands with shared `--fail-on` policy, `--watch` modes, `--color` output, and
+the optional MCP server entry point.
 
 Community docs:
 

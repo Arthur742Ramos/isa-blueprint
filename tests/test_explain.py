@@ -116,6 +116,29 @@ def test_explain_not_found_includes_fact_suggestions():
     assert any("Demo.alpha" in s for s in explanation.suggestions)
 
 
+def test_explain_taint_provenance_points_at_upstream():
+    base = _node("base", FormalStatus.TAINTED)
+    top = _node("top", FormalStatus.TAINTED, uses=["base"])
+    project = BlueprintProject.from_nodes("p", [base, top])
+
+    by_id = {e.node_id: e for e in explain_project(project)}
+
+    assert any(
+        "undermined by upstream" in r and "`base`" in r for r in by_id["top"].reasons
+    )
+    assert any("tainted/broken upstream" in s for s in by_id["top"].next_steps)
+
+
+def test_explain_found_lists_unproved_dependencies():
+    dep = _node("dep", FormalStatus.NAMED)
+    node = _node("n", FormalStatus.FOUND, uses=["dep"])
+    project = BlueprintProject.from_nodes("p", [dep, node])
+
+    explanation = {e.node_id: e for e in explain_project(project)}["n"]
+
+    assert any("not proved yet" in r and "`dep`" in r for r in explanation.reasons)
+
+
 def test_render_explanations_is_human_readable():
     project = BlueprintProject.from_nodes(
         "p", [_node("a", FormalStatus.TAINTED, error="uses sorry")]

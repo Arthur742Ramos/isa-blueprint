@@ -167,6 +167,8 @@ def _explain_node(
         summary = "Status is not recognized by this version."
         severity = "warning"
 
+    _add_dependency_provenance(project, node, status, reasons, next_steps)
+
     return NodeExplanation(
         node_id=node.id,
         title=node.title,
@@ -177,3 +179,66 @@ def _explain_node(
         suggestions=suggestions,
         next_steps=next_steps,
     )
+
+
+# Upstream formal statuses that taint or block trust in a downstream node.
+_TAINTING_STATUSES = frozenset(
+    {FormalStatus.TAINTED, FormalStatus.BROKEN, FormalStatus.FAILED_CHECK}
+)
+_UNPROVED_STATUSES = frozenset(
+    {FormalStatus.NOT_FOUND, FormalStatus.NAMED, FormalStatus.FOUND, FormalStatus.STALE}
+)
+# Downstream statuses for which dependency provenance is worth surfacing.
+_TRUST_BEARING_STATUSES = frozenset(
+    {
+        FormalStatus.FOUND,
+        FormalStatus.PROVED,
+        FormalStatus.TAINTED,
+        FormalStatus.STALE,
+        FormalStatus.NAMED,
+    }
+)
+
+
+def _add_dependency_provenance(
+    project: BlueprintProject,
+    node: BlueprintNode,
+    status: FormalStatus,
+    reasons: list[str],
+    next_steps: list[str],
+) -> None:
+    """Point a node at the upstream dependencies that explain its (lack of) trust.
+
+    Taint from ``sorry``/oracles propagates downstream, so a ``tainted`` or
+    ``found`` node is usually only as trustworthy as its dependencies. We surface
+    which direct dependencies are themselves tainted/broken (the likely *cause*)
+    or simply not proved yet (the remaining *blockers*), using the already-known
+    per-node statuses. Missing dependencies are reported separately upstream.
+    """
+    if status not in _TRUST_BEARING_STATUSES:
+        return
+    by_id = project.by_id()
+    tainted_up: list[str] = []
+    unproved_up: list[str] = []
+    for dep_id in node.uses:
+        dep = by_id.get(dep_id)
+        if dep is None:
+            continue
+        dep_status = dep.status.formal
+        if dep_status in _TAINTING_STATUSES:
+            tainted_up.append(f"`{dep_id}` ({dep_status.value})")
+        elif dep_status in _UNPROVED_STATUSES:
+            unproved_up.append(f"`{dep_id}` ({dep_status.value})")
+
+    if tainted_up:
+        reasons.append(
+            "Proof trust is undermined by upstream dependencies: " + ", ".join(tainted_up) + "."
+        )
+        next_steps.append(
+            "Restore a clean proof for the tainted/broken upstream dependencies first; "
+            "their taint propagates here."
+        )
+    if unproved_up and status in {FormalStatus.FOUND, FormalStatus.STALE, FormalStatus.NAMED}:
+        reasons.append(
+            "Upstream dependencies are not proved yet: " + ", ".join(unproved_up) + "."
+        )
