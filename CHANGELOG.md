@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`gate` command** runs a single pass/fail CI gate combining lint errors,
+  dependency cycles, a minimum proved-coverage threshold (`--min-coverage`), and
+  a status policy (`--fail-on`, repeatable, with a `problem` alias for all
+  problem statuses). Exits `5` on failure, `0` when clean, and `--json` emits the
+  structured result. Replaces having to wire `lint`, `status`, and coverage
+  checks together by hand in CI.
+- **`prometheus` command** renders blueprint status as a Prometheus
+  text-exposition payload (gauges for node/target/proved/found/problem counts,
+  coverage, and cycles), with an optional burndown ETA gauge. `--output` writes
+  to a node-exporter textfile; `--no-burndown` skips reading `trends.json`.
+- **`hooks` command** prints (or `--write`s) a `.pre-commit-config.yaml` wiring
+  `fmt --check` and `lint --strict`, so contributors get canonical-format and
+  lint enforcement locally. `--force` overwrites an existing config.
+- **`notify` command** builds a Slack/Teams/Discord/generic webhook payload from
+  the current status (`--format`) and either prints it (default, dry-run) or
+  POSTs it with `--send`. Defaults are deliberately safe: dry-run unless
+  `--send`, HTTPS-only, and no redirect following.
+- **`blame` command** reports per-node provenance by correlating each node's
+  source file/line with `git log` and recorded agent-memory attempts, so you can
+  see who/what last touched a node. `--node-id` scopes to one node; `--json`
+  emits structured output.
+- **`search-facts` command** scans Isabelle `.thy` roots for fact/lemma/theorem
+  names. With `--query` it does a free-text search; otherwise it suggests
+  candidate facts for nodes whose formal target is still missing. `--kind`
+  (repeatable), `--limit`, and `--json` refine the output.
+- **`effort` command** reports effort-weighted formalization progress from an
+  optional per-node `effort` weight (a story-point-style estimate). Weighted
+  coverage is the proved share of formal-target effort; nodes without an explicit
+  `effort` are weighted as `1`. `--json` emits the structured report.
+- **Optional `effort` node metadata** is now parsed, validated (positive
+  integer), round-tripped through both the Markdown (`effort: N`) and LaTeX
+  (`\effort{N}`) interchange writers, and included in `build/project.json` and
+  the JSON schema.
+- **`lint --fix`** drops `uses` entries that reference undefined node ids and
+  rewrites the affected Markdown files in place (LaTeX sources are skipped). It
+  refuses to touch files (exit `2`) when duplicate ids or dependency cycles are
+  present, since those need a human decision. `--fix-dry-run` reports the changes
+  without writing.
+- **`tasks --tracker-export {jira,linear}`** writes a CSV of agent tasks ready to
+  import into Jira or Linear, mapping difficulty to story points / estimate.
+- **`attempt --sledgehammer`** appends Isabelle `sledgehammer` guidance and a
+  proof skeleton (seeded with the target fact and dependency facts) to the
+  generated attempt prompt.
+
 ## [1.12.0] - 2026-06-06
 
 ### Added

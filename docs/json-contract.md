@@ -40,6 +40,7 @@ The full node graph in machine-readable form.
         "check_error": null
       },
       "tags": [],
+      "effort": null,
       "source": { "file": "blueprint.md", "line": 12 }
     }
   ]
@@ -67,6 +68,7 @@ Each node object:
 | `isabelle` | object | `{ "fact": string\|null, "theory": string\|null, "session": string\|null }`. |
 | `status` | object | See below. |
 | `tags` | array of strings | Free-form tags from the blueprint block. Always present; may be empty. |
+| `effort` | integer\|null | Optional positive-integer effort weight (story-point-style estimate). `null` when not set. Always present. Added in v1.13. |
 | `source` | object | `{ "file": string\|null, "line": integer\|null }` pointing at the blueprint block this node was parsed from. Both subkeys may be `null` for synthesised nodes. |
 
 The `status` object:

@@ -185,6 +185,10 @@ That one block becomes:
 - a CI/badge datapoint,
 - and, when dependencies are ready, an agent task with context.
 
+Nodes may also carry an optional `effort: N` line (a positive integer estimate of
+proof difficulty). It round-trips through Markdown and LaTeX (`\effort{N}`) and
+powers the effort-weighted `effort` report.
+
 LaTeX projects can use theorem environments instead:
 
 ```latex
@@ -275,13 +279,13 @@ already justify.
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
-| `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note | A single proof-attempt handoff/check/record loop. |
+| `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note (optional `--sledgehammer` appendix) | A single proof-attempt handoff/check/record loop. |
 | `agent-run` | Runs an external solver against the next ready task and records the outcome | Closing the select → prompt → run → record loop in one shell-free command. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
 | `web` / `serve` | Static HTML site plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, roadmap boards, critical-path + owner overlays, and local preview. |
-| `tasks` | `tasks.json`, `tasks.md`, per-task prompts | Human/AI proof-work queues. |
+| `tasks` | `tasks.json`, `tasks.md`, per-task prompts, optional Jira/Linear CSV export | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
 | `dump` | PIDE-derived status | Deeper proof inspection from Isabelle dump output. |
@@ -290,7 +294,14 @@ already justify.
 | `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files (`import-theory --root` imports a whole session) | Debugging and onboarding existing Isabelle projects. |
 | `theory-index` | Source-only call graph, theory deps, `sorry`/`oops`, and unreferenced-entry analysis (no Isabelle needed) | Offline inspection of `.thy` trees in CI or on partial checkouts. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
-| `lint` | Text, JSON, or SARIF 2.1.0 findings | Structural/quality gates and GitHub code scanning uploads. |
+| `lint` | Text, JSON, or SARIF 2.1.0 findings (optional in-place `--fix`) | Structural/quality gates and GitHub code scanning uploads. |
+| `gate` | Single pass/fail CI gate (exit 5 on failure), text or JSON | One command for lint errors + cycles + coverage + status policy in CI. |
+| `prometheus` | Prometheus text-exposition metrics, stdout or `--output` file | Scraping blueprint status into Grafana/Prometheus dashboards. |
+| `hooks` | A `.pre-commit-config.yaml` (stdout or `--write`) | Wiring `fmt --check` + `lint --strict` as local pre-commit hooks. |
+| `notify` | Slack/Teams/Discord/generic webhook payload (dry-run or `--send`) | Posting status to a team chat channel. |
+| `blame` | Per-node provenance from git history + agent memory, text or JSON | Seeing who/what last touched a node. |
+| `search-facts` | Candidate Isabelle facts for missing targets or a free-text query | Finding existing facts to wire into nodes without Isabelle running. |
+| `effort` | Effort-weighted progress from optional per-node `effort`, text or JSON | Weighting coverage by estimated proof difficulty. |
 | `staleness` | Terminal or JSON trusted-node trust audit | Finding `proved`/`found` facts that rest on broken, unproven, or newer dependencies. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |
 | `burndown` | Terminal or JSON velocity / ETA forecast from `trends.json` | Projecting when full proved coverage lands, and spotting stalls or scope creep. |

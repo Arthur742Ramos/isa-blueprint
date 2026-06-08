@@ -353,6 +353,7 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
         tags = [str(t).strip() for t in tags_raw if str(t).strip()]
 
     isabelle_ref = _parse_isabelle_ref(metadata)
+    effort = _parse_effort(metadata, block.source_file, block.source_line)
     had_status = "status" in metadata
     status = _parse_status(metadata)
 
@@ -373,6 +374,7 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
         isabelle=isabelle_ref,
         status=status,
         tags=tags,
+        effort=effort,
         source_file=block.source_file,
         source_line=block.source_line,
         raw_metadata=metadata,
@@ -395,6 +397,51 @@ def _parse_metadata(text: str, source: str, line: int) -> dict:
             line=line,
         )
     return data
+
+
+def _parse_effort(metadata: dict, source: str | None, line: int | None) -> int | None:
+    """Read an optional ``effort`` weight, validating it is a positive integer.
+
+    ``effort`` is a story-point-style estimate used by effort-weighted progress
+    reports. ``bool`` is rejected explicitly: YAML parses ``true``/``false`` as
+    booleans and ``bool`` is a subclass of ``int``, so without this guard
+    ``effort: true`` would silently be accepted as ``1``.
+    """
+    if "effort" not in metadata:
+        return None
+    raw = metadata.pop("effort")
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        raise ParseError(
+            f"'effort' must be a positive integer, got boolean {raw!r}",
+            source=source,
+            line=line,
+        )
+    if isinstance(raw, int):
+        value = raw
+    elif isinstance(raw, str) and raw.strip():
+        try:
+            value = int(raw.strip())
+        except ValueError:
+            raise ParseError(
+                f"'effort' must be a positive integer, got {raw!r}",
+                source=source,
+                line=line,
+            ) from None
+    else:
+        raise ParseError(
+            f"'effort' must be a positive integer, got {type(raw).__name__}",
+            source=source,
+            line=line,
+        )
+    if value < 1:
+        raise ParseError(
+            f"'effort' must be a positive integer (>= 1), got {value}",
+            source=source,
+            line=line,
+        )
+    return value
 
 
 def _parse_isabelle_ref(metadata: dict) -> IsabelleRef:
