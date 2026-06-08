@@ -19,6 +19,11 @@ from isabelle_blueprint.agents.assignments import (
     set_assignment,
     write_assignments,
 )
+from isabelle_blueprint.agents.blame import (
+    blame_payload,
+    build_blame,
+    render_blame,
+)
 from isabelle_blueprint.agents.context import (
     DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
     build_agent_context,
@@ -71,8 +76,15 @@ from isabelle_blueprint.agents.selection import (
 )
 from isabelle_blueprint.agents.tasks import (
     generate_tasks,
+    render_sledgehammer_appendix,
     render_task_prompt,
     write_tasks,
+)
+from isabelle_blueprint.agents.tracker_export import (
+    SUPPORTED_TRACKERS as TRACKER_EXPORTS,
+)
+from isabelle_blueprint.agents.tracker_export import (
+    render_tracker_csv,
 )
 from isabelle_blueprint.completion import (
     SUPPORTED_SHELLS,
@@ -95,6 +107,12 @@ from isabelle_blueprint.isabelle.dump import (
     inspect_dump_dir,
     run_dump,
     write_dump_report,
+)
+from isabelle_blueprint.isabelle.fact_search import (
+    match_missing_facts,
+    render_hits,
+    render_matches,
+    search_index,
 )
 from isabelle_blueprint.isabelle.root import default_session_dir
 from isabelle_blueprint.isabelle.source_index import (
@@ -121,6 +139,14 @@ from isabelle_blueprint.project_io import (
 )
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.refactor.format import format_blueprint_paths
+from isabelle_blueprint.refactor.hooks import (
+    PRECOMMIT_CONFIG_FILENAME,
+    render_precommit_config,
+)
+from isabelle_blueprint.refactor.lintfix import (
+    apply_lint_fixes,
+    render_lint_fix_summary,
+)
 from isabelle_blueprint.render.site import render_site
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.burndown import (
@@ -135,6 +161,8 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path,
 )
 from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
+from isabelle_blueprint.report.effort import build_effort_report, render_effort_report
+from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
     emit_step_outputs,
@@ -158,6 +186,14 @@ from isabelle_blueprint.report.metrics import (
     build_status_metrics,
     output_values,
 )
+from isabelle_blueprint.report.notify import (
+    SUPPORTED_FORMATS as NOTIFY_FORMATS,
+)
+from isabelle_blueprint.report.notify import (
+    build_notification,
+    post_notification,
+    render_payload,
+)
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     portfolio_payload,
@@ -167,6 +203,7 @@ from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
     write_pr_comment_preview,
 )
+from isabelle_blueprint.report.prometheus import render_prometheus
 from isabelle_blueprint.report.roadmap import (
     COMPLETE_FORMAL_STATUSES,
     ROADMAP_STATUSES,
@@ -611,16 +648,157 @@ def cmd_lint(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
+
+    fix_result = None
+    if getattr(args, "fix", False):
+        paths = [p for p in config.blueprint_paths if p.exists()]
+        fix_result = apply_lint_fixes(
+            project,
+            paths,
+            project_name=config.project_name,
+            check_only=args.fix_dry_run,
+        )
+        if fix_result.refused:
+            if _resolve_lint_format(args) == "json":
+                print(json.dumps(fix_result.to_dict(), indent=2))
+            else:
+                print(render_lint_fix_summary(fix_result), end="", file=sys.stderr)
+            return 2
+        if _resolve_lint_format(args) != "json":
+            print(render_lint_fix_summary(fix_result), end="", file=sys.stderr)
+
     report = build_lint_report(project)
     fmt = _resolve_lint_format(args)
     if fmt == "json":
-        print(json.dumps(report.to_dict(), indent=2))
+        payload = report.to_dict()
+        if fix_result is not None:
+            payload["fix"] = fix_result.to_dict()
+        print(json.dumps(payload, indent=2))
     elif fmt == "sarif":
         print(render_sarif(report, project), end="")
     else:
         print(render_lint_report(report), end="")
     if args.strict and not report.ok:
         return 2
+    return 0
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    fail_on = _resolve_fail_on(getattr(args, "fail_on", None))
+    report = build_gate_report(
+        project, min_coverage=args.min_coverage, fail_on=fail_on
+    )
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_gate_report(report), end="")
+    return 0 if report.ok else 5
+
+
+def cmd_prometheus(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    metrics = build_status_metrics(project)
+    eta_days: float | None = None
+    if not args.no_burndown:
+        entries = load_trends(config.trends_path)
+        eta_days = build_burndown_report(entries).eta_days
+    text = render_prometheus(metrics, eta_days=eta_days)
+    if args.output:
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        print(f"prometheus metrics -> {out}")
+    else:
+        print(text, end="")
+    return 0
+
+
+def cmd_effort(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_effort_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_effort_report(report), end="")
+    return 0
+
+
+def cmd_hooks(args: argparse.Namespace) -> int:
+    text = render_precommit_config()
+    if not args.write:
+        print(text, end="")
+        return 0
+    project_dir = Path(args.project_dir).resolve()
+    target = project_dir / PRECOMMIT_CONFIG_FILENAME
+    if target.exists() and not args.force:
+        print(
+            f"{target} already exists; pass --force to overwrite",
+            file=sys.stderr,
+        )
+        return 1
+    target.write_text(text, encoding="utf-8")
+    print(f"pre-commit config -> {target}")
+    return 0
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    metrics = build_status_metrics(project)
+    eta_days: float | None = None
+    if not args.no_burndown:
+        entries = load_trends(config.trends_path)
+        eta_days = build_burndown_report(entries).eta_days
+    content = build_notification(project, metrics, eta_days=eta_days)
+    payload = render_payload(content, args.format)
+
+    if not args.send:
+        print(json.dumps(payload, indent=2))
+        print(
+            "dry-run: nothing was sent. Re-run with --send --url <webhook> to post.",
+            file=sys.stderr,
+        )
+        return 0
+
+    if not args.url:
+        print("error: --send requires --url", file=sys.stderr)
+        return 1
+    status = post_notification(
+        args.url,
+        payload,
+        allow_http=args.allow_http,
+        timeout=args.timeout,
+    )
+    if 200 <= status < 300:
+        print(f"notification sent ({args.format}, HTTP {status})")
+        return 0
+    print(f"webhook returned HTTP {status}", file=sys.stderr)
+    return 1
+
+
+def cmd_blame(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    memory = load_agent_memory(config.agent_memory_path)
+    blames = build_blame(
+        project,
+        project_dir,
+        memory,
+        node_id=args.node_id,
+    )
+    if args.json:
+        print(json.dumps(blame_payload(blames), indent=2))
+    else:
+        print(render_blame(blames), end="")
     return 0
 
 
@@ -1089,6 +1267,13 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
         github_issue_labels=args.github_label,
         github_issue_assignees=args.github_assignee,
     )
+    tracker = getattr(args, "tracker_export", None)
+    if tracker:
+        csv_text = render_tracker_csv(ready_tasks, tracker)
+        csv_path = config.build_dir / f"tasks-{tracker}.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text(csv_text, encoding="utf-8")
+        written["tracker_export"] = csv_path
     if args.github_sync:
         from isabelle_blueprint.agents.tasks import github_issue_drafts
 
@@ -1424,6 +1609,8 @@ def cmd_attempt(args: argparse.Namespace) -> int:
         return 0
 
     prompt = render_task_prompt(task)
+    if getattr(args, "sledgehammer", False):
+        prompt = prompt.rstrip("\n") + "\n\n" + render_sledgehammer_appendix(task)
     output = args.output or str(config.build_dir / "attempts" / prompt_filename(task.id))
     prompt_path = _write_next_prompt(prompt, output)
     check_payload = _run_attempt_check(args, config, project) if args.check else None
@@ -1992,6 +2179,39 @@ def cmd_theory_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search_facts(args: argparse.Namespace) -> int:
+    files = _resolve_index_files(args)
+    index = build_index(files)
+    kinds = set(args.kind) if args.kind else None
+
+    if args.query is not None:
+        hits = search_index(index, args.query, kinds=kinds, limit=args.limit)
+        if args.json:
+            print(
+                json.dumps(
+                    {"query": args.query, "hits": [hit.to_dict() for hit in hits]},
+                    indent=2,
+                )
+            )
+        else:
+            print(render_hits(args.query, hits), end="")
+        return 0
+
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    matches = match_missing_facts(project, index, limit=args.limit)
+    if args.json:
+        print(
+            json.dumps(
+                {"matches": [match.to_dict() for match in matches]}, indent=2
+            )
+        )
+    else:
+        print(render_matches(matches), end="")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="isabelle-blueprint",
@@ -2118,7 +2338,141 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="exit non-zero (2) when any error-severity finding is present",
     )
+    p_lint.add_argument(
+        "--fix",
+        action="store_true",
+        help="drop dangling 'uses' references and rewrite affected Markdown sources",
+    )
+    p_lint.add_argument(
+        "--fix-dry-run",
+        action="store_true",
+        help="with --fix, report what would change without writing any files",
+    )
     p_lint.set_defaults(func=cmd_lint)
+
+    p_gate = sub.add_parser(
+        "gate",
+        help="run a single pass/fail CI gate (lint errors + coverage + status policy)",
+    )
+    p_gate.add_argument("project_dir", nargs="?", default=".")
+    p_gate.add_argument("--json", action="store_true", help="emit the gate result as JSON")
+    p_gate.add_argument(
+        "--min-coverage",
+        type=int,
+        default=None,
+        metavar="PCT",
+        help="fail (exit 5) when proved coverage is below PCT percent, or undefined",
+    )
+    p_gate.add_argument(
+        "--fail-on",
+        action="append",
+        choices=(*FAIL_ON_STATUSES, FAIL_ON_PROBLEM_ALIAS),
+        metavar="STATUS",
+        help="fail when any node has this formal status (repeatable; "
+        f"'{FAIL_ON_PROBLEM_ALIAS}' expands to all problem statuses)",
+    )
+    p_gate.set_defaults(func=cmd_gate)
+
+    p_prom = sub.add_parser(
+        "prometheus",
+        help="emit blueprint status as a Prometheus text-exposition payload",
+    )
+    p_prom.add_argument("project_dir", nargs="?", default=".")
+    p_prom.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        metavar="PATH",
+        help="write the metrics to PATH (e.g. a node-exporter textfile) instead of stdout",
+    )
+    p_prom.add_argument(
+        "--no-burndown",
+        action="store_true",
+        help="skip the burndown ETA gauge (do not read trends.json)",
+    )
+    p_prom.set_defaults(func=cmd_prometheus)
+
+    p_effort = sub.add_parser(
+        "effort",
+        help="report effort-weighted formalization progress (uses optional node 'effort')",
+    )
+    p_effort.add_argument("project_dir", nargs="?", default=".")
+    p_effort.add_argument(
+        "--json", action="store_true", help="emit the effort report as JSON"
+    )
+    p_effort.set_defaults(func=cmd_effort)
+
+    p_hooks = sub.add_parser(
+        "hooks",
+        help="print or write a .pre-commit-config.yaml wiring fmt --check and lint --strict",
+    )
+    p_hooks.add_argument("project_dir", nargs="?", default=".")
+    p_hooks.add_argument(
+        "--write",
+        action="store_true",
+        help="write .pre-commit-config.yaml into the project (default: print to stdout)",
+    )
+    p_hooks.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing .pre-commit-config.yaml when used with --write",
+    )
+    p_hooks.set_defaults(func=cmd_hooks)
+
+    p_notify = sub.add_parser(
+        "notify",
+        help="build (and optionally POST) a status notification for a chat webhook",
+    )
+    p_notify.add_argument("project_dir", nargs="?", default=".")
+    p_notify.add_argument(
+        "--format",
+        choices=NOTIFY_FORMATS,
+        default="slack",
+        help="webhook payload format (default: slack)",
+    )
+    p_notify.add_argument(
+        "--url",
+        default=None,
+        metavar="WEBHOOK",
+        help="webhook URL to POST to (required with --send)",
+    )
+    p_notify.add_argument(
+        "--send",
+        action="store_true",
+        help="actually POST the payload (default: dry-run, just print it)",
+    )
+    p_notify.add_argument(
+        "--allow-http",
+        action="store_true",
+        help="permit POSTing to a plaintext http:// URL (default: https only)",
+    )
+    p_notify.add_argument(
+        "--timeout",
+        type=float,
+        default=10.0,
+        metavar="SECONDS",
+        help="network timeout in seconds when sending (default: 10)",
+    )
+    p_notify.add_argument(
+        "--no-burndown",
+        action="store_true",
+        help="skip the burndown ETA line (do not read trends.json)",
+    )
+    p_notify.set_defaults(func=cmd_notify)
+
+    p_blame = sub.add_parser(
+        "blame",
+        help="show per-node provenance from git history and agent memory",
+    )
+    p_blame.add_argument("project_dir", nargs="?", default=".")
+    p_blame.add_argument(
+        "--node-id",
+        default=None,
+        metavar="ID",
+        help="restrict output to a single node id (default: all nodes)",
+    )
+    p_blame.add_argument("--json", action="store_true", help="emit provenance as JSON")
+    p_blame.set_defaults(func=cmd_blame)
 
     p_critical = sub.add_parser(
         "critical-path",
@@ -2451,6 +2805,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "multiple assignees"
         ),
     )
+    p_tasks.add_argument(
+        "--tracker-export",
+        choices=TRACKER_EXPORTS,
+        default=None,
+        metavar="TRACKER",
+        help="also write build/tasks-<tracker>.csv for import into jira or linear",
+    )
     _add_ready_task_filter_arguments(p_tasks)
     _add_watch_arguments(p_tasks, action="task generation")
     p_tasks.set_defaults(func=cmd_tasks)
@@ -2493,6 +2854,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="write the prompt to PATH (default: build/attempts/<task-id>.md)",
     )
     p_attempt.add_argument("--json", action="store_true", help="emit machine-readable attempt JSON")
+    p_attempt.add_argument(
+        "--sledgehammer",
+        action="store_true",
+        help="append a Sledgehammer-first strategy block to the handoff prompt",
+    )
     p_attempt.add_argument(
         "--check", action="store_true", help="run `check` after writing the handoff prompt"
     )
@@ -2849,6 +3215,58 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="list entries not referenced by any other indexed entry (not dead-code analysis)",
     )
     p_tindex.set_defaults(func=cmd_theory_index)
+
+    p_search = sub.add_parser(
+        "search-facts",
+        help="search .thy sources for fact/lemma/theorem names (no Isabelle needed)",
+    )
+    p_search.add_argument(
+        "project_dir",
+        nargs="?",
+        default=".",
+        help="blueprint dir, used to resolve unresolved targets when --query is omitted",
+    )
+    p_search.add_argument(
+        "--theory",
+        nargs="*",
+        default=None,
+        metavar="FILE",
+        help="theory file(s) to search (omit to use --root or the discovered session)",
+    )
+    p_search.add_argument(
+        "--root",
+        default=None,
+        metavar="DIR",
+        help="search every theory a session ROOT declares under DIR",
+    )
+    p_search.add_argument(
+        "--session",
+        default=None,
+        metavar="NAME",
+        help="select one session when the ROOT under --root declares several",
+    )
+    p_search.add_argument(
+        "--query",
+        default=None,
+        metavar="TEXT",
+        help="free-text search; when omitted, match the project's unresolved targets",
+    )
+    p_search.add_argument(
+        "--kind",
+        action="append",
+        default=None,
+        metavar="KIND",
+        help="restrict to a declaration kind, e.g. lemma/theorem/definition (repeatable)",
+    )
+    p_search.add_argument(
+        "--limit",
+        type=_positive_int,
+        default=10,
+        metavar="N",
+        help="maximum matches to show (per node in target mode; default: 10)",
+    )
+    p_search.add_argument("--json", action="store_true", help="emit matches as JSON")
+    p_search.set_defaults(func=cmd_search_facts)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")

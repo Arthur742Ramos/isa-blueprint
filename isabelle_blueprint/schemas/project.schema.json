@@ -36,6 +36,7 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "effort": { "type": ["integer", "null"], "minimum": 1 },
         "source": {
           "type": "object",
           "properties": {

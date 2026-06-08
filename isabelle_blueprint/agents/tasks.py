@@ -299,6 +299,74 @@ def render_task_prompt(task: AgentTask) -> str:
     return "\n".join(parts)
 
 
+def _sledgehammer_lemma_name(task: AgentTask) -> str:
+    if task.target_fact:
+        return task.target_fact.rsplit(".", 1)[-1]
+    return task.node_id
+
+
+def render_sledgehammer_appendix(task: AgentTask) -> str:
+    """Render a Sledgehammer-first guidance block to append to a task prompt.
+
+    The block walks the agent through trying Isabelle's automation before a
+    manual proof, seeded with the task's own target fact name and the Isabelle
+    facts of its dependencies so the hints are concrete.
+    """
+    name = _sledgehammer_lemma_name(task)
+    dep_facts = [dep.fact for dep in task.dependencies if dep.fact]
+    parts: list[str] = []
+    parts.append("## Sledgehammer-first strategy")
+    parts.append("")
+    parts.append(
+        "Before writing a manual proof, let Isabelle's automation try to close "
+        "the goal:"
+    )
+    parts.append("")
+    parts.append("1. State the lemma and replace the proof body with `sledgehammer`:")
+    parts.append("")
+    parts.append("   ```isabelle")
+    parts.append(f"   lemma {name}:")
+    parts.append('     "<your formal statement>"')
+    parts.append("     sledgehammer")
+    parts.append("   ```")
+    parts.append("")
+    parts.append(
+        "2. If it suggests a one-liner, prefer a structured `by (simp add: ...)`, "
+        "`by auto`, or `by fastforce` over a raw `by (metis ...)` when one works."
+    )
+    if dep_facts:
+        hint = " ".join(dep_facts)
+        parts.append(
+            f"3. Seed the search with this node's dependencies: "
+            f"`sledgehammer (add: {hint})`."
+        )
+    else:
+        parts.append(
+            "3. Seed the search with nearby simp lemmas: "
+            "`sledgehammer (add: <relevant facts>)`."
+        )
+    parts.append(
+        "4. On a timeout, widen the provers and budget: "
+        "`sledgehammer [provers = cvc4 z3 e spass, timeout = 60]`."
+    )
+    parts.append("5. If automation still fails, fall back to `try0`, then an Isar skeleton:")
+    parts.append("")
+    parts.append("   ```isabelle")
+    parts.append(f"   lemma {name}:")
+    parts.append('     "<your formal statement>"')
+    parts.append("   proof -")
+    parts.append("     show ?thesis sorry")
+    parts.append("   qed")
+    parts.append("   ```")
+    parts.append("")
+    parts.append(
+        "Replace every `sorry`/`sledgehammer` placeholder before committing - the "
+        "acceptance criteria forbid `sorry`, `oops`, and oracles."
+    )
+    parts.append("")
+    return "\n".join(parts)
+
+
 def write_github_issue_drafts(
     tasks: list[AgentTask],
     path: Path,

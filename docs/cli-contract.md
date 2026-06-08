@@ -93,10 +93,10 @@ client configuration examples.
 | --- | --- |
 | `0` | Success |
 | `1` | A `BlueprintError` reached `main()` (e.g. parser/validator error, missing config) |
-| `2` | argparse usage error, a structural validation failure on `check`/`dump`, or `lint --strict` found an error-severity finding |
+| `2` | argparse usage error, a structural validation failure on `check`/`dump`, `lint --strict` found an error-severity finding, or `lint --fix` refused to rewrite (duplicate ids or cycles present) |
 | `3` | `check --strict` or `dump --strict` ran in degraded mode (Isabelle unavailable, or the build/dump never ran) |
 | `4` | `check` found Isabelle but `isabelle build` exited non-zero |
-| `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, or `diff --fail-on-regression` found a regression |
+| `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, `diff --fail-on-regression` found a regression, or `gate` failed one of its checks |
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
@@ -175,7 +175,7 @@ renders `build/graph.svg` if Graphviz `dot` is on `PATH`.
 
 ```text
 isabelle-blueprint lint [project_dir] [--json] [--format text|json|sarif]
-                        [--strict]
+                        [--strict] [--fix] [--fix-dry-run]
 ```
 
 Runs structural and quality checks over the blueprint and prints findings with
@@ -189,6 +189,11 @@ a severity (`error`/`warning`/`info`). Codes include `duplicate-id`,
 - `--json` is a backwards-compatible alias for `--format json`. Combining
   `--json` with a conflicting `--format` value is an error (exit 1).
 - `--strict` exits 2 if any error-severity finding is present.
+- `--fix` (added in v1.13) drops `uses` entries that reference undefined node
+  ids and rewrites the affected Markdown files in place (LaTeX sources are
+  skipped). It refuses to write (exit `2`) when duplicate ids or dependency
+  cycles are present. `--fix-dry-run` reports the changes without writing. A
+  summary goes to stderr (or the `fix` block of the `--json` payload).
 
 ### `diff`
 
@@ -400,6 +405,7 @@ isabelle-blueprint tasks [project_dir]
                          [--memory-state fresh|attempted|stale]
                          [--last-outcome OUTCOME]
                          [--exclude-node NODE_OR_TASK]
+                         [--tracker-export jira|linear]
                          [--watch] [--interval SECONDS]
 ```
 
@@ -440,6 +446,11 @@ tasks; filters only affect `tasks.json`, `tasks.md`, and issue drafts.
 `--watch` re-emits the task artefacts whenever the configuration or blueprint
 sources change, polling every `--interval` seconds (default `1.0`). Stop with
 Ctrl-C.
+
+`--tracker-export {jira,linear}` (added in v1.13) additionally writes a CSV of
+the ready tasks to `build/tasks-<tracker>.csv`, ready to import into Jira or
+Linear. Difficulty maps to story points / estimate. The CSV honours the same
+ready-task filters as the other task artefacts.
 
 ### `next`
 
@@ -515,6 +526,7 @@ isabelle-blueprint attempt [project_dir]
                           [--actor TEXT]
                           [--tool TEXT]
                           [--max-attempts N]
+                          [--sledgehammer]
 ```
 
 Added in v1.6. Prepares a selected ready proof task for a human or agent proof
@@ -533,6 +545,10 @@ Recording an outcome updates the selected node's memory, so a task selected via
 metadata, and ready-task counts. When no ready task exists, those object fields
 are `null` and the command exits 0. If filters exclude existing ready tasks,
 `message` reports that filtered state instead of implying the project is empty.
+
+`--sledgehammer` (added in v1.13) appends an Isabelle `sledgehammer` guidance
+appendix and a proof skeleton (seeded with the target fact and dependency facts)
+to the generated prompt.
 
 ### `agent-run`
 
@@ -1050,6 +1066,99 @@ the true total. `--fail-on-problem` exits non-zero (5) when any trusted node has
 a `problem`-severity cause (broken or missing dependency), which is useful in
 CI. The `--json` payload carries a `schema_version` but, like the other
 analytics commands, is **not** part of the frozen JSON contract and may evolve.
+
+### `gate`
+
+```text
+isabelle-blueprint gate [project_dir] [--json] [--min-coverage PCT]
+                        [--fail-on STATUS ...]
+```
+
+Added in v1.13. Runs a single pass/fail CI gate combining lint errors,
+dependency cycles, an optional minimum proved-coverage threshold
+(`--min-coverage PCT`, which also fails when coverage is undefined), and a status
+policy (`--fail-on STATUS`, repeatable; the `problem` alias expands to all
+problem formal statuses). Exits `5` on failure, `0` when clean. `--json` emits
+the structured gate result.
+
+### `prometheus`
+
+```text
+isabelle-blueprint prometheus [project_dir] [--output PATH] [--no-burndown]
+```
+
+Added in v1.13. Emits blueprint status as a Prometheus text-exposition payload:
+gauges for node/target/proved/found/problem counts, coverage percent, and a
+cycles flag, plus an optional burndown ETA gauge. `--output PATH` writes to a
+file (e.g. a node-exporter textfile) instead of stdout; `--no-burndown` skips
+reading `trends.json`. Always exits 0.
+
+### `hooks`
+
+```text
+isabelle-blueprint hooks [project_dir] [--write] [--force]
+```
+
+Added in v1.13. Prints a `.pre-commit-config.yaml` wiring `fmt --check` and
+`lint --strict`. `--write` writes it into the project; it refuses to overwrite an
+existing file unless `--force` is given, exiting `1` in that case. Printing to
+stdout (no `--write`) always exits `0`.
+
+### `notify`
+
+```text
+isabelle-blueprint notify [project_dir] [--format slack|teams|discord|generic]
+                          [--url WEBHOOK] [--send] [--allow-http]
+                          [--timeout SECONDS] [--no-burndown]
+```
+
+Added in v1.13. Builds a webhook payload summarising blueprint status for the
+chosen `--format` (default `slack`). By default it prints the payload (a dry run)
+and makes no network calls; `--send` POSTs it to `--url`. Sending is HTTPS-only
+unless `--allow-http` is given, uses a `--timeout` (default 10s), and does not
+follow redirects. `--no-burndown` skips the burndown ETA.
+
+### `blame`
+
+```text
+isabelle-blueprint blame [project_dir] [--node-id ID] [--json]
+```
+
+Added in v1.13. Reports per-node provenance by correlating each node's source
+file/line with `git log` and recorded agent-memory attempts. `--node-id` scopes
+to a single node (an unknown id is a fatal error, exit 1); `--json` emits the
+structured report. Degrades gracefully when the project is not a git checkout.
+
+### `search-facts`
+
+```text
+isabelle-blueprint search-facts [project_dir] [--theory PATH ...] [--root DIR]
+                                [--session NAME] [--query TEXT] [--kind KIND ...]
+                                [--limit N] [--json]
+```
+
+Added in v1.13. Scans Isabelle `.thy` roots for fact/lemma/theorem names. With
+`--query` it performs a free-text search over the discovered names; otherwise it
+suggests candidate facts for nodes that reference a fact whose formal target is
+still unresolved (`not_found`/`failed_check`/`broken`/`named`) — nodes with a
+`missing` formal status have no fact to match and are skipped.
+`--theory` adds extra `.thy` files/roots, `--root DIR` searches every theory a
+session ROOT declares (with `--session NAME` to disambiguate), `--kind`
+(repeatable) filters by declaration kind, and `--limit` caps the results
+(default 10). `--json` emits structured output.
+
+### `effort`
+
+```text
+isabelle-blueprint effort [project_dir] [--json]
+```
+
+Added in v1.13. Reports effort-weighted formalization progress from the optional
+per-node `effort` weight. Weighted coverage is the proved share of formal-target
+effort; nodes without an explicit `effort` are weighted as `1`. `--json` emits
+the structured report (`proved_effort`, `formal_target_effort`,
+`remaining_effort`, `coverage_percent`, `total_effort`, `explicit_effort_count`,
+`default_effort`). Always exits 0.
 
 ### `version`
 

@@ -59,9 +59,10 @@ _STATUS_RE = re.compile(r"\\status\{(?P<value>[^{}]+)\}")
 _BLUEPRINT_STATUS_RE = re.compile(r"\\blueprintstatus\{(?P<value>[^{}]+)\}")
 _FORMAL_STATUS_RE = re.compile(r"\\formalstatus\{(?P<value>[^{}]+)\}")
 _AGENT_STATUS_RE = re.compile(r"\\agentstatus\{(?P<value>[^{}]+)\}")
+_EFFORT_RE = re.compile(r"\\effort\{(?P<value>[^{}]*)\}")
 _PROOF_RE = re.compile(r"\\begin\{proof\}(?P<body>.*?)\\end\{proof\}", re.DOTALL)
 _COMMAND_LINE_RE = re.compile(
-    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|uses|tags|status|blueprintstatus|formalstatus|agentstatus)\{[^{}]*\}\s*$",
+    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|uses|tags|status|blueprintstatus|formalstatus|agentstatus|effort)\{[^{}]*\}\s*$",
     re.MULTILINE,
 )
 
@@ -106,6 +107,8 @@ def render_markdown_blueprint(project: BlueprintProject) -> str:
         if node.tags:
             parts.append("tags:")
             parts.extend(f"  - {tag}" for tag in node.tags)
+        if node.effort is not None:
+            parts.append(f"effort: {node.effort}")
         parts.append("status:")
         parts.append(f"  blueprint: {node.status.blueprint.value}")
         parts.append(f"  formal: {node.status.formal.value}")
@@ -150,6 +153,7 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
         r"\newcommand{\blueprintstatus}[1]{}",
         r"\newcommand{\formalstatus}[1]{}",
         r"\newcommand{\agentstatus}[1]{}",
+        r"\newcommand{\effort}[1]{}",
         "",
         r"\begin{document}",
         "",
@@ -175,6 +179,8 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
             parts.append(rf"\uses{{{', '.join(node.uses)}}}")
         if node.tags:
             parts.append(rf"\tags{{{', '.join(node.tags)}}}")
+        if node.effort is not None:
+            parts.append(rf"\effort{{{node.effort}}}")
         parts.append(rf"\blueprintstatus{{{node.status.blueprint.value}}}")
         parts.append(rf"\formalstatus{{{node.status.formal.value}}}")
         parts.append(rf"\agentstatus{{{node.status.agent.value}}}")
@@ -222,6 +228,7 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
     session = _first(_ISABELLE_SESSION_RE, block.body)
     uses = _split_csv(_first(_USES_RE, block.body) or "")
     tags = _split_csv(_first(_TAGS_RE, block.body) or "")
+    effort = _parse_latex_effort(block.body, block.source_file, block.source_line)
     proof_match = _PROOF_RE.search(block.body)
     proof = _clean_body(proof_match.group("body")) if proof_match else ""
     statement_source = _PROOF_RE.sub("", block.body)
@@ -249,6 +256,7 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
         ),
         status=status,
         tags=tags,
+        effort=effort,
         source_file=block.source_file,
         source_line=block.source_line,
         raw_metadata={"latex_label": label},
@@ -258,6 +266,40 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
 def _first(pattern: re.Pattern[str], text: str) -> str | None:
     match = pattern.search(text)
     return match.group("value").strip() if match else None
+
+
+def _parse_latex_effort(text: str, source: str, line: int) -> int | None:
+    """Read an optional ``\\effort{N}`` weight, validating it is a positive integer.
+
+    An empty ``\\effort{}`` or a non-integer/non-positive value raises a
+    :class:`ParseError` rather than being silently dropped by the command-line
+    stripping that removes recognised metadata macros from the statement text.
+    """
+    match = _EFFORT_RE.search(text)
+    if not match:
+        return None
+    raw = match.group("value").strip()
+    if not raw:
+        raise ParseError(
+            "\\effort{...} requires a positive integer value",
+            source=source,
+            line=line,
+        )
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ParseError(
+            f"\\effort{{...}} must be a positive integer, got {raw!r}",
+            source=source,
+            line=line,
+        ) from None
+    if value < 1:
+        raise ParseError(
+            f"\\effort{{...}} must be a positive integer (>= 1), got {value}",
+            source=source,
+            line=line,
+        )
+    return value
 
 
 def _split_csv(text: str) -> list[str]:

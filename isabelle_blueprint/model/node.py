@@ -95,6 +95,7 @@ class BlueprintNode:
     isabelle: IsabelleRef = field(default_factory=IsabelleRef)
     status: NodeStatus = field(default_factory=NodeStatus)
     tags: list[str] = field(default_factory=list)
+    effort: int | None = None
     source_file: str | None = None
     source_line: int | None = None
     raw_metadata: dict[str, Any] = field(default_factory=dict)
@@ -110,5 +111,6 @@ class BlueprintNode:
             "isabelle": self.isabelle.to_dict(),
             "status": self.status.to_dict(),
             "tags": list(self.tags),
+            "effort": self.effort,
             "source": {"file": self.source_file, "line": self.source_line},
         }
