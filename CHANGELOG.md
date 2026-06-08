@@ -32,8 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emits structured output.
 - **`search-facts` command** scans Isabelle `.thy` roots for fact/lemma/theorem
   names. With `--query` it does a free-text search; otherwise it suggests
-  candidate facts for nodes whose formal target is still missing. `--kind`
-  (repeatable), `--limit`, and `--json` refine the output.
+  candidate facts for nodes that reference a fact whose formal target is still
+  unresolved (`not_found`/`failed_check`/`broken`/`named`); nodes with no fact
+  reference yet (`missing`) are skipped. `--kind` (repeatable), `--limit`, and
+  `--json` refine the output.
 - **`effort` command** reports effort-weighted formalization progress from an
   optional per-node `effort` weight (a story-point-style estimate). Weighted
   coverage is the proved share of formal-target effort; nodes without an explicit

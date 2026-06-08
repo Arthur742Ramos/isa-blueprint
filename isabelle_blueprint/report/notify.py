@@ -143,7 +143,7 @@ def post_notification(
         method="POST",
         headers={"Content-Type": "application/json"},
     )
-    opener = urllib.request.build_opener(_NoRedirect)
+    opener = urllib.request.build_opener(_NoRedirect())
     try:
         with opener.open(request, timeout=timeout) as response:
             return int(response.status)

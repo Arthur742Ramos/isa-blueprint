@@ -300,7 +300,7 @@ already justify.
 | `hooks` | A `.pre-commit-config.yaml` (stdout or `--write`) | Wiring `fmt --check` + `lint --strict` as local pre-commit hooks. |
 | `notify` | Slack/Teams/Discord/generic webhook payload (dry-run or `--send`) | Posting status to a team chat channel. |
 | `blame` | Per-node provenance from git history + agent memory, text or JSON | Seeing who/what last touched a node. |
-| `search-facts` | Candidate Isabelle facts for missing targets or a free-text query | Finding existing facts to wire into nodes without Isabelle running. |
+| `search-facts` | Candidate Isabelle facts for unresolved fact references or a free-text query | Finding existing facts to wire into nodes without Isabelle running. |
 | `effort` | Effort-weighted progress from optional per-node `effort`, text or JSON | Weighting coverage by estimated proof difficulty. |
 | `staleness` | Terminal or JSON trusted-node trust audit | Finding `proved`/`found` facts that rest on broken, unproven, or newer dependencies. |
 | `stats` | Terminal or JSON agent-memory analytics | Proof-attempt success rates and per-node history. |

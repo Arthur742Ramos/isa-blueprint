@@ -1100,8 +1100,9 @@ isabelle-blueprint hooks [project_dir] [--write] [--force]
 ```
 
 Added in v1.13. Prints a `.pre-commit-config.yaml` wiring `fmt --check` and
-`lint --strict`. `--write` writes it into the project (refusing to overwrite an
-existing file unless `--force` is given). Always exits 0.
+`lint --strict`. `--write` writes it into the project; it refuses to overwrite an
+existing file unless `--force` is given, exiting `1` in that case. Printing to
+stdout (no `--write`) always exits `0`.
 
 ### `notify`
 
@@ -1138,7 +1139,9 @@ isabelle-blueprint search-facts [project_dir] [--theory PATH ...] [--root DIR]
 
 Added in v1.13. Scans Isabelle `.thy` roots for fact/lemma/theorem names. With
 `--query` it performs a free-text search over the discovered names; otherwise it
-suggests candidate facts for nodes whose formal target is still `missing`.
+suggests candidate facts for nodes that reference a fact whose formal target is
+still unresolved (`not_found`/`failed_check`/`broken`/`named`) — nodes with a
+`missing` formal status have no fact to match and are skipped.
 `--theory` adds extra `.thy` files/roots, `--root DIR` searches every theory a
 session ROOT declares (with `--session NAME` to disambiguate), `--kind`
 (repeatable) filters by declaration kind, and `--limit` caps the results
