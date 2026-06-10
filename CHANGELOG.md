@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`scorecard` command** distills the whole blueprint into a single composite
+  quality score (0–100) and letter grade (A+…F), with a weighted component
+  breakdown: coverage, integrity (problem-free), structure (acyclic + no missing
+  deps), freshness, documentation completeness, and agent readiness. Components
+  with no applicable nodes drop out and the remaining weights are renormalised.
+  `--json` emits the structured score; also available as the MCP `scorecard` tool.
+- **`tags` command** rolls up nodes by tag: node count, formal targets,
+  proved/found/problem counts, and per-tag proved-coverage, plus an untagged
+  count. Nodes with multiple tags are counted under each. `--json` emits the
+  structured rollup; also available as the MCP `tags` tool.
+- **`path SOURCE TARGET` command** finds the shortest dependency path between two
+  nodes along `uses` edges, auto-detecting direction (`depends-on` vs
+  `depended-on-by`) and reporting reachability plus the full chain. `--json`
+  emits the structured result; also available as the MCP `path` tool.
+- **`graph --focus NODE [--depth N]`** prunes the graph to a node's
+  neighbourhood (ancestors + descendants within `N` undirected hops; omit
+  `--depth` for the whole connected component, `--depth 0` for just the node)
+  across every format. The MCP `graph` tool gains matching `focus`/`depth`
+  parameters.
+- **`graph --format graphml`** exports the dependency graph as GraphML (with
+  title/kind/status/colour node attributes) for Gephi, Cytoscape, and yEd.
+  Included in `--format all` and the MCP `graph` tool's formats.
 - **`gate` command** runs a single pass/fail CI gate combining lint errors,
   dependency cycles, a minimum proved-coverage threshold (`--min-coverage`), and
   a status policy (`--fail-on`, repeatable, with a `problem` alias for all

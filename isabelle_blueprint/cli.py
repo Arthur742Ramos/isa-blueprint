@@ -95,6 +95,12 @@ from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
 from isabelle_blueprint.explain import explain_project, render_explanations
+from isabelle_blueprint.graph.dependency_graph import (
+    UnknownNodeError as GraphUnknownNodeError,
+)
+from isabelle_blueprint.graph.dependency_graph import (
+    focus_subproject,
+)
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
 from isabelle_blueprint.isabelle.checker import (
     apply_check_report,
@@ -194,6 +200,13 @@ from isabelle_blueprint.report.notify import (
     post_notification,
     render_payload,
 )
+from isabelle_blueprint.report.path import (
+    UnknownNodeError as PathUnknownNodeError,
+)
+from isabelle_blueprint.report.path import (
+    build_path_report,
+    render_path_report,
+)
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     portfolio_payload,
@@ -217,6 +230,7 @@ from isabelle_blueprint.report.roadmap import (
     write_roadmap,
 )
 from isabelle_blueprint.report.sarif import render_sarif
+from isabelle_blueprint.report.scorecard import build_scorecard, render_scorecard
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
     render_staleness_report,
@@ -224,6 +238,7 @@ from isabelle_blueprint.report.staleness import (
 )
 from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
+from isabelle_blueprint.report.tags import build_tag_report, render_tag_report
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
 from isabelle_blueprint.templates import (
@@ -634,13 +649,68 @@ def cmd_graph(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
+    focus = getattr(args, "focus", None)
+    if focus:
+        depth = getattr(args, "depth", None)
+        if depth is not None and depth < 0:
+            raise BlueprintError("depth must be non-negative")
+        try:
+            project = focus_subproject(project, focus, depth)
+        except GraphUnknownNodeError:
+            known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+            raise BlueprintError(
+                f"unknown node {focus!r}; known node ids: {known}"
+            ) from None
     fmt = getattr(args, "format", "all")
-    formats = ("dot", "json", "svg", "mermaid") if fmt == "all" else (fmt,)
+    formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
     for name, path in written.items():
         print(f"{name} -> {path}")
     if ("svg" in formats) and "svg" not in written:
         print("note: graphviz `dot` not found; install it for SVG output", file=sys.stderr)
+    return 0
+
+
+def cmd_scorecard(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    card = build_scorecard(project)
+    if args.json:
+        print(json.dumps(card.to_dict(), indent=2))
+    else:
+        print(render_scorecard(card), end="")
+    return 0
+
+
+def cmd_tags(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_tag_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_tag_report(report), end="")
+    return 0
+
+
+def cmd_path(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        report = build_path_report(project, args.source, args.target)
+    except PathUnknownNodeError as exc:
+        unknown = exc.args[0] if exc.args else "?"
+        known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+        raise BlueprintError(
+            f"unknown node {unknown!r}; known node ids: {known}"
+        ) from None
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_path_report(report), end="")
     return 0
 
 
@@ -2310,15 +2380,56 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
-    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid dependency graph")
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.add_argument(
         "--format",
-        choices=("all", "dot", "json", "svg", "mermaid"),
+        choices=("all", "dot", "json", "svg", "mermaid", "graphml"),
         default="all",
         help="which artifact(s) to write (default: all)",
     )
+    p_graph.add_argument(
+        "--focus",
+        metavar="NODE",
+        default=None,
+        help="restrict the graph to NODE and its dependency neighbourhood",
+    )
+    p_graph.add_argument(
+        "--depth",
+        type=int,
+        default=None,
+        metavar="N",
+        help="with --focus, include nodes within N dependency hops (default: unlimited)",
+    )
     p_graph.set_defaults(func=cmd_graph)
+
+    p_scorecard = sub.add_parser(
+        "scorecard",
+        help="grade overall project health as one weighted 0-100 score (A+...F)",
+    )
+    p_scorecard.add_argument("project_dir", nargs="?", default=".")
+    p_scorecard.add_argument(
+        "--json", action="store_true", help="emit the scorecard as JSON"
+    )
+    p_scorecard.set_defaults(func=cmd_scorecard)
+
+    p_tags = sub.add_parser(
+        "tags",
+        help="roll up node counts and coverage per blueprint tag",
+    )
+    p_tags.add_argument("project_dir", nargs="?", default=".")
+    p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags.set_defaults(func=cmd_tags)
+
+    p_path = sub.add_parser(
+        "path",
+        help="find the shortest dependency path between two node ids",
+    )
+    p_path.add_argument("source", help="source node id")
+    p_path.add_argument("target", help="target node id")
+    p_path.add_argument("project_dir", nargs="?", default=".")
+    p_path.add_argument("--json", action="store_true", help="emit the path report as JSON")
+    p_path.set_defaults(func=cmd_path)
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")

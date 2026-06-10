@@ -6,6 +6,10 @@ from dataclasses import dataclass, field
 from isabelle_blueprint.model.project import BlueprintProject
 
 
+class UnknownNodeError(KeyError):
+    """Raised when a focus/neighbourhood node id is not present in the project."""
+
+
 @dataclass
 class DependencyGraph:
     """Adjacency-list dependency graph.
@@ -63,3 +67,62 @@ def dependency_levels(project: BlueprintProject) -> list[list[str]]:
             placed.add(n)
             del remaining[n]
     return levels
+
+
+def neighbourhood(
+    project: BlueprintProject, focus: str, depth: int | None = None
+) -> list[str]:
+    """Return the ids within ``depth`` dependency hops of ``focus`` (inclusive).
+
+    Proximity is measured treating the dependency graph as undirected, so the
+    neighbourhood includes both ancestors (nodes that depend on ``focus``) and
+    descendants (nodes ``focus`` depends on), as well as nodes reached by a mix
+    of the two within ``depth`` hops. ``depth=None`` (the default) collects the
+    entire connected component. ``depth=0`` yields just ``focus``.
+
+    Ids are returned in the project's declaration order. Raises
+    :class:`UnknownNodeError` when ``focus`` is not a known node.
+    """
+    known = {n.id for n in project.nodes}
+    if focus not in known:
+        raise UnknownNodeError(focus)
+    if depth is not None and depth < 0:
+        raise ValueError("depth must be non-negative")
+
+    graph = build_graph(project)
+    visited = {focus}
+    frontier = [focus]
+    hops = 0
+    while frontier and (depth is None or hops < depth):
+        nxt: list[str] = []
+        for node_id in frontier:
+            adjacent = graph.edges.get(node_id, []) + graph.reverse_edges.get(node_id, [])
+            for other in adjacent:
+                if other not in visited:
+                    visited.add(other)
+                    nxt.append(other)
+        frontier = nxt
+        hops += 1
+
+    return [n.id for n in project.nodes if n.id in visited]
+
+
+def focus_subproject(
+    project: BlueprintProject, focus: str, depth: int | None = None
+) -> BlueprintProject:
+    """Return a pruned copy of ``project`` limited to ``focus``'s neighbourhood.
+
+    The original :class:`BlueprintNode` objects are reused unchanged, so a
+    node's ``uses`` list may still reference pruned nodes; :func:`build_graph`
+    and the renderers drop those dangling edges automatically. The project name
+    and the subset of relevant source files are preserved. Raises
+    :class:`UnknownNodeError` when ``focus`` is unknown.
+    """
+    keep = set(neighbourhood(project, focus, depth))
+    kept_nodes = [node for node in project.nodes if node.id in keep]
+    sources = [
+        src
+        for src in project.source_files
+        if any(node.source_file == src for node in kept_nodes)
+    ]
+    return BlueprintProject.from_nodes(project.name, kept_nodes, sources)

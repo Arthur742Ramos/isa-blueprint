@@ -49,6 +49,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
     assert {"critical_path", "impact", "stats"} <= read_only_names
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
+    assert {"scorecard", "tags", "path", "graph"} <= read_only_names
     assert "portfolio" in read_only_names
     assert "agent_run_plan" in read_only_names
     assert "record_attempt" not in read_only_names
@@ -239,6 +240,95 @@ def test_mcp_impact_unknown_node_lists_known_ids(tmp_path: Path) -> None:
     message = str(excinfo.value)
     assert "unknown node 'nope'" in message
     assert "base" in message and "main" in message
+
+
+def test_mcp_scorecard_payload(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    card = _direct_tool_result(server, "scorecard", {})
+    assert card["project"] == "mcp-test"
+    assert card["schema_version"] == 1
+    assert isinstance(card["grade"], str) and card["grade"]
+    assert len(card["components"]) == 6
+    # base proved + main named -> 2 targets, 1 proved -> coverage component 0.5.
+    coverage = next(c for c in card["components"] if c["name"] == "coverage")
+    assert coverage["score"] == 0.5
+
+
+def test_mcp_tags_payload(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    report = _direct_tool_result(server, "tags", {})
+    assert report["project"] == "mcp-test"
+    assert report["schema_version"] == 1
+    # The fixture nodes carry no tags.
+    assert report["total_nodes"] == 2
+    assert report["untagged_count"] == 2
+    assert report["tag_count"] == 0
+
+
+def test_mcp_path_payload(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    report = _direct_tool_result(server, "path", {"source": "main", "target": "base"})
+    assert report["found"] is True
+    assert report["direction"] == "depends-on"
+    assert report["path"] == ["main", "base"]
+    assert report["length"] == 1
+
+
+def test_mcp_path_unknown_node_lists_known_ids(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(server, "path", {"source": "main", "target": "nope"})
+    message = str(excinfo.value)
+    assert "unknown node 'nope'" in message
+    assert "base" in message and "main" in message
+
+
+def test_mcp_graph_focus_and_depth(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    # depth 0 keeps only the focus node.
+    focused = _direct_tool_result(
+        server, "graph", {"format": "json", "focus": "base", "depth": 0}
+    )
+    assert focused["format"] == "json"
+    node_ids = {n["id"] for n in focused["graph"]["nodes"]}
+    assert node_ids == {"base"}
+
+
+def test_mcp_graph_graphml_format(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "graph", {"format": "graphml"})
+    assert result["format"] == "graphml"
+    assert "graphml" in result["graph"]
+    assert "<node" in result["graph"]
+
+
+def test_mcp_graph_focus_unknown_node_errors(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(server, "graph", {"focus": "ghost"})
+    assert "unknown node 'ghost'" in str(excinfo.value)
+
+
+def test_mcp_graph_negative_depth_errors(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError), match="depth must be non-negative"):
+        _direct_tool_result(server, "graph", {"focus": "base", "depth": -1})
 
 
 def test_mcp_preview_rename_node_dry_run(tmp_path: Path) -> None:

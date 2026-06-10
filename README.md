@@ -283,7 +283,7 @@ already justify.
 | `agent-run` | Runs an external solver against the next ready task and records the outcome | Closing the select → prompt → run → record loop in one shell-free command. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
-| `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg` | Dependency visualization and tooling. |
+| `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg`, `build/graph.mmd`, `build/graph.graphml` | Dependency visualization and tooling. `--focus NODE [--depth N]` prunes to a neighbourhood; `--format graphml` exports for Gephi/Cytoscape/yEd. |
 | `web` / `serve` | Static HTML site plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, roadmap boards, critical-path + owner overlays, and local preview. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts, optional Jira/Linear CSV export | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
@@ -352,7 +352,8 @@ project-specific tools.
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
 `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`, `explain_node`,
 `lint`, `critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
-`portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and
+`portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `scorecard`,
+`tags`, `path`, `schema`, and
 `doctor`; resources such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
 `blueprint://roadmap`, `blueprint://history`, `blueprint://burndown`,
@@ -553,6 +554,39 @@ isabelle-blueprint staleness . --top 20 --max-causes 3
 isabelle-blueprint staleness . --fail-on-problem   # exit 5 on broken/missing deps
 ```
 
+Use `scorecard` for a single at-a-glance health number. It distills the whole
+blueprint into a composite score (0–100) and a letter grade (A+…F) built from six
+weighted components — coverage, integrity (problem-free), structure (acyclic + no
+missing deps), freshness, documentation completeness, and agent readiness.
+Components with no applicable nodes drop out and the rest are renormalised, so an
+all-`proved` project scores 100/A+. Unlike the categorical `status` health label,
+`scorecard` gives you a comparable number to track over time or gate on:
+
+```bash
+isabelle-blueprint scorecard .                   # score + grade + component table
+isabelle-blueprint scorecard . --json
+```
+
+Use `tags` to slice progress by topic. It rolls up nodes by tag — node count,
+formal targets, proved/found/problem counts, and per-tag proved-coverage — plus a
+count of untagged nodes, so you can see which areas of the formalization are
+lagging. Nodes carrying several tags are counted under each:
+
+```bash
+isabelle-blueprint tags .                        # per-tag coverage table
+isabelle-blueprint tags . --json
+```
+
+Use `path` to explain *how* two nodes are connected. It finds the shortest
+dependency path between a source and target along `uses` edges, auto-detecting
+direction (`depends-on` vs `depended-on-by`) and reporting the full chain — handy
+for understanding why a change ripples or whether two goals share machinery:
+
+```bash
+isabelle-blueprint path lemma-a main-theorem     # shortest dependency chain
+isabelle-blueprint path lemma-a main-theorem --json
+```
+
 Use `agent-run` to close the whole loop in one command — it selects the next
 ready task (honouring the same filters as `next`/`attempt`), renders the prompt,
 runs an **external solver** against it, and records the outcome in agent memory.
@@ -709,6 +743,12 @@ isabelle-blueprint burndown . --json --fail-when-stalled
 isabelle-blueprint portfolio .                     # roll up every project in the tree
 isabelle-blueprint portfolio . --json --fail-on-problem
 isabelle-blueprint graph . --format mermaid        # writes build/graph.mmd
+isabelle-blueprint graph . --format graphml        # writes build/graph.graphml (Gephi/yEd)
+isabelle-blueprint graph . --focus main-theorem --depth 2   # neighbourhood subgraph
+isabelle-blueprint scorecard .                     # 0-100 quality score + letter grade
+isabelle-blueprint scorecard . --json
+isabelle-blueprint tags .                          # per-tag coverage rollup
+isabelle-blueprint path lemma-a main-theorem       # shortest dependency path
 isabelle-blueprint assign main-theorem --owner alice
 isabelle-blueprint assign                          # list current owners
 isabelle-blueprint assign main-theorem --clear
