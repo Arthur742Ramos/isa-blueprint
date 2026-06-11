@@ -1,10 +1,19 @@
 """Tests for the dependency-graph builder and Graphviz renderer."""
 from __future__ import annotations
 
-from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
+import pytest
+
+from isabelle_blueprint.graph.dependency_graph import (
+    UnknownNodeError,
+    build_graph,
+    dependency_levels,
+    focus_subproject,
+    neighbourhood,
+)
 from isabelle_blueprint.graph.graphviz_render import (
     _mermaid_id,
     render_dot,
+    render_graphml,
     render_json,
     render_mermaid,
 )
@@ -135,4 +144,216 @@ A statement.
     assert mmd.read_text(encoding="utf-8").startswith("flowchart BT")
     # Only the mermaid artifact should be written for --format mermaid.
     assert not (tmp_path / "build" / "graph.dot").exists()
+
+
+def test_render_graphml_shape():
+    import xml.etree.ElementTree as ET
+
+    project = _project(("a", []), ("b", ["a"]))
+    xml = render_graphml(project)
+    assert xml.startswith("<?xml")
+    # It must be well-formed XML.
+    root = ET.fromstring(xml)
+    ns = {"g": "http://graphml.graphdrawing.org/xmlns"}
+    nodes = root.findall(".//g:node", ns)
+    edges = root.findall(".//g:edge", ns)
+    assert {n.get("id") for n in nodes} == {"a", "b"}
+    assert len(edges) == 1
+    assert edges[0].get("source") == "b"
+    assert edges[0].get("target") == "a"
+
+
+def test_render_graphml_escapes_special_characters():
+    # A title with XML metacharacters must be escaped, not break the document.
+    nodes = [
+        BlueprintNode(
+            id="a",
+            kind=NodeKind.LEMMA,
+            title="A < B & \"C\"",
+            isabelle=IsabelleRef(fact="Demo.a"),
+            status=NodeStatus(),
+        )
+    ]
+    project = BlueprintProject.from_nodes("p", nodes)
+    xml = render_graphml(project)
+    assert "&lt;" in xml and "&amp;" in xml
+    import xml.etree.ElementTree as ET
+
+    ET.fromstring(xml)  # must not raise
+
+
+def test_neighbourhood_depth_limits():
+    project = _project(("a", []), ("b", ["a"]), ("c", ["b"]), ("d", ["c"]))
+    # Undirected hops from 'b': depth 1 reaches a and c.
+    assert neighbourhood(project, "b", 1) == ["a", "b", "c"]
+    # depth 0 is just the focus.
+    assert neighbourhood(project, "b", 0) == ["b"]
+    # Unlimited reaches the whole connected component (declaration order).
+    assert neighbourhood(project, "b", None) == ["a", "b", "c", "d"]
+
+
+def test_neighbourhood_unknown_node_raises():
+    project = _project(("a", []))
+    with pytest.raises(UnknownNodeError):
+        neighbourhood(project, "ghost")
+
+
+def test_neighbourhood_rejects_negative_depth():
+    project = _project(("a", []))
+    with pytest.raises(ValueError):
+        neighbourhood(project, "a", -1)
+
+
+def test_focus_subproject_prunes_to_neighbourhood():
+    project = _project(("a", []), ("b", ["a"]), ("c", ["b"]), ("island", []))
+    focused = focus_subproject(project, "b", 1)
+    ids = {n.id for n in focused.nodes}
+    assert ids == {"a", "b", "c"}
+    assert focused.name == "p"
+    assert "island" not in ids
+    # The pruned project still builds a clean graph (no dangling edges).
+    assert set(build_graph(focused).nodes) == ids
+
+
+def test_focus_subproject_keeps_relevant_sources_when_nodes_tracked():
+    # Nodes that carry per-node provenance: focusing keeps only the files
+    # belonging to the surviving nodes and drops the pruned node's file.
+    nodes = [
+        BlueprintNode(
+            id="a",
+            kind=NodeKind.LEMMA,
+            title="A",
+            isabelle=IsabelleRef(fact="Demo.a"),
+            status=NodeStatus(),
+            source_file="a.md",
+        ),
+        BlueprintNode(
+            id="island",
+            kind=NodeKind.LEMMA,
+            title="ISLAND",
+            isabelle=IsabelleRef(fact="Demo.island"),
+            status=NodeStatus(),
+            source_file="island.md",
+        ),
+    ]
+    project = BlueprintProject.from_nodes("p", nodes, ["a.md", "island.md"])
+    focused = focus_subproject(project, "a", 0)
+    assert {n.id for n in focused.nodes} == {"a"}
+    assert focused.source_files == ["a.md"]
+
+
+def test_focus_subproject_preserves_sources_without_node_provenance():
+    # Sources supplied at the project level but no node tracks source_file:
+    # focusing must not erase the caller-provided provenance.
+    project = BlueprintProject.from_nodes(
+        "p",
+        _project(("a", []), ("island", [])).nodes,
+        ["blueprint.md"],
+    )
+    assert all(node.source_file is None for node in project.nodes)
+    focused = focus_subproject(project, "a", 0)
+    assert {n.id for n in focused.nodes} == {"a"}
+    assert focused.source_files == ["blueprint.md"]
+
+
+def test_cli_graph_focus_writes_subgraph(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-focus"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-focus
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+
+B statement.
+:::
+
+::: lemma {#island}
+title: Island
+isabelle: Demo.island
+status: stub
+
+Island statement.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--format", "json", "--focus", "b"])
+
+    assert rc == 0
+    capsys.readouterr()
+    import json
+
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"a", "b"}  # island excluded from b's neighbourhood
+
+
+def test_cli_graph_format_graphml_writes_file(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-gml"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-gml
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--format", "graphml"])
+
+    assert rc == 0
+    capsys.readouterr()
+    gml = tmp_path / "build" / "graph.graphml"
+    assert gml.exists()
+    assert "graphml" in gml.read_text(encoding="utf-8")
+    assert not (tmp_path / "build" / "graph.dot").exists()
+
+
+def test_cli_graph_focus_unknown_node_errors(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-focus-err"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-focus-err
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--focus", "ghost"])
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "unknown node" in err
 

@@ -5,6 +5,8 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from xml.sax.saxutils import escape as _xml_escape
+from xml.sax.saxutils import quoteattr as _xml_attr
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
@@ -102,6 +104,65 @@ def render_json(project: BlueprintProject) -> str:
     return json.dumps(data, indent=2)
 
 
+_GRAPHML_NODE_KEYS = (
+    ("title", "title"),
+    ("kind", "kind"),
+    ("blueprint_status", "blueprint_status"),
+    ("formal_status", "formal_status"),
+    ("agent_status", "agent_status"),
+    ("color", "color"),
+)
+
+
+def render_graphml(project: BlueprintProject) -> str:
+    """Return a GraphML representation of the dependency graph.
+
+    GraphML is consumed by Gephi, Cytoscape, yEd, and NetworkX, making the
+    blueprint's structure available to general-purpose graph tooling. Each node
+    carries ``title``/``kind``/status/``color`` data attributes (the same colour
+    the DOT/JSON/Mermaid renderers use), and edges run ``source -> dependency``
+    to match the rest of the package.
+    """
+    g = build_graph(project)
+    by_id = project.by_id()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<graphml xmlns="http://graphml.graphdrawing.org/xmlns">',
+    ]
+    for key_id, attr_name in _GRAPHML_NODE_KEYS:
+        lines.append(
+            f'  <key id="{key_id}" for="node" attr.name="{attr_name}" attr.type="string"/>'
+        )
+    lines.append(f'  <graph id={_xml_attr(project.name)} edgedefault="directed">')
+    for node_id in g.nodes:
+        node = by_id[node_id]
+        values = {
+            "title": node.title,
+            "kind": node.kind.value,
+            "blueprint_status": node.status.blueprint.value,
+            "formal_status": node.status.formal.value,
+            "agent_status": node.status.agent.value,
+            "color": _color_for_node(node.status.formal, node.status.agent),
+        }
+        lines.append(f"    <node id={_xml_attr(node_id)}>")
+        for key_id, _ in _GRAPHML_NODE_KEYS:
+            lines.append(
+                f'      <data key="{key_id}">{_xml_escape(values[key_id])}</data>'
+            )
+        lines.append("    </node>")
+    edge_index = 0
+    for src, deps in g.edges.items():
+        for dep in deps:
+            lines.append(
+                f'    <edge id="e{edge_index}" source={_xml_attr(src)} '
+                f"target={_xml_attr(dep)}/>"
+            )
+            edge_index += 1
+    lines.append("  </graph>")
+    lines.append("</graphml>")
+    return "\n".join(lines) + "\n"
+
+
 def render_svg(dot_source: str, executable: str = "dot") -> str | None:
     """Render ``dot_source`` to SVG using the ``dot`` binary.
 
@@ -133,8 +194,9 @@ def write_graph_artifacts(
 
     ``formats`` selects which artefacts to emit; ``None`` (the default) writes
     the classic ``dot``/``json``/``svg`` set so existing callers are unchanged.
-    Recognised values are ``"dot"``, ``"json"``, ``"svg"``, and ``"mermaid"``.
-    SVG is only written when Graphviz's ``dot`` binary is available.
+    Recognised values are ``"dot"``, ``"json"``, ``"svg"``, ``"mermaid"``, and
+    ``"graphml"``. SVG is only written when Graphviz's ``dot`` binary is
+    available.
 
     Returns a mapping of artefact name -> written path.
     """
@@ -156,6 +218,10 @@ def write_graph_artifacts(
         mmd_path = build_dir / "graph.mmd"
         mmd_path.write_text(render_mermaid(project), encoding="utf-8")
         written["mermaid"] = mmd_path
+    if "graphml" in selected:
+        graphml_path = build_dir / "graph.graphml"
+        graphml_path.write_text(render_graphml(project), encoding="utf-8")
+        written["graphml"] = graphml_path
     if "svg" in selected and dot_text is not None:
         svg = render_svg(dot_text, executable=executable)
         if svg is not None:

@@ -52,7 +52,18 @@ from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAM
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.explain import explain_project
-from isabelle_blueprint.graph.graphviz_render import render_dot, render_json, render_mermaid
+from isabelle_blueprint.graph.dependency_graph import (
+    UnknownNodeError as GraphUnknownNodeError,
+)
+from isabelle_blueprint.graph.dependency_graph import (
+    focus_subproject,
+)
+from isabelle_blueprint.graph.graphviz_render import (
+    render_dot,
+    render_graphml,
+    render_json,
+    render_mermaid,
+)
 from isabelle_blueprint.isabelle.compat import check_compatibility
 from isabelle_blueprint.isabelle.source_index import build_index, session_theory_files
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
@@ -77,6 +88,12 @@ from isabelle_blueprint.report.impact import (
     impact_report_payload,
 )
 from isabelle_blueprint.report.lint import build_lint_report
+from isabelle_blueprint.report.path import (
+    UnknownNodeError as PathUnknownNodeError,
+)
+from isabelle_blueprint.report.path import (
+    build_path_report,
+)
 from isabelle_blueprint.report.portfolio import build_portfolio, portfolio_payload
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
@@ -84,13 +101,15 @@ from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     roadmap_payload,
 )
+from isabelle_blueprint.report.scorecard import build_scorecard
 from isabelle_blueprint.report.staleness import build_staleness_report, staleness_payload
 from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
+from isabelle_blueprint.report.tags import build_tag_report
 from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
-GraphFormat = Literal["json", "dot", "mermaid"]
+GraphFormat = Literal["json", "dot", "mermaid", "graphml"]
 
 
 def build_server(
@@ -525,18 +544,87 @@ def build_server(
     @server.tool(name="graph")
     def graph(
         format: GraphFormat = "json",
+        focus: str | None = None,
+        depth: int | None = None,
         project: str | None = None,
     ) -> dict[str, object]:
-        """Return the dependency graph as JSON, DOT, or Mermaid without writing files."""
+        """Return the dependency graph as JSON, DOT, Mermaid, or GraphML without writing files.
+
+        With ``focus`` set, the graph is restricted to that node and its
+        dependency neighbourhood (ancestors and descendants); ``depth`` limits
+        the neighbourhood to that many hops (``None`` = unlimited). GraphML is
+        suitable for Gephi/Cytoscape/yEd/NetworkX import.
+        """
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        if focus:
+            if depth is not None and depth < 0:
+                raise BlueprintError("depth must be non-negative")
+            try:
+                parsed = focus_subproject(parsed, focus, depth)
+            except GraphUnknownNodeError:
+                known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
+                raise BlueprintError(
+                    f"unknown node {focus!r}; known node ids: {known}"
+                ) from None
         if format == "json":
             return {"format": "json", "graph": json.loads(render_json(parsed))}
         if format == "dot":
             return {"format": "dot", "graph": render_dot(parsed)}
         if format == "mermaid":
             return {"format": "mermaid", "graph": render_mermaid(parsed)}
-        raise BlueprintError("graph format must be one of: json, dot, mermaid")
+        if format == "graphml":
+            return {"format": "graphml", "graph": render_graphml(parsed)}
+        raise BlueprintError("graph format must be one of: json, dot, mermaid, graphml")
+
+    @server.tool(name="scorecard")
+    def scorecard(project: str | None = None) -> dict[str, object]:
+        """Return the composite project quality scorecard (mirrors ``scorecard --json``).
+
+        Distils coverage, integrity, structure, freshness, documentation, and
+        readiness into one weighted 0-100 score plus a letter grade and a
+        per-component breakdown. Computed without invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_scorecard(parsed).to_dict()
+
+    @server.tool(name="tags")
+    def tags(project: str | None = None) -> dict[str, object]:
+        """Return the per-tag coverage roll-up (mirrors ``tags --json``).
+
+        Groups nodes by their declared ``tags`` and reports node counts, formal
+        targets, proved/found/problem counts, and per-tag coverage, plus how
+        many nodes carry no tag. A multi-tag node is counted under each tag.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_tag_report(parsed).to_dict()
+
+    @server.tool(name="path")
+    def path_tool(
+        source: str,
+        target: str,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return the shortest dependency path between two nodes (mirrors ``path --json``).
+
+        Searches ``uses`` edges from ``source`` to ``target`` first (``source``
+        depends on ``target``); if there is no such path it searches the other
+        direction and reports which way it found. Reports reachability, the
+        direction, and the node chain.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        try:
+            report = build_path_report(parsed, source, target)
+        except PathUnknownNodeError as exc:
+            unknown = exc.args[0] if exc.args else "?"
+            known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
+            raise BlueprintError(
+                f"unknown node {unknown!r}; known node ids: {known}"
+            ) from None
+        return report.to_dict()
 
     @server.tool(name="schema")
     def schema(name: str | None = None) -> dict[str, object]:
