@@ -47,7 +47,7 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     read_only = build_server(tmp_path)
     read_only_names = {tool.name for tool in asyncio.run(read_only.list_tools())}
     assert {"status", "roadmap", "list_tasks", "next_task", "agent_context"} <= read_only_names
-    assert {"critical_path", "impact", "stats"} <= read_only_names
+    assert {"critical_path", "impact", "stats", "path"} <= read_only_names
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
     assert "portfolio" in read_only_names
     assert "agent_run_plan" in read_only_names
@@ -91,6 +91,11 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     assert report["node_id"] == "base"
     assert report["direct_dependents"] == ["main"]
     assert any(node["node_id"] == "main" for node in report["blast_radius"])
+
+    path = _direct_tool_result(server, "path", {"source": "main", "target": "base"})
+    assert path["connected"] is True
+    assert path["shortest_path"] == ["main", "base"]
+    assert path["distance"] == 1
 
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"

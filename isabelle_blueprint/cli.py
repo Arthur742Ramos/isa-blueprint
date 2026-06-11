@@ -194,6 +194,11 @@ from isabelle_blueprint.report.notify import (
     post_notification,
     render_payload,
 )
+from isabelle_blueprint.report.path import (
+    build_path_analysis,
+    path_payload,
+    render_path,
+)
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     portfolio_payload,
@@ -841,6 +846,32 @@ def cmd_impact(args: argparse.Namespace) -> int:
         print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
     else:
         print(render_impact_overview(overview, top=args.top), end="")
+    return 0
+
+
+def cmd_path(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        analysis = build_path_analysis(
+            project, args.source, args.target, max_paths=args.max_paths
+        )
+    except UnknownNodeError as exc:
+        known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+        raise BlueprintError(
+            f"unknown node {exc.args[0]!r}; known node ids: {known}"
+        ) from None
+    if args.json:
+        print(json.dumps(path_payload(analysis), indent=2))
+    else:
+        print(render_path(analysis), end="")
+    if args.require and not analysis.connected:
+        print(
+            f"path: required dependency {args.source!r} -> {args.target!r} is absent",
+            file=sys.stderr,
+        )
+        return 6
     return 0
 
 
@@ -2520,6 +2551,29 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="maximum rows to display, and ranking entries to keep in --json (default: 10)",
     )
     p_impact.set_defaults(func=cmd_impact)
+
+    p_path = sub.add_parser(
+        "path",
+        help="trace the dependency chain(s) connecting two nodes",
+    )
+    p_path.add_argument("source", help="the depending node (the chain starts here)")
+    p_path.add_argument("target", help="the depended-upon node (the chain ends here)")
+    p_path.add_argument("project_dir", nargs="?", default=".")
+    p_path.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_path.add_argument(
+        "--max-paths",
+        type=_positive_int,
+        default=20,
+        metavar="N",
+        dest="max_paths",
+        help="maximum distinct simple paths to enumerate (default: 20)",
+    )
+    p_path.add_argument(
+        "--require",
+        action="store_true",
+        help="exit non-zero (6) when SOURCE does not depend on TARGET",
+    )
+    p_path.set_defaults(func=cmd_path)
 
     p_stats = sub.add_parser(
         "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"

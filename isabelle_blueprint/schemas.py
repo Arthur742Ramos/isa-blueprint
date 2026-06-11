@@ -17,6 +17,7 @@ SCHEMA_NAMES = (
     "config",
     "plugin-annotations",
     "agent-memory",
+    "path",
 )
 
 

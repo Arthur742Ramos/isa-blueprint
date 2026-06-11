@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`attempt --sledgehammer`** appends Isabelle `sledgehammer` guidance and a
   proof skeleton (seeded with the target fact and dependency facts) to the
   generated attempt prompt.
+- **`path` command** traces the dependency chain(s) connecting two nodes:
+  `path SOURCE TARGET` follows `uses` edges to show how `SOURCE` rests on
+  `TARGET`. It reports the shortest connecting chain plus every distinct simple
+  path (bounded by `--max-paths`, default 20), is cycle-safe, and notes the
+  reverse dependency when the forward one is absent (a swapped-argument hint).
+  `--require` turns it into a CI gate that exits `6` when the expected dependency
+  is missing; `--json` emits a `path.schema.json` payload. The analysis is also
+  exposed as a read-only `path` MCP tool, and `path` is now a packaged schema.
 
 ## [1.12.0] - 2026-06-06
 

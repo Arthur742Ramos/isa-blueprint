@@ -77,6 +77,7 @@ from isabelle_blueprint.report.impact import (
     impact_report_payload,
 )
 from isabelle_blueprint.report.lint import build_lint_report
+from isabelle_blueprint.report.path import build_path_analysis, path_payload
 from isabelle_blueprint.report.portfolio import build_portfolio, portfolio_payload
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
@@ -387,6 +388,33 @@ def build_server(
             return impact_report_payload(report)
         overview = build_impact_overview(parsed)
         return impact_overview_payload(overview, top=top_value)
+
+    @server.tool(name="path")
+    def dependency_path(
+        source: str,
+        target: str,
+        max_paths: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Trace the dependency chain(s) by which ``source`` rests on ``target``.
+
+        Returns the shortest connecting chain plus the distinct simple paths
+        (bounded by ``max_paths``, default 20). When ``source`` does not depend on
+        ``target`` the result notes whether the reverse dependency holds instead.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        bound = _positive_or_none(max_paths, label="max_paths")
+        try:
+            analysis = build_path_analysis(
+                parsed, source, target, max_paths=bound if bound is not None else 20
+            )
+        except UnknownNodeError as exc:
+            known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
+            raise BlueprintError(
+                f"unknown node {exc.args[0]!r}; known node ids: {known}"
+            ) from None
+        return path_payload(analysis)
 
     @server.tool(name="stats")
     def stats(project: str | None = None) -> dict[str, object]:

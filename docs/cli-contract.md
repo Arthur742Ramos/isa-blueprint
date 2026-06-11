@@ -61,7 +61,7 @@ project subdirectories, over MCP. The default transport is `stdio`;
 
 Read tools are always registered: `version`, `list_projects`, `status`,
 `roadmap`, `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`,
-`explain_node`, `lint`, `critical_path`, `impact`, `stats`, `staleness`,
+`explain_node`, `lint`, `critical_path`, `impact`, `path`, `stats`, `staleness`,
 `history`, `burndown`, `portfolio`, `compat`, `suggest_facts`, `theory_index`,
 `graph`, `schema`, `doctor`, `preview_rename_node`, and `list_assignments`. The
 write tools `record_attempt` and `assign_node` are registered only with
@@ -827,6 +827,38 @@ Distances are shortest-hop (BFS) and traversal is cycle-safe. All ordering is
 deterministic: blast-radius entries by ascending distance then id, dependent and
 goal lists by id, and rankings by descending blast radius then id.
 
+### `path`
+
+```text
+isabelle-blueprint path SOURCE TARGET [project_dir]
+                        [--json]
+                        [--max-paths N]
+                        [--require]
+```
+
+Traces the dependency chain(s) by which `SOURCE` rests on `TARGET`, following
+`uses` edges (`SOURCE -> ... -> TARGET`). It is the point-to-point complement to
+`critical-path` and `impact`, and never modifies the project.
+
+- Reports the `shortest_path` (BFS, with `distance` = hop count) and enumerates
+  the distinct simple `paths` up to `--max-paths` (default 20; positive integer).
+  `paths_truncated` is `true` when more chains exist than were emitted.
+- When `SOURCE` does not reach `TARGET`, `connected` is `false`,
+  `shortest_path` is `[]`, `distance` is `null`, and `reverse_connected`
+  indicates whether `TARGET` depends on `SOURCE` instead (a swapped-argument
+  hint). A node equal to itself is a trivial connected path (`distance` 0).
+- An unknown `SOURCE`/`TARGET` id is a fatal error (exit 1).
+- `--require` makes the command a CI gate: it exits `6` when `SOURCE` does not
+  depend on `TARGET` (and `0` otherwise), for asserting an architectural
+  invariant such as "the main result must still rest on this axiom".
+- `--json` emits a `path.schema.json` payload: `schema_version`, `project`,
+  `source`, `target`, `connected`, `distance`, `shortest_path`, `paths`,
+  `paths_truncated`, `reverse_connected`, and `nodes` (id/title/kind/formal
+  metadata for every node that appears).
+
+Traversal is cycle-safe (an on-stack visited set) and path enumeration is
+deterministic (sorted shortest-first, ties broken lexicographically).
+
 ### `agent-context`
 
 ```text
@@ -1023,7 +1055,7 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, and `agent-memory`.
+`plugin-annotations`, `agent-memory`, and `path`.
 
 ### `stats`
 

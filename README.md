@@ -46,6 +46,7 @@ flowchart LR
 | Pain in a growing formalization | What IsabelleBlueprint does |
 | --- | --- |
 | "Which theorem is blocking this proof?" | Builds a validated dependency DAG and a `critical-path` longest-pole view that ranks the bottlenecks behind your remaining goals. |
+| "Why does my theorem even need this lemma?" | `path SOURCE TARGET` traces the exact dependency chain(s) connecting any two nodes (and can gate CI on a required dependency). |
 | "Did this Isabelle name actually resolve?" | Checks facts against Isabelle sessions and AFP roots. |
 | "Is this proof clean, or did `sorry` sneak in?" | Distinguishes `found`, `proved`, `tainted`, `broken`, and stale facts. |
 | "How do I show progress to collaborators?" | Publishes reports, badges, graphs, and a browsable static site. |
@@ -351,7 +352,7 @@ project-specific tools.
 
 It exposes read-only tools such as `list_projects`, `status`, `roadmap`,
 `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`, `explain_node`,
-`lint`, `critical_path`, `impact`, `staleness`, `stats`, `history`, `burndown`,
+`lint`, `critical_path`, `impact`, `path`, `staleness`, `stats`, `history`, `burndown`,
 `portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `schema`, and
 `doctor`; resources such as `blueprint://projects`,
 `blueprint://project`, `blueprint://projects/{project}/tasks`,
@@ -538,6 +539,27 @@ it, and the complete (`found`/`proved`) dependents that would go stale if the
 node changed — a quick way to gauge the risk of touching a foundational fact.
 With no `--node` it ranks every node by blast-radius size so you can spot the
 highest-leverage foundations.
+
+Use `path` for the *point-to-point* view — the concrete dependency chain(s) by
+which one node rests on another. Where `critical-path` and `impact` are
+project-wide, `path SOURCE TARGET` answers the navigational question "why does my
+theorem need this lemma?" by tracing the `uses` edges from `SOURCE` down to
+`TARGET`:
+
+```bash
+isabelle-blueprint path main-theorem base-lemma .            # shortest + all chains
+isabelle-blueprint path main-theorem base-lemma . --json
+isabelle-blueprint path main-theorem base-lemma . --max-paths 5
+isabelle-blueprint path main-theorem base-lemma . --require   # exit 6 if absent
+```
+
+It always reports the shortest connecting chain and enumerates the distinct
+simple chains up to `--max-paths` (default 20); traversal is cycle-safe. When
+`SOURCE` does not depend on `TARGET` it notes whether the *reverse* dependency
+holds (a common sign the two arguments were swapped). `--require` turns the query
+into a CI gate that exits `6` when the expected dependency is missing — handy for
+asserting an architectural invariant ("the main result must still rest on this
+axiom").
 
 Use `staleness` for the project-wide *trust audit* — the inverse of `impact`.
 Where `impact` asks "what rests on X?", `staleness` asks "is X's own `found`/

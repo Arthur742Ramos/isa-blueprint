@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/path.schema.json",
+  "title": "IsabelleBlueprint dependency path",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "source",
+    "target",
+    "connected",
+    "distance",
+    "shortest_path",
+    "paths",
+    "paths_truncated",
+    "reverse_connected",
+    "nodes"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "source": { "type": "string" },
+    "target": { "type": "string" },
+    "connected": { "type": "boolean" },
+    "distance": { "type": ["integer", "null"], "minimum": 0 },
+    "shortest_path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "paths_truncated": { "type": "boolean" },
+    "reverse_connected": { "type": "boolean" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["node_id", "title", "kind", "formal_status"],
+        "properties": {
+          "node_id": { "type": "string" },
+          "title": { "type": "string" },
+          "kind": { "type": "string" },
+          "formal_status": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
