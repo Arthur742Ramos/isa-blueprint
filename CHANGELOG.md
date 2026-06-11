@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
+  These commands emit versioned `--json` payloads but shipped without published
+  schemas, unlike the rest of the CLI. They are now registered packaged schemas
+  (`isabelle-blueprint schema path|scorecard|tags`, included in `schema --out`
+  and over MCP), and contract tests assert each command's JSON conforms to its
+  schema and that every packaged schema is a valid draft 2020-12 schema.
 - **`scorecard` command** distills the whole blueprint into a single composite
   quality score (0–100) and letter grade (A+…F), with a weighted component
   breakdown: coverage, integrity (problem-free), structure (acyclic + no missing

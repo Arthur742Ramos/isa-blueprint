@@ -1023,7 +1023,7 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, and `agent-memory`.
+`plugin-annotations`, `agent-memory`, `path`, `scorecard`, and `tags`.
 
 ### `stats`
 
