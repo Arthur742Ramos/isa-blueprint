@@ -105,8 +105,15 @@ def load_baseline(path: Path) -> dict[str, dict]:
         )
     indexed: dict[str, dict] = {}
     for node in nodes:
-        if isinstance(node, dict) and isinstance(node.get("id"), str):
-            indexed[node["id"]] = node
+        if not (isinstance(node, dict) and isinstance(node.get("id"), str)):
+            continue
+        node_id = node["id"]
+        if node_id in indexed:
+            raise BlueprintError(
+                f"baseline {path} contains duplicate node id {node_id!r}; "
+                "the snapshot looks corrupted (a valid report has unique ids)"
+            )
+        indexed[node_id] = node
     return indexed
 
 
