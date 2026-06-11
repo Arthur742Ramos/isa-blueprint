@@ -76,6 +76,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`attempt --sledgehammer`** appends Isabelle `sledgehammer` guidance and a
   proof skeleton (seeded with the target fact and dependency facts) to the
   generated attempt prompt.
+- **End-to-end test suite (`tests/test_e2e.py`).** A black-box harness drives the
+  packaged `python -m isabelle_blueprint` entry point as a subprocess across the
+  full lifecycle (scaffold every template, `new --append`, report, status,
+  roadmap, tasks, graph, agent-context, diff, gate, fmt, LaTeX, and error paths),
+  asserting real exit codes and on-disk artifacts. It also validates that the
+  JSON emitted by every published command conforms to the JSON Schemas shipped in
+  the wheel, and that those schemas are themselves valid draft 2020-12 schemas —
+  turning the README's "stable contracts" promise into an enforced guarantee. A
+  new CI `e2e` job runs the suite against the actually-built wheel (`jsonschema`
+  is now a dev dependency).
+
+### Fixed
+
+- **Package version no longer drifts from the release.** `isabelle_blueprint.__version__`
+  was a hand-maintained literal still reading `1.11.0` after the `1.12.0` release,
+  so `--version`, `version --json`, `doctor`, the MCP server banner, SARIF runs,
+  and `agent-context` all reported the wrong version. `__version__` is now
+  single-sourced from installed distribution metadata (with a source-tree literal
+  fallback), and a packaging test asserts both track `pyproject.toml`.
 
 ## [1.12.0] - 2026-06-06
 

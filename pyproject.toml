@@ -38,6 +38,7 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.10",
   "mcp>=1.12.4",
+  "jsonschema>=4.18",
   "types-PyYAML",
   "build",
 ]
