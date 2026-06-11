@@ -125,4 +125,9 @@ def focus_subproject(
         for src in project.source_files
         if any(node.source_file == src for node in kept_nodes)
     ]
+    # When none of the kept nodes carry per-node source provenance, the filter
+    # above erases every source file the caller supplied. Fall back to the
+    # original list so focusing never silently drops source metadata.
+    if not sources and not any(node.source_file for node in kept_nodes):
+        sources = list(project.source_files)
     return BlueprintProject.from_nodes(project.name, kept_nodes, sources)

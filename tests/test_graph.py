@@ -215,6 +215,47 @@ def test_focus_subproject_prunes_to_neighbourhood():
     assert set(build_graph(focused).nodes) == ids
 
 
+def test_focus_subproject_keeps_relevant_sources_when_nodes_tracked():
+    # Nodes that carry per-node provenance: focusing keeps only the files
+    # belonging to the surviving nodes and drops the pruned node's file.
+    nodes = [
+        BlueprintNode(
+            id="a",
+            kind=NodeKind.LEMMA,
+            title="A",
+            isabelle=IsabelleRef(fact="Demo.a"),
+            status=NodeStatus(),
+            source_file="a.md",
+        ),
+        BlueprintNode(
+            id="island",
+            kind=NodeKind.LEMMA,
+            title="ISLAND",
+            isabelle=IsabelleRef(fact="Demo.island"),
+            status=NodeStatus(),
+            source_file="island.md",
+        ),
+    ]
+    project = BlueprintProject.from_nodes("p", nodes, ["a.md", "island.md"])
+    focused = focus_subproject(project, "a", 0)
+    assert {n.id for n in focused.nodes} == {"a"}
+    assert focused.source_files == ["a.md"]
+
+
+def test_focus_subproject_preserves_sources_without_node_provenance():
+    # Sources supplied at the project level but no node tracks source_file:
+    # focusing must not erase the caller-provided provenance.
+    project = BlueprintProject.from_nodes(
+        "p",
+        _project(("a", []), ("island", [])).nodes,
+        ["blueprint.md"],
+    )
+    assert all(node.source_file is None for node in project.nodes)
+    focused = focus_subproject(project, "a", 0)
+    assert {n.id for n in focused.nodes} == {"a"}
+    assert focused.source_files == ["blueprint.md"]
+
+
 def test_cli_graph_focus_writes_subgraph(tmp_path, capsys):
     (tmp_path / "isabelle-blueprint.toml").write_text(
         '[project]\nname = "graph-focus"\n', encoding="utf-8"
