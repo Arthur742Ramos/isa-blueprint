@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 
 _BLUEPRINT = """# diff-test
@@ -105,6 +107,25 @@ def test_is_regression_confidence_ladder() -> None:
     assert _is_regression("found", "found") is False
 
 
+def test_load_baseline_rejects_duplicate_ids(tmp_path: Path) -> None:
+    """A real report has unique node ids; duplicates mean a corrupted snapshot.
+    Silently keeping the last one (the old behaviour) could mask a regression on
+    the dropped node, so the loader must fail loudly instead."""
+    from isabelle_blueprint.errors import BlueprintError
+    from isabelle_blueprint.report.diff import load_baseline
+
+    path = _write_baseline(
+        tmp_path,
+        [
+            {"id": "dup", "status": {"formal": "proved"}},
+            {"id": "dup", "status": {"formal": "missing"}},
+        ],
+    )
+
+    with pytest.raises(BlueprintError, match="duplicate node id"):
+        load_baseline(path)
+
+
 def teardown_function() -> None:
     # A --color always test below forces colour on; reset so it never leaks.
     from isabelle_blueprint import console
@@ -140,4 +161,3 @@ def test_diff_regressions_are_plain_without_colour(tmp_path: Path, capsys) -> No
     out = capsys.readouterr().out
     assert "\033[" not in out
     assert "[regression]" in out  # plain marker unchanged
-

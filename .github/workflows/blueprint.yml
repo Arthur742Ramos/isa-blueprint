@@ -141,4 +141,4 @@ jobs:
           python -m pytest tests/
           --cov=isabelle_blueprint
           --cov-report=term-missing
-          --cov-fail-under=85
+          --cov-fail-under=87

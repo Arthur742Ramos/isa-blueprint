@@ -115,6 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commands (`lint`, `scorecard`, `status`, `staleness`). Plain-text and
   machine-readable output are byte-for-byte unchanged; honours `--color` /
   `--no-color` / `NO_COLOR`.
+- **Coverage gate raised from 85% to 87%.** The Isabelle subprocess shim
+  (`isabelle._run.run_capture`) — the anti-hang machinery every `check`/`dump`
+  call relies on — gained a dedicated behavioural test suite that drives real
+  short-lived subprocesses through the happy path, stdin-EOF, non-UTF-8 decode,
+  `timeout` tree-kill, and `max_output_bytes` flood-cap paths.
 
 ### Fixed
 
@@ -122,6 +127,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Graphviz `dot` process: `render_svg` now bounds the subprocess with a timeout
   (default 30s) and degrades to an SVG comment instead of blocking the caller
   indefinitely.
+- **`diff` now rejects a baseline `project.json` with duplicate node ids.**
+  The loader previously kept the last duplicate silently, which could mask a
+  regression on the dropped node; a corrupted snapshot now fails fast with a
+  clear error.
+- **`search-facts` handles a non-positive `--limit` correctly.** A negative
+  limit used to fall through to `hits[:limit]` and silently drop the
+  lowest-ranked match instead of returning nothing.
 
 ## [1.12.0] - 2026-06-06
 
