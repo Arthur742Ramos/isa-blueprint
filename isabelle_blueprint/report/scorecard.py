@@ -33,6 +33,7 @@ score is ``None`` and the grade is ``n/a``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
@@ -287,6 +288,17 @@ def render_scorecard(card: Scorecard) -> str:
         score_text = "n/a" if component.score is None else f"{round(component.score * 100)}%"
         lines.append(f"- {component.label} ({score_text}): {component.detail}")
     return "\n".join(lines) + "\n"
+
+
+def write_scorecard_markdown(card: Scorecard, path: Path) -> Path:
+    """Write :func:`render_scorecard` Markdown for ``card`` to ``path``.
+
+    The parent directory is created if needed. Returns the path written.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_scorecard(card), encoding="utf-8")
+    return path
 
 
 def _ratio(numerator: int, denominator: int) -> float | None:

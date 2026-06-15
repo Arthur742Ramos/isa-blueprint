@@ -256,6 +256,7 @@ from isabelle_blueprint.report.scorecard import (
     build_scorecard,
     grade_threshold,
     render_scorecard,
+    write_scorecard_markdown,
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
@@ -770,6 +771,10 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     card = build_scorecard(project)
+
+    if getattr(args, "markdown", False):
+        md_path = write_scorecard_markdown(card, config.build_dir / "scorecard.md")
+        print(f"scorecard markdown -> {md_path}", file=sys.stderr)
 
     exit_code = 0
     gate: dict[str, object] = {}
@@ -2698,6 +2703,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_scorecard.add_argument("project_dir", nargs="?", default=".")
     p_scorecard.add_argument(
         "--json", action="store_true", help="emit the scorecard as JSON"
+    )
+    p_scorecard.add_argument(
+        "--markdown",
+        action="store_true",
+        help=(
+            "also write the rendered Markdown scorecard to "
+            "build/scorecard.md under the configured build_dir (composes with "
+            "the gates and --json; does not change stdout or the exit code)"
+        ),
     )
     p_scorecard.add_argument(
         "--min-grade",

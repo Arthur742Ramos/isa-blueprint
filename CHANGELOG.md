@@ -201,6 +201,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`scorecard --markdown`** also writes the rendered Markdown scorecard to
+  `build/scorecard.md` under the configured `build_dir`. Composes with the
+  `--min-grade`/`--min-score` gates and `--json`; stdout and the exit code are
+  unchanged.
 
 ### Changed
 

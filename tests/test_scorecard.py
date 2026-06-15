@@ -408,3 +408,42 @@ def test_cli_min_grade_gate_byte_identical_without_min_score(tmp_path: Path, cap
     assert list(gate.keys()) == ["min_grade", "score", "grade", "meets_min_grade"]
 
 
+
+def test_cli_markdown_writes_file(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    md_path = tmp_path / "build" / "scorecard.md"
+    assert md_path.is_file()
+    text = md_path.read_text(encoding="utf-8")
+    assert "# card-test scorecard" in text
+    assert "Overall:" in text
+    # stdout is byte-identical to a run without --markdown.
+    out = capsys.readouterr().out
+    cli_main(["scorecard", str(tmp_path)])
+    assert out == capsys.readouterr().out
+
+
+def test_cli_markdown_stdout_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    cli_main(["scorecard", str(tmp_path)])
+    plain = capsys.readouterr().out
+
+    cli_main(["scorecard", str(tmp_path), "--markdown"])
+    captured = capsys.readouterr()
+    assert captured.out == plain
+    # The artifact path note is on stderr, never stdout.
+    assert "scorecard.md" in captured.err
+
+
+def test_cli_markdown_composes_with_min_grade_gate(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--markdown", "--min-grade", "A+"])
+
+    # Gate still controls the exit code, and the file is still written.
+    assert rc == 5
+    assert (tmp_path / "build" / "scorecard.md").is_file()
