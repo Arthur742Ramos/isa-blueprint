@@ -492,9 +492,9 @@ def test_roots_subproject_keeps_only_uninbound_nodes():
     assert roots.name == "p"
 
 
-def test_roots_subproject_preserves_edges_among_roots():
+def test_roots_subproject_drops_dangling_edges_to_pruned_nodes():
     # Two mutually independent roots that both depend on a shared leaf are kept;
-    # the dangling edge to the pruned leaf is dropped by build_graph.
+    # the dangling edges to the pruned leaf are dropped by build_graph.
     project = _project(("leaf", []), ("r1", ["leaf"]), ("r2", ["leaf"]))
     roots = roots_subproject(project)
     assert {n.id for n in roots.nodes} == {"r1", "r2"}

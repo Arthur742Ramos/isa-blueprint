@@ -52,11 +52,12 @@ def roots_subproject(project: BlueprintProject) -> BlueprintProject:
     """Return a pruned copy of ``project`` limited to its ROOT nodes.
 
     A root is a node that nothing else ``uses`` (no incoming dependency edge);
-    these are the end-goals of the blueprint. Edges among the surviving roots
-    are preserved automatically by :func:`build_graph`, which drops any edge
-    whose target was pruned. The original :class:`BlueprintNode` objects are
-    reused unchanged and the relevant source files are kept, mirroring
-    :func:`focus_subproject`.
+    these are the end-goals of the blueprint. Because roots have no incoming
+    edges they cannot depend on one another, so the pruned graph has no edges
+    between them: when :func:`build_graph` rebuilds the graph on the pruned
+    project it drops every edge to a pruned (non-root) node. The original
+    :class:`BlueprintNode` objects are reused unchanged and the relevant source
+    files are kept, mirroring :func:`focus_subproject`.
     """
     graph = build_graph(project)
     keep = {node_id for node_id in graph.nodes if not graph.reverse_edges.get(node_id)}
