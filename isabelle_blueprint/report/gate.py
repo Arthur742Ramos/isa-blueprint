@@ -79,6 +79,14 @@ def build_gate_report(
     """Evaluate every requested gate check against ``project``."""
     checks: list[GateCheck] = []
 
+    # Status metrics feed both the coverage and min_grade checks; compute them
+    # once (when either is requested) and share the single object.
+    metrics = (
+        build_status_metrics(project)
+        if (min_coverage is not None or min_grade is not None)
+        else None
+    )
+
     lint = build_lint_report(project)
     checks.append(
         GateCheck(
@@ -94,7 +102,7 @@ def build_gate_report(
     )
 
     if min_coverage is not None:
-        metrics = build_status_metrics(project)
+        assert metrics is not None  # computed above when min_coverage is set
         coverage = metrics.coverage_percent
         if coverage is None:
             checks.append(
@@ -137,9 +145,13 @@ def build_gate_report(
             )
 
     if min_grade is not None:
+        assert metrics is not None  # computed above when min_grade is set
         threshold = grade_threshold(min_grade)
-        card = build_scorecard(project)
+        card = build_scorecard(project, metrics=metrics)
         if card.score is None:
+            # Intentional divergence from ``scorecard --min-grade``: an
+            # ungradeable project (no gradeable components) FAILS the gate,
+            # because CI cannot show an unknown grade clears the bar.
             checks.append(
                 GateCheck(
                     name="min_grade",

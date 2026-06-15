@@ -218,6 +218,21 @@ def test_gate_without_min_grade_unchanged(tmp_path: Path, capsys) -> None:
     assert names == {"lint"}
 
 
+def test_gate_min_grade_ungradeable_project_fails(tmp_path: Path, capsys) -> None:
+    # A project with no nodes has an undefined scorecard grade; the gate must
+    # fail the min_grade check (unlike scorecard --min-grade, which passes).
+    _write_project(tmp_path, "# gate-test\n\nNo gradeable components here.\n")
+
+    rc = cli_main(["gate", str(tmp_path), "--json", "--min-grade", "F"])
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    check = next(c for c in data["checks"] if c["name"] == "min_grade")
+    assert check["ok"] is False
+    assert "undefined" in check["detail"]
+    assert "min_grade" in data["failed"]
+
+
 def teardown_function() -> None:
     # A --color always test below forces colour on; reset so it never leaks.
     from isabelle_blueprint import console
