@@ -158,3 +158,85 @@ def test_summarize_trends_ignores_non_numeric_metric():
     )
     proved = next(d for d in summary.deltas if d.metric == "proved_count")
     assert proved.before is None and proved.after is None and proved.delta is None
+
+
+def test_history_csv_header_and_rows(tmp_path: Path, capsys) -> None:
+    import csv
+    import io
+
+    _write_project(tmp_path)
+    _write_trends(
+        tmp_path,
+        [
+            {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "coverage_percent": 10.0,
+                "proved_count": 1,
+                "found_count": 0,
+                "problem_count": 0,
+                "stale_count": 0,
+                "formal_target_count": 10,
+                "node_count": 10,
+            },
+            {
+                "timestamp": "2024-01-02T00:00:00Z",
+                "coverage_percent": 20.0,
+                "proved_count": 2,
+                "found_count": 0,
+                "problem_count": 0,
+                "stale_count": 0,
+                "formal_target_count": 10,
+                "node_count": 10,
+            },
+        ],
+    )
+
+    rc = cli_main(["history", str(tmp_path), "--csv"])
+
+    assert rc == 0
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    assert rows[0] == [
+        "timestamp",
+        "coverage_percent",
+        "proved_count",
+        "found_count",
+        "problem_count",
+        "stale_count",
+        "formal_target_count",
+        "node_count",
+    ]
+    # Header + one row per snapshot.
+    assert len(rows) == 3
+    assert rows[1][0] == "2024-01-01T00:00:00Z"
+    assert rows[1][2] == "1"
+    assert rows[2][1] == "20.0"
+
+
+def test_history_csv_respects_limit(tmp_path: Path, capsys) -> None:
+    import csv
+    import io
+
+    _write_project(tmp_path)
+    _write_trends(
+        tmp_path,
+        [
+            {"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i}
+            for i in range(1, 4)
+        ],
+    )
+
+    rc = cli_main(["history", str(tmp_path), "--csv", "--limit", "1"])
+
+    assert rc == 0
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    # Header + the single most-recent snapshot.
+    assert len(rows) == 2
+    assert rows[1][0] == "2024-01-03T00:00:00Z"
+
+
+def test_history_csv_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    import pytest
+
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["history", str(tmp_path), "--csv", "--json"])

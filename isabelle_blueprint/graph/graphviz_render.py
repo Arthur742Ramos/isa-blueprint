@@ -76,6 +76,33 @@ def render_mermaid(project: BlueprintProject) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_d2(project: BlueprintProject) -> str:
+    """Return a `D2 <https://d2lang.com>`_ representation of the dependency graph.
+
+    D2 renders to SVG/PNG via the ``d2`` CLI and many editors. Each blueprint
+    node becomes a shape keyed by its id with the title as label, each ``uses``
+    dependency becomes an edge, and nodes carry status-based ``style.fill``
+    hints matching the colours the DOT/JSON/Mermaid renderers use.
+    """
+    g = build_graph(project)
+    by_id = project.by_id()
+    lines = ["direction: up"]
+    for node_id in g.nodes:
+        node = by_id[node_id]
+        color = _color_for_node(node.status.formal, node.status.agent)
+        label = _d2_string(f"{node.id}\n{node.title}")
+        key = _d2_string(node_id)
+        lines.append(f"{key}: {label} {{")
+        lines.append("  shape: rectangle")
+        lines.append(f"  style.fill: {_d2_string(color)}")
+        lines.append('  style.stroke: "#1f2937"')
+        lines.append("}")
+    for src, deps in g.edges.items():
+        for dep in deps:
+            lines.append(f"{_d2_string(src)} -> {_d2_string(dep)}")
+    return "\n".join(lines) + "\n"
+
+
 def render_json(project: BlueprintProject) -> str:
     """Return a JSON representation of the dependency graph for the web UI."""
     g = build_graph(project)
@@ -200,9 +227,9 @@ def write_graph_artifacts(
 
     ``formats`` selects which artefacts to emit; ``None`` (the default) writes
     the classic ``dot``/``json``/``svg`` set so existing callers are unchanged.
-    Recognised values are ``"dot"``, ``"json"``, ``"svg"``, ``"mermaid"``, and
-    ``"graphml"``. SVG is only written when Graphviz's ``dot`` binary is
-    available.
+    Recognised values are ``"dot"``, ``"json"``, ``"svg"``, ``"mermaid"``,
+    ``"graphml"``, and ``"d2"``. SVG is only written when Graphviz's ``dot``
+    binary is available.
 
     Returns a mapping of artefact name -> written path.
     """
@@ -228,6 +255,10 @@ def write_graph_artifacts(
         graphml_path = build_dir / "graph.graphml"
         graphml_path.write_text(render_graphml(project), encoding="utf-8")
         written["graphml"] = graphml_path
+    if "d2" in selected:
+        d2_path = build_dir / "graph.d2"
+        d2_path.write_text(render_d2(project), encoding="utf-8")
+        written["d2"] = d2_path
     if "svg" in selected and dot_text is not None:
         svg = render_svg(dot_text, executable=executable)
         if svg is not None:
@@ -257,6 +288,17 @@ def _mermaid_label(text: str) -> str:
         .replace('"', "&quot;")
         .replace("\n", "<br/>")
     )
+
+
+def _d2_string(text: str) -> str:
+    """Return ``text`` as a double-quoted D2 string literal.
+
+    Quoting every id/label keeps separators (``.``, ``-``, ``:``) and other
+    metacharacters that are significant in D2 keys from being parsed as
+    structure, and renders newlines as the escape D2 understands.
+    """
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return f'"{escaped}"'
 
 
 def _dot_escape(text: str) -> str:
