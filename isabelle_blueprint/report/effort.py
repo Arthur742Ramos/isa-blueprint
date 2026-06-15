@@ -230,3 +230,46 @@ def render_effort_report(report: EffortReport, *, by_tag: bool = False) -> str:
                     f"{t.proved_effort} | {t.remaining_effort} | {pct} |"
                 )
     return "\n".join(lines) + "\n"
+
+
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_effort_markdown(report: EffortReport, *, by_tag: bool = False) -> str:
+    """Render ``report`` as a Markdown document with summary tables.
+
+    A heading is followed by a summary table of total/proved/remaining effort and
+    weighted coverage. When ``by_tag`` is set, a per-tag effort table is appended
+    beneath the summary (one row per tag plus an untagged bucket).
+    """
+    coverage = "n/a" if report.coverage_percent is None else f"{report.coverage_percent}%"
+    lines = [
+        "# Effort-weighted progress",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        f"| Total effort | {report.total_effort} |",
+        f"| Proved effort | {report.proved_effort} |",
+        f"| Remaining effort | {report.remaining_effort} |",
+        f"| Coverage percent | {coverage} |",
+    ]
+    if by_tag:
+        lines += ["", "## Effort by tag", ""]
+        if not report.by_tag:
+            lines.append("- (no nodes)")
+        else:
+            lines.append("| Tag | Nodes | Total | Proved | Remaining | Percent |")
+            lines.append("| --- | ---: | ---: | ---: | ---: | ---: |")
+            for t in report.by_tag:
+                pct = "n/a" if t.percent is None else f"{t.percent}%"
+                lines.append(
+                    f"| {_md_cell(t.tag)} | {t.node_count} | {t.total_effort} | "
+                    f"{t.proved_effort} | {t.remaining_effort} | {pct} |"
+                )
+    return "\n".join(lines) + "\n"

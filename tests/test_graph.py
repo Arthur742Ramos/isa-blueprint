@@ -9,6 +9,7 @@ from isabelle_blueprint.graph.dependency_graph import (
     dependency_levels,
     focus_subproject,
     neighbourhood,
+    roots_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import (
     _mermaid_id,
@@ -479,3 +480,80 @@ def test_render_svg_bounds_a_hung_dot_with_timeout(monkeypatch):
     assert seen.get("timeout") == 2.5  # the bound was actually handed to dot
 
 
+
+
+def test_roots_subproject_keeps_only_uninbound_nodes():
+    # a <- b <- c and a <- d: roots are the nodes nothing else uses (b, c, d
+    # are depended upon? no: b depends on a, c depends on b, d depends on a).
+    # Roots = nodes with no incoming edge = c and d.
+    project = _project(("a", []), ("b", ["a"]), ("c", ["b"]), ("d", ["a"]))
+    roots = roots_subproject(project)
+    assert {n.id for n in roots.nodes} == {"c", "d"}
+    assert roots.name == "p"
+
+
+def test_roots_subproject_drops_dangling_edges_to_pruned_nodes():
+    # Two mutually independent roots that both depend on a shared leaf are kept;
+    # the dangling edges to the pruned leaf are dropped by build_graph.
+    project = _project(("leaf", []), ("r1", ["leaf"]), ("r2", ["leaf"]))
+    roots = roots_subproject(project)
+    assert {n.id for n in roots.nodes} == {"r1", "r2"}
+    assert build_graph(roots).edges == {"r1": [], "r2": []}
+
+
+def _write_chain_project(tmp_path):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-roots"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-roots
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+
+B statement.
+:::
+""",
+        encoding="utf-8",
+    )
+
+
+def test_cli_graph_roots_only_json_excludes_depended_upon(tmp_path, capsys):
+    import json
+
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_chain_project(tmp_path)
+    rc = cli_main(["graph", str(tmp_path), "--format", "json", "--roots-only"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"b"}  # a is depended upon by b, so it is not a root
+
+
+def test_cli_graph_without_roots_only_is_unchanged(tmp_path, capsys):
+    import json
+
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_chain_project(tmp_path)
+    rc = cli_main(["graph", str(tmp_path), "--format", "json"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"a", "b"}
