@@ -149,6 +149,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`stats --markdown`** renders the agent-memory analytics as a Markdown
+  document (summary, outcomes, and per-node tables) to stdout; mutually
+  exclusive with `--json` and leaves the default text output unchanged.
 
 ### Changed
 
