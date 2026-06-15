@@ -314,6 +314,16 @@ def test_mcp_graph_graphml_format(tmp_path: Path) -> None:
     assert "<node" in result["graph"]
 
 
+def test_mcp_graph_d2_format(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "graph", {"format": "d2"})
+    assert result["format"] == "d2"
+    assert "direction: up" in result["graph"]
+    assert "shape: rectangle" in result["graph"]
+
+
 def test_mcp_graph_focus_unknown_node_errors(tmp_path: Path) -> None:
     _write_project(tmp_path)
     server = build_server(tmp_path)

@@ -115,7 +115,7 @@ Read tools are always registered:
 | `portfolio` | Workspace-wide roll-up across every discovered project: per-project coverage / health / ready-task counts plus portfolio totals. Takes no `project` argument (it spans the whole launch root); unparseable projects are reported as error entries without failing the roll-up. |
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
-| `graph` | Dependency graph as `json`, `dot`, or `mermaid` without writing files. |
+| `graph` | Dependency graph as `json`, `dot`, `mermaid`, `graphml`, or `d2` without writing files. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
 | `preview_rename_node` | Dry-run node rename preview; never writes files. |

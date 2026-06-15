@@ -59,6 +59,7 @@ from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import (
+    render_d2,
     render_dot,
     render_graphml,
     render_json,
@@ -109,7 +110,7 @@ from isabelle_blueprint.report.tags import build_tag_report
 from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
-GraphFormat = Literal["json", "dot", "mermaid", "graphml"]
+GraphFormat = Literal["json", "dot", "mermaid", "graphml", "d2"]
 
 
 def build_server(
@@ -548,7 +549,7 @@ def build_server(
         depth: int | None = None,
         project: str | None = None,
     ) -> dict[str, object]:
-        """Return the dependency graph as JSON, DOT, Mermaid, or GraphML without writing files.
+        """Return the dependency graph as JSON, DOT, Mermaid, GraphML, or D2 without writing files.
 
         With ``focus`` set, the graph is restricted to that node and its
         dependency neighbourhood (ancestors and descendants); ``depth`` limits
@@ -575,7 +576,9 @@ def build_server(
             return {"format": "mermaid", "graph": render_mermaid(parsed)}
         if format == "graphml":
             return {"format": "graphml", "graph": render_graphml(parsed)}
-        raise BlueprintError("graph format must be one of: json, dot, mermaid, graphml")
+        if format == "d2":
+            return {"format": "d2", "graph": render_d2(parsed)}
+        raise BlueprintError("graph format must be one of: json, dot, mermaid, graphml, d2")
 
     @server.tool(name="scorecard")
     def scorecard(project: str | None = None) -> dict[str, object]:
