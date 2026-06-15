@@ -233,6 +233,7 @@ def build_roadmap(project: BlueprintProject, ready_tasks: Sequence[AgentTask]) -
     validation = project.validate()
     cycles = validation.cycles
     cycle_nodes = {node_id for cycle in cycles for node_id in cycle}
+    by_id = project.by_id()
     ready_by_node = {task.node_id: task for task in ready_tasks}
     levels = dependency_levels(project)
     stage_by_id = {
@@ -253,7 +254,7 @@ def build_roadmap(project: BlueprintProject, ready_tasks: Sequence[AgentTask]) -
             status=classifications[node.id],
             task=ready_by_node.get(node.id),
             blocks=downstream_counts.get(node.id, 0),
-            project=project,
+            by_id=by_id,
             classifications=classifications,
             cycle_nodes=cycle_nodes,
         )
@@ -643,7 +644,7 @@ def _roadmap_item(
     status: str,
     task: AgentTask | None,
     blocks: int,
-    project: BlueprintProject,
+    by_id: dict[str, BlueprintNode],
     classifications: dict[str, str],
     cycle_nodes: set[str],
 ) -> RoadmapItem:
@@ -657,7 +658,7 @@ def _roadmap_item(
         formal_status=node.status.formal.value,
         agent_status=node.status.agent.value,
         target_fact=node.isabelle.fact,
-        blocked_by=_blockers_for(node, project, classifications, cycle_nodes),
+        blocked_by=_blockers_for(node, by_id, classifications, cycle_nodes),
         blocks=blocks,
         task_id=task.id if task is not None else None,
         priority=metadata.priority if metadata is not None else None,
@@ -668,11 +669,10 @@ def _roadmap_item(
 
 def _blockers_for(
     node: BlueprintNode,
-    project: BlueprintProject,
+    by_id: dict[str, BlueprintNode],
     classifications: dict[str, str],
     cycle_nodes: set[str],
 ) -> list[RoadmapBlocker]:
-    by_id = project.by_id()
     blockers: list[RoadmapBlocker] = []
     for dep_id in node.uses:
         dep = by_id.get(dep_id)

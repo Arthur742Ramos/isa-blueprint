@@ -63,6 +63,30 @@ class StatusMetrics:
         }
 
 
+def coverage_percent(proved: int, target: int) -> int | None:
+    """Proved share of ``target`` formal work as a 0-100 integer percentage.
+
+    This is the single source of truth for the project's coverage figure, shared
+    by the status metrics, the effort-weighted report, and the portfolio
+    roll-up so the badge, README, CI summary, and dashboards never drift apart.
+
+    Returns ``None`` when ``target`` is 0 — coverage is undefined when nothing
+    has been assigned a formal target (callers should treat ``None`` as
+    "unknown", not 0%). Otherwise the ratio is *truncated* rather than rounded,
+    so 100 means *genuinely* all-proved: ``round()`` would report a false 100%
+    for 999/1000, and floor cannot reach 100 unless ``proved == target`` (since
+    ``proved <= target``). Symmetrically, 0 is reserved for "none proved" — a
+    non-zero-but-sub-1% ratio (e.g. 1/1000) is clamped up to 1 so real progress
+    is never shown as a misleading 0%.
+    """
+    if target <= 0:
+        return None
+    percent = proved * 100 // target
+    if percent == 0 and proved > 0:
+        percent = 1
+    return percent
+
+
 def build_status_metrics(
     project: BlueprintProject,
     *,
@@ -85,18 +109,7 @@ def build_status_metrics(
     node_count = len(project.nodes)
     formal_target_count = node_count - missing
 
-    coverage_percent: int | None
-    if node_count == 0 or formal_target_count == 0:
-        coverage_percent = None
-    else:
-        # Truncate rather than round so that 100 means *genuinely* all-proved:
-        # round() would report a false 100% for 999/1000 (and floor cannot reach
-        # 100 unless proved == target, since proved <= target). Symmetrically,
-        # reserve 0 for "none proved" -- clamp a non-zero-but-sub-1% ratio (e.g.
-        # 1/1000) up to 1 so real progress is never shown as a misleading 0%.
-        coverage_percent = proved * 100 // formal_target_count
-        if coverage_percent == 0 and proved > 0:
-            coverage_percent = 1
+    coverage = coverage_percent(proved, formal_target_count)
 
     if has_cycles is None:
         has_cycles = bool(project.validate().cycles)
@@ -109,7 +122,7 @@ def build_status_metrics(
         problem_count=problems,
         stale_count=stale,
         has_cycles=has_cycles,
-        coverage_percent=coverage_percent,
+        coverage_percent=coverage,
     )
 
 
