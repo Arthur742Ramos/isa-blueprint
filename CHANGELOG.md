@@ -179,6 +179,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (heading, summary line, and one row per flagged trusted node with its
   problem/incomplete/outdated severity and causes). Mutually exclusive with
   `--json`; honours `--top` / `--max-causes`; default text output is unchanged.
+- **`search-facts --markdown`** renders the candidate-fact results as a Markdown
+  table (fact name, score, source theory) under a query heading, for pasting
+  into issues or notes. Mutually exclusive with `--json`; text output unchanged.
 
 ### Changed
 
