@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`diff --fail-on-change`** is a stricter CI gate than `--fail-on-regression`:
+  it exits `5` when there is *any* difference vs the baseline (an added node, a
+  removed node, or any status change), not just regressions. It composes with
+  `--json`/`--markdown` (the gate only affects the exit code).
 - **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
   These commands emit versioned `--json` payloads but shipped without published
   schemas, unlike the rest of the CLI. They are now registered packaged schemas
