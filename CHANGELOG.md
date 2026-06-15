@@ -201,6 +201,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`tags --markdown`** renders the per-tag roll-up as a Markdown table (tag,
+  nodes, formal targets, proved, found, problems, proved-coverage%) plus an
+  untagged-count line. Mutually exclusive with `--json`; composes with `--tag`
+  and `--fail-under`, and tag cells escape `|`.
 
 ### Changed
 

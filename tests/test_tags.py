@@ -12,6 +12,7 @@ from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
     render_tag_report,
+    render_tags_markdown,
 )
 
 
@@ -412,3 +413,66 @@ def test_cli_absent_fail_under_unchanged(tmp_path: Path, capsys) -> None:
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert "gate" not in data
+
+
+def test_render_tags_markdown_escapes_pipe() -> None:
+    project = _project(
+        _node("a", tags=["a|b"], formal=FormalStatus.PROVED),
+    )
+    report = build_tag_report(project)
+
+    out = render_tags_markdown(report)
+
+    assert "Proved-coverage%" in out
+    assert r"a\|b" in out
+    assert "| a|b |" not in out
+
+
+def test_cli_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# tag-test tags" in out
+    assert (
+        "| Tag | Nodes | Formal targets | Proved | Found | Problems | "
+        "Proved-coverage% |"
+    ) in out
+    # core carries two nodes; the row must be present.
+    assert "| core | 2 |" in out
+    assert "Untagged nodes: 1" in out
+
+
+def test_cli_markdown_composes_with_tag_filter(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--markdown", "--tag", "core"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "| core | 2 |" in out
+    assert "| alg |" not in out
+
+
+def test_cli_markdown_fail_under_gate_exits_5(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--markdown", "--fail-under", "80"])
+
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "Proved-coverage%" in captured.out
+    assert "fail-under 80% policy triggered" in captured.err
+
+
+def test_cli_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        cli_main(["tags", str(tmp_path), "--markdown", "--json"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:  # pragma: no cover - argparse should reject the combination
+        raise AssertionError("expected --markdown/--json to be mutually exclusive")
