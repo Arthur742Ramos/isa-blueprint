@@ -275,6 +275,7 @@ from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
     render_tag_report,
+    render_tags_markdown,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -862,6 +863,14 @@ def cmd_tags(args: argparse.Namespace) -> int:
         if gate is not None:
             payload["gate"] = gate.to_dict()
         print(json.dumps(payload, indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_tags_markdown(report), end="")
+        if gate is not None and not gate.ok:
+            print(
+                f"fail-under {fail_under}% policy triggered: "
+                f"{', '.join(gate.failing_tags)} below threshold.",
+                file=sys.stderr,
+            )
     else:
         print(render_tag_report(report), end="")
         if gate is not None and not gate.ok:
@@ -2772,7 +2781,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="roll up node counts and coverage per blueprint tag",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
-    p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags_format = p_tags.add_mutually_exclusive_group()
+    p_tags_format.add_argument(
+        "--json", action="store_true", help="emit the tag roll-up as JSON"
+    )
+    p_tags_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the tag roll-up as a Markdown table",
+    )
     p_tags.add_argument(
         "--tag",
         action="append",

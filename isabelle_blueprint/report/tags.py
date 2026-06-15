@@ -209,6 +209,51 @@ def render_tag_report(report: TagReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _escape_cell(text: str) -> str:
+    """Neutralise Markdown table delimiters in a user-controlled cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are flattened.
+    """
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_tags_markdown(report: TagReport) -> str:
+    """Render the roll-up as a standalone Markdown document.
+
+    Columns: tag, nodes, formal targets, proved, found, problems, and
+    proved-coverage%. Tag cells are escaped so a ``|`` in a tag name cannot
+    break the table. An untagged-count line follows the table.
+    """
+
+    lines = [
+        f"# {report.project} tags",
+        "",
+    ]
+    if report.tags:
+        lines.extend(
+            [
+                "| Tag | Nodes | Formal targets | Proved | Found | Problems | "
+                "Proved-coverage% |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        for stat in report.tags:
+            coverage = (
+                "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
+            )
+            lines.append(
+                f"| {_escape_cell(stat.tag)} | {stat.node_count} | "
+                f"{stat.formal_target_count} | {stat.proved_count} | "
+                f"{stat.found_count} | {stat.problem_count} | {coverage} |"
+            )
+    else:
+        lines.append("_(no tagged nodes)_")
+    lines.extend(["", f"Untagged nodes: {report.untagged_count}"])
+    return "\n".join(lines) + "\n"
+
+
 def _coverage(proved: int, targets: int) -> int | None:
     if targets == 0:
         return None

@@ -216,6 +216,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   summary (heading, a status/remaining/eta_days/eta_date/forecast table, and a
   short note when stalled/regressing/scope-growing); mutually exclusive with
   `--json`.
+- **`tags --markdown`** renders the per-tag roll-up as a Markdown table (tag,
+  nodes, formal targets, proved, found, problems, proved-coverage%) plus an
+  untagged-count line. Mutually exclusive with `--json`; composes with `--tag`
+  and `--fail-under`, and tag cells escape `|`.
 
 ### Changed
 
