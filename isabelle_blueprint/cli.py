@@ -1227,13 +1227,53 @@ def cmd_stats(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     memory = load_agent_memory(config.agent_memory_path)
     report = build_stats_report(memory, project)
+
+    exit_code = 0
+    gate: dict[str, object] = {}
+    min_rate = getattr(args, "min_success_rate", None)
+    meets: bool | None = None
+    # Gate on the RAW rate (succeeded / resolved), not report.success_rate which
+    # is rounded to 4 decimals and could flip the verdict near the threshold.
+    succeeded = report.outcomes.get("succeeded", 0)
+    failed = report.outcomes.get("failed", 0)
+    resolved = succeeded + failed
+    raw_rate = succeeded / resolved if resolved else None
+    if min_rate is not None:
+        if raw_rate is None:
+            meets = None  # no resolved attempts; do not fail the gate
+        else:
+            meets = raw_rate * 100 >= min_rate
+            if not meets:
+                exit_code = 5
+        gate["min_success_rate"] = min_rate
+        gate["success_rate"] = report.success_rate
+        gate["meets"] = meets
+
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        payload = report.to_dict()
+        if gate:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
     elif args.markdown:
         print(render_stats_markdown(report), end="")
     else:
         print(render_stats_report(report), end="")
-    return 0
+
+    if min_rate is not None and not args.json:
+        if meets is None:
+            print(
+                f"min-success-rate {min_rate:g} not enforced: project has no "
+                "resolved attempts yet.",
+                file=sys.stderr,
+            )
+        elif not meets:
+            assert raw_rate is not None
+            print(
+                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% "
+                f"is below {min_rate:g}%.",
+                file=sys.stderr,
+            )
+    return exit_code
 
 
 def cmd_staleness(args: argparse.Namespace) -> int:
@@ -3042,6 +3082,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_stats_format.add_argument("--json", action="store_true", help="emit stats as JSON")
     p_stats_format.add_argument(
         "--markdown", action="store_true", help="emit stats as a Markdown document"
+    )
+    p_stats.add_argument(
+        "--min-success-rate",
+        type=_percent,
+        default=None,
+        metavar="PCT",
+        help=(
+            "fail (exit 5) when the overall proof-attempt success rate is below "
+            "PCT percent (0-100); not enforced when there are no resolved attempts"
+        ),
     )
     p_stats.set_defaults(func=cmd_stats)
 
