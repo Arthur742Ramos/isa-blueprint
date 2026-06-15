@@ -106,6 +106,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`assign --json`** now also emits additive `count` (number of assignment
+  records) and `owners` (a `node_id -> owner` map) keys alongside the existing
+  `project` and `assignments` fields, so consumers no longer have to derive the
+  total or a lookup table themselves. Existing keys and the persisted
+  `assignments.json` store format are unchanged.
 
 ### Changed
 
