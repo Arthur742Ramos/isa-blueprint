@@ -233,10 +233,10 @@ def render_blame_table(blames: list[NodeBlame]) -> str:
             git_cell = "-"
         if blame.memory is not None:
             outcome = blame.memory.last_outcome or "?"
-            git_agent = f"{blame.memory.attempts}x {outcome}"
+            agent_cell = f"{blame.memory.attempts}x {outcome}"
         else:
-            git_agent = "-"
-        rows.append((blame.node_id, location, git_cell, git_agent))
+            agent_cell = "-"
+        rows.append((blame.node_id, location, git_cell, agent_cell))
 
     headers = ("NODE", "SOURCE", "GIT", "AGENT")
     widths = [len(h) for h in headers]

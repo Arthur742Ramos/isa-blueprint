@@ -2808,8 +2808,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="ID",
         help="restrict output to a single node id (default: all nodes)",
     )
-    p_blame.add_argument("--json", action="store_true", help="emit provenance as JSON")
-    p_blame.add_argument(
+    p_blame_format = p_blame.add_mutually_exclusive_group()
+    p_blame_format.add_argument(
+        "--json", action="store_true", help="emit provenance as JSON"
+    )
+    p_blame_format.add_argument(
         "--table",
         action="store_true",
         help="compact one-row-per-node table instead of the default detailed view",

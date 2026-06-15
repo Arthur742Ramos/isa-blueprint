@@ -135,14 +135,25 @@ def shutil_which_git() -> str | None:
 
 
 def test_blame_without_node_id_lists_every_node(tmp_path: Path, capsys) -> None:
-    # No --node-id -> provenance for ALL nodes, in both text and JSON.
+    # No --node-id -> the default TEXT view shows provenance for ALL nodes.
     _write_project(tmp_path)
 
-    rc = cli_main(["blame", str(tmp_path), "--json"])
+    rc = cli_main(["blame", str(tmp_path)])
 
     assert rc == 0
-    data = json.loads(capsys.readouterr().out)
-    assert [n["id"] for n in data["nodes"]] == ["a", "b"]
+    out = capsys.readouterr().out
+    assert "a  (A)" in out
+    assert "b  (B)" in out
+
+
+def test_blame_json_and_table_are_mutually_exclusive(tmp_path: Path) -> None:
+    # --json and --table are competing output formats; argparse must reject both.
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["blame", str(tmp_path), "--json", "--table"])
+
+    assert exc.value.code == 2
 
 
 def test_blame_table_lists_every_node(tmp_path: Path, capsys) -> None:
