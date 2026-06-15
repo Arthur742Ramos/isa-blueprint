@@ -386,6 +386,7 @@ def _impact_mermaid_label(text: str) -> str:
     return (
         text.replace("\\", "\\\\")
         .replace('"', "&quot;")
+        .replace("|", "&#124;")
         .replace("\n", "<br/>")
     )
 

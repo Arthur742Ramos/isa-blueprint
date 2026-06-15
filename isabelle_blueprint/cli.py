@@ -3019,9 +3019,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         choices=("text", "json", "dot", "mermaid"),
         default=None,
         help=(
-            "output format (default: text); `dot` emits a Graphviz subgraph and "
-            "`mermaid` a Mermaid flowchart of the node's blast radius - both "
-            "require --node. `--json` is an alias for `--format json`."
+            "output format (default: text); `dot` emits a Graphviz subgraph of the "
+            "node's blast radius and requires --node. `mermaid` emits the same blast "
+            "radius as a Mermaid flowchart and likewise requires --node. `--json` is "
+            "an alias for `--format json`."
         ),
     )
     p_impact.add_argument(

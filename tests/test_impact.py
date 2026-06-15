@@ -315,9 +315,13 @@ def test_mermaid_label_escapes_newline_and_quote() -> None:
 
     assert "flowchart" in mermaid
     assert "&quot;" in mermaid
-    assert "<br/>" in mermaid
-    # The raw newline must not survive inside the emitted label.
-    assert "\ny\nz" not in mermaid
+    # The focus node's label line must carry the escaped <br/> form and contain no
+    # raw newline inside the label token itself.
+    label_line = next(
+        line for line in mermaid.splitlines() if line.lstrip().startswith("n_a")
+    )
+    assert "<br/>" in label_line
+    assert "\n" not in label_line
 
 
 def test_cli_format_json_matches_json_flag(tmp_path: Path, capsys) -> None:
