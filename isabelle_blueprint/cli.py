@@ -3600,7 +3600,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_tindex.add_argument(
         "--counts",
         action="store_true",
-        help="print a compact numeric summary (theories, entries, sorry/import totals)",
+        help=(
+            "print a compact numeric summary (theories, entries, sorry/oops "
+            "entries, unreferenced count, import-edge count)"
+        ),
     )
     p_tindex.set_defaults(func=cmd_theory_index)
 

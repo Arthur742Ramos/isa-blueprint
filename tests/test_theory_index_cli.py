@@ -116,6 +116,31 @@ def test_theory_index_counts_json(tmp_path: Path, capsys) -> None:
     }
 
 
+def test_theory_index_counts_dedupes_repeated_import(tmp_path: Path, capsys) -> None:
+    # A theory whose imports clause repeats the same in-project dependency must
+    # contribute a single import edge, not one per repetition.
+    (tmp_path / "ROOT").write_text(
+        "session Demo = HOL +\n  theories\n    A\n    B\n", encoding="utf-8"
+    )
+    (tmp_path / "A.thy").write_text(
+        "theory A\nimports Main\nbegin\n"
+        'lemma base: "True" by simp\n'
+        "end\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "B.thy").write_text(
+        "theory B\nimports A A\nbegin\n"
+        'lemma uses_base: "True" using base by simp\n'
+        "end\n",
+        encoding="utf-8",
+    )
+    rc = cli_main(["theory-index", "--root", str(tmp_path), "--counts", "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # B imports A twice but it is a single (B -> A) edge.
+    assert data["counts"]["import_edges"] == 1
+
+
 def test_import_theory_root_builds_valid_blueprint(tmp_path: Path, capsys) -> None:
     root = _make_session(tmp_path)
     rc = cli_main(["import-theory", "--root", str(root), "--project-name", "Demo"])

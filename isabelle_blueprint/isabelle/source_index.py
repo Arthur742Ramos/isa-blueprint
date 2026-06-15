@@ -499,7 +499,7 @@ class SourceIndex:
             f"{m.theory}.{m.entry}" for m in self.sorries if m.entry is not None
         }
         import_edges = sum(
-            len(deps) for deps in self.in_project_imports.values()
+            len(set(deps)) for deps in self.in_project_imports.values()
         )
         return {
             "theories": len(self.theory_order),
