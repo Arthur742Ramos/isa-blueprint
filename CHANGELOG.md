@@ -109,6 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `graph --format d2` emits a [D2](https://d2lang.com) (`build/graph.d2`)
   dependency graph; it is opt-in only and left out of the default `all` set, so
   existing `graph` output is unchanged.
+- **`duplicate-title` lint rule** flags two or more nodes that share an
+  identical (case-insensitive, trimmed) non-empty title as a warning, catching
+  accidental copy-paste collisions; it surfaces in `lint --json` and SARIF.
 
 ### Changed
 
