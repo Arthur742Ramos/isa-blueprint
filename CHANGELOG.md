@@ -77,6 +77,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proof skeleton (seeded with the target fact and dependency facts) to the
   generated attempt prompt.
 
+### Changed
+
+- **Task and roadmap generation share a single node index** instead of rebuilding
+  `project.by_id()` once per node inside their readiness/blocker checks. This
+  removes an O(n²) rebuild on a hot path (`generate_tasks` and `build_roadmap`
+  run on `status`, `report`, `portfolio`, `roadmap`, and `agent-context`). Output
+  is unchanged; a regression test asserts the index build count no longer scales
+  with node count.
+
 ## [1.12.0] - 2026-06-06
 
 ### Added
