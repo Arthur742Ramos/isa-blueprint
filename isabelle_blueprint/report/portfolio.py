@@ -14,6 +14,8 @@ recorded with its error rather than aborting the whole roll-up.
 """
 from __future__ import annotations
 
+import csv
+import io
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -293,3 +295,43 @@ def render_portfolio_report(report: PortfolioReport) -> str:
             f"problems={project.problem_count} ready={project.ready_task_count}"
         )
     return "\n".join(lines) + "\n"
+
+
+_CSV_COLUMNS = (
+    "name",
+    "path",
+    "node_count",
+    "coverage_percent",
+    "proved_count",
+    "problem_count",
+    "has_cycles",
+    "health",
+)
+
+
+def render_portfolio_csv(report: PortfolioReport) -> str:
+    """Render ``report`` as CSV: a header row plus one row per project.
+
+    Columns: project name, relative path, node count, coverage percent, proved
+    count, problem count, a cycles flag, and health/status. Errored projects use
+    ``error`` as their status and leave numeric cells blank. Uses ``\\r\\n`` line
+    terminators per the :mod:`csv` module default.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(_CSV_COLUMNS)
+    for project in report.projects:
+        status = "error" if project.error is not None else (project.health or "")
+        writer.writerow(
+            [
+                project.name,
+                project.path,
+                "" if project.node_count is None else project.node_count,
+                "" if project.coverage_percent is None else project.coverage_percent,
+                "" if project.proved_count is None else project.proved_count,
+                "" if project.problem_count is None else project.problem_count,
+                "" if project.has_cycles is None else project.has_cycles,
+                status,
+            ]
+        )
+    return buffer.getvalue()

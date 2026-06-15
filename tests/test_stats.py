@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 
 _PROJECT = """# stats-test
@@ -101,3 +103,34 @@ def test_stats_text_render(tmp_path: Path, capsys) -> None:
     assert "Agent memory stats for stats-test" in out
     assert "success rate" in out
     assert "succeeded" in out
+
+
+def test_stats_markdown_render(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    _record(tmp_path, "a", "succeeded")
+    _record(tmp_path, "a", "failed")
+    _record(tmp_path, "b", "succeeded")
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--markdown"])
+    assert rc == 0
+    out = capsys.readouterr().out
+
+    assert "# Agent memory stats for stats-test" in out
+    assert "## Summary" in out
+    assert "| Total attempts | 3 |" in out
+    assert "| Nodes with memory | 2 |" in out
+    assert "## Outcomes" in out
+    assert "| succeeded | 2 |" in out
+    assert "| failed | 1 |" in out
+    assert "## Per node" in out
+    assert "| Node | Kind | Attempts | Last outcome |" in out
+    assert "| a | lemma | 2 | failed |" in out
+    assert "| b | theorem | 1 | succeeded |" in out
+
+
+def test_stats_markdown_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["stats", str(tmp_path), "--markdown", "--json"])
