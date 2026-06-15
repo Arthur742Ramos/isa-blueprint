@@ -233,6 +233,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`graph --roots-only`** prunes the emitted graph (every format) to root nodes
   — those nothing else `uses` (no incoming dependency edges, the end-goals);
   composes with `--focus`/`--depth` and is a no-op without the flag.
+- **`scorecard --markdown`** also writes the rendered Markdown scorecard to
+  `build/scorecard.md` under the configured `build_dir`. Composes with the
+  `--min-grade`/`--min-score` gates and `--json`; stdout and the exit code are
+  unchanged.
 
 ### Changed
 
