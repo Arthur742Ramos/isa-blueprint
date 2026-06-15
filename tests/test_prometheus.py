@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 
 
@@ -88,3 +90,119 @@ def test_prometheus_writes_output_file(tmp_path: Path, capsys) -> None:
     assert out_file.exists()
     text = out_file.read_text(encoding="utf-8")
     assert "isabelle_blueprint_nodes_total 2" in text
+
+
+def test_prometheus_static_labels_on_every_metric(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    rc = cli_main(
+        [
+            "prometheus",
+            str(tmp_path),
+            "--no-burndown",
+            "--label",
+            "env=ci",
+            "--label",
+            "team=hol",
+        ]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    metric_lines = [
+        line
+        for line in out.splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert metric_lines
+    for line in metric_lines:
+        assert '{env="ci",team="hol"}' in line
+    # the sample value still follows the closing brace.
+    assert 'isabelle_blueprint_nodes_total{env="ci",team="hol"} 2' in out
+
+
+def test_prometheus_label_value_escaped(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    rc = cli_main(
+        [
+            "prometheus",
+            str(tmp_path),
+            "--no-burndown",
+            "--label",
+            'note=a "quoted" \\ path',
+        ]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert 'note="a \\"quoted\\" \\\\ path"' in out
+
+
+def test_prometheus_no_label_is_byte_identical(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    assert cli_main(["prometheus", str(tmp_path), "--no-burndown"]) == 0
+    baseline = capsys.readouterr().out
+
+    assert (
+        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "x=y"]) == 0
+    )
+    labelled = capsys.readouterr().out
+
+    assert "{" not in baseline
+    assert baseline != labelled
+
+
+def test_prometheus_rejects_malformed_label(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "nokey"])
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "key=value" in err
+
+
+def test_prometheus_rejects_invalid_label_name(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "1bad=v"])
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "invalid label name" in err
+
+
+def test_prometheus_rejects_reserved_double_underscore_label(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "__foo=v"])
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "reserved" in err
+
+
+def test_prometheus_duplicate_label_keys_last_wins(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    rc = cli_main(
+        [
+            "prometheus",
+            str(tmp_path),
+            "--no-burndown",
+            "--label",
+            "env=a",
+            "--label",
+            "env=b",
+        ]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert 'env="b"' in out
+    assert 'env="a"' not in out

@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import sys
 import time
 from functools import partial
@@ -352,6 +353,30 @@ def _grade_arg(value: str) -> str:
             f"invalid grade {value!r}; choose one of {', '.join(ALL_GRADES)}"
         )
     return normalized
+
+
+def _label_arg(value: str) -> tuple[str, str]:
+    """argparse ``type`` parsing a ``key=value`` static Prometheus label.
+
+    The key must be a valid Prometheus label name
+    (``[a-zA-Z_][a-zA-Z0-9_]*``); the value may be any string. Names beginning
+    with ``__`` are reserved by Prometheus for internal use and are rejected.
+    """
+    key, sep, label_value = value.partition("=")
+    if not sep:
+        raise argparse.ArgumentTypeError(
+            f"invalid label {value!r}; expected key=value"
+        )
+    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key):
+        raise argparse.ArgumentTypeError(
+            f"invalid label name {key!r}; must match [a-zA-Z_][a-zA-Z0-9_]*"
+        )
+    if key.startswith("__"):
+        raise argparse.ArgumentTypeError(
+            f"invalid label name {key!r}; names beginning with '__' are reserved by Prometheus"
+        )
+    return key, label_value
+
 
 
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
@@ -834,7 +859,8 @@ def cmd_prometheus(args: argparse.Namespace) -> int:
     if not args.no_burndown:
         entries = load_trends(config.trends_path)
         eta_days = build_burndown_report(entries).eta_days
-    text = render_prometheus(metrics, eta_days=eta_days)
+    labels = dict(args.label) if args.label else None
+    text = render_prometheus(metrics, eta_days=eta_days, labels=labels)
     if args.output:
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -2616,6 +2642,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--no-burndown",
         action="store_true",
         help="skip the burndown ETA gauge (do not read trends.json)",
+    )
+    p_prom.add_argument(
+        "--label",
+        action="append",
+        type=_label_arg,
+        metavar="KEY=VALUE",
+        help=(
+            "inject an extra static label onto every metric line; "
+            "repeatable (e.g. --label env=ci --label team=hol)"
+        ),
     )
     p_prom.set_defaults(func=cmd_prometheus)
 

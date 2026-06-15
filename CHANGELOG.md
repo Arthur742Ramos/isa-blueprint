@@ -135,6 +135,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `critical-path.md` into the configured build dir alongside the printed report.
   The Markdown mirrors the printed output (honouring `--goal`) and never embeds
   ANSI colour codes; printing and exit codes are otherwise unchanged.
+- **`prometheus --label KEY=VALUE`** injects extra static labels onto every
+  emitted metric line; repeatable, with last-wins on duplicate keys. Label names
+  must be valid Prometheus identifiers and may not begin with the reserved `__`
+  prefix; invalid names exit `2`.
 
 ### Changed
 
