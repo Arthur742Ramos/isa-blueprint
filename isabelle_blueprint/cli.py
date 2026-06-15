@@ -247,6 +247,7 @@ from isabelle_blueprint.report.scorecard import (
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
 )
@@ -1181,6 +1182,11 @@ def cmd_staleness(args: argparse.Namespace) -> int:
             report, top=args.top, max_causes=args.max_causes
         )
         print(json.dumps(payload, indent=2))
+    elif args.markdown:
+        print(
+            render_staleness_markdown(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
     else:
         print(
             render_staleness_report(report, top=args.top, max_causes=args.max_causes),
@@ -2948,7 +2954,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="audit trusted nodes whose found/proved status rests on shaky dependencies",
     )
     p_staleness.add_argument("project_dir", nargs="?", default=".")
-    p_staleness.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_staleness_format = p_staleness.add_mutually_exclusive_group()
+    p_staleness_format.add_argument(
+        "--json", action="store_true", help="emit the analysis as JSON"
+    )
+    p_staleness_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the trust audit as a Markdown table (no colour)",
+    )
     p_staleness.add_argument(
         "--top",
         type=_positive_int,

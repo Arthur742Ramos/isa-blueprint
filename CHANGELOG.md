@@ -175,6 +175,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project: name, path, node count, coverage, proved, problems, cycles flag, and
   health/status), mutually exclusive with `--json`; the default text view is
   unchanged.
+- **`staleness --markdown`** renders the trust audit as a portable Markdown table
+  (heading, summary line, and one row per flagged trusted node with its
+  problem/incomplete/outdated severity and causes). Mutually exclusive with
+  `--json`; honours `--top` / `--max-causes`; default text output is unchanged.
 
 ### Changed
 
