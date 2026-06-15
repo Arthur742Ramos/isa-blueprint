@@ -24,6 +24,7 @@ from isabelle_blueprint.agents.blame import (
     blame_payload,
     build_blame,
     render_blame,
+    render_blame_table,
 )
 from isabelle_blueprint.agents.context import (
     DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
@@ -1005,6 +1006,8 @@ def cmd_blame(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(blame_payload(blames), indent=2))
+    elif args.table:
+        print(render_blame_table(blames), end="")
     else:
         print(render_blame(blames), end="")
     return 0
@@ -2846,7 +2849,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="ID",
         help="restrict output to a single node id (default: all nodes)",
     )
-    p_blame.add_argument("--json", action="store_true", help="emit provenance as JSON")
+    p_blame_format = p_blame.add_mutually_exclusive_group()
+    p_blame_format.add_argument(
+        "--json", action="store_true", help="emit provenance as JSON"
+    )
+    p_blame_format.add_argument(
+        "--table",
+        action="store_true",
+        help="compact one-row-per-node table instead of the default detailed view",
+    )
     p_blame.set_defaults(func=cmd_blame)
 
     p_critical = sub.add_parser(

@@ -168,6 +168,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sorry`/`oops`, unreferenced-entry count, and total in-project import edges)
   without needing Isabelle. With `--json` it emits an additive `counts` object;
   the default index output is unchanged.
+- **`blame --table`** renders a compact one-row-per-node provenance table (node,
+  source, last git commit, agent attempts) as an alternative to the default
+  detailed multi-line view, for quickly scanning provenance across all nodes.
 
 ### Changed
 
