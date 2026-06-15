@@ -195,3 +195,131 @@ def test_cli_unknown_node_errors(tmp_path: Path, capsys) -> None:
     err = capsys.readouterr().err
     assert "unknown node" in err
     assert "missing" in err
+
+
+def _diamond() -> BlueprintProject:
+    # goal depends on base via two equal-length routes (goal->m1->base and
+    # goal->m2->base), so two shortest paths exist.
+    return _project(
+        _node("base"),
+        _node("m1", uses=["base"]),
+        _node("m2", uses=["base"]),
+        _node("goal", uses=["m1", "m2"]),
+    )
+
+
+def test_all_enumerates_every_shortest_path() -> None:
+    report = build_path_report(_diamond(), "goal", "base", all_paths=True)
+
+    assert report.found is True
+    assert report.direction == DIRECTION_DEPENDS_ON
+    assert report.paths == [["goal", "m1", "base"], ["goal", "m2", "base"]]
+    # Back-compat: single path stays the first (lexicographically smallest).
+    assert report.path == ["goal", "m1", "base"]
+    assert report.length == 2
+
+
+def test_all_default_off_returns_single_path() -> None:
+    report = build_path_report(_diamond(), "goal", "base")
+
+    assert report.paths == [["goal", "m1", "base"]]
+    assert report.path == ["goal", "m1", "base"]
+
+
+def test_all_backward_direction_preserved() -> None:
+    report = build_path_report(_diamond(), "base", "goal", all_paths=True)
+
+    assert report.direction == DIRECTION_DEPENDED_ON_BY
+    assert report.paths == [["goal", "m1", "base"], ["goal", "m2", "base"]]
+
+
+def test_render_lists_each_path() -> None:
+    text = render_path_report(build_path_report(_diamond(), "goal", "base", all_paths=True))
+    assert "2 shortest path(s)" in text
+    assert "Path 1: `goal` -> `m1` -> `base`" in text
+    assert "Path 2: `goal` -> `m2` -> `base`" in text
+
+
+_DIAMOND_BODY = """# path-test
+
+::: definition {#base}
+title: BASE
+isabelle: Demo.base
+status: stub
+
+A base.
+
+Sketch.
+:::
+
+::: lemma {#m1}
+title: M1
+isabelle: Demo.m1
+status: stub
+uses: base
+
+Uses base.
+
+Sketch.
+:::
+
+::: lemma {#m2}
+title: M2
+isabelle: Demo.m2
+status: stub
+uses: base
+
+Uses base.
+
+Sketch.
+:::
+
+::: theorem {#goal}
+title: GOAL
+isabelle: Demo.goal
+status: stub
+uses: m1, m2
+
+Uses m1 and m2.
+
+Sketch.
+:::
+"""
+
+
+def test_cli_all_text(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _DIAMOND_BODY)
+
+    rc = cli_main(["path", "goal", "base", str(tmp_path), "--all"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "2 shortest path(s)" in out
+    assert "Path 1: `goal` -> `m1` -> `base`" in out
+    assert "Path 2: `goal` -> `m2` -> `base`" in out
+
+
+def test_cli_all_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _DIAMOND_BODY)
+
+    rc = cli_main(["path", "goal", "base", str(tmp_path), "--all", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["found"] is True
+    assert data["direction"] == DIRECTION_DEPENDS_ON
+    assert data["paths"] == [["goal", "m1", "base"], ["goal", "m2", "base"]]
+    # Existing single-path keys stay populated with the first path.
+    assert data["path"] == ["goal", "m1", "base"]
+    assert data["length"] == 2
+
+
+def test_cli_json_without_all_has_single_element_paths(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _DIAMOND_BODY)
+
+    rc = cli_main(["path", "goal", "base", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["path"] == ["goal", "m1", "base"]
+    assert data["paths"] == [["goal", "m1", "base"]]
