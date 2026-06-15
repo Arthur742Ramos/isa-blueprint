@@ -162,6 +162,7 @@ from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_sv
 from isabelle_blueprint.report.burndown import (
     build_burndown_report,
     burndown_payload,
+    render_burndown_markdown,
     render_burndown_report,
 )
 from isabelle_blueprint.report.critical_path import (
@@ -1357,6 +1358,8 @@ def cmd_burndown(args: argparse.Namespace) -> int:
         payload = burndown_payload(report, limit=args.limit)
         payload["trends_path"] = str(config.trends_path)
         print(json.dumps(payload, indent=2))
+    elif args.markdown:
+        print(render_burndown_markdown(report), end="")
     else:
         limit = args.limit if args.limit is not None else 10
         print(render_burndown_report(report, limit=limit), end="")
@@ -3191,8 +3194,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="forecast an ETA to full proved coverage from trends.json",
     )
     p_burndown.add_argument("project_dir", nargs="?", default=".")
-    p_burndown.add_argument(
+    p_burndown_format = p_burndown.add_mutually_exclusive_group()
+    p_burndown_format.add_argument(
         "--json", action="store_true", help="emit the forecast as JSON"
+    )
+    p_burndown_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the forecast as a Markdown summary",
     )
     p_burndown.add_argument(
         "--limit",

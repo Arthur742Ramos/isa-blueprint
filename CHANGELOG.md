@@ -212,6 +212,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact (unrounded) success rate so verdicts are stable near the threshold. When
   there are no resolved attempts the gate is not enforced; without the flag,
   behaviour is unchanged.
+- **`burndown --markdown`** renders the velocity/ETA forecast as a Markdown
+  summary (heading, a status/remaining/eta_days/eta_date/forecast table, and a
+  short note when stalled/regressing/scope-growing); mutually exclusive with
+  `--json`.
 
 ### Changed
 
