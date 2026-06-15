@@ -174,3 +174,35 @@ def test_prometheus_rejects_invalid_label_name(tmp_path: Path, capsys) -> None:
     assert exc.value.code == 2
     err = capsys.readouterr().err
     assert "invalid label name" in err
+
+
+def test_prometheus_rejects_reserved_double_underscore_label(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "__foo=v"])
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "reserved" in err
+
+
+def test_prometheus_duplicate_label_keys_last_wins(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TWO_NODES)
+
+    rc = cli_main(
+        [
+            "prometheus",
+            str(tmp_path),
+            "--no-burndown",
+            "--label",
+            "env=a",
+            "--label",
+            "env=b",
+        ]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert 'env="b"' in out
+    assert 'env="a"' not in out

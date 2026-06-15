@@ -353,7 +353,8 @@ def _label_arg(value: str) -> tuple[str, str]:
     """argparse ``type`` parsing a ``key=value`` static Prometheus label.
 
     The key must be a valid Prometheus label name
-    (``[a-zA-Z_][a-zA-Z0-9_]*``); the value may be any string.
+    (``[a-zA-Z_][a-zA-Z0-9_]*``); the value may be any string. Names beginning
+    with ``__`` are reserved by Prometheus for internal use and are rejected.
     """
     key, sep, label_value = value.partition("=")
     if not sep:
@@ -363,6 +364,10 @@ def _label_arg(value: str) -> tuple[str, str]:
     if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key):
         raise argparse.ArgumentTypeError(
             f"invalid label name {key!r}; must match [a-zA-Z_][a-zA-Z0-9_]*"
+        )
+    if key.startswith("__"):
+        raise argparse.ArgumentTypeError(
+            f"invalid label name {key!r}; names beginning with '__' are reserved by Prometheus"
         )
     return key, label_value
 

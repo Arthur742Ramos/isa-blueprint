@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`prometheus --label KEY=VALUE`** injects extra static labels onto every
+  emitted metric line; repeatable, with last-wins on duplicate keys. Label names
+  must be valid Prometheus identifiers and may not begin with the reserved `__`
+  prefix; invalid names exit `2`.
 
 ### Changed
 
