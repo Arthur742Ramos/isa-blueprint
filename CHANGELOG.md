@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`portfolio --markdown`** renders the cross-project roll-up as Markdown: a
+  heading, a totals summary line, and a table with one row per project (name,
+  node count, coverage, proved, problems, cycles, health). Mutually exclusive
+  with `--json` and `--csv`.
 - **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
   These commands emit versioned `--json` payloads but shipped without published
   schemas, unlike the rest of the CLI. They are now registered packaged schemas

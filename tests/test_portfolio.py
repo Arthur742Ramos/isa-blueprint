@@ -14,6 +14,7 @@ from isabelle_blueprint.report.portfolio import (
     discover_project_roots,
     portfolio_payload,
     render_portfolio_csv,
+    render_portfolio_markdown,
     render_portfolio_report,
 )
 
@@ -319,5 +320,68 @@ def test_cli_portfolio_csv_and_json_mutually_exclusive(
 
     with pytest.raises(SystemExit) as excinfo:
         cli_main(["portfolio", str(tmp_path), "--csv", "--json"])
+
+    assert excinfo.value.code == 2
+
+
+def test_render_portfolio_markdown_header_and_rows(tmp_path: Path) -> None:
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a", formal="proved"), _node_md("b", formal="named")),
+    )
+
+    text = render_portfolio_markdown(build_portfolio(tmp_path))
+
+    assert text.startswith("## Portfolio")
+    assert "**Totals:**" in text
+    assert "| Project | Nodes | Coverage | Proved | Problems | Cycles | Health |" in text
+    assert "| --- | --- | --- | --- | --- | --- | --- |" in text
+    assert "| alpha |" in text
+
+
+def test_render_portfolio_markdown_escapes_pipe_in_name(tmp_path: Path) -> None:
+    _write_project(
+        tmp_path / "alpha",
+        name="a|b",
+        body=_node_md("a", formal="proved"),
+    )
+
+    text = render_portfolio_markdown(build_portfolio(tmp_path))
+
+    assert r"a\|b" in text
+
+
+def test_cli_portfolio_markdown_examples_tree(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--markdown"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "## Portfolio" in out
+    assert "| Project | Nodes | Coverage | Proved | Problems | Cycles | Health |" in out
+    # A known example project name appears as a Markdown table row.
+    assert "| Infinitude of the primes |" in out
+
+
+def test_cli_portfolio_markdown_and_json_mutually_exclusive(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a", formal="proved"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--markdown", "--json"])
+
+    assert excinfo.value.code == 2
+
+
+def test_cli_portfolio_markdown_and_csv_mutually_exclusive(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a", formal="proved"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--markdown", "--csv"])
 
     assert excinfo.value.code == 2
