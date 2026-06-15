@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 from pathlib import Path
 
@@ -11,8 +13,11 @@ from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     discover_project_roots,
     portfolio_payload,
+    render_portfolio_csv,
     render_portfolio_report,
 )
+
+EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 
 
 def _node_md(node_id: str, *, formal: str = "named", uses: list[str] | None = None) -> str:
@@ -258,3 +263,61 @@ def test_cli_portfolio_fail_on_problem_clean_passes(
     capsys.readouterr()
 
     assert exit_code == 0
+
+
+def test_render_portfolio_csv_header_and_rows(tmp_path: Path) -> None:
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a", formal="proved"), _node_md("b", formal="named")),
+    )
+
+    text = render_portfolio_csv(build_portfolio(tmp_path))
+    rows = list(csv.reader(io.StringIO(text)))
+
+    assert rows[0] == [
+        "name",
+        "path",
+        "node_count",
+        "coverage_percent",
+        "proved_count",
+        "problem_count",
+        "has_cycles",
+        "health",
+    ]
+    by_name = {row[0]: row for row in rows[1:]}
+    assert "alpha" in by_name
+    assert by_name["alpha"][1] == "alpha"
+    assert by_name["alpha"][4] == "1"
+
+
+def test_cli_portfolio_csv_examples_tree(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--csv"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    rows = list(csv.reader(io.StringIO(out)))
+    assert rows[0] == [
+        "name",
+        "path",
+        "node_count",
+        "coverage_percent",
+        "proved_count",
+        "problem_count",
+        "has_cycles",
+        "health",
+    ]
+    names = {row[0] for row in rows[1:]}
+    # A known example project name appears as a CSV row.
+    assert "Infinitude of the primes" in names
+
+
+def test_cli_portfolio_csv_and_json_mutually_exclusive(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a", formal="proved"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--csv", "--json"])
+
+    assert excinfo.value.code == 2
