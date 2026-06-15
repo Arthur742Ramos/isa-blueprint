@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.report.burndown import (
     build_burndown_report,
     burndown_payload,
+    render_burndown_markdown,
     render_burndown_report,
 )
 
@@ -191,6 +194,27 @@ def test_render_no_history() -> None:
     assert "No coverage history yet" in text
 
 
+def test_render_markdown_on_track() -> None:
+    report = build_burndown_report(
+        _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)])
+    )
+    md = render_burndown_markdown(report)
+    assert md.startswith("# Burndown forecast")
+    assert "| Status | Remaining | ETA (days) | ETA date | Forecast |" in md
+    assert "`on_track`" in md
+    assert "2024-01-06" in md  # eta_date
+    assert "1.0" in md  # eta_days
+    assert md.endswith("\n")
+
+
+def test_render_markdown_stalled_has_note() -> None:
+    report = build_burndown_report(_series([(1, 5, 10), (2, 5, 10), (3, 5, 10)]))
+    md = render_burndown_markdown(report)
+    assert "`stalled`" in md
+    assert "**Note:**" in md
+
+
+
 # --------------------------------------------------------------------------- #
 # CLI integration
 
@@ -228,3 +252,37 @@ def test_cli_burndown_fail_when_stalled(tmp_path: Path, capsys) -> None:
 
     assert rc == 5
     assert "Stalled" in capsys.readouterr().out
+
+
+def test_cli_burndown_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    _write_trends(
+        tmp_path, _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)])
+    )
+
+    rc = cli_main(["burndown", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# Burndown forecast")
+    assert "| Status | Remaining | ETA (days) | ETA date | Forecast |" in out
+    assert "`on_track`" in out
+    assert "2024-01-06" in out
+
+
+def test_cli_burndown_markdown_stalled_note(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    _write_trends(tmp_path, _series([(1, 5, 10), (2, 5, 10), (3, 5, 10)]))
+
+    rc = cli_main(["burndown", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "`stalled`" in out
+    assert "**Note:**" in out
+
+
+def test_cli_burndown_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["burndown", str(tmp_path), "--markdown", "--json"])

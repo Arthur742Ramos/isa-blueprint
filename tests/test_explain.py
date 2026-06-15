@@ -3,8 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
-from isabelle_blueprint.explain import explain_project, render_explanations
+from isabelle_blueprint.explain import (
+    explain_project,
+    render_explanations,
+    render_explanations_markdown,
+)
 from isabelle_blueprint.isabelle.suggestions import FactSuggestion
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -180,3 +186,35 @@ def test_cli_explain_single_node_selector(tmp_path: Path, capsys) -> None:
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert [item["node_id"] for item in data["explanations"]] == ["a"]
+
+
+def test_render_explanations_markdown_has_heading_and_status():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", FormalStatus.NAMED, uses=["dep"])]
+    )
+
+    md = render_explanations_markdown(explain_project(project), project)
+
+    assert "# a:" in md
+    assert "- Formal: `named`" in md
+    assert "- Blueprint:" in md
+    assert "- `dep`" in md
+
+
+def test_cli_explain_markdown_emits_document(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["explain", str(tmp_path), "--node", "a", "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# a:")
+    assert "## Status" in out
+    assert "- Formal: `" in out
+
+
+def test_cli_explain_markdown_and_json_are_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(["explain", str(tmp_path), "--markdown", "--json"])
