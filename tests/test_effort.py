@@ -226,3 +226,128 @@ def test_cli_effort_json(tmp_path, capsys):
     assert payload["proved_effort"] == 4
     assert payload["coverage_percent"] == 100
     assert payload["default_effort"] == 1
+    assert "by_tag" not in payload
+
+
+# ---------------------------------------------------------------------------
+# --by-tag grouping
+# ---------------------------------------------------------------------------
+
+
+def _tagged(node_id, *, effort, formal, tags):
+    node = _node(node_id, effort=effort, formal=formal)
+    node.tags = list(tags)
+    return node
+
+
+def test_by_tag_groups_and_multi_tag_counts_under_each():
+    project = BlueprintProject.from_nodes(
+        "p",
+        [
+            _tagged("a", effort=4, formal=FormalStatus.PROVED, tags=["algebra", "core"]),
+            _tagged("b", effort=2, formal=FormalStatus.FOUND, tags=["algebra"]),
+            _tagged("c", effort=3, formal=FormalStatus.MISSING, tags=[]),
+        ],
+    )
+    report = build_effort_report(project)
+    by_tag = {t.tag: t for t in report.by_tag}
+    assert set(by_tag) == {"algebra", "core", "(untagged)"}
+    # a (4) + b (2) under algebra; only a is proved.
+    assert by_tag["algebra"].total_effort == 6
+    assert by_tag["algebra"].proved_effort == 4
+    assert by_tag["algebra"].remaining_effort == 2
+    assert by_tag["algebra"].percent == 66
+    # a also counts under core.
+    assert by_tag["core"].total_effort == 4
+    assert by_tag["core"].proved_effort == 4
+    assert by_tag["core"].percent == 100
+    # untagged bucket holds c.
+    assert by_tag["(untagged)"].total_effort == 3
+    assert by_tag["(untagged)"].percent == 0
+    # untagged bucket sorts last.
+    assert report.by_tag[-1].tag == "(untagged)"
+
+
+def test_to_dict_includes_by_tag_only_when_requested():
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=1, formal=FormalStatus.PROVED, tags=["x"])]
+    )
+    report = build_effort_report(project)
+    assert "by_tag" not in report.to_dict()
+    payload = report.to_dict(include_by_tag=True)
+    assert payload["by_tag"][0]["tag"] == "x"
+    assert payload["by_tag"][0]["proved_effort"] == 1
+
+
+def test_render_by_tag_table_present_only_when_requested():
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=2, formal=FormalStatus.PROVED, tags=["algebra"])]
+    )
+    report = build_effort_report(project)
+    assert "Effort by tag" not in render_effort_report(report)
+    rendered = render_effort_report(report, by_tag=True)
+    assert "## Effort by tag" in rendered
+    assert "| algebra |" in rendered
+
+
+def _write_tagged_project(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "effort-tag-test"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        textwrap.dedent(
+            """\
+            # effort-tag-test
+
+            ::: lemma {#a}
+            title: A
+            isabelle: Demo.a
+            effort: 4
+            status: proved
+            tags: algebra, core
+
+            A statement.
+            :::
+
+            ::: lemma {#b}
+            title: B
+            effort: 2
+
+            B statement.
+            :::
+            """
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_cli_effort_by_tag_text(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--by-tag"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Effort-weighted progress" in out
+    assert "## Effort by tag" in out
+    assert "| algebra |" in out
+    assert "(untagged)" in out
+
+
+def test_cli_effort_by_tag_json(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--by-tag", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "by_tag" in payload
+    tags = {t["tag"]: t for t in payload["by_tag"]}
+    assert tags["algebra"]["total_effort"] == 4
+    assert tags["algebra"]["proved_effort"] == 4
+    assert tags["(untagged)"]["total_effort"] == 2
+    assert tags["(untagged)"]["proved_effort"] == 0
+
+
+def test_cli_effort_json_without_by_tag_omits_key(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "by_tag" not in payload
