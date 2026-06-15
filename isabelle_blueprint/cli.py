@@ -1345,10 +1345,20 @@ def cmd_diff(args: argparse.Namespace) -> int:
         print(render_diff_markdown(diff), end="")
     else:
         print(render_diff(diff), end="")
+    # Check --fail-on-regression first: a regression also counts as a change,
+    # so this ordering keeps the more specific message when both flags are set.
     if args.fail_on_regression and diff.has_regression:
         print(
             f"regression detected vs baseline "
             f"({len(diff.regressions) + len(diff.removed)} node(s))",
+            file=sys.stderr,
+        )
+        return 5
+    if args.fail_on_change and diff.has_changes:
+        print(
+            f"change detected vs baseline "
+            f"({len(diff.added)} added, {len(diff.removed)} removed, "
+            f"{len(diff.changes)} changed)",
             file=sys.stderr,
         )
         return 5
@@ -3224,6 +3234,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--fail-on-regression",
         action="store_true",
         help="exit non-zero (5) when a node regresses or is removed vs the baseline",
+    )
+    p_diff.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="exit non-zero (5) when there is any difference vs the baseline "
+        "(added, removed, or changed node), not just regressions",
     )
     p_diff.set_defaults(func=cmd_diff)
 
