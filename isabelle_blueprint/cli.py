@@ -889,7 +889,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fail_on = _resolve_fail_on(getattr(args, "fail_on", None))
     report = build_gate_report(
-        project, min_coverage=args.min_coverage, fail_on=fail_on
+        project,
+        min_coverage=args.min_coverage,
+        fail_on=fail_on,
+        min_grade=getattr(args, "min_grade", None),
     )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
@@ -2687,6 +2690,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="STATUS",
         help="fail when any node has this formal status (repeatable; "
         f"'{FAIL_ON_PROBLEM_ALIAS}' expands to all problem statuses)",
+    )
+    p_gate.add_argument(
+        "--min-grade",
+        type=_grade_arg,
+        default=None,
+        metavar="GRADE",
+        help=(
+            "fail (exit 5) when the project scorecard grade is below GRADE "
+            f"(one of {', '.join(ALL_GRADES)}; case-insensitive)"
+        ),
     )
     p_gate.set_defaults(func=cmd_gate)
 

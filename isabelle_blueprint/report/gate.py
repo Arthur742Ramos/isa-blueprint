@@ -16,6 +16,9 @@ The checks are:
                   be shown to clear the bar.
 * ``fail-on``   - only evaluated when ``fail_on`` statuses are given. Fails when
                   any node's formal status is in the selected set.
+* ``min_grade`` - only evaluated when ``min_grade`` is given. Fails when the
+                  project scorecard grade is below the requested letter grade,
+                  or is undefined (no gradeable components).
 
 The gate is pure: it never talks to Isabelle or the network. Feed it a project
 that already had any stored check report applied.
@@ -27,6 +30,7 @@ from dataclasses import dataclass, field
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.report.lint import build_lint_report
 from isabelle_blueprint.report.metrics import build_status_metrics
+from isabelle_blueprint.report.scorecard import build_scorecard, grade_threshold
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,7 @@ def build_gate_report(
     *,
     min_coverage: int | None = None,
     fail_on: set[str] | None = None,
+    min_grade: str | None = None,
 ) -> GateReport:
     """Evaluate every requested gate check against ``project``."""
     checks: list[GateCheck] = []
@@ -128,6 +133,27 @@ def build_gate_report(
                     name="fail-on",
                     ok=True,
                     detail=f"no node matches [{selected}]",
+                )
+            )
+
+    if min_grade is not None:
+        threshold = grade_threshold(min_grade)
+        card = build_scorecard(project)
+        if card.score is None:
+            checks.append(
+                GateCheck(
+                    name="min_grade",
+                    ok=False,
+                    detail=f"grade is undefined (no gradeable components); need >= {min_grade}",
+                )
+            )
+        else:
+            ok = threshold is not None and card.score >= threshold
+            checks.append(
+                GateCheck(
+                    name="min_grade",
+                    ok=ok,
+                    detail=f"grade {card.grade} ({card.score}/100); threshold {min_grade}",
                 )
             )
 
