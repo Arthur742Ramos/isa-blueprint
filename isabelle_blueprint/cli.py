@@ -1014,6 +1014,16 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    elif getattr(args, "markdown", False):
+        from isabelle_blueprint import console
+
+        was_enabled = console.is_enabled()
+        console.set_enabled(False)
+        try:
+            markdown = render_critical_path(overview, top=args.top, goal=goal)
+        finally:
+            console.set_enabled(was_enabled)
+        print(markdown, end="")
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
@@ -2826,7 +2836,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="show the longest remaining incomplete dependency chain and bottlenecks",
     )
     p_critical.add_argument("project_dir", nargs="?", default=".")
-    p_critical.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt = p_critical.add_mutually_exclusive_group()
+    p_critical_fmt.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt.add_argument(
+        "--markdown",
+        action="store_true",
+        help="print the report as plain Markdown (no colour) to stdout",
+    )
     p_critical.add_argument(
         "--top",
         type=_positive_int,
