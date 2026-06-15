@@ -149,6 +149,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`theory-index --counts`** prints a compact numeric summary of the
+  source-only index (theory count, total entries, entries carrying a
+  `sorry`/`oops`, unreferenced-entry count, and total in-project import edges)
+  without needing Isabelle. With `--json` it emits an additive `counts` object;
+  the default index output is unchanged.
 
 ### Changed
 

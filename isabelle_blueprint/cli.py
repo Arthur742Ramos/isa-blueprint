@@ -2415,6 +2415,18 @@ def cmd_theory_index(args: argparse.Namespace) -> int:
                 print("\n".join(result))
         return 0
 
+    if args.counts:
+        counts = index.counts()
+        if args.json:
+            print(json.dumps({"counts": counts}, indent=2))
+        else:
+            print(f"theories:    {counts['theories']}")
+            print(f"entries:     {counts['entries']}")
+            print(f"sorry/oops entries: {counts['sorry_entries']}")
+            print(f"unreferenced: {counts['unreferenced']}")
+            print(f"import edges: {counts['import_edges']}")
+        return 0
+
     if args.json:
         print(json.dumps(index.to_dict(), indent=2))
     else:
@@ -3584,6 +3596,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--unreferenced",
         action="store_true",
         help="list entries not referenced by any other indexed entry (not dead-code analysis)",
+    )
+    p_tindex.add_argument(
+        "--counts",
+        action="store_true",
+        help="print a compact numeric summary (theories, entries, sorry/import totals)",
     )
     p_tindex.set_defaults(func=cmd_theory_index)
 

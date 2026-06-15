@@ -89,6 +89,33 @@ def test_theory_index_unreferenced_empty_has_no_blank_line(tmp_path: Path, capsy
     assert capsys.readouterr().out == "(no unreferenced entries)\n"
 
 
+def test_theory_index_counts_text(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--counts"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # two theories (A, B), three entries (foo, base, uses_base)
+    assert "theories:    2" in out
+    assert "entries:     3" in out
+    # uses_base carries a sorry; B imports A is the single import edge
+    assert "sorry/oops entries: 1" in out
+    assert "import edges: 1" in out
+
+
+def test_theory_index_counts_json(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--counts", "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["counts"] == {
+        "theories": 2,
+        "entries": 3,
+        "sorry_entries": 1,
+        "unreferenced": 1,
+        "import_edges": 1,
+    }
+
+
 def test_import_theory_root_builds_valid_blueprint(tmp_path: Path, capsys) -> None:
     root = _make_session(tmp_path)
     rc = cli_main(["import-theory", "--root", str(root), "--project-name", "Demo"])
