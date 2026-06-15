@@ -194,3 +194,95 @@ def test_cli_json(tmp_path: Path, capsys) -> None:
     tags = {stat["tag"]: stat for stat in data["tags"]}
     assert tags["core"]["node_count"] == 2
     assert tags["alg"]["node_count"] == 1
+
+
+def test_filter_restricts_to_named_tags() -> None:
+    project = _project(
+        _node("a", tags=["core", "alg"], formal=FormalStatus.PROVED),
+        _node("b", tags=["core"], formal=FormalStatus.MISSING),
+        _node("c", tags=["doc"]),
+        _node("d"),
+    )
+
+    report = build_tag_report(project, only=["core"])
+
+    assert [stat.tag for stat in report.tags] == ["core"]
+    assert _stat(report, "core").node_count == 2
+    # Project-wide structure is unaffected by the filter.
+    assert report.total_nodes == 4
+    assert report.untagged_count == 1
+
+
+def test_filter_unknown_tag_yields_empty_row() -> None:
+    project = _project(_node("a", tags=["core"], formal=FormalStatus.PROVED))
+
+    report = build_tag_report(project, only=["nope"])
+
+    assert [stat.tag for stat in report.tags] == ["nope"]
+    nope = _stat(report, "nope")
+    assert nope.node_count == 0
+    assert nope.formal_target_count == 0
+    assert nope.coverage_percent is None
+
+
+def test_filter_none_matches_unfiltered() -> None:
+    project = _project(
+        _node("a", tags=["core"], formal=FormalStatus.PROVED),
+        _node("b", tags=["alg"]),
+    )
+
+    assert build_tag_report(project, only=None).to_dict() == (
+        build_tag_report(project).to_dict()
+    )
+
+
+def test_filter_dedupes_repeated_tag_request() -> None:
+    project = _project(_node("a", tags=["core"]))
+
+    report = build_tag_report(project, only=["core", "core"])
+
+    assert [stat.tag for stat in report.tags] == ["core"]
+
+
+def test_cli_tag_filter_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json", "--tag", "core"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # Same keys, just a filtered tag list.
+    assert data["total_nodes"] == 3
+    assert data["untagged_count"] == 1
+    assert data["tag_count"] == 1
+    assert [stat["tag"] for stat in data["tags"]] == ["core"]
+    assert data["tags"][0]["node_count"] == 2
+
+
+def test_cli_tag_filter_repeatable_and_unknown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(
+        ["tags", str(tmp_path), "--json", "--tag", "alg", "--tag", "ghost"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    tags = {stat["tag"]: stat for stat in data["tags"]}
+    assert set(tags) == {"alg", "ghost"}
+    assert tags["alg"]["node_count"] == 1
+    assert tags["ghost"]["node_count"] == 0
+    assert tags["ghost"]["coverage_percent"] is None
+
+
+def test_cli_tag_filter_text(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--tag", "core"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "core" in out
+    assert "alg" not in out
+    # Untagged count stays project-wide.
+    assert "1 untagged" in out

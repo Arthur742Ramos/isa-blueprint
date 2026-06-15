@@ -75,6 +75,30 @@ def test_assign_unknown_node_errors(tmp_path: Path) -> None:
     assert rc == 1
 
 
+def test_assign_json_has_count_and_owners_map(tmp_path: Path, capsys) -> None:
+    # The list view JSON exposes a stable node_id -> owner map plus a count,
+    # alongside the existing per-node assignment records.
+    _write_project(tmp_path)
+    cli_main(["assign", "a", "--project-dir", str(tmp_path), "--owner", "alice"])
+    capsys.readouterr()
+
+    rc = cli_main(["assign", "--project-dir", str(tmp_path), "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["count"] == 1
+    assert data["owners"] == {"a": "alice"}
+
+
+def test_assign_json_empty_count_and_owners(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["assign", "--project-dir", str(tmp_path), "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["count"] == 0
+    assert data["owners"] == {}
+
+
 def test_assign_owner_without_node_is_rejected(tmp_path: Path, capsys) -> None:
     # Previously `assign --owner alice` (no node id) silently listed and exited
     # 0, discarding the owner -- a coordination footgun.

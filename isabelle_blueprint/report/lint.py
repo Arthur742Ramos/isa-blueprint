@@ -111,6 +111,7 @@ def build_lint_report(project: BlueprintProject) -> LintReport:
     findings: list[LintFinding] = []
     findings.extend(_structural_findings(project))
     findings.extend(_quality_findings(project))
+    findings.extend(_duplicate_title_findings(project))
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f.severity, 99), f.node_id or "", f.code))
     return LintReport(project=project.name, findings=findings)
@@ -230,6 +231,33 @@ def _quality_findings(project: BlueprintProject) -> list[LintFinding]:
                 )
             )
 
+    return findings
+
+
+def _duplicate_title_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag nodes that share an identical (case-insensitive, trimmed) title."""
+    groups: dict[str, list[str]] = {}
+    for node in project.nodes:
+        key = node.title.strip().casefold()
+        if not key:
+            continue
+        groups.setdefault(key, []).append(node.id)
+
+    findings: list[LintFinding] = []
+    for ids in groups.values():
+        if len(ids) < 2:
+            continue
+        ordered = sorted(ids)
+        for node_id in ordered:
+            others = ", ".join(repr(other) for other in ordered if other != node_id)
+            findings.append(
+                LintFinding(
+                    code="duplicate-title",
+                    severity=SEVERITY_WARNING,
+                    node_id=node_id,
+                    message=f"title duplicates node(s) {others}",
+                )
+            )
     return findings
 
 
