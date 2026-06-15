@@ -201,6 +201,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`theory-index --mermaid`** emits a Mermaid `flowchart` of the theory import
+  graph (one node per theory, one `A --> B` edge per in-project import) to
+  stdout. Source-only (no Isabelle needed), mutually exclusive with `--json`,
+  and it honours the existing `--root`/`--session` resolution.
 
 ### Changed
 
