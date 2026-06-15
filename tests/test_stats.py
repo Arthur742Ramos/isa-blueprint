@@ -134,3 +134,135 @@ def test_stats_markdown_json_mutually_exclusive(tmp_path: Path) -> None:
     _write_project(tmp_path)
     with pytest.raises(SystemExit):
         cli_main(["stats", str(tmp_path), "--markdown", "--json"])
+
+
+def test_stats_min_success_rate_below_threshold_exits_5(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    _record(tmp_path, "a", "succeeded")
+    _record(tmp_path, "a", "failed")
+    _record(tmp_path, "b", "failed")
+    capsys.readouterr()
+
+    # 1 succeeded out of 3 resolved -> 33% < 80%, gate fails with exit 5.
+    rc = cli_main(["stats", str(tmp_path), "--min-success-rate", "80"])
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "min-success-rate policy triggered" in err
+
+
+def test_stats_min_success_rate_met_exits_0(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    _record(tmp_path, "a", "succeeded")
+    _record(tmp_path, "b", "succeeded")
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--min-success-rate", "80"])
+    assert rc == 0
+
+
+def test_stats_min_success_rate_json_gate(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    _record(tmp_path, "a", "succeeded")
+    _record(tmp_path, "a", "failed")
+    _record(tmp_path, "b", "failed")
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--json", "--min-success-rate", "80"])
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    gate = data["gate"]
+    assert gate["min_success_rate"] == 80
+    assert gate["success_rate"] == round(1 / 3, 4)
+    assert gate["meets"] is False
+    # Existing keys remain untouched.
+    assert data["total_attempts"] == 3
+
+
+def test_stats_min_success_rate_no_attempts_not_enforced(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    rc = cli_main(["stats", str(tmp_path), "--min-success-rate", "80"])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "not enforced" in err
+
+
+def test_stats_min_success_rate_no_resolved_attempts_not_enforced(
+    tmp_path: Path, capsys
+) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    # Only non-resolved outcomes -> success_rate undefined.
+    _record(tmp_path, "a", "blocked")
+    _record(tmp_path, "b", "needs_human")
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--json", "--min-success-rate", "80"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["gate"]["success_rate"] is None
+    assert data["gate"]["meets"] is None
+
+
+def test_stats_absent_flag_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    capsys.readouterr()
+    _record(tmp_path, "a", "failed")
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "gate" not in data
+
+
+def _write_memory(tmp_path: Path, succeeded: int, failed: int) -> None:
+    """Write agent-memory.json directly so large attempt counts stay fast."""
+    attempts = [
+        {"timestamp": "2026-06-15T00:00:00Z", "outcome": "succeeded", "summary": "s"}
+        for _ in range(succeeded)
+    ] + [
+        {"timestamp": "2026-06-15T00:00:00Z", "outcome": "failed", "summary": "f"}
+        for _ in range(failed)
+    ]
+    mem_dir = tmp_path / ".isabelle-blueprint"
+    mem_dir.mkdir(exist_ok=True)
+    (mem_dir / "agent-memory.json").write_text(
+        json.dumps({"schema_version": 1, "nodes": {"a": {"attempts": attempts}}}),
+        encoding="utf-8",
+    )
+
+
+def test_stats_min_success_rate_raw_rate_fails_near_threshold(
+    tmp_path: Path, capsys
+) -> None:
+    _write_project(tmp_path)
+    # 3203/4004 = 0.79995..., which rounds to 0.8000 at 4 decimals. Gating on the
+    # rounded report rate would wrongly PASS; gating on the raw rate must FAIL.
+    _write_memory(tmp_path, succeeded=3203, failed=801)
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--min-success-rate", "80"])
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "min-success-rate policy triggered" in err
+
+
+def test_stats_min_success_rate_message_keeps_decimals(
+    tmp_path: Path, capsys
+) -> None:
+    _write_project(tmp_path)
+    # 1067/1334 = 0.79985 -> a true 79.99% that fails "< 80". The failure message
+    # must print decimals (79.99%) and never round up to a contradictory "80%".
+    _write_memory(tmp_path, succeeded=1067, failed=267)
+    capsys.readouterr()
+
+    rc = cli_main(["stats", str(tmp_path), "--min-success-rate", "80"])
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "triggered: 79.99%" in err
+    assert "triggered: 80" not in err
+
+

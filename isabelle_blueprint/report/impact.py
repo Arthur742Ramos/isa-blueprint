@@ -373,6 +373,60 @@ def render_impact_dot(project: BlueprintProject, node_id: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _impact_mermaid_id(node_id: str) -> str:
+    """Return a Mermaid-safe identifier for ``node_id`` (injective escaping)."""
+
+    safe = "".join(
+        ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id
+    )
+    return f"n_{safe}"
+
+
+def _impact_mermaid_label(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', "&quot;")
+        .replace("|", "&#124;")
+        .replace("\n", "<br/>")
+    )
+
+
+def render_impact_mermaid(project: BlueprintProject, node_id: str) -> str:
+    """Return a Mermaid ``flowchart`` of ``node_id`` and its blast radius.
+
+    Mirrors :func:`render_impact_dot` exactly but in Mermaid syntax: the focus
+    node plus every downstream dependent, edges following ``uses`` (drawn from
+    dependent to dependency), with the focus node highlighted. Raises
+    :class:`UnknownNodeError` when ``node_id`` is not a known node.
+    """
+
+    by_id, graph, _cycle_nodes = _build_context(project)
+    if node_id not in by_id:
+        raise UnknownNodeError(node_id)
+
+    distances = _blast_radius(graph, node_id)
+    members = [node_id] + sorted(distances, key=lambda dep: (distances[dep], dep))
+    member_set = set(members)
+
+    lines = ["flowchart BT"]
+    for member in members:
+        node = by_id[member]
+        safe = _impact_mermaid_id(member)
+        label = _impact_mermaid_label(f"{node.id}\n{node.title}")
+        lines.append(f'  {safe}["{label}"]')
+    for src in members:
+        for dep in graph.edges.get(src, []):
+            if dep in member_set:
+                lines.append(
+                    f"  {_impact_mermaid_id(src)} --> {_impact_mermaid_id(dep)}"
+                )
+    lines.append(
+        f"  style {_impact_mermaid_id(node_id)} "
+        "fill:#fde047,stroke:#1f2937,color:#111827"
+    )
+    return "\n".join(lines) + "\n"
+
+
 def render_impact_overview(overview: ImpactOverview, *, top: int = 10) -> str:
     """Render the project-wide blast-radius ranking as compact Markdown."""
 

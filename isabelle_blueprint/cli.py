@@ -96,7 +96,11 @@ from isabelle_blueprint.completion import (
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
-from isabelle_blueprint.explain import explain_project, render_explanations
+from isabelle_blueprint.explain import (
+    explain_project,
+    render_explanations,
+    render_explanations_markdown,
+)
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
 )
@@ -163,6 +167,7 @@ from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_sv
 from isabelle_blueprint.report.burndown import (
     build_burndown_report,
     burndown_payload,
+    render_burndown_markdown,
     render_burndown_report,
 )
 from isabelle_blueprint.report.critical_path import (
@@ -181,6 +186,7 @@ from isabelle_blueprint.report.diff import (
 from isabelle_blueprint.report.effort import (
     build_effort_gate,
     build_effort_report,
+    render_effort_markdown,
     render_effort_report,
 )
 from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
@@ -201,6 +207,7 @@ from isabelle_blueprint.report.impact import (
     impact_overview_payload,
     impact_report_payload,
     render_impact_dot,
+    render_impact_mermaid,
     render_impact_overview,
     render_impact_report,
 )
@@ -274,6 +281,7 @@ from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
     render_tag_report,
+    render_tags_markdown,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -863,6 +871,14 @@ def cmd_tags(args: argparse.Namespace) -> int:
         if gate is not None:
             payload["gate"] = gate.to_dict()
         print(json.dumps(payload, indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_tags_markdown(report), end="")
+        if gate is not None and not gate.ok:
+            print(
+                f"fail-under {fail_under}% policy triggered: "
+                f"{', '.join(gate.failing_tags)} below threshold.",
+                file=sys.stderr,
+            )
     else:
         print(render_tag_report(report), end="")
         if gate is not None and not gate.ok:
@@ -989,7 +1005,10 @@ def cmd_effort(args: argparse.Namespace) -> int:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
-        print(render_effort_report(report, by_tag=args.by_tag), end="")
+        if args.markdown:
+            print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+        else:
+            print(render_effort_report(report, by_tag=args.by_tag), end="")
         if gate is not None and not gate["meets"]:
             actual = (
                 "undefined"
@@ -1116,8 +1135,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fmt = _resolve_lint_format(args)
     node = getattr(args, "node", None)
-    if fmt == "dot" and not node:
-        raise BlueprintError("--format dot requires --node NODE")
+    if fmt in ("dot", "mermaid") and not node:
+        raise BlueprintError(f"--format {fmt} requires --node NODE")
     if node:
         try:
             report = build_impact_report(project, node)
@@ -1128,6 +1147,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
             ) from None
         if fmt == "dot":
             print(render_impact_dot(project, node), end="")
+        elif fmt == "mermaid":
+            print(render_impact_mermaid(project, node), end="")
         elif fmt == "json":
             print(json.dumps(impact_report_payload(report), indent=2))
         else:
@@ -1227,13 +1248,53 @@ def cmd_stats(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     memory = load_agent_memory(config.agent_memory_path)
     report = build_stats_report(memory, project)
+
+    exit_code = 0
+    gate: dict[str, object] = {}
+    min_rate = getattr(args, "min_success_rate", None)
+    meets: bool | None = None
+    # Gate on the RAW rate (succeeded / resolved), not report.success_rate which
+    # is rounded to 4 decimals and could flip the verdict near the threshold.
+    succeeded = report.outcomes.get("succeeded", 0)
+    failed = report.outcomes.get("failed", 0)
+    resolved = succeeded + failed
+    raw_rate = succeeded / resolved if resolved else None
+    if min_rate is not None:
+        if raw_rate is None:
+            meets = None  # no resolved attempts; do not fail the gate
+        else:
+            meets = raw_rate * 100 >= min_rate
+            if not meets:
+                exit_code = 5
+        gate["min_success_rate"] = min_rate
+        gate["success_rate"] = report.success_rate
+        gate["meets"] = meets
+
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        payload = report.to_dict()
+        if gate:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
     elif args.markdown:
         print(render_stats_markdown(report), end="")
     else:
         print(render_stats_report(report), end="")
-    return 0
+
+    if min_rate is not None and not args.json:
+        if meets is None:
+            print(
+                f"min-success-rate {min_rate:g} not enforced: project has no "
+                "resolved attempts yet.",
+                file=sys.stderr,
+            )
+        elif not meets:
+            assert raw_rate is not None
+            print(
+                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% "
+                f"is below {min_rate:g}%.",
+                file=sys.stderr,
+            )
+    return exit_code
 
 
 def cmd_staleness(args: argparse.Namespace) -> int:
@@ -1317,6 +1378,8 @@ def cmd_burndown(args: argparse.Namespace) -> int:
         payload = burndown_payload(report, limit=args.limit)
         payload["trends_path"] = str(config.trends_path)
         print(json.dumps(payload, indent=2))
+    elif args.markdown:
+        print(render_burndown_markdown(report), end="")
     else:
         limit = args.limit if args.limit is not None else 10
         print(render_burndown_report(report, limit=limit), end="")
@@ -2376,6 +2439,8 @@ def cmd_explain(args: argparse.Namespace) -> int:
     explanations = explain_project(project, node_id=args.node, fact_suggestions=fact_suggestions)
     if args.json:
         print(json.dumps({"explanations": [item.to_dict() for item in explanations]}, indent=2))
+    elif args.markdown:
+        print(render_explanations_markdown(explanations, project), end="")
     else:
         print(render_explanations(explanations), end="")
     return 0
@@ -2735,7 +2800,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="roll up node counts and coverage per blueprint tag",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
-    p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags_format = p_tags.add_mutually_exclusive_group()
+    p_tags_format.add_argument(
+        "--json", action="store_true", help="emit the tag roll-up as JSON"
+    )
+    p_tags_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the tag roll-up as a Markdown table",
+    )
     p_tags.add_argument(
         "--tag",
         action="append",
@@ -2868,8 +2941,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="report effort-weighted formalization progress (uses optional node 'effort')",
     )
     p_effort.add_argument("project_dir", nargs="?", default=".")
-    p_effort.add_argument(
+    p_effort_format = p_effort.add_mutually_exclusive_group()
+    p_effort_format.add_argument(
         "--json", action="store_true", help="emit the effort report as JSON"
+    )
+    p_effort_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the effort report as a Markdown document with summary tables",
     )
     p_effort.add_argument(
         "--by-tag",
@@ -3022,12 +3101,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_impact.add_argument(
         "--format",
-        choices=("text", "json", "dot"),
+        choices=("text", "json", "dot", "mermaid"),
         default=None,
         help=(
             "output format (default: text); `dot` emits a Graphviz subgraph of the "
-            "node's blast radius and requires --node. `--json` is an alias for "
-            "`--format json`."
+            "node's blast radius and requires --node. `mermaid` emits the same blast "
+            "radius as a Mermaid flowchart and likewise requires --node. `--json` is "
+            "an alias for `--format json`."
         ),
     )
     p_impact.add_argument(
@@ -3047,6 +3127,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_stats_format.add_argument("--json", action="store_true", help="emit stats as JSON")
     p_stats_format.add_argument(
         "--markdown", action="store_true", help="emit stats as a Markdown document"
+    )
+    p_stats.add_argument(
+        "--min-success-rate",
+        type=_percent,
+        default=None,
+        metavar="PCT",
+        help=(
+            "fail (exit 5) when the overall proof-attempt success rate is below "
+            "PCT percent (0-100); not enforced when there are no resolved attempts"
+        ),
     )
     p_stats.set_defaults(func=cmd_stats)
 
@@ -3146,8 +3236,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="forecast an ETA to full proved coverage from trends.json",
     )
     p_burndown.add_argument("project_dir", nargs="?", default=".")
-    p_burndown.add_argument(
+    p_burndown_format = p_burndown.add_mutually_exclusive_group()
+    p_burndown_format.add_argument(
         "--json", action="store_true", help="emit the forecast as JSON"
+    )
+    p_burndown_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the forecast as a Markdown summary",
     )
     p_burndown.add_argument(
         "--limit",
@@ -3704,7 +3800,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_explain.add_argument("project_dir", nargs="?", default=".")
     p_explain.add_argument("--node", default=None, help="only explain one node id")
-    p_explain.add_argument("--json", action="store_true", help="emit machine-readable explanations")
+    p_explain_format = p_explain.add_mutually_exclusive_group()
+    p_explain_format.add_argument(
+        "--json", action="store_true", help="emit machine-readable explanations"
+    )
+    p_explain_format.add_argument(
+        "--markdown", action="store_true", help="render explanations as a Markdown document"
+    )
     p_explain.set_defaults(func=cmd_explain)
 
     p_import = sub.add_parser(
