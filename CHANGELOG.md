@@ -187,6 +187,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flagged) suitable for a PR comment or step summary. It is mutually exclusive
   with `--json`, preserves the `--fail-on-regression` exit `5` behaviour, and
   leaves the default text output unchanged.
+- **`tags --fail-under PCT`** turns the tag roll-up into a per-tag CI gate: exit
+  `5` when any gated tag's proved-coverage is below `PCT` (an integer `0`–`100`),
+  listing the offending tags on stderr. Honours `--tag`, tags with no formal
+  targets never fail, and `--json` adds a `gate` object
+  (`fail_under`/`failing_tags`/`ok`).
 
 ### Changed
 

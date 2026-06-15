@@ -264,7 +264,11 @@ from isabelle_blueprint.report.stats import (
     render_stats_report,
 )
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
-from isabelle_blueprint.report.tags import build_tag_report, render_tag_report
+from isabelle_blueprint.report.tags import (
+    build_tag_gate,
+    build_tag_report,
+    render_tag_report,
+)
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
 from isabelle_blueprint.templates import (
@@ -827,11 +831,29 @@ def cmd_tags(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     report = build_tag_report(project, only=args.tag or None)
+
+    exit_code = 0
+    gate = None
+    fail_under = getattr(args, "fail_under", None)
+    if fail_under is not None:
+        gate = build_tag_gate(report, fail_under)
+        if not gate.ok:
+            exit_code = 5
+
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        payload = report.to_dict()
+        if gate is not None:
+            payload["gate"] = gate.to_dict()
+        print(json.dumps(payload, indent=2))
     else:
         print(render_tag_report(report), end="")
-    return 0
+        if gate is not None and not gate.ok:
+            print(
+                f"fail-under {fail_under}% policy triggered: "
+                f"{', '.join(gate.failing_tags)} below threshold.",
+                file=sys.stderr,
+            )
+    return exit_code
 
 
 def cmd_path(args: argparse.Namespace) -> int:
@@ -2674,6 +2696,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=[],
         metavar="NAME",
         help="restrict the roll-up to the named tag (repeatable)",
+    )
+    p_tags.add_argument(
+        "--fail-under",
+        type=_score_arg,
+        metavar="PCT",
+        help=(
+            "exit non-zero (5) if any gated tag's proved-coverage is below PCT "
+            "(an integer 0-100). Honours --tag; tags with no formal targets never "
+            "fail the gate."
+        ),
     )
     p_tags.set_defaults(func=cmd_tags)
 
