@@ -18,7 +18,11 @@ from isabelle_blueprint.parser.latex import (
     render_markdown_blueprint,
 )
 from isabelle_blueprint.parser.markdown import parse_blueprint_text
-from isabelle_blueprint.report.effort import build_effort_report, render_effort_report
+from isabelle_blueprint.report.effort import (
+    build_effort_gate,
+    build_effort_report,
+    render_effort_report,
+)
 
 
 def _md(effort_line: str) -> str:
@@ -382,3 +386,138 @@ def test_cli_effort_json_without_by_tag_omits_key(tmp_path, capsys):
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert "by_tag" not in payload
+
+
+# ---------------------------------------------------------------------------
+# --fail-under CI gate
+# ---------------------------------------------------------------------------
+
+
+def _write_partial_project(tmp_path: Path) -> None:
+    # proved effort 4, found-but-not-proved effort 2 -> coverage 4/6 = 66%.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "effort-partial"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        textwrap.dedent(
+            """\
+            # effort-partial
+
+            ::: lemma {#a}
+            title: A
+            isabelle: Demo.a
+            effort: 4
+            status: proved
+
+            A statement.
+            :::
+
+            ::: lemma {#b}
+            title: B
+            isabelle: Demo.b
+            effort: 2
+            status: found
+
+            B statement.
+            :::
+            """
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_cli_effort_fail_under_below_threshold_exits_5(tmp_path, capsys):
+    # 66% effort-weighted coverage falls short of 90%.
+    _write_partial_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--fail-under", "90"])
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "is below 90" in captured.err
+
+
+def test_cli_effort_fail_under_met_exits_0(tmp_path, capsys):
+    # The single-node project is fully proved -> 100% coverage.
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--fail-under", "75"])
+    assert rc == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_effort_fail_under_json_gate_present(tmp_path, capsys):
+    _write_partial_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--fail-under", "90", "--json"])
+    assert rc == 5
+    payload = json.loads(capsys.readouterr().out)
+    gate = payload["gate"]
+    assert gate["fail_under"] == 90
+    assert gate["effort_percent"] == 66
+    assert gate["meets"] is False
+
+
+def test_cli_effort_fail_under_json_gate_met(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--fail-under", "100", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gate"]["meets"] is True
+    assert payload["gate"]["effort_percent"] == 100
+
+
+def test_cli_effort_without_fail_under_unchanged(tmp_path, capsys):
+    # Absent the flag, no gate object appears and the exit code stays 0.
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "gate" not in payload
+
+
+def test_cli_effort_fail_under_undefined_coverage_fails(tmp_path, capsys):
+    # A project with no formal targets has undefined coverage, which never meets.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "effort-empty"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        textwrap.dedent(
+            """\
+            # effort-empty
+
+            ::: lemma {#a}
+            title: A
+            effort: 2
+
+            A statement.
+            :::
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = cli_main(["effort", str(tmp_path), "--fail-under", "1", "--json"])
+    assert rc == 5
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gate"]["effort_percent"] is None
+    assert payload["gate"]["meets"] is False
+
+
+def test_cli_effort_fail_under_rejects_out_of_range(tmp_path):
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["effort", str(tmp_path), "--fail-under", "150"])
+
+
+def test_build_effort_gate_helper():
+    project = BlueprintProject.from_nodes(
+        "p",
+        [
+            _node("a", effort=5, formal=FormalStatus.PROVED),
+            _node("b", effort=3, formal=FormalStatus.FOUND),
+        ],
+    )
+    report = build_effort_report(project)  # 5/8 = 62%
+    assert build_effort_gate(report, 60.0) == {
+        "fail_under": 60.0,
+        "effort_percent": 62,
+        "meets": True,
+    }
+    assert build_effort_gate(report, 62)["meets"] is True
+    assert build_effort_gate(report, 63)["meets"] is False

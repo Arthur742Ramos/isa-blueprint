@@ -193,3 +193,46 @@ def render_stats_report(report: StatsReport) -> str:
             )
 
     return "\n".join(lines) + "\n"
+
+
+def render_stats_markdown(report: StatsReport) -> str:
+    """Render ``report`` as a Markdown document."""
+
+    lines: list[str] = []
+    lines.append(f"# Agent memory stats for {report.project}")
+    lines.append("")
+
+    if report.total_attempts == 0:
+        lines.append("No attempts recorded yet.")
+        return "\n".join(lines) + "\n"
+
+    lines.append("## Summary")
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("| --- | --- |")
+    lines.append(f"| Total attempts | {report.total_attempts} |")
+    lines.append(f"| Nodes with memory | {report.nodes_with_memory} |")
+    lines.append(f"| Success rate | {_format_rate(report.success_rate)} |")
+    lines.append("")
+
+    lines.append("## Outcomes")
+    lines.append("")
+    lines.append("| Outcome | Count |")
+    lines.append("| --- | --- |")
+    for outcome in OUTCOME_ORDER:
+        count = report.outcomes.get(outcome, 0)
+        if count:
+            lines.append(f"| {outcome} | {count} |")
+    lines.append("")
+
+    lines.append("## Per node")
+    lines.append("")
+    lines.append("| Node | Kind | Attempts | Last outcome |")
+    lines.append("| --- | --- | --- | --- |")
+    for node in report.nodes:
+        lines.append(
+            f"| {node.node_id} | {node.kind or 'n/a'} | "
+            f"{node.attempt_count} | {node.last_outcome or 'n/a'} |"
+        )
+
+    return "\n".join(lines) + "\n"

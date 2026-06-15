@@ -178,6 +178,23 @@ def _build_by_tag(project: BlueprintProject) -> tuple[TagEffort, ...]:
     return tuple(out)
 
 
+def build_effort_gate(report: EffortReport, fail_under: float) -> dict[str, object]:
+    """Evaluate ``report`` against a ``--fail-under`` coverage threshold.
+
+    Returns an additive ``gate`` payload ``{fail_under, effort_percent, meets}``.
+    ``effort_percent`` mirrors ``report.coverage_percent`` (``None`` when the
+    weighted coverage is undefined). An undefined coverage never meets the gate,
+    matching the "or undefined" convention of the ``gate`` command.
+    """
+    percent = report.coverage_percent
+    meets = percent is not None and percent >= fail_under
+    return {
+        "fail_under": fail_under,
+        "effort_percent": percent,
+        "meets": meets,
+    }
+
+
 def render_effort_report(report: EffortReport, *, by_tag: bool = False) -> str:
     """Render ``report`` as a short Markdown summary.
 

@@ -70,6 +70,42 @@ class TagReport:
         }
 
 
+@dataclass(frozen=True)
+class TagGate:
+    """Outcome of a per-tag ``--fail-under`` coverage gate.
+
+    ``failing_tags`` lists the gated tags whose ``coverage_percent`` is below
+    ``fail_under``, in the report's own (most-used-first) order. Tags with no
+    formal targets (``coverage_percent`` is ``None``) carry nothing to prove and
+    are never counted as failing. ``ok`` is ``True`` when no tag fails.
+    """
+
+    fail_under: int
+    failing_tags: tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        return not self.failing_tags
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "fail_under": self.fail_under,
+            "failing_tags": list(self.failing_tags),
+            "ok": self.ok,
+        }
+
+
+def build_tag_gate(report: TagReport, fail_under: int) -> TagGate:
+    """Evaluate the per-tag coverage gate over ``report``'s (already filtered) tags."""
+
+    failing = tuple(
+        stat.tag
+        for stat in report.tags
+        if stat.coverage_percent is not None and stat.coverage_percent < fail_under
+    )
+    return TagGate(fail_under=fail_under, failing_tags=failing)
+
+
 @dataclass
 class _Bucket:
     nodes: int = 0

@@ -210,6 +210,50 @@ def render_diff(diff: BlueprintDiff) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_diff_markdown(diff: BlueprintDiff) -> str:
+    """Render ``diff`` as a Markdown summary (trailing newline).
+
+    Produces a heading per non-empty section - added nodes, removed nodes and
+    status changes (regressions flagged) - so the comparison drops cleanly into
+    a PR comment or step summary. Output is plain text with no colour codes.
+    """
+    regressions = len(diff.regressions) + len(diff.removed)
+    lines: list[str] = [f"## diff: {diff.project}", ""]
+    if not diff.has_changes:
+        lines.append("No changes vs baseline.")
+        return "\n".join(lines) + "\n"
+
+    lines.append(
+        f"**{len(diff.added)} added, {len(diff.removed)} removed, "
+        f"{len(diff.changes)} changed, {regressions} regression(s).**"
+    )
+
+    if diff.added:
+        lines += ["", "### Added", ""]
+        lines += [f"- `{node_id}`" for node_id in diff.added]
+
+    if diff.removed:
+        lines += ["", "### Removed", ""]
+        lines += [f"- `{node_id}` _(regression)_" for node_id in diff.removed]
+
+    if diff.changes:
+        lines += [
+            "",
+            "### Changed",
+            "",
+            "| Node | Field | Before | After | Regression |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for change in diff.changes:
+            flag = "yes" if change.regression else "no"
+            lines.append(
+                f"| `{change.node_id}` | {change.field} | "
+                f"{change.before} | {change.after} | {flag} |"
+            )
+
+    return "\n".join(lines) + "\n"
+
+
 def _headline(diff: BlueprintDiff) -> str:
     from isabelle_blueprint import console
 

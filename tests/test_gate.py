@@ -160,6 +160,79 @@ def test_gate_json_shape(tmp_path: Path, capsys) -> None:
     assert "coverage" in data["failed"]
 
 
+def test_gate_min_grade_below_threshold_fails(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["gate", str(tmp_path), "--min-grade", "A"])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "gate FAIL" in out
+    assert "[FAIL] min_grade" in out
+    assert "threshold A" in out
+
+
+def test_gate_min_grade_json_check_present(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["gate", str(tmp_path), "--json", "--min-grade", "A"])
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    names = {check["name"] for check in data["checks"]}
+    assert "min_grade" in names
+    assert "min_grade" in data["failed"]
+    check = next(c for c in data["checks"] if c["name"] == "min_grade")
+    assert check["ok"] is False
+    assert "detail" in check
+
+
+def test_gate_min_grade_met_passes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _PROVED)
+
+    rc = cli_main(["gate", str(tmp_path), "--min-grade", "F"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "gate PASS" in out
+    assert "[ok] min_grade" in out
+
+
+def test_gate_min_grade_invalid_choice_rejected(tmp_path: Path) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    import pytest
+
+    with pytest.raises(SystemExit):
+        cli_main(["gate", str(tmp_path), "--min-grade", "Z"])
+
+
+def test_gate_without_min_grade_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["gate", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    names = {check["name"] for check in data["checks"]}
+    assert names == {"lint"}
+
+
+def test_gate_min_grade_ungradeable_project_fails(tmp_path: Path, capsys) -> None:
+    # A project with no nodes has an undefined scorecard grade; the gate must
+    # fail the min_grade check (unlike scorecard --min-grade, which passes).
+    _write_project(tmp_path, "# gate-test\n\nNo gradeable components here.\n")
+
+    rc = cli_main(["gate", str(tmp_path), "--json", "--min-grade", "F"])
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    check = next(c for c in data["checks"] if c["name"] == "min_grade")
+    assert check["ok"] is False
+    assert "undefined" in check["detail"]
+    assert "min_grade" in data["failed"]
+
+
 def teardown_function() -> None:
     # A --color always test below forces colour on; reset so it never leaks.
     from isabelle_blueprint import console
