@@ -230,6 +230,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   percent), plus a per-tag table when combined with `--by-tag`. Mutually
   exclusive with `--json`; composes with `--fail-under` (the gate still sets
   exit `5`).
+- **`graph --roots-only`** prunes the emitted graph (every format) to root nodes
+  — those nothing else `uses` (no incoming dependency edges, the end-goals);
+  composes with `--focus`/`--depth` and is a no-op without the flag.
 
 ### Changed
 
