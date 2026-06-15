@@ -1,8 +1,10 @@
 """Tests for PIDE dump inspection."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.isabelle.dump import apply_dump_report, inspect_dump_dir
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -118,3 +120,54 @@ def test_run_dump_timeout_is_graceful(tmp_path: Path, monkeypatch):
     assert "timed out" in (result.error or "").lower()
     # Graceful degradation still attaches reference facts.
     assert result.facts
+
+
+def _write_dump_project(tmp_path: Path, *, uses: str = "") -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "dump-cli"\n', encoding="utf-8"
+    )
+    uses_line = f"uses: {uses}\n" if uses else ""
+    (tmp_path / "blueprint.md").write_text(
+        f"# dump-cli\n\n::: lemma {{#a}}\ntitle: A\nisabelle: Demo.a\nstatus: stub\n"
+        f"{uses_line}\nStatement.\n:::\n",
+        encoding="utf-8",
+    )
+
+
+def test_cli_dump_json_emits_the_report(tmp_path: Path, capsys) -> None:
+    _write_dump_project(tmp_path)
+
+    rc = cli_main(["dump", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # The JSON mirrors the on-disk dump report (DumpResult.to_dict).
+    assert {"ran", "facts", "isabelle_available"} <= set(data)
+    assert data["ran"] is False  # no Isabelle available in CI
+    disk = json.loads((tmp_path / "build" / "dump_report.json").read_text(encoding="utf-8"))
+    assert data == disk
+
+
+def test_cli_dump_json_reports_validation_error(tmp_path: Path, capsys) -> None:
+    # A dangling dependency makes validation fail before any dump runs.
+    _write_dump_project(tmp_path, uses="ghost")
+
+    rc = cli_main(["dump", str(tmp_path), "--json"])
+
+    assert rc == 2
+    data = json.loads(capsys.readouterr().out)
+    assert data["ran"] is False
+    assert data["ok"] is False
+    assert any("ghost" in issue for issue in data["issues"])
+
+
+def test_cli_dump_plain_output_unchanged(tmp_path: Path, capsys) -> None:
+    _write_dump_project(tmp_path)
+
+    rc = cli_main(["dump", str(tmp_path)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "dump report ->" in out
+    assert "{" not in out  # not JSON
+

@@ -158,3 +158,32 @@ def test_gate_json_shape(tmp_path: Path, capsys) -> None:
     names = {check["name"] for check in data["checks"]}
     assert names == {"lint", "coverage"}
     assert "coverage" in data["failed"]
+
+
+def teardown_function() -> None:
+    # A --color always test below forces colour on; reset so it never leaks.
+    from isabelle_blueprint import console
+
+    console.set_enabled(False)
+
+
+def test_gate_verdict_is_coloured_when_enabled(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BROKEN_CYCLE)
+
+    rc = cli_main(["gate", str(tmp_path), "--color", "always"])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "\033[" in out  # FAIL verdict / marks painted
+
+
+def test_gate_verdict_is_plain_without_colour(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["gate", str(tmp_path), "--color", "never"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+    assert "gate PASS" in out  # plain text unchanged
+

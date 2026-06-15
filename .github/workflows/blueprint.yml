@@ -89,7 +89,14 @@ jobs:
         run: python -m pip install "$(ls dist/*.whl)[dev]"
 
       - name: Run the black-box E2E + packaging suite
-        run: python -m pytest tests/test_e2e.py tests/test_packaging.py -q
+        # Run from outside the checkout so in-process `import isabelle_blueprint`
+        # (the packaging test) resolves to the installed wheel rather than the
+        # source tree, which would otherwise shadow it on sys.path.
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m pytest -q \
+            "$GITHUB_WORKSPACE/tests/test_e2e.py" \
+            "$GITHUB_WORKSPACE/tests/test_packaging.py"
 
   vscode:
     name: compile VS Code extension
@@ -168,4 +175,4 @@ jobs:
           python -m pytest tests/
           --cov=isabelle_blueprint
           --cov-report=term-missing
-          --cov-fail-under=85
+          --cov-fail-under=87

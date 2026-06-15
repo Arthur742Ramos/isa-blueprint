@@ -96,9 +96,15 @@ def search_index(
     kinds: set[str] | None = None,
     limit: int = 10,
 ) -> list[FactHit]:
-    """Return up to ``limit`` declarations ranked against ``query``."""
+    """Return up to ``limit`` declarations ranked against ``query``.
+
+    A non-positive ``limit`` yields no hits. A negative ``limit`` previously fell
+    through to ``hits[:limit]`` and silently dropped the *lowest*-ranked match
+    instead of returning nothing, which is a confusing footgun for callers that
+    forward an unvalidated CLI value.
+    """
     needle = query.strip().lower()
-    if not needle:
+    if not needle or limit <= 0:
         return []
     hits: list[FactHit] = []
     for entry in index.entries:

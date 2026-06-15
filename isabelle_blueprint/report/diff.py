@@ -105,8 +105,15 @@ def load_baseline(path: Path) -> dict[str, dict]:
         )
     indexed: dict[str, dict] = {}
     for node in nodes:
-        if isinstance(node, dict) and isinstance(node.get("id"), str):
-            indexed[node["id"]] = node
+        if not (isinstance(node, dict) and isinstance(node.get("id"), str)):
+            continue
+        node_id = node["id"]
+        if node_id in indexed:
+            raise BlueprintError(
+                f"baseline {path} contains duplicate node id {node_id!r}; "
+                "the snapshot looks corrupted (a valid report has unique ids)"
+            )
+        indexed[node_id] = node
     return indexed
 
 
@@ -182,14 +189,21 @@ def _str(value: object) -> str:
 
 
 def render_diff(diff: BlueprintDiff) -> str:
-    """Render ``diff`` as a concise human-readable summary (trailing newline)."""
+    """Render ``diff`` as a concise human-readable summary (trailing newline).
+
+    Regression markers are painted red through :mod:`console` when colour is
+    enabled; the plain-text output is byte-for-byte unchanged when it is not.
+    """
+    from isabelle_blueprint import console
+
+    regression_tag = console.error("[regression]")
     lines = [f"{diff.project}: {_headline(diff)}"]
     for node_id in diff.added:
         lines.append(f"  + {node_id} (added)")
     for node_id in diff.removed:
-        lines.append(f"  - {node_id} (removed) [regression]")
+        lines.append(f"  - {node_id} (removed) {regression_tag}")
     for change in diff.changes:
-        marker = " [regression]" if change.regression else ""
+        marker = f" {regression_tag}" if change.regression else ""
         lines.append(
             f"  ~ {change.node_id} {change.field}: {change.before} -> {change.after}{marker}"
         )
@@ -197,11 +211,17 @@ def render_diff(diff: BlueprintDiff) -> str:
 
 
 def _headline(diff: BlueprintDiff) -> str:
+    from isabelle_blueprint import console
+
     if not diff.has_changes:
         return "no changes vs baseline"
+    regressions = len(diff.regressions) + len(diff.removed)
+    regression_text = f"{regressions} regression(s)"
+    if regressions:
+        regression_text = console.error(regression_text)
     return (
         f"{len(diff.added)} added, "
         f"{len(diff.removed)} removed, "
         f"{len(diff.changes)} changed, "
-        f"{len(diff.regressions) + len(diff.removed)} regression(s)"
+        f"{regression_text}"
     )

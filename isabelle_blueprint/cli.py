@@ -230,7 +230,12 @@ from isabelle_blueprint.report.roadmap import (
     write_roadmap,
 )
 from isabelle_blueprint.report.sarif import render_sarif
-from isabelle_blueprint.report.scorecard import build_scorecard, render_scorecard
+from isabelle_blueprint.report.scorecard import (
+    ALL_GRADES,
+    build_scorecard,
+    grade_threshold,
+    render_scorecard,
+)
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
     render_staleness_report,
@@ -331,6 +336,16 @@ def _add_fail_on_argument(parser: argparse.ArgumentParser) -> None:
             "repeatable; 'problem' expands to all problem statuses"
         ),
     )
+
+
+def _grade_arg(value: str) -> str:
+    """argparse ``type`` that accepts a letter grade case-insensitively."""
+    normalized = value.strip().upper()
+    if grade_threshold(normalized) is None:
+        raise argparse.ArgumentTypeError(
+            f"invalid grade {value!r}; choose one of {', '.join(ALL_GRADES)}"
+        )
+    return normalized
 
 
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
@@ -676,11 +691,47 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     card = build_scorecard(project)
+
+    exit_code = 0
+    gate: dict[str, object] | None = None
+    min_grade = getattr(args, "min_grade", None)
+    if min_grade is not None:
+        # Validated at parse time, so the threshold is always defined.
+        threshold = grade_threshold(min_grade)
+        if card.score is None:
+            meets: bool | None = None  # nothing gradeable; do not fail the gate
+        else:
+            meets = card.score >= (threshold or 0)
+            if not meets:
+                exit_code = 5
+        gate = {
+            "min_grade": min_grade,
+            "score": card.score,
+            "grade": card.grade,
+            "meets_min_grade": meets,
+        }
+
     if args.json:
-        print(json.dumps(card.to_dict(), indent=2))
+        payload = card.to_dict()
+        if gate is not None:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
     else:
         print(render_scorecard(card), end="")
-    return 0
+        if gate is not None:
+            if gate["meets_min_grade"] is None:
+                print(
+                    f"min-grade {min_grade} not enforced: project has no gradeable "
+                    "components yet.",
+                    file=sys.stderr,
+                )
+            elif exit_code == 5:
+                print(
+                    f"min-grade policy triggered: {card.grade} "
+                    f"({card.score}/100) is below {min_grade}.",
+                    file=sys.stderr,
+                )
+    return exit_code
 
 
 def cmd_tags(args: argparse.Namespace) -> int:
@@ -1238,7 +1289,15 @@ def cmd_dump(args: argparse.Namespace) -> int:
     try:
         project.validate().raise_if_failed()
     except ValidationError as exc:
-        print(f"validation failed: {exc}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(
+                json.dumps(
+                    {"ran": False, "ok": False, "error": str(exc), "issues": exc.issues},
+                    indent=2,
+                )
+            )
+        else:
+            print(f"validation failed: {exc}", file=sys.stderr)
         return 2
 
     if args.from_dir:
@@ -1260,10 +1319,14 @@ def cmd_dump(args: argparse.Namespace) -> int:
     write_dump_report(result, config.dump_report_path)
     apply_dump_report(project, result)
     write_project_report(project, config.project_json_path)
-    print(f"dump report -> {config.dump_report_path}")
-    if result.error:
-        print(f"note: {result.error}", file=sys.stderr)
-        return 3 if args.strict else 0
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(f"dump report -> {config.dump_report_path}")
+        if result.error:
+            print(f"note: {result.error}", file=sys.stderr)
+    if result.error and args.strict:
+        return 3
     return 0
 
 
@@ -1274,10 +1337,13 @@ def cmd_compat(args: argparse.Namespace) -> int:
         config, isabelle_executable=args.isabelle or config.isabelle_executable
     )
     write_compat_report(report, config.compat_report_path)
-    print(f"compat report -> {config.compat_report_path}")
-    for issue in report.issues:
-        stream = sys.stderr if issue.severity == "error" else sys.stdout
-        print(f"{issue.severity}: {issue.code}: {issue.message}", file=stream)
+    if getattr(args, "json", False):
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(f"compat report -> {config.compat_report_path}")
+        for issue in report.issues:
+            stream = sys.stderr if issue.severity == "error" else sys.stdout
+            print(f"{issue.severity}: {issue.code}: {issue.message}", file=stream)
     return 0 if report.ok or not args.strict else 5
 
 
@@ -2411,6 +2477,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_scorecard.add_argument(
         "--json", action="store_true", help="emit the scorecard as JSON"
     )
+    p_scorecard.add_argument(
+        "--min-grade",
+        type=_grade_arg,
+        metavar="GRADE",
+        help=(
+            "exit non-zero (5) if the overall grade is below GRADE "
+            f"(one of {', '.join(ALL_GRADES)}; case-insensitive). An ungradeable "
+            "(empty) project never fails the gate."
+        ),
+    )
     p_scorecard.set_defaults(func=cmd_scorecard)
 
     p_tags = sub.add_parser(
@@ -2578,6 +2654,8 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_blame.add_argument("project_dir", nargs="?", default=".")
     p_blame.add_argument(
         "--node-id",
+        "--node",
+        dest="node_id",
         default=None,
         metavar="ID",
         help="restrict output to a single node id (default: all nodes)",
@@ -2818,6 +2896,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="exit non-zero if dump execution/inspection fails",
     )
+    p_dump.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the dump report as JSON (the same report written to disk)",
+    )
     p_dump.set_defaults(func=cmd_dump)
 
     p_compat = sub.add_parser(
@@ -2827,6 +2910,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_compat.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
     p_compat.add_argument(
         "--strict", action="store_true", help="exit non-zero on compatibility errors"
+    )
+    p_compat.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the compatibility report as JSON (the same report written to disk)",
     )
     p_compat.set_defaults(func=cmd_compat)
 

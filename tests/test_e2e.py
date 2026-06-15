@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+from importlib.resources import files as resource_files
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,6 @@ jsonschema = pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
 PKG_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = PKG_ROOT / "isabelle_blueprint" / "schemas"
 
 # A canonical, single-node blueprint used to force "node removed" regressions.
 MINIMAL_BLUEPRINT = """\
@@ -34,9 +34,7 @@ MINIMAL_BLUEPRINT = """\
 ::: definition {#def-keep}
 title: Keep me
 isabelle: Demo.keep
-status:
-  blueprint: written
-:::
+status: written
 
 Only one node survives here.
 :::
@@ -76,7 +74,13 @@ def run(
 
 
 def load_schema(name: str) -> dict:
-    return json.loads((SCHEMA_DIR / f"{name}.schema.json").read_text(encoding="utf-8"))
+    # Read from the *installed* package (the wheel under test in CI), not the
+    # source checkout, so a wheel that failed to ship a schema is caught here
+    # rather than silently passing against the working tree.
+    text = (
+        resource_files("isabelle_blueprint") / "schemas" / f"{name}.schema.json"
+    ).read_text(encoding="utf-8")
+    return json.loads(text)
 
 
 def assert_conforms(instance: object, schema_name: str) -> None:
@@ -163,7 +167,8 @@ def test_init_every_template_scaffolds_a_usable_project(tmp_path: Path, template
 
 
 def test_init_latex_lifecycle(tmp_path: Path) -> None:
-    run("init", "tex", "--template", "agent-ready", "--format", "latex", cwd=tmp_path)
+    run("init", "tex", "--template", "agent-ready", "--format", "latex", cwd=tmp_path,
+        expect_code=0)
     project = tmp_path / "tex"
     tex = project / "blueprint.tex"
     assert tex.exists(), "latex scaffold should emit blueprint.tex"
@@ -323,10 +328,14 @@ def test_single_schema_prints_to_stdout() -> None:
 
 
 def test_packaged_schemas_are_valid_metaschemas() -> None:
-    files = sorted(SCHEMA_DIR.glob("*.schema.json"))
-    assert files, "no packaged schemas found"
+    schemas_dir = resource_files("isabelle_blueprint") / "schemas"
+    files = sorted(
+        (p for p in schemas_dir.iterdir() if p.name.endswith(".schema.json")),
+        key=lambda p: p.name,
+    )
+    assert files, "no packaged schemas found in the installed package"
     for path in files:
-        Draft202012Validator.check_schema(read_json(path))
+        Draft202012Validator.check_schema(json.loads(path.read_text(encoding="utf-8")))
 
 
 # --------------------------------------------------------------------------- #

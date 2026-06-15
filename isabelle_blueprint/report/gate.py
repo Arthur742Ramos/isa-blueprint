@@ -135,10 +135,17 @@ def build_gate_report(
 
 
 def render_gate_report(report: GateReport) -> str:
-    """Render ``report`` as concise human-readable text (trailing newline)."""
-    headline = "PASS" if report.ok else "FAIL"
+    """Render ``report`` as concise human-readable text (trailing newline).
+
+    The pass/fail verdicts are colourised through :mod:`console` (green for
+    pass, red for fail) when colour is enabled, matching the other health
+    commands. Colour is a no-op for direct calls and machine-readable output.
+    """
+    from isabelle_blueprint import console
+
+    headline = console.success("PASS") if report.ok else console.error("FAIL")
     lines = [f"{report.project}: gate {headline}"]
     for check in report.checks:
-        mark = "ok" if check.ok else "FAIL"
+        mark = console.success("ok") if check.ok else console.error("FAIL")
         lines.append(f"  [{mark}] {check.name}: {check.detail}")
     return "\n".join(lines) + "\n"

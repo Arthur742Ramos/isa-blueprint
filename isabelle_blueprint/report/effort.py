@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report.metrics import coverage_percent
 
 DEFAULT_EFFORT = 1
 
@@ -79,16 +80,7 @@ def build_effort_report(project: BlueprintProject) -> EffortReport:
             elif formal == FormalStatus.FOUND:
                 found += weight
 
-    coverage_percent: int | None
-    if node_count == 0 or formal_target == 0:
-        coverage_percent = None
-    else:
-        # Truncate (not round) so 100 means genuinely all proved; clamp a
-        # non-zero-but-sub-1% ratio up to 1 so real progress is never shown as
-        # a misleading 0%. Mirrors report.metrics.build_status_metrics.
-        coverage_percent = proved * 100 // formal_target
-        if coverage_percent == 0 and proved > 0:
-            coverage_percent = 1
+    coverage = coverage_percent(proved, formal_target)
 
     return EffortReport(
         node_count=node_count,
@@ -98,7 +90,7 @@ def build_effort_report(project: BlueprintProject) -> EffortReport:
         proved_effort=proved,
         found_effort=found,
         remaining_effort=formal_target - proved,
-        coverage_percent=coverage_percent,
+        coverage_percent=coverage,
     )
 
 

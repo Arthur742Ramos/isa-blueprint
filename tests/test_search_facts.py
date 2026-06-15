@@ -116,3 +116,21 @@ def test_search_facts_text_output(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     assert "no declarations match" in capsys.readouterr().out
+
+
+def test_search_index_rejects_nonpositive_limit() -> None:
+    """A negative ``limit`` once fell through to ``hits[:limit]`` and silently
+    dropped the lowest-ranked hit; non-positive limits must return nothing."""
+    from isabelle_blueprint.isabelle.fact_search import search_index
+    from isabelle_blueprint.isabelle.source_index import SourceEntry, SourceIndex
+
+    index = SourceIndex([])
+    index.entries = [
+        SourceEntry(kind="lemma", name="add_comm", theory="Demo", line=1, path="Demo.thy"),
+        SourceEntry(kind="lemma", name="add_assoc", theory="Demo", line=2, path="Demo.thy"),
+        SourceEntry(kind="lemma", name="add_zero", theory="Demo", line=3, path="Demo.thy"),
+    ]
+
+    assert len(search_index(index, "add", limit=2)) == 2
+    assert search_index(index, "add", limit=0) == []
+    assert search_index(index, "add", limit=-1) == []
