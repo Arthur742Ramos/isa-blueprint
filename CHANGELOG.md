@@ -112,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`duplicate-title` lint rule** flags two or more nodes that share an
   identical (case-insensitive, trimmed) non-empty title as a warning, catching
   accidental copy-paste collisions; it surfaces in `lint --json` and SARIF.
+- **`tags --tag NAME`** restricts the roll-up to the named tag(s) (repeatable);
+  an unknown tag yields a zero/empty row rather than an error, so the filter
+  behaves additively. Project-wide `total_nodes`/`untagged_count` and the JSON
+  shape are unchanged.
 
 ### Changed
 

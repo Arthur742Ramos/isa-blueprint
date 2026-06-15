@@ -15,6 +15,7 @@ formal targets). No Isabelle invocation is required.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
@@ -78,10 +79,24 @@ class _Bucket:
     problems: int = 0
 
 
-def build_tag_report(project: BlueprintProject) -> TagReport:
-    """Compute the per-tag coverage roll-up for ``project``."""
+def build_tag_report(
+    project: BlueprintProject, only: Iterable[str] | None = None
+) -> TagReport:
+    """Compute the per-tag coverage roll-up for ``project``.
+
+    When ``only`` is given, the roll-up is restricted to those tag names. Each
+    requested tag is reported (an unknown one yields a zero/empty row rather than
+    being dropped), and tags outside the set are omitted from the table/JSON. The
+    project-wide ``total_nodes`` and ``untagged_count`` are unaffected by the
+    filter, so the surrounding structure stays consistent.
+    """
+
+    requested = list(dict.fromkeys(only)) if only is not None else None
 
     buckets: dict[str, _Bucket] = {}
+    if requested is not None:
+        for tag in requested:
+            buckets.setdefault(tag, _Bucket())
     untagged = 0
     for node in project.nodes:
         # De-duplicate tags within a node so a repeated tag is not double-counted.
@@ -91,6 +106,8 @@ def build_tag_report(project: BlueprintProject) -> TagReport:
             continue
         formal = node.status.formal.value
         for tag in node_tags:
+            if requested is not None and tag not in buckets:
+                continue
             bucket = buckets.setdefault(tag, _Bucket())
             bucket.nodes += 1
             if formal != FormalStatus.MISSING.value:
