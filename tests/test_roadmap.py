@@ -164,6 +164,14 @@ def test_cli_roadmap_csv_rejects_json_combo(tmp_path: Path) -> None:
     assert rc != 0
 
 
+def test_cli_roadmap_csv_rejects_mermaid_combo(tmp_path: Path) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--csv", "--mermaid"])
+
+    assert rc != 0
+
+
 def test_cli_roadmap_mermaid_rejects_json_combo(tmp_path: Path) -> None:
     _write_roadmap_project(tmp_path)
 
