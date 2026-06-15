@@ -2639,6 +2639,8 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_blame.add_argument("project_dir", nargs="?", default=".")
     p_blame.add_argument(
         "--node-id",
+        "--node",
+        dest="node_id",
         default=None,
         metavar="ID",
         help="restrict output to a single node id (default: all nodes)",

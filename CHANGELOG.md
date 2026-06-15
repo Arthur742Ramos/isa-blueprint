@@ -81,6 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`attempt --sledgehammer`** appends Isabelle `sledgehammer` guidance and a
   proof skeleton (seeded with the target fact and dependency facts) to the
   generated attempt prompt.
+- **`blame --node ID`** is now accepted as an alias for `blame --node-id ID`, so
+  the single-node flag matches `impact`/`memory`/`explain`/`next`. The original
+  `--node-id` spelling keeps working.
 
 ### Changed
 
@@ -95,6 +98,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `report.metrics.coverage_percent()` helper (truncate-not-round, with the
   sub-1% clamp), so the badge, README, CI summary, and dashboards can no longer
   drift apart as three hand-copied formulas. No output change.
+- **`gate` and `diff` now colourise their verdicts** (green pass / red fail and
+  red `[regression]` markers) when colour is enabled, matching the other health
+  commands (`lint`, `scorecard`, `status`, `staleness`). Plain-text and
+  machine-readable output are byte-for-byte unchanged; honours `--color` /
+  `--no-color` / `NO_COLOR`.
 
 ### Fixed
 

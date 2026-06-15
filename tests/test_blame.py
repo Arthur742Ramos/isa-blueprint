@@ -77,6 +77,17 @@ def test_blame_single_node(tmp_path: Path, capsys) -> None:
     assert [n["id"] for n in data["nodes"]] == ["b"]
 
 
+def test_blame_node_is_an_alias_for_node_id(tmp_path: Path, capsys) -> None:
+    # --node matches the single-node flag used by impact/memory/explain/next.
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--node", "b", "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [n["id"] for n in data["nodes"]] == ["b"]
+
+
 def test_blame_unknown_node_errors(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
 
