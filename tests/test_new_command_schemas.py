@@ -16,7 +16,7 @@ import pytest
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
-jsonschema = pytest.importorskip("jsonschema")
+pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
 _NEW_SCHEMAS = ["path", "scorecard", "tags"]
@@ -97,6 +97,16 @@ def test_scorecard_json_conforms(tmp_path: Path, capsys) -> None:
     assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert "components" in data
+    _validate(data, "scorecard")
+
+
+def test_scorecard_json_with_gate_conforms(tmp_path: Path, capsys) -> None:
+    # --min-grade adds an optional `gate` object; the published schema must
+    # describe it so the contract stays accurate for CI consumers.
+    _write_project(tmp_path)
+    assert cli_main(["scorecard", str(tmp_path), "--json", "--min-grade", "A+"]) == 5
+    data = json.loads(capsys.readouterr().out)
+    assert data["gate"]["min_grade"] == "A+"
     _validate(data, "scorecard")
 
 
