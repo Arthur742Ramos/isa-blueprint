@@ -182,6 +182,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`search-facts --markdown`** renders the candidate-fact results as a Markdown
   table (fact name, score, source theory) under a query heading, for pasting
   into issues or notes. Mutually exclusive with `--json`; text output unchanged.
+- **`diff --markdown`** renders the project-vs-baseline comparison as a Markdown
+  summary (sections for added, removed, and changed nodes, with regressions
+  flagged) suitable for a PR comment or step summary. It is mutually exclusive
+  with `--json`, preserves the `--fail-on-regression` exit `5` behaviour, and
+  leaves the default text output unchanged.
 
 ### Changed
 
