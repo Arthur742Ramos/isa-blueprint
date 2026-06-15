@@ -9,6 +9,7 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.tags import (
     TAGS_SCHEMA_VERSION,
+    build_tag_gate,
     build_tag_report,
     render_tag_report,
 )
@@ -286,3 +287,128 @@ def test_cli_tag_filter_text(tmp_path: Path, capsys) -> None:
     assert "alg" not in out
     # Untagged count stays project-wide.
     assert "1 untagged" in out
+
+
+_GATE_BODY = """# gate-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+tags: core, alg
+
+Proved.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: found
+tags: core
+
+Found, not proved.
+
+Sketch.
+:::
+"""
+
+
+def test_build_tag_gate_flags_low_coverage_tags() -> None:
+    project = _project(
+        _node("a", tags=["core", "alg"], formal=FormalStatus.PROVED),
+        _node("b", tags=["core"], formal=FormalStatus.FOUND),
+    )
+    report = build_tag_report(project)
+
+    # core is 50% (1 of 2 proved); alg is 100%.
+    gate = build_tag_gate(report, 80)
+
+    assert gate.fail_under == 80
+    assert gate.failing_tags == ("core",)
+    assert gate.ok is False
+    assert gate.to_dict() == {
+        "fail_under": 80,
+        "failing_tags": ["core"],
+        "ok": False,
+    }
+
+
+def test_build_tag_gate_ignores_targetless_tags() -> None:
+    project = _project(_node("a", tags=["doc"], formal=FormalStatus.MISSING))
+    report = build_tag_report(project)
+
+    # 'doc' has no formal targets (coverage None), so it never fails the gate.
+    gate = build_tag_gate(report, 100)
+
+    assert gate.failing_tags == ()
+    assert gate.ok is True
+
+
+def test_cli_fail_under_exits_5(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--fail-under", "80"])
+
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "fail-under 80% policy triggered" in captured.err
+    assert "core" in captured.err
+    # Table still printed to stdout.
+    assert "tag-test tags" in captured.out
+
+
+def test_cli_fail_under_json_gate_object(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json", "--fail-under", "80"])
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    # Existing keys are untouched; gate is additive.
+    assert data["schema_version"] == TAGS_SCHEMA_VERSION
+    assert data["gate"] == {
+        "fail_under": 80,
+        "failing_tags": ["core"],
+        "ok": False,
+    }
+
+
+def test_cli_fail_under_passes_when_all_meet_threshold(
+    tmp_path: Path, capsys
+) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json", "--fail-under", "50"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["gate"]["ok"] is True
+    assert data["gate"]["failing_tags"] == []
+
+
+def test_cli_fail_under_respects_tag_filter(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    # alg is 100%; restricting to it means the otherwise-failing core is ignored.
+    rc = cli_main(
+        ["tags", str(tmp_path), "--json", "--tag", "alg", "--fail-under", "90"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["gate"]["ok"] is True
+    assert data["gate"]["failing_tags"] == []
+
+
+def test_cli_absent_fail_under_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "gate" not in data

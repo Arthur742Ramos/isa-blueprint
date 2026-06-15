@@ -425,3 +425,68 @@ def render_staleness_report(
         lines.append(console.dim(f"  ... and {hidden_nodes} more stale node(s)"))
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def _markdown_cause(cause: StaleCause) -> str:
+    """Render a single cause as a compact, table-cell-safe phrase."""
+
+    if cause.reason == "cycle":
+        return "participates in a dependency cycle"
+    if cause.reason == "missing":
+        return f"missing `{cause.dep_id}`"
+    return f"`{cause.dep_id}` ({cause.reason}, `{cause.formal_status}`, d{cause.distance})"
+
+
+def render_staleness_markdown(
+    report: StalenessReport, *, top: int = 10, max_causes: int = 5
+) -> str:
+    """Render the staleness scan as a portable Markdown table (no colour)."""
+
+    lines = [f"# {report.project} staleness", ""]
+    if report.trusted_count == 0:
+        lines.append("No trusted (found/proved) nodes to audit yet.")
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    if report.stale_count == 0:
+        lines.append(
+            f"All {report.trusted_count} trusted node(s) rest on trusted, "
+            "up-to-date dependencies."
+        )
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    lines.append(
+        f"{report.stale_count} of {report.trusted_count} trusted node(s) are stale: "
+        f"{report.problem_count} problem, {report.incomplete_count} incomplete, "
+        f"{report.outdated_count} outdated."
+    )
+    lines.append("")
+    lines.append("| Node | Title | Formal | Severity | Causes |")
+    lines.append("| --- | --- | --- | --- | --- |")
+
+    for item in report.stale_nodes[:top]:
+        causes = [_markdown_cause(cause) for cause in item.causes[:max_causes]]
+        hidden = item.cause_count - max_causes
+        if hidden > 0:
+            causes.append(f"... +{hidden} more")
+        severity = item.severity + (", cycle" if item.in_cycle else "")
+        lines.append(
+            f"| `{item.node_id}` | {_md_cell(item.title)} | `{item.formal_status}` "
+            f"| {severity} | {_md_cell('; '.join(causes))} |"
+        )
+
+    hidden_nodes = report.stale_count - top
+    if hidden_nodes > 0:
+        lines.append("")
+        lines.append(f"... and {hidden_nodes} more stale node(s)")
+
+    return "\n".join(lines).rstrip("\n") + "\n"

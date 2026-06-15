@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
 )
@@ -260,3 +263,69 @@ def test_cli_staleness_fail_on_problem(tmp_path: Path, capsys) -> None:
     assert rc == 5
     err = capsys.readouterr().err
     assert "broken/missing" in err
+
+
+_INCOMPLETE_BODY = """# stale-cli
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status: named
+
+A base, not yet proven.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: proved
+uses: a
+
+Rests on unproven a.
+:::
+"""
+
+
+def test_render_markdown_lists_flagged_node() -> None:
+    report = build_staleness_report(
+        _project(
+            _node("a", formal=FormalStatus.NAMED),
+            _node("b", uses=["a"], formal=FormalStatus.PROVED),
+        )
+    )
+    md = render_staleness_markdown(report)
+    assert "| Node | Title | Formal | Severity | Causes |" in md
+    b_row = next(line for line in md.splitlines() if line.startswith("| `b` |"))
+    assert "incomplete" in b_row
+
+
+def test_render_markdown_escapes_pipe_and_newline_in_title() -> None:
+    a = _node("a", formal=FormalStatus.NAMED)
+    b = _node("b", uses=["a"], formal=FormalStatus.PROVED)
+    b.title = "Has | pipe\nand newline"
+    report = build_staleness_report(_project(a, b))
+    md = render_staleness_markdown(report)
+    b_row = next(line for line in md.splitlines() if line.startswith("| `b` |"))
+    # The escaped pipe stays inside the title cell; no raw newline splits the row.
+    assert r"Has \| pipe and newline" in b_row
+
+
+def test_cli_staleness_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _INCOMPLETE_BODY)
+    rc = cli_main(["staleness", str(tmp_path), "--markdown"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Markdown table header is present...
+    assert "| Node | Title | Formal | Severity | Causes |" in out
+    assert "| --- | --- | --- | --- | --- |" in out
+    # ...and the trusted node resting on an unproven dependency is listed.
+    b_row = next(line for line in out.splitlines() if line.startswith("| `b` |"))
+    assert "incomplete" in b_row
+    assert "`a`" in b_row
+
+
+def test_cli_staleness_markdown_rejects_json(tmp_path: Path) -> None:
+    _write_project(tmp_path, _INCOMPLETE_BODY)
+    with pytest.raises(SystemExit):
+        cli_main(["staleness", str(tmp_path), "--markdown", "--json"])
+
