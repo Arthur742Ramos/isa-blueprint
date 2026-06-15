@@ -7,6 +7,7 @@ from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
     build_status_metrics,
+    coverage_percent,
     output_values,
     stable_output_keys,
 )
@@ -25,6 +26,48 @@ def _node(node_id: str, formal: FormalStatus, *, uses: list[str] | None = None) 
 
 def _project(*nodes: BlueprintNode) -> BlueprintProject:
     return BlueprintProject.from_nodes("metrics-test", list(nodes))
+
+
+def test_coverage_percent_undefined_when_no_target():
+    assert coverage_percent(0, 0) is None
+    assert coverage_percent(5, 0) is None  # nonsensical but defensive
+    assert coverage_percent(0, -1) is None
+
+
+def test_coverage_percent_truncates_not_rounds():
+    # 999/1000 must report 99, never a misleading 100.
+    assert coverage_percent(999, 1000) == 99
+    # 100 only when genuinely all-proved.
+    assert coverage_percent(1000, 1000) == 100
+    assert coverage_percent(1, 2) == 50
+
+
+def test_coverage_percent_clamps_tiny_progress_up_to_one():
+    # A non-zero but sub-1% ratio is never shown as a misleading 0%.
+    assert coverage_percent(1, 1000) == 1
+    # Genuinely none-proved stays 0.
+    assert coverage_percent(0, 1000) == 0
+
+
+def test_coverage_percent_is_the_single_source_for_reports():
+    # The effort and portfolio reports must agree with the status metric: all
+    # three are wired to coverage_percent(), so the same proved/target ratio
+    # yields the same number everywhere.
+    from isabelle_blueprint.report.effort import build_effort_report
+
+    project = _project(
+        _node("a", FormalStatus.PROVED),
+        _node("b", FormalStatus.FOUND),
+        _node("c", FormalStatus.NOT_FOUND),
+        _node("d", FormalStatus.MISSING),
+    )
+    metrics = build_status_metrics(project)
+    effort = build_effort_report(project)
+
+    # 1 proved of 3 formal targets -> 33 (truncated), identical in both reports.
+    assert metrics.coverage_percent == 33
+    assert effort.coverage_percent == 33
+    assert coverage_percent(1, 3) == 33
 
 
 def test_problem_statuses_exclude_stale_and_passing():

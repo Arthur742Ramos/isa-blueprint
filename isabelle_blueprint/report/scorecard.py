@@ -141,6 +141,24 @@ def grade_for(score: int | None) -> str:
     return "F"
 
 
+# Every recognised letter grade, best grade first (excludes the ``n/a`` sentinel
+# used for an ungradeable project). Useful as a CLI ``choices`` list.
+ALL_GRADES: tuple[str, ...] = tuple(letter for _threshold, letter in _GRADE_BANDS)
+
+
+def grade_threshold(grade: str) -> int | None:
+    """Return the inclusive minimum score a project needs to earn ``grade``.
+
+    For example ``grade_threshold("B")`` is ``83``. Returns ``None`` when
+    ``grade`` is not one of :data:`ALL_GRADES`, so callers can validate input.
+    """
+
+    for threshold, letter in _GRADE_BANDS:
+        if letter == grade:
+            return threshold
+    return None
+
+
 def build_scorecard(project: BlueprintProject) -> Scorecard:
     """Compute the composite :class:`Scorecard` for ``project``."""
 

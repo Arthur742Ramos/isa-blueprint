@@ -124,3 +124,40 @@ def test_load_baseline_rejects_duplicate_ids(tmp_path: Path) -> None:
 
     with pytest.raises(BlueprintError, match="duplicate node id"):
         load_baseline(path)
+
+
+def teardown_function() -> None:
+    # A --color always test below forces colour on; reset so it never leaks.
+    from isabelle_blueprint import console
+
+    console.set_enabled(False)
+
+
+def test_diff_regressions_are_coloured_when_enabled(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    baseline = _write_baseline(
+        tmp_path,
+        [{"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}}],
+    )
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--color", "always"])
+
+    assert rc == 0  # no --fail-on-regression
+    out = capsys.readouterr().out
+    assert "\033[" in out  # the regression marker is painted
+    assert "regression" in out
+
+
+def test_diff_regressions_are_plain_without_colour(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    baseline = _write_baseline(
+        tmp_path,
+        [{"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}}],
+    )
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--color", "never"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+    assert "[regression]" in out  # plain marker unchanged

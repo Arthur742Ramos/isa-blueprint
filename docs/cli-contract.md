@@ -330,10 +330,14 @@ isabelle-blueprint dump [project_dir]
                         [--timeout SECONDS]
                         [--from DIR]
                         [--strict]
+                        [--json]
 ```
 
 Runs `isabelle dump` (or inspects a pre-existing dump tree via `--from`) and
-applies the PIDE-level proof information to each node's status.
+applies the PIDE-level proof information to each node's status. `--json` prints
+the dump report to stdout (the same JSON written to `[build]/dump_report.json`)
+instead of the `dump report -> PATH` line; a blueprint-validation failure is
+reported as a JSON object and still exits `2`.
 
 ### `compat`
 
@@ -341,10 +345,14 @@ applies the PIDE-level proof information to each node's status.
 isabelle-blueprint compat [project_dir]
                           [--isabelle PATH]
                           [--strict]
+                          [--json]
 ```
 
 Checks the configured Isabelle and AFP versions against the local install and
-reports any session-visibility or version-pin mismatches.
+reports any session-visibility or version-pin mismatches. `--json` prints the
+compatibility report to stdout (the same JSON written to
+`[build]/compat_report.json`) instead of the human `report -> PATH` and
+per-issue lines.
 
 ### `web`
 
@@ -1023,7 +1031,7 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, and `agent-memory`.
+`plugin-annotations`, `agent-memory`, `path`, `scorecard`, and `tags`.
 
 ### `stats`
 

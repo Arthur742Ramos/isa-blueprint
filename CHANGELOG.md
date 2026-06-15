@@ -9,12 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
+  These commands emit versioned `--json` payloads but shipped without published
+  schemas, unlike the rest of the CLI. They are now registered packaged schemas
+  (`isabelle-blueprint schema path|scorecard|tags`, included in `schema --out`
+  and over MCP), and contract tests assert each command's JSON conforms to its
+  schema and that every packaged schema is a valid draft 2020-12 schema.
 - **`scorecard` command** distills the whole blueprint into a single composite
   quality score (0–100) and letter grade (A+…F), with a weighted component
   breakdown: coverage, integrity (problem-free), structure (acyclic + no missing
   deps), freshness, documentation completeness, and agent readiness. Components
   with no applicable nodes drop out and the remaining weights are renormalised.
   `--json` emits the structured score; also available as the MCP `scorecard` tool.
+  `--min-grade GRADE` turns it into a CI gate: exit `5` when the overall grade
+  falls below `GRADE` (case-insensitive, e.g. `--min-grade B-`), matching the
+  fail flags on `gate`/`staleness`/`diff`/`burndown`. An ungradeable (empty)
+  project never trips the gate, and `--json` adds a `gate` object reporting the
+  threshold and whether it was met.
 - **`tags` command** rolls up nodes by tag: node count, formal targets,
   proved/found/problem counts, and per-tag proved-coverage, plus an untagged
   count. Nodes with multiple tags are counted under each. `--json` emits the
@@ -76,6 +87,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`attempt --sledgehammer`** appends Isabelle `sledgehammer` guidance and a
   proof skeleton (seeded with the target fact and dependency facts) to the
   generated attempt prompt.
+- **`blame --node ID`** is now accepted as an alias for `blame --node-id ID`, so
+  the single-node flag matches `impact`/`memory`/`explain`/`next`. The original
+  `--node-id` spelling keeps working.
+- **`compat --json` and `dump --json`** emit their report to stdout (the same
+  JSON already written to disk), closing the last machine-readability gaps in an
+  otherwise JSON-everywhere CLI. Exit codes and the default human output are
+  unchanged; under `--json` the per-issue / `report -> path` lines are replaced
+  by the structured payload, and `dump --json` reports a blueprint-validation
+  failure as a JSON object (exit `2`).
+
+### Changed
+
+- **Task and roadmap generation share a single node index** instead of rebuilding
+  `project.by_id()` once per node inside their readiness/blocker checks. This
+  removes an O(n²) rebuild on a hot path (`generate_tasks` and `build_roadmap`
+  run on `status`, `report`, `portfolio`, `roadmap`, and `agent-context`). Output
+  is unchanged; a regression test asserts the index build count no longer scales
+  with node count.
+- **Coverage percentage is computed in one place.** The status metric, the
+  effort-weighted report, and the portfolio roll-up now all call a single
+  `report.metrics.coverage_percent()` helper (truncate-not-round, with the
+  sub-1% clamp), so the badge, README, CI summary, and dashboards can no longer
+  drift apart as three hand-copied formulas. No output change.
+- **`gate` and `diff` now colourise their verdicts** (green pass / red fail and
+  red `[regression]` markers) when colour is enabled, matching the other health
+  commands (`lint`, `scorecard`, `status`, `staleness`). Plain-text and
+  machine-readable output are byte-for-byte unchanged; honours `--color` /
+  `--no-color` / `NO_COLOR`.
+
+### Fixed
+
+- **`graph --format svg` can no longer hang** on a wedged or pathological
+  Graphviz `dot` process: `render_svg` now bounds the subprocess with a timeout
+  (default 30s) and degrades to an SVG comment instead of blocking the caller
+  indefinitely.
 
 ### Changed
 

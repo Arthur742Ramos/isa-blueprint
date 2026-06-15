@@ -73,6 +73,40 @@ def test_generate_tasks_blocked_when_dep_missing_from_project():
     assert generate_tasks(project) == []
 
 
+def test_generate_tasks_does_not_rebuild_index_per_node(monkeypatch):
+    """generate_tasks must share one node index, not rebuild it per node.
+
+    Rebuilding ``project.by_id()`` inside the per-node readiness check is an
+    O(n^2) trap on a hot path (generate_tasks runs on status/report/portfolio
+    /agent-context). This guards against the regression by asserting the number
+    of ``by_id()`` rebuilds does not grow with the node count.
+    """
+    calls = {"n": 0}
+    real_by_id = BlueprintProject.by_id
+
+    def counting_by_id(self):
+        calls["n"] += 1
+        return real_by_id(self)
+
+    monkeypatch.setattr(BlueprintProject, "by_id", counting_by_id)
+
+    def chain(length):
+        nodes = [_node("n0", "Demo.n0", formal=FormalStatus.PROVED)]
+        for i in range(1, length):
+            nodes.append(_node(f"n{i}", f"Demo.n{i}", uses=[f"n{i - 1}"]))
+        return BlueprintProject.from_nodes("p", nodes)
+
+    calls["n"] = 0
+    generate_tasks(chain(5))
+    small = calls["n"]
+
+    calls["n"] = 0
+    generate_tasks(chain(60))
+    large = calls["n"]
+
+    assert small == large, f"by_id() rebuilds scale with node count ({small} vs {large})"
+
+
 def test_generated_task_contains_acceptance_criteria_and_deps():
     project = BlueprintProject.from_nodes(
         "p",

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/scorecard.schema.json",
+  "title": "IsabelleBlueprint quality scorecard",
+  "type": "object",
+  "required": ["schema_version", "project", "score", "grade", "components"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+    "grade": { "type": "string" },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "label", "score", "weight", "detail"],
+        "properties": {
+          "name": { "type": "string" },
+          "label": { "type": "string" },
+          "score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "gate": {
+      "type": "object",
+      "description": "Present only when --min-grade is passed: the CI gate result. meets_min_grade is null for an ungradeable (empty) project.",
+      "required": ["min_grade", "score", "grade", "meets_min_grade"],
+      "properties": {
+        "min_grade": { "type": "string" },
+        "score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "grade": { "type": "string" },
+        "meets_min_grade": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

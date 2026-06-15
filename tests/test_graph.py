@@ -16,6 +16,7 @@ from isabelle_blueprint.graph.graphviz_render import (
     render_graphml,
     render_json,
     render_mermaid,
+    render_svg,
 )
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -356,4 +357,38 @@ A statement.
     assert rc != 0
     err = capsys.readouterr().err
     assert "unknown node" in err
+
+
+def test_render_svg_returns_none_without_graphviz(monkeypatch):
+    import isabelle_blueprint.graph.graphviz_render as gr
+
+    monkeypatch.setattr(gr.shutil, "which", lambda _exe: None)
+    assert render_svg("digraph {}") is None
+
+
+def test_render_svg_bounds_a_hung_dot_with_timeout(monkeypatch):
+    """A hung ``dot`` must not block the caller forever.
+
+    render_svg passes a ``timeout`` to the subprocess and degrades to an SVG
+    comment when it fires, rather than raising or blocking indefinitely.
+    """
+    import subprocess
+
+    import isabelle_blueprint.graph.graphviz_render as gr
+
+    monkeypatch.setattr(gr.shutil, "which", lambda _exe: "/usr/bin/dot")
+
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs)
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(gr.subprocess, "run", fake_run)
+
+    out = render_svg("digraph {}", timeout=2.5)
+
+    assert out is not None and "timed out" in out
+    assert seen.get("timeout") == 2.5  # the bound was actually handed to dot
+
 
