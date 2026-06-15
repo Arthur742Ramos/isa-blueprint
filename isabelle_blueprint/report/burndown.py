@@ -417,3 +417,74 @@ def render_burndown_report(report: BurndownReport, *, limit: int = 10) -> str:
             )
 
     return "\n".join(lines) + "\n"
+
+
+# Statuses that warrant a "completion is not in sight" caveat in the Markdown.
+_STALLED_STATUSES = frozenset(
+    {STATUS_STALLED, STATUS_REGRESSING, STATUS_SCOPE_GROWING}
+)
+
+_STALLED_NOTES = {
+    STATUS_STALLED: (
+        "Remaining work is not burning down, so no completion date can be "
+        "forecast. Record more progress before relying on an ETA."
+    ),
+    STATUS_REGRESSING: (
+        "Remaining work is increasing - the project is moving away from "
+        "completion, so no ETA is produced."
+    ),
+    STATUS_SCOPE_GROWING: (
+        "Targets are being added faster than proofs land, so remaining work "
+        "grows despite progress and no ETA can be forecast."
+    ),
+}
+
+
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell."""
+    return (
+        text.replace("\r\n", " ")
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .replace("|", r"\|")
+    )
+
+
+def _md_opt(value: object) -> str:
+    return "n/a" if value is None else str(value)
+
+
+def render_burndown_markdown(report: BurndownReport) -> str:
+    """Render ``report`` as a Markdown document (trailing newline).
+
+    Emits a heading, a summary table (status / remaining / eta_days / eta_date /
+    forecast) and, when the project is stalled / regressing / scope-growing, a
+    short note explaining why no ETA is produced.
+    """
+    headline = _STATUS_HEADLINES.get(report.status, report.status)
+    lines = ["# Burndown forecast", "", _md_cell(headline), ""]
+
+    forecast = report.forecast
+    if forecast is None or forecast.remaining_per_day is None:
+        forecast_cell = "n/a"
+    else:
+        forecast_cell = (
+            f"{forecast.basis} ({forecast.point_count} pts / "
+            f"{_md_opt(forecast.span_days)} days), "
+            f"net burn {_fmt_rate(forecast.net_burndown_per_day)}"
+        )
+
+    lines.append("| Status | Remaining | ETA (days) | ETA date | Forecast |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append(
+        f"| `{report.status}` | {_md_opt(report.remaining)} "
+        f"| {_md_opt(report.eta_days)} | {_md_opt(report.eta_date)} "
+        f"| {_md_cell(forecast_cell)} |"
+    )
+
+    note = _STALLED_NOTES.get(report.status)
+    if report.status in _STALLED_STATUSES and note is not None:
+        lines.append("")
+        lines.append(f"> **Note:** {note}")
+
+    return "\n".join(lines) + "\n"
