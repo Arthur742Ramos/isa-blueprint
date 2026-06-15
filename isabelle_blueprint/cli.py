@@ -1665,6 +1665,8 @@ def _run_status_once(args: argparse.Namespace) -> int:
 
 
 def cmd_roadmap(args: argparse.Namespace) -> int:
+    if args.mermaid and args.json:
+        raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -1672,8 +1674,6 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     memory = load_agent_memory(config.agent_memory_path)
     ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
     roadmap = build_roadmap(project, ready_tasks)
-    if args.mermaid and args.json:
-        raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
     filters = _roadmap_filters_from_args(args)
     _validate_roadmap_filters(roadmap.summary.stage_count, filters)
     diff = (

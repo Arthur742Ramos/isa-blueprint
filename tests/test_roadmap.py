@@ -114,6 +114,9 @@ def test_cli_roadmap_mermaid_emits_staged_flowchart(tmp_path: Path, capsys) -> N
     assert "subgraph stage1" in out
     assert "n_b" in out
     assert "n_b --> n_c" in out
+    # `a` is proved (a complete dependency of `b`) so it is absent from `b`'s
+    # blocked_by, yet the diagram must still follow the full `uses` graph.
+    assert "n_a --> n_b" in out
 
 
 def test_cli_roadmap_mermaid_rejects_json_combo(tmp_path: Path) -> None:

@@ -85,6 +85,7 @@ class RoadmapItem:
     priority: str | None = None
     difficulty: str | None = None
     suggested_order: int | None = None
+    uses: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -407,9 +408,11 @@ def render_roadmap_mermaid(
     """Render the staged roadmap as a Mermaid ``flowchart``.
 
     Each dependency stage becomes a ``subgraph`` whose nodes are labelled by id,
-    and ``uses`` relationships between items are emitted as edges. Honours the
-    same ``--status``/``--stage``/``--kind`` filters as the Markdown rendering so
-    the diagram mirrors what the user asked to see.
+    and every ``uses`` relationship (restricted to items visible in the diagram)
+    is emitted as an edge -- including dependencies that are already complete, so
+    the picture follows the full ``uses`` graph rather than only outstanding
+    blockers. Honours the same ``--status``/``--stage``/``--kind`` filters as the
+    Markdown rendering so the diagram mirrors what the user asked to see.
     """
 
     filters = filters or RoadmapFilters()
@@ -423,10 +426,10 @@ def render_roadmap_mermaid(
         lines.append("  end")
     for stage in rendered.stages:
         for item in stage.items:
-            for blocker in item.blocked_by:
-                if blocker.id in visible_ids:
+            for dep_id in item.uses:
+                if dep_id in visible_ids:
                     lines.append(
-                        f"  {_mermaid_node_id(blocker.id)} --> {_mermaid_node_id(item.node_id)}"
+                        f"  {_mermaid_node_id(dep_id)} --> {_mermaid_node_id(item.node_id)}"
                     )
     return "\n".join(lines) + "\n"
 
@@ -437,7 +440,7 @@ def _mermaid_node_id(node_id: str) -> str:
 
 
 def _mermaid_text(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', "&quot;")
+    return text.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
 
 
 def write_roadmap(
@@ -705,6 +708,7 @@ def _roadmap_item(
         priority=metadata.priority if metadata is not None else None,
         difficulty=metadata.difficulty if metadata is not None else None,
         suggested_order=metadata.suggested_order if metadata is not None else None,
+        uses=tuple(node.uses),
     )
 
 
