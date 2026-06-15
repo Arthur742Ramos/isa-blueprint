@@ -262,3 +262,28 @@ def test_diff_fail_on_change_composes_with_markdown(tmp_path: Path, capsys) -> N
     out = capsys.readouterr().out
     assert "## diff: diff-test" in out  # markdown output unaffected by the gate
 
+
+def test_diff_both_flags_emit_regression_message(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    # Node `a` is downgraded proved->stub: a regression (which also counts as a
+    # change). With BOTH gates set, the more specific regression message must win.
+    baseline = _write_baseline(
+        tmp_path,
+        [{"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}}],
+    )
+
+    rc = cli_main(
+        [
+            "diff",
+            str(baseline),
+            str(tmp_path),
+            "--fail-on-regression",
+            "--fail-on-change",
+        ]
+    )
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "regression detected vs baseline" in err
+    assert "change detected vs baseline" not in err
+
