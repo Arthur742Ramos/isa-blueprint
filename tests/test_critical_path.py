@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -331,6 +333,29 @@ def test_cli_write_goal_focus_is_plain_markdown(tmp_path: Path, capsys) -> None:
     # The persisted Markdown is plain: it never contains ANSI escape codes even
     # though colour was forced on for the terminal.
     assert "\033[" not in md
+
+
+def test_cli_markdown_stdout_is_plain(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(
+        ["critical-path", str(tmp_path), "--goal", "b", "--markdown", "--color", "always"]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    # The goal chain is rendered to stdout as Markdown...
+    assert "Goal `b`" in out
+    assert "`a` -> `b`" in out
+    # ...and it is plain: no ANSI escape sequences even with colour forced on.
+    assert "\033[" not in out
+
+
+def test_cli_markdown_rejects_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--markdown", "--json"])
 
 
 def test_cli_fail_on_cycle(tmp_path: Path, capsys) -> None:
