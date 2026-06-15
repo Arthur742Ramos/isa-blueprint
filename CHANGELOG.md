@@ -241,6 +241,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `build/scorecard.md` under the configured `build_dir`. Composes with the
   `--min-grade`/`--min-score` gates and `--json`; stdout and the exit code are
   unchanged.
+- **`theory-index --mermaid`** emits a Mermaid `flowchart` of the theory import
+  graph (one node per theory, one `A --> B` edge per in-project import) to
+  stdout. Source-only (no Isabelle needed), a standalone output mode that errors
+  if combined with `--json` or any query flag
+  (`--callers`/`--callees`/`--deps`/`--sorry`/`--unreferenced`/`--counts`), and
+  it honours the existing `--root`/`--session` resolution.
 
 ### Changed
 

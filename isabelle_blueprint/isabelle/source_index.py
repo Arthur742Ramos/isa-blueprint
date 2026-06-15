@@ -555,6 +555,37 @@ def build_index(paths: list[Path]) -> SourceIndex:
     return SourceIndex(paths)
 
 
+def _mermaid_theory_id(theory: str) -> str:
+    """Map a theory name onto a safe Mermaid node id (alnum/underscore only)."""
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in theory)
+    return f"t_{safe}"
+
+
+def _mermaid_theory_label(theory: str) -> str:
+    """Escape a theory name for use inside a quoted Mermaid node label."""
+    return theory.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
+
+
+def render_theory_index_mermaid(index: SourceIndex) -> str:
+    """Render the theory import graph as a Mermaid ``flowchart``.
+
+    One node per theory, one ``A --> B`` edge for every in-project import
+    (``B imports A``), so arrows point from a dependency to its importer. Purely
+    source-derived; no Isabelle required.
+    """
+    lines = ["flowchart TB"]
+    for theory in index.theory_order:
+        lines.append(
+            f'  {_mermaid_theory_id(theory)}["{_mermaid_theory_label(theory)}"]'
+        )
+    for theory in index.theory_order:
+        for imp in sorted(index.in_project_imports.get(theory, [])):
+            lines.append(
+                f"  {_mermaid_theory_id(imp)} --> {_mermaid_theory_id(theory)}"
+            )
+    return "\n".join(lines) + "\n"
+
+
 def session_theory_files(session_dir: Path, session_name: str | None = None) -> list[Path]:
     """Resolve the ``.thy`` files of a session directory.
 

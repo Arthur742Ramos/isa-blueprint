@@ -195,3 +195,32 @@ def test_theory_index_unknown_session_errors(tmp_path: Path, capsys) -> None:
     rc = cli_main(["theory-index", "--root", str(root), "--session", "Nope"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
+
+
+def test_theory_index_mermaid(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--mermaid"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # a flowchart header, a node per theory, and the A -> B import edge
+    assert "flowchart" in out
+    assert "A" in out
+    assert "B" in out
+    assert "t_A --> t_B" in out
+
+
+def test_theory_index_mermaid_rejects_json(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--mermaid", "--json"])
+    assert rc == 1
+    assert "mutually exclusive" in capsys.readouterr().err.lower()
+
+
+def test_theory_index_mermaid_rejects_mode_flags(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--mermaid", "--sorry"])
+    assert rc == 1
+    err = capsys.readouterr().err.lower()
+    assert "--mermaid" in err
+    assert "--sorry" in err
+    assert "standalone" in err
