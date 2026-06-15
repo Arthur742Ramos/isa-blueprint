@@ -121,6 +121,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `project` and `assignments` fields, so consumers no longer have to derive the
   total or a lookup table themselves. Existing keys and the persisted
   `assignments.json` store format are unchanged.
+- **`history --csv`** exports the recorded trend snapshots as CSV (a header row
+  plus one row per snapshot, carrying the timestamp and the same numeric
+  coverage/count metrics shown in text mode). It is mutually exclusive with
+  `--json`, respects `--limit`, and leaves the default text output unchanged,
+  so trend history can be piped into spreadsheets and plotting tools without
+  post-processing JSON.
 
 ### Changed
 
