@@ -171,6 +171,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`blame --table`** renders a compact one-row-per-node provenance table (node,
   source, last git commit, agent attempts) as an alternative to the default
   detailed multi-line view, for quickly scanning provenance across all nodes.
+- **`portfolio --csv`** exports the roll-up as CSV (header plus one row per
+  project: name, path, node count, coverage, proved, problems, cycles flag, and
+  health/status), mutually exclusive with `--json`; the default text view is
+  unchanged.
 
 ### Changed
 
