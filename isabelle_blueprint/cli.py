@@ -742,7 +742,7 @@ def cmd_tags(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_tag_report(project)
+    report = build_tag_report(project, only=args.tag or None)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -1230,7 +1230,13 @@ def _assignments_payload(store, project, node_id):  # type: ignore[no-untyped-de
                 "updated_at": assignment.updated_at,
             }
         )
-    return {"project": project.name, "assignments": items}
+    owners = {item["node_id"]: item["owner"] for item in items}
+    return {
+        "project": project.name,
+        "count": len(items),
+        "owners": owners,
+        "assignments": items,
+    }
 
 
 def _render_assignments(payload: dict) -> str:
@@ -2452,11 +2458,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
-    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML dependency graph")
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.add_argument(
         "--format",
-        choices=("all", "dot", "json", "svg", "mermaid", "graphml"),
+        choices=("all", "dot", "json", "svg", "mermaid", "graphml", "d2"),
         default="all",
         help="which artifact(s) to write (default: all)",
     )
@@ -2501,6 +2507,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
     p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="restrict the roll-up to the named tag (repeatable)",
+    )
     p_tags.set_defaults(func=cmd_tags)
 
     p_path = sub.add_parser(

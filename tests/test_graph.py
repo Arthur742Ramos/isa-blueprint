@@ -12,6 +12,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.graphviz_render import (
     _mermaid_id,
+    render_d2,
     render_dot,
     render_graphml,
     render_json,
@@ -331,6 +332,92 @@ A statement.
     assert gml.exists()
     assert "graphml" in gml.read_text(encoding="utf-8")
     assert not (tmp_path / "build" / "graph.dot").exists()
+
+
+def test_render_d2_contains_nodes_and_edges():
+    project = _project(("a", []), ("b", ["a"]))
+    d2 = render_d2(project)
+    assert d2.startswith("direction: up")
+    # Each node is keyed by id with the title as label.
+    assert '"a": "a\\nA"' in d2
+    assert '"b": "b\\nB"' in d2
+    # The uses dependency b -> a is emitted as an edge.
+    assert '"b" -> "a"' in d2
+    # Status-based fill hints mirror the DOT colours.
+    assert "style.fill:" in d2
+
+
+def test_cli_graph_format_d2_writes_file(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-d2"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-d2
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+
+B builds on A.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--format", "d2"])
+
+    assert rc == 0
+    capsys.readouterr()
+    d2_path = tmp_path / "build" / "graph.d2"
+    assert d2_path.exists()
+    text = d2_path.read_text(encoding="utf-8")
+    assert '"a": "a\\nA"' in text
+    assert '"b": "b\\nB"' in text
+    assert '"b" -> "a"' in text
+    # Only the d2 artifact should be written for --format d2.
+    assert not (tmp_path / "build" / "graph.dot").exists()
+    assert not (tmp_path / "build" / "graph.json").exists()
+    assert not (tmp_path / "build" / "graph.svg").exists()
+    assert not (tmp_path / "build" / "graph.mmd").exists()
+    assert not (tmp_path / "build" / "graph.graphml").exists()
+
+
+def test_cli_graph_format_all_excludes_d2(tmp_path, capsys):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-all-d2"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-all-d2
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+""",
+        encoding="utf-8",
+    )
+    from isabelle_blueprint.cli import main as cli_main
+
+    rc = cli_main(["graph", str(tmp_path), "--format", "all"])
+
+    assert rc == 0
+    capsys.readouterr()
+    # d2 is opt-in only; the default `all` set stays byte-unchanged.
+    assert not (tmp_path / "build" / "graph.d2").exists()
 
 
 def test_cli_graph_focus_unknown_node_errors(tmp_path, capsys):
