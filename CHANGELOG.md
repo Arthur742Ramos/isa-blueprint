@@ -131,6 +131,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exiting `10` on drift. Diff mode implies check-only semantics, so the
   `--json` payload reports `check_only: true` to reflect that nothing was
   written.
+- **`critical-path --write`** persists `critical-path.json` and a plain-Markdown
+  `critical-path.md` into the configured build dir alongside the printed report.
+  The Markdown mirrors the printed output (honouring `--goal`) and never embeds
+  ANSI colour codes; printing and exit codes are otherwise unchanged.
 
 ### Changed
 
