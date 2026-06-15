@@ -1,6 +1,8 @@
 """Roadmap planning for staged proof work."""
 from __future__ import annotations
 
+import csv
+import io
 import json
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -432,6 +434,48 @@ def render_roadmap_mermaid(
                         f"  {_mermaid_node_id(dep_id)} --> {_mermaid_node_id(item.node_id)}"
                     )
     return "\n".join(lines) + "\n"
+
+
+ROADMAP_CSV_COLUMNS = (
+    "stage",
+    "node_id",
+    "kind",
+    "formal_status",
+    "agent_status",
+    "blocked_by_count",
+)
+
+
+def render_roadmap_csv(
+    roadmap: RoadmapOverview,
+    *,
+    filters: RoadmapFilters | None = None,
+) -> str:
+    """Render the staged roadmap as CSV, one row per node plus a header.
+
+    Columns: stage index, node id, kind, formal status, agent status, and the
+    number of outstanding blockers. Honours the same ``--status``/``--stage``/
+    ``--kind`` filters as the other roadmap renderings.
+    """
+
+    filters = filters or RoadmapFilters()
+    rendered = filter_roadmap(roadmap, filters) if filters.active else roadmap
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(ROADMAP_CSV_COLUMNS)
+    for stage in rendered.stages:
+        for item in stage.items:
+            writer.writerow(
+                [
+                    stage.index,
+                    item.node_id,
+                    item.kind,
+                    item.formal_status,
+                    item.agent_status,
+                    len(item.blocked_by),
+                ]
+            )
+    return buffer.getvalue()
 
 
 def _mermaid_node_id(node_id: str) -> str:

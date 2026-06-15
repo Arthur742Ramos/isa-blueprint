@@ -251,6 +251,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if combined with `--json` or any query flag
   (`--callers`/`--callees`/`--deps`/`--sorry`/`--unreferenced`/`--counts`), and
   it honours the existing `--root`/`--session` resolution.
+  between stages) to stdout. Mutually exclusive with `--json`/`--csv`, and it
+  honours the existing `--status`/`--stage`/`--kind` filters.
+- **`roadmap --csv`** emits one CSV row per node in the staged plan (columns:
+  `stage`, `node_id`, `kind`, `formal_status`, `agent_status`,
+  `blocked_by_count`) plus a header to stdout. Mutually exclusive with
+  `--json`/`--mermaid`, and it honours the existing `--status`/`--stage`/`--kind`
+  filters.
 
 ### Changed
 

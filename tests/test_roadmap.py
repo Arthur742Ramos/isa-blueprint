@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 from pathlib import Path
 
@@ -117,6 +119,57 @@ def test_cli_roadmap_mermaid_emits_staged_flowchart(tmp_path: Path, capsys) -> N
     # `a` is proved (a complete dependency of `b`) so it is absent from `b`'s
     # blocked_by, yet the diagram must still follow the full `uses` graph.
     assert "n_a --> n_b" in out
+
+
+def test_cli_roadmap_csv_emits_node_rows(capsys) -> None:
+    example = Path("examples/euclid-primes")
+
+    rc = cli_main(["roadmap", str(example), "--csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    rows = list(csv.reader(io.StringIO(out)))
+    assert rows[0] == [
+        "stage",
+        "node_id",
+        "kind",
+        "formal_status",
+        "agent_status",
+        "blocked_by_count",
+    ]
+    by_id = {row[1]: row for row in rows[1:]}
+    # `prime-pred` has no dependencies, so it lands in the first stage.
+    assert by_id["prime-pred"][0] == "1"
+    assert by_id["prime-pred"][2] == "definition"
+
+
+def test_cli_roadmap_csv_respects_status_filter(capsys) -> None:
+    example = Path("examples/euclid-primes")
+
+    rc = cli_main(["roadmap", str(example), "--csv", "--status", "complete"])
+
+    assert rc == 0
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    ids = {row[1] for row in rows[1:]}
+    # Only proved/found nodes survive the `complete` status filter.
+    assert "dvd-factorial" in ids
+    assert "infinitude-primes" not in ids
+
+
+def test_cli_roadmap_csv_rejects_json_combo(tmp_path: Path) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--csv", "--json"])
+
+    assert rc != 0
+
+
+def test_cli_roadmap_csv_rejects_mermaid_combo(tmp_path: Path) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--csv", "--mermaid"])
+
+    assert rc != 0
 
 
 def test_cli_roadmap_mermaid_rejects_json_combo(tmp_path: Path) -> None:

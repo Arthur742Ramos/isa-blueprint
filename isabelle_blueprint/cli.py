@@ -255,6 +255,7 @@ from isabelle_blueprint.report.roadmap import (
     diff_roadmaps,
     load_roadmap_payload,
     render_roadmap,
+    render_roadmap_csv,
     render_roadmap_mermaid,
     roadmap_payload,
     roadmap_strict_failures,
@@ -1844,7 +1845,13 @@ def _run_status_once(args: argparse.Namespace) -> int:
 
 def cmd_roadmap(args: argparse.Namespace) -> int:
     if args.mermaid and args.json:
+        # Frozen pre-existing wording; do not change.
         raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
+    output_flags = [name for name in ("mermaid", "json", "csv") if getattr(args, name)]
+    if len(output_flags) > 1:
+        raise BlueprintError(
+            "roadmap --mermaid, --json, and --csv are mutually exclusive"
+        )
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -1865,6 +1872,9 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
         written = write_roadmap(roadmap, output_dir)
     if args.mermaid:
         print(render_roadmap_mermaid(roadmap, filters=filters), end="")
+        stream = sys.stderr
+    elif args.csv:
+        print(render_roadmap_csv(roadmap, filters=filters), end="")
         stream = sys.stderr
     elif args.json:
         print(json.dumps(roadmap_payload(roadmap, filters=filters, diff=diff), indent=2))
@@ -3742,7 +3752,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_roadmap.add_argument(
         "--mermaid",
         action="store_true",
-        help="emit a Mermaid flowchart of the staged plan (mutually exclusive with --json)",
+        help=(
+            "emit a Mermaid flowchart of the staged plan "
+            "(mutually exclusive with --json/--mermaid/--csv)"
+        ),
+    )
+    p_roadmap.add_argument(
+        "--csv",
+        action="store_true",
+        help=(
+            "emit one CSV row per node in the staged plan "
+            "(mutually exclusive with --json/--mermaid/--csv)"
+        ),
     )
     p_roadmap.add_argument(
         "--strict",
