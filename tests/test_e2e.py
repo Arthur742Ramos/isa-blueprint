@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-jsonschema = pytest.importorskip("jsonschema")
+pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
 PKG_ROOT = Path(__file__).resolve().parents[1]
@@ -231,6 +231,15 @@ def test_graph_all_formats_emit_and_conform(agent_project: Path) -> None:
     assert_conforms(graph, "graph")
     assert (build / "graph.dot").exists()
     assert (build / "graph.mmd").exists() or (build / "graph.mermaid").exists()
+    # When Graphviz is installed (the CI e2e job installs it), `--format all`
+    # must actually render SVG -- assert it so a silent rendering regression is
+    # caught. Stays portable: skipped where `dot` is unavailable.
+    import shutil
+
+    if shutil.which("dot"):
+        svg = build / "graph.svg"
+        assert svg.exists(), "graph --format all should write graph.svg when Graphviz is installed"
+        assert "<svg" in svg.read_text(encoding="utf-8").lower(), "graph.svg is not real SVG output"
 
 
 def test_gate_passes_clean_project(agent_project: Path) -> None:
