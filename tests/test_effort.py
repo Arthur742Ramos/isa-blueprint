@@ -562,6 +562,16 @@ def test_render_effort_markdown_escapes_tag_pipe():
     assert r"a\|b" in rendered
 
 
+def test_render_effort_markdown_normalises_tag_newline():
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=1, formal=FormalStatus.PROVED, tags=["a\nb"])]
+    )
+    report = build_effort_report(project, include_by_tag=True)
+    rendered = render_effort_markdown(report, by_tag=True)
+    tag_rows = [line for line in rendered.splitlines() if line.startswith("| a")]
+    assert tag_rows == ["| a b | 1 | 1 | 1 | 0 | 100% |"]
+
+
 def test_render_effort_markdown_coverage_na():
     project = BlueprintProject.from_nodes("p", [_node("a", effort=2)])
     report = build_effort_report(project)
