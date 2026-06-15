@@ -197,6 +197,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   undefined, matching the fail flags on `gate`/`staleness`/`diff`/`burndown`.
   `--json` adds an additive `gate` object (`fail_under`, `effort_percent`,
   `meets`); without the flag, behaviour and exit code are unchanged.
+- **`roadmap --mermaid`** emits a Mermaid `flowchart` of the staged plan (one
+  `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
+  between stages) to stdout. Mutually exclusive with `--json`, and it honours the
+  existing `--status`/`--stage`/`--kind` filters.
 
 ### Changed
 

@@ -85,6 +85,7 @@ class RoadmapItem:
     priority: str | None = None
     difficulty: str | None = None
     suggested_order: int | None = None
+    uses: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -399,6 +400,49 @@ def render_roadmap(
     return "\n".join(lines)
 
 
+def render_roadmap_mermaid(
+    roadmap: RoadmapOverview,
+    *,
+    filters: RoadmapFilters | None = None,
+) -> str:
+    """Render the staged roadmap as a Mermaid ``flowchart``.
+
+    Each dependency stage becomes a ``subgraph`` whose nodes are labelled by id,
+    and every ``uses`` relationship (restricted to items visible in the diagram)
+    is emitted as an edge -- including dependencies that are already complete, so
+    the picture follows the full ``uses`` graph rather than only outstanding
+    blockers. Honours the same ``--status``/``--stage``/``--kind`` filters as the
+    Markdown rendering so the diagram mirrors what the user asked to see.
+    """
+
+    filters = filters or RoadmapFilters()
+    rendered = filter_roadmap(roadmap, filters) if filters.active else roadmap
+    visible_ids = {item.node_id for stage in rendered.stages for item in stage.items}
+    lines = ["flowchart TB"]
+    for stage in rendered.stages:
+        lines.append(f"  subgraph stage{stage.index}[\"Stage {stage.index}\"]")
+        for item in stage.items:
+            lines.append(f'    {_mermaid_node_id(item.node_id)}["{_mermaid_text(item.node_id)}"]')
+        lines.append("  end")
+    for stage in rendered.stages:
+        for item in stage.items:
+            for dep_id in item.uses:
+                if dep_id in visible_ids:
+                    lines.append(
+                        f"  {_mermaid_node_id(dep_id)} --> {_mermaid_node_id(item.node_id)}"
+                    )
+    return "\n".join(lines) + "\n"
+
+
+def _mermaid_node_id(node_id: str) -> str:
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
+    return f"n_{safe}"
+
+
+def _mermaid_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
+
+
 def write_roadmap(
     roadmap: RoadmapOverview,
     build_dir: Path,
@@ -664,6 +708,7 @@ def _roadmap_item(
         priority=metadata.priority if metadata is not None else None,
         difficulty=metadata.difficulty if metadata is not None else None,
         suggested_order=metadata.suggested_order if metadata is not None else None,
+        uses=tuple(node.uses),
     )
 
 
