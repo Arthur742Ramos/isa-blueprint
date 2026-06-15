@@ -116,6 +116,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an unknown tag yields a zero/empty row rather than an error, so the filter
   behaves additively. Project-wide `total_nodes`/`untagged_count` and the JSON
   shape are unchanged.
+- **`assign --json`** now also emits additive `count` (number of assignment
+  records) and `owners` (a `node_id -> owner` map) keys alongside the existing
+  `project` and `assignments` fields, so consumers no longer have to derive the
+  total or a lookup table themselves. Existing keys and the persisted
+  `assignments.json` store format are unchanged.
 
 ### Changed
 
