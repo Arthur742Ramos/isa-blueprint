@@ -24,18 +24,25 @@ def render_prometheus(
     metrics: StatusMetrics,
     *,
     eta_days: float | None = None,
+    labels: dict[str, str] | None = None,
 ) -> str:
     """Render ``metrics`` as a Prometheus text-exposition string (trailing newline).
 
     ``eta_days`` (from a burndown forecast) is emitted only when available.
+
+    ``labels`` is an optional mapping of extra static labels injected onto every
+    emitted metric line (merged with any existing labels). When empty or
+    ``None`` the output is byte-identical to a label-free render.
     """
+    label_text = _render_labels(labels)
+
     lines: list[str] = []
 
     def gauge(name: str, value: float | int, help_text: str) -> None:
         metric = f"{_PREFIX}_{name}"
         lines.append(f"# HELP {metric} {help_text}")
         lines.append(f"# TYPE {metric} gauge")
-        lines.append(f"{metric} {_format_value(value)}")
+        lines.append(f"{metric}{label_text} {_format_value(value)}")
 
     gauge("nodes_total", metrics.node_count, "Total number of blueprint nodes.")
     gauge(
@@ -78,6 +85,23 @@ def render_prometheus(
         )
 
     return "\n".join(lines) + "\n"
+
+
+def _render_labels(labels: dict[str, str] | None) -> str:
+    """Render ``labels`` as a ``{key="value",...}`` suffix (empty string if none).
+
+    Label values are escaped per the Prometheus text exposition format
+    (backslash, double-quote and newline). Keys are emitted in insertion order.
+    """
+    if not labels:
+        return ""
+    parts = [f'{key}="{_escape_label_value(value)}"' for key, value in labels.items()]
+    return "{" + ",".join(parts) + "}"
+
+
+def _escape_label_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
 
 
 def _format_value(value: float | int) -> str:

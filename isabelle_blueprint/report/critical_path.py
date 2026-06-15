@@ -29,8 +29,10 @@ scheduler-style weighted critical path: there is no duration/effort weighting.
 """
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
@@ -359,6 +361,40 @@ def render_critical_path(
     _append_cycles(lines, overview, console)
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def write_critical_path(
+    overview: CriticalPathOverview,
+    build_dir: Path,
+    *,
+    top: int | None = None,
+    goal: str | None = None,
+    json_name: str = "critical-path.json",
+    md_name: str = "critical-path.md",
+) -> dict[str, Path]:
+    """Write critical-path JSON and Markdown artifacts into ``build_dir``.
+
+    The Markdown mirrors what ``render_critical_path`` prints for the same
+    ``goal``, but is always written as plain Markdown: colour is disabled while
+    rendering so the persisted ``.md`` never contains ANSI escape codes even
+    when stdout is an interactive TTY.
+    """
+    from isabelle_blueprint import console
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    json_path = build_dir / json_name
+    md_path = build_dir / md_name
+    payload = critical_path_payload(overview, top=top)
+    json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    md_top = top if top is not None else 5
+    was_enabled = console.is_enabled()
+    console.set_enabled(False)
+    try:
+        markdown = render_critical_path(overview, top=md_top, goal=goal)
+    finally:
+        console.set_enabled(was_enabled)
+    md_path.write_text(markdown, encoding="utf-8")
+    return {"json": json_path, "md": md_path}
 
 
 def _render_single_goal(overview: CriticalPathOverview, node_id: str, console) -> list[str]:
