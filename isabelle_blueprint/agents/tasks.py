@@ -63,10 +63,18 @@ class AgentTask:
         return d
 
 
-def _is_ready(node: BlueprintNode, project: BlueprintProject) -> bool:
+def _is_ready(
+    node: BlueprintNode,
+    project: BlueprintProject,
+    by_id: dict[str, BlueprintNode] | None = None,
+) -> bool:
     if node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}:
         return False
-    by_id = project.by_id()
+    # ``by_id`` is an O(n) dict rebuild; accept a shared one so callers iterating
+    # over every node don't pay it once per node (an O(n^2) trap on the hot
+    # generate_tasks path, which runs on status/report/portfolio/agent-context).
+    if by_id is None:
+        by_id = project.by_id()
     for dep_id in node.uses:
         dep = by_id.get(dep_id)
         if dep is None:
@@ -89,7 +97,7 @@ def generate_tasks(
     suggestion_index = suggestions_by_node(fact_suggestions or [])
     memory_summaries = summaries_by_node(memory, project.nodes) if memory is not None else {}
     for node in project.nodes:
-        if not _is_ready(node, project):
+        if not _is_ready(node, project, by_id):
             continue
         deps = [
             AgentTaskDependency(
