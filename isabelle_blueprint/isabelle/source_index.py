@@ -493,6 +493,22 @@ class SourceIndex:
             )
         return facts
 
+    def counts(self) -> dict[str, int]:
+        """Compact numeric summary of the index (source-only, no Isabelle)."""
+        entries_with_sorry = {
+            f"{m.theory}.{m.entry}" for m in self.sorries if m.entry is not None
+        }
+        import_edges = sum(
+            len(set(deps)) for deps in self.in_project_imports.values()
+        )
+        return {
+            "theories": len(self.theory_order),
+            "entries": len(self.entries),
+            "sorry_entries": len(entries_with_sorry),
+            "unreferenced": len(self.unreferenced_entries()),
+            "import_edges": import_edges,
+        }
+
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
