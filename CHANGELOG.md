@@ -225,6 +225,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nodes, formal targets, proved, found, problems, proved-coverage%) plus an
   untagged-count line. Mutually exclusive with `--json`; composes with `--tag`
   and `--fail-under`, and tag cells escape `|`.
+- **`effort --markdown`** renders the effort-weighted report as a Markdown
+  document with a summary table (total/proved/remaining effort and coverage
+  percent), plus a per-tag table when combined with `--by-tag`. Mutually
+  exclusive with `--json`; composes with `--fail-under` (the gate still sets
+  exit `5`).
 
 ### Changed
 
