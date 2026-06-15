@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`effort --by-tag`** additionally groups effort-weighted progress per tag
+  (nodes with multiple tags count under each), always including an `(untagged)`
+  bucket that sorts last. The per-tag breakdown is opt-in, so the default output
+  and the non-`--by-tag` JSON payload are unchanged.
 
 ### Changed
 

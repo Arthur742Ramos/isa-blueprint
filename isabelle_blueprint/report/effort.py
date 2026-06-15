@@ -93,8 +93,14 @@ def _weight(node: BlueprintNode) -> int:
     return node.effort if node.effort is not None else DEFAULT_EFFORT
 
 
-def build_effort_report(project: BlueprintProject) -> EffortReport:
-    """Compute effort-weighted progress for ``project``."""
+def build_effort_report(
+    project: BlueprintProject, *, include_by_tag: bool = False
+) -> EffortReport:
+    """Compute effort-weighted progress for ``project``.
+
+    The per-tag breakdown is only computed when ``include_by_tag`` is set; by
+    default ``by_tag`` stays an empty tuple so the common path does no extra work.
+    """
     node_count = len(project.nodes)
     explicit = 0
     total = 0
@@ -125,7 +131,7 @@ def build_effort_report(project: BlueprintProject) -> EffortReport:
         found_effort=found,
         remaining_effort=formal_target - proved,
         coverage_percent=coverage,
-        by_tag=_build_by_tag(project),
+        by_tag=_build_by_tag(project) if include_by_tag else (),
     )
 
 
@@ -133,13 +139,15 @@ def _build_by_tag(project: BlueprintProject) -> tuple[TagEffort, ...]:
     """Group effort per tag, with an untagged bucket.
 
     Nodes carrying several tags count under each of them; untagged nodes fall
-    into the :data:`UNTAGGED` bucket. ``total_effort`` here is *all* effort under
-    the tag (not just formal targets) so a tag's progress is judged against its
-    whole scope. Tags are returned alphabetically, with the untagged bucket last.
+    into the :data:`UNTAGGED` bucket. The bucket is always present (with zeros
+    when every node is tagged) so consumers can rely on a stable output shape.
+    ``total_effort`` here is *all* effort under the tag (not just formal targets)
+    so a tag's progress is judged against its whole scope. Tags are returned
+    alphabetically, with the untagged bucket last.
     """
-    counts: dict[str, int] = {}
-    totals: dict[str, int] = {}
-    proved: dict[str, int] = {}
+    counts: dict[str, int] = {UNTAGGED: 0}
+    totals: dict[str, int] = {UNTAGGED: 0}
+    proved: dict[str, int] = {UNTAGGED: 0}
     for node in project.nodes:
         weight = _weight(node)
         is_proved = node.status.formal == FormalStatus.PROVED

@@ -843,7 +843,7 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(project)
+    report = build_effort_report(project, include_by_tag=args.by_tag)
     if args.json:
         print(json.dumps(report.to_dict(include_by_tag=args.by_tag), indent=2))
     else:

@@ -249,7 +249,7 @@ def test_by_tag_groups_and_multi_tag_counts_under_each():
             _tagged("c", effort=3, formal=FormalStatus.MISSING, tags=[]),
         ],
     )
-    report = build_effort_report(project)
+    report = build_effort_report(project, include_by_tag=True)
     by_tag = {t.tag: t for t in report.by_tag}
     assert set(by_tag) == {"algebra", "core", "(untagged)"}
     # a (4) + b (2) under algebra; only a is proved.
@@ -268,11 +268,42 @@ def test_by_tag_groups_and_multi_tag_counts_under_each():
     assert report.by_tag[-1].tag == "(untagged)"
 
 
+def test_by_tag_untagged_bucket_present_when_all_nodes_tagged():
+    # Every node carries a tag, yet the untagged bucket must still appear (zeros)
+    # so consumers can rely on a stable output shape and "untagged sorts last".
+    project = BlueprintProject.from_nodes(
+        "p",
+        [
+            _tagged("a", effort=2, formal=FormalStatus.PROVED, tags=["algebra"]),
+            _tagged("b", effort=1, formal=FormalStatus.FOUND, tags=["core"]),
+        ],
+    )
+    report = build_effort_report(project, include_by_tag=True)
+    by_tag = {t.tag: t for t in report.by_tag}
+    assert "(untagged)" in by_tag
+    untagged = by_tag["(untagged)"]
+    assert untagged.node_count == 0
+    assert untagged.total_effort == 0
+    assert untagged.proved_effort == 0
+    assert untagged.remaining_effort == 0
+    assert untagged.percent is None
+    assert report.by_tag[-1].tag == "(untagged)"
+
+
+def test_build_effort_report_by_tag_empty_by_default():
+    # build_effort_report omits the per-tag breakdown unless explicitly requested.
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=1, formal=FormalStatus.PROVED, tags=["x"])]
+    )
+    assert build_effort_report(project).by_tag == ()
+    assert build_effort_report(project, include_by_tag=True).by_tag != ()
+
+
 def test_to_dict_includes_by_tag_only_when_requested():
     project = BlueprintProject.from_nodes(
         "p", [_tagged("a", effort=1, formal=FormalStatus.PROVED, tags=["x"])]
     )
-    report = build_effort_report(project)
+    report = build_effort_report(project, include_by_tag=True)
     assert "by_tag" not in report.to_dict()
     payload = report.to_dict(include_by_tag=True)
     assert payload["by_tag"][0]["tag"] == "x"
@@ -283,7 +314,7 @@ def test_render_by_tag_table_present_only_when_requested():
     project = BlueprintProject.from_nodes(
         "p", [_tagged("a", effort=2, formal=FormalStatus.PROVED, tags=["algebra"])]
     )
-    report = build_effort_report(project)
+    report = build_effort_report(project, include_by_tag=True)
     assert "Effort by tag" not in render_effort_report(report)
     rendered = render_effort_report(report, by_tag=True)
     assert "## Effort by tag" in rendered
