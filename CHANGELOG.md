@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deps), freshness, documentation completeness, and agent readiness. Components
   with no applicable nodes drop out and the remaining weights are renormalised.
   `--json` emits the structured score; also available as the MCP `scorecard` tool.
+  `--min-grade GRADE` turns it into a CI gate: exit `5` when the overall grade
+  falls below `GRADE` (case-insensitive, e.g. `--min-grade B-`), matching the
+  fail flags on `gate`/`staleness`/`diff`/`burndown`. An ungradeable (empty)
+  project never trips the gate, and `--json` adds a `gate` object reporting the
+  threshold and whether it was met.
 - **`tags` command** rolls up nodes by tag: node count, formal targets,
   proved/found/problem counts, and per-tag proved-coverage, plus an untagged
   count. Nodes with multiple tags are counted under each. `--json` emits the

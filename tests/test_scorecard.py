@@ -8,9 +8,11 @@ from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
 from isabelle_blueprint.report.scorecard import (
+    ALL_GRADES,
     SCORECARD_SCHEMA_VERSION,
     build_scorecard,
     grade_for,
+    grade_threshold,
     render_scorecard,
 )
 
@@ -196,3 +198,81 @@ def test_cli_json(tmp_path: Path, capsys) -> None:
     assert set(data.keys()) >= {"project", "score", "grade", "components"}
     assert len(data["components"]) == 6
     assert isinstance(data["grade"], str) and data["grade"]
+    # Without --min-grade there is no gate object.
+    assert "gate" not in data
+
+
+def test_grade_threshold_and_all_grades() -> None:
+    assert grade_threshold("A+") == 97
+    assert grade_threshold("B") == 83
+    assert grade_threshold("F") == 0
+    assert grade_threshold("n/a") is None
+    assert grade_threshold("Z") is None
+    # Best grade first, n/a sentinel excluded.
+    assert ALL_GRADES[0] == "A+"
+    assert ALL_GRADES[-1] == "F"
+    assert "n/a" not in ALL_GRADES
+
+
+def test_cli_min_grade_below_threshold_fails(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    # _BODY is a real, non-perfect project: it cannot reach A+ (>=97).
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "A+"])
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "min-grade policy triggered" in err
+
+
+def test_cli_min_grade_met_passes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "F"])
+
+    assert rc == 0
+    assert "policy triggered" not in capsys.readouterr().err
+
+
+def test_cli_min_grade_is_case_insensitive(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "a+", "--json"])
+
+    assert rc == 5
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert gate["min_grade"] == "A+"  # normalised to canonical form
+    assert gate["meets_min_grade"] is False
+
+
+def test_cli_min_grade_json_gate_present_when_met(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "F", "--json"])
+
+    assert rc == 0
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert gate["meets_min_grade"] is True
+    assert gate["min_grade"] == "F"
+
+
+def test_cli_min_grade_ungradeable_project_does_not_fail(tmp_path: Path, capsys) -> None:
+    # A project with no nodes is ungradeable (score None); the gate must not fire.
+    _write_project(tmp_path, "# empty project\n", name="empty")
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "A"])
+
+    assert rc == 0
+    assert "not enforced" in capsys.readouterr().err
+
+
+def test_cli_min_grade_invalid_value_is_usage_error(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "Z"])
+    except SystemExit as exc:  # argparse raises SystemExit(2) on bad choice
+        rc = exc.code
+    assert rc == 2
+    assert "invalid grade" in capsys.readouterr().err
+

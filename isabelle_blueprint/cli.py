@@ -230,7 +230,12 @@ from isabelle_blueprint.report.roadmap import (
     write_roadmap,
 )
 from isabelle_blueprint.report.sarif import render_sarif
-from isabelle_blueprint.report.scorecard import build_scorecard, render_scorecard
+from isabelle_blueprint.report.scorecard import (
+    ALL_GRADES,
+    build_scorecard,
+    grade_threshold,
+    render_scorecard,
+)
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
     render_staleness_report,
@@ -331,6 +336,16 @@ def _add_fail_on_argument(parser: argparse.ArgumentParser) -> None:
             "repeatable; 'problem' expands to all problem statuses"
         ),
     )
+
+
+def _grade_arg(value: str) -> str:
+    """argparse ``type`` that accepts a letter grade case-insensitively."""
+    normalized = value.strip().upper()
+    if grade_threshold(normalized) is None:
+        raise argparse.ArgumentTypeError(
+            f"invalid grade {value!r}; choose one of {', '.join(ALL_GRADES)}"
+        )
+    return normalized
 
 
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
@@ -676,11 +691,47 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     card = build_scorecard(project)
+
+    exit_code = 0
+    gate: dict[str, object] | None = None
+    min_grade = getattr(args, "min_grade", None)
+    if min_grade is not None:
+        # Validated at parse time, so the threshold is always defined.
+        threshold = grade_threshold(min_grade)
+        if card.score is None:
+            meets: bool | None = None  # nothing gradeable; do not fail the gate
+        else:
+            meets = card.score >= (threshold or 0)
+            if not meets:
+                exit_code = 5
+        gate = {
+            "min_grade": min_grade,
+            "score": card.score,
+            "grade": card.grade,
+            "meets_min_grade": meets,
+        }
+
     if args.json:
-        print(json.dumps(card.to_dict(), indent=2))
+        payload = card.to_dict()
+        if gate is not None:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
     else:
         print(render_scorecard(card), end="")
-    return 0
+        if gate is not None:
+            if gate["meets_min_grade"] is None:
+                print(
+                    f"min-grade {min_grade} not enforced: project has no gradeable "
+                    "components yet.",
+                    file=sys.stderr,
+                )
+            elif exit_code == 5:
+                print(
+                    f"min-grade policy triggered: {card.grade} "
+                    f"({card.score}/100) is below {min_grade}.",
+                    file=sys.stderr,
+                )
+    return exit_code
 
 
 def cmd_tags(args: argparse.Namespace) -> int:
@@ -2410,6 +2461,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_scorecard.add_argument("project_dir", nargs="?", default=".")
     p_scorecard.add_argument(
         "--json", action="store_true", help="emit the scorecard as JSON"
+    )
+    p_scorecard.add_argument(
+        "--min-grade",
+        type=_grade_arg,
+        metavar="GRADE",
+        help=(
+            "exit non-zero (5) if the overall grade is below GRADE "
+            f"(one of {', '.join(ALL_GRADES)}; case-insensitive). An ungradeable "
+            "(empty) project never fails the gate."
+        ),
     )
     p_scorecard.set_defaults(func=cmd_scorecard)
 
