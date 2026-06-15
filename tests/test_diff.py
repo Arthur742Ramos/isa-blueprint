@@ -214,3 +214,76 @@ def test_diff_regressions_are_plain_without_colour(tmp_path: Path, capsys) -> No
     out = capsys.readouterr().out
     assert "\033[" not in out
     assert "[regression]" in out  # plain marker unchanged
+
+
+def test_diff_fail_on_change_trips_on_added_only(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    # Baseline has no nodes, so the current node `a` is purely *added* -- a
+    # change but not a regression.
+    baseline = _write_baseline(tmp_path, [])
+
+    # --fail-on-regression alone is satisfied: an added node is not a regression.
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--json", "--fail-on-regression"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["added"] == ["a"]
+    assert data["has_regression"] is False
+
+    # --fail-on-change trips on the same added-only diff.
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--json", "--fail-on-change"])
+    assert rc == 5
+    out = capsys.readouterr()
+    data = json.loads(out.out)
+    assert data["added"] == ["a"]  # JSON shape/output unchanged by the gate
+    assert "change detected vs baseline" in out.err
+
+
+def test_diff_fail_on_change_zero_when_identical(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    rc = cli_main(["report", str(tmp_path)])
+    assert rc == 0
+    capsys.readouterr()
+    baseline = tmp_path / "build" / "project.json"
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--fail-on-change"])
+    assert rc == 0
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--fail-on-regression"])
+    assert rc == 0
+
+
+def test_diff_fail_on_change_composes_with_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    baseline = _write_baseline(tmp_path, [])
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--markdown", "--fail-on-change"])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "## diff: diff-test" in out  # markdown output unaffected by the gate
+
+
+def test_diff_both_flags_emit_regression_message(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    # Node `a` is downgraded proved->stub: a regression (which also counts as a
+    # change). With BOTH gates set, the more specific regression message must win.
+    baseline = _write_baseline(
+        tmp_path,
+        [{"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}}],
+    )
+
+    rc = cli_main(
+        [
+            "diff",
+            str(baseline),
+            str(tmp_path),
+            "--fail-on-regression",
+            "--fail-on-change",
+        ]
+    )
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "regression detected vs baseline" in err
+    assert "change detected vs baseline" not in err
+
