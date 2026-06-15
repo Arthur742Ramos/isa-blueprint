@@ -207,6 +207,12 @@ def _all_shortest_paths(
     queue: deque[str] = deque([start])
     while queue:
         current = queue.popleft()
+        # Once the goal's distance is known, nodes already at/beyond it cannot
+        # lie on a shortest path to goal (their successors are strictly deeper),
+        # so stop expanding them. BFS visits nodes in distance order, so every
+        # predecessor of goal is still recorded before we reach this point.
+        if goal in dist and dist[current] >= dist[goal]:
+            continue
         for neighbour in edges.get(current, []):
             nd = dist[current] + 1
             if neighbour not in dist:

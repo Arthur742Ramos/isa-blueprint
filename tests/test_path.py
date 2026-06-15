@@ -219,6 +219,23 @@ def test_all_enumerates_every_shortest_path() -> None:
     assert report.length == 2
 
 
+def test_all_ignores_nodes_beyond_the_goal() -> None:
+    # base has a deeper dependency (base -> deep) that lies past the goal in the
+    # BFS; enumerating shortest paths must not be perturbed by it.
+    project = _project(
+        _node("deep"),
+        _node("base", uses=["deep"]),
+        _node("m1", uses=["base"]),
+        _node("m2", uses=["base"]),
+        _node("goal", uses=["m1", "m2"]),
+    )
+
+    report = build_path_report(project, "goal", "base", all_paths=True)
+
+    assert report.paths == [["goal", "m1", "base"], ["goal", "m2", "base"]]
+    assert report.length == 2
+
+
 def test_all_default_off_returns_single_path() -> None:
     report = build_path_report(_diamond(), "goal", "base")
 
