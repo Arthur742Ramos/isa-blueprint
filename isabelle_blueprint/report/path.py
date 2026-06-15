@@ -16,7 +16,7 @@ Isabelle invocation is required.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
@@ -46,6 +46,7 @@ class PathReport:
     direction: str | None
     path: list[str]
     length: int
+    paths: list[list[str]] = field(default_factory=list)
     schema_version: int = PATH_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, object]:
@@ -60,14 +61,23 @@ class PathReport:
             "direction": self.direction,
             "path": list(self.path),
             "length": self.length,
+            "paths": [list(p) for p in self.paths],
         }
 
 
-def build_path_report(project: BlueprintProject, source: str, target: str) -> PathReport:
+def build_path_report(
+    project: BlueprintProject,
+    source: str,
+    target: str,
+    *,
+    all_paths: bool = False,
+) -> PathReport:
     """Find the shortest dependency path between ``source`` and ``target``.
 
     Raises :class:`UnknownNodeError` (carrying the offending id) when either
-    endpoint is not a known node.
+    endpoint is not a known node. When ``all_paths`` is true, every shortest
+    path of equal minimal length is enumerated into ``PathReport.paths`` (the
+    single ``path`` field keeps the first for back-compat).
     """
 
     by_id = project.by_id()
@@ -78,7 +88,8 @@ def build_path_report(project: BlueprintProject, source: str, target: str) -> Pa
 
     graph = build_graph(project)
 
-    def make(found: bool, direction: str | None, path: list[str]) -> PathReport:
+    def make(found: bool, direction: str | None, paths: list[list[str]]) -> PathReport:
+        first = paths[0] if paths else []
         return PathReport(
             project=project.name,
             source=source,
@@ -87,19 +98,20 @@ def build_path_report(project: BlueprintProject, source: str, target: str) -> Pa
             target_title=by_id[target].title,
             found=found,
             direction=direction,
-            path=path,
-            length=max(len(path) - 1, 0) if found else 0,
+            path=first,
+            length=max(len(first) - 1, 0) if found else 0,
+            paths=[list(p) for p in paths],
         )
 
     if source == target:
-        return make(True, DIRECTION_SELF, [source])
+        return make(True, DIRECTION_SELF, [[source]])
 
-    forward = _shortest_path(graph.edges, source, target)
-    if forward is not None:
+    forward = _resolve_paths(graph.edges, source, target, all_paths=all_paths)
+    if forward:
         return make(True, DIRECTION_DEPENDS_ON, forward)
 
-    backward = _shortest_path(graph.edges, target, source)
-    if backward is not None:
+    backward = _resolve_paths(graph.edges, target, source, all_paths=all_paths)
+    if backward:
         return make(True, DIRECTION_DEPENDED_ON_BY, backward)
 
     return make(False, None, [])
@@ -123,9 +135,34 @@ def render_path_report(report: PathReport) -> str:
         summary = f"`{report.source}` depends on `{report.target}`"
     else:
         summary = f"`{report.target}` depends on `{report.source}`"
-    lines.append(f"{summary} ({report.length} step(s)).")
-    lines.append("Path: " + " -> ".join(f"`{node_id}`" for node_id in report.path))
+    paths = report.paths or [report.path]
+    if len(paths) > 1:
+        lines.append(f"{summary} ({report.length} step(s), {len(paths)} shortest path(s)).")
+        for index, chain in enumerate(paths, start=1):
+            lines.append(
+                f"Path {index}: " + " -> ".join(f"`{node_id}`" for node_id in chain)
+            )
+    else:
+        lines.append(f"{summary} ({report.length} step(s)).")
+        lines.append("Path: " + " -> ".join(f"`{node_id}`" for node_id in report.path))
     return "\n".join(lines) + "\n"
+
+
+def _resolve_paths(
+    edges: dict[str, list[str]], start: str, goal: str, *, all_paths: bool
+) -> list[list[str]]:
+    """Shortest path(s) from ``start`` to ``goal``.
+
+    With ``all_paths`` false this returns at most one path (the back-compatible
+    deterministic shortest path). With ``all_paths`` true it returns every
+    shortest path of equal minimal length, sorted lexicographically so the first
+    matches the single-path result.
+    """
+
+    if not all_paths:
+        single = _shortest_path(edges, start, goal)
+        return [single] if single is not None else []
+    return _all_shortest_paths(edges, start, goal)
 
 
 def _shortest_path(
@@ -151,6 +188,55 @@ def _shortest_path(
                 return _reconstruct(parents, start, goal)
             queue.append(neighbour)
     return None
+
+
+def _all_shortest_paths(
+    edges: dict[str, list[str]], start: str, goal: str
+) -> list[list[str]]:
+    """Enumerate every shortest path from ``start`` to ``goal``.
+
+    A breadth-first sweep records the minimal distance to each node and every
+    predecessor lying on a shortest route; the predecessor DAG is then expanded
+    into concrete chains. Results are sorted lexicographically.
+    """
+
+    if start == goal:
+        return [[start]]
+    dist: dict[str, int] = {start: 0}
+    preds: dict[str, list[str]] = {}
+    queue: deque[str] = deque([start])
+    while queue:
+        current = queue.popleft()
+        # Once the goal's distance is known, nodes already at/beyond it cannot
+        # lie on a shortest path to goal (their successors are strictly deeper),
+        # so stop expanding them. BFS visits nodes in distance order, so every
+        # predecessor of goal is still recorded before we reach this point.
+        if goal in dist and dist[current] >= dist[goal]:
+            continue
+        for neighbour in edges.get(current, []):
+            nd = dist[current] + 1
+            if neighbour not in dist:
+                dist[neighbour] = nd
+                preds[neighbour] = [current]
+                queue.append(neighbour)
+            elif dist[neighbour] == nd:
+                preds[neighbour].append(current)
+    if goal not in dist:
+        return []
+
+    chains: list[list[str]] = []
+
+    def walk(node: str, suffix: list[str]) -> None:
+        chain = [node, *suffix]
+        if node == start:
+            chains.append(chain)
+            return
+        for parent in preds.get(node, []):
+            walk(parent, chain)
+
+    walk(goal, [])
+    chains.sort()
+    return chains
 
 
 def _reconstruct(parents: dict[str, str], start: str, goal: str) -> list[str]:

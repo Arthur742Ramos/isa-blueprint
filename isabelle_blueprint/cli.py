@@ -825,7 +825,12 @@ def cmd_path(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     try:
-        report = build_path_report(project, args.source, args.target)
+        report = build_path_report(
+            project,
+            args.source,
+            args.target,
+            all_paths=getattr(args, "all_paths", False),
+        )
     except PathUnknownNodeError as exc:
         unknown = exc.args[0] if exc.args else "?"
         known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
@@ -2624,6 +2629,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_path.add_argument("target", help="target node id")
     p_path.add_argument("project_dir", nargs="?", default=".")
     p_path.add_argument("--json", action="store_true", help="emit the path report as JSON")
+    p_path.add_argument(
+        "--all",
+        action="store_true",
+        dest="all_paths",
+        help="enumerate all shortest paths of equal minimal length",
+    )
     p_path.set_defaults(func=cmd_path)
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
