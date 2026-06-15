@@ -127,6 +127,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--json`, respects `--limit`, and leaves the default text output unchanged,
   so trend history can be piped into spreadsheets and plotting tools without
   post-processing JSON.
+- **`fmt --diff`** previews canonicalisation as a unified diff without writing,
+  exiting `10` on drift. Diff mode implies check-only semantics, so the
+  `--json` payload reports `check_only: true` to reflect that nothing was
+  written.
 
 ### Changed
 

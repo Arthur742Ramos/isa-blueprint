@@ -1276,11 +1276,20 @@ def cmd_fmt(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config = load_config_checked(project_dir)
     paths = [p for p in config.blueprint_paths if p.exists()]
+    diff = getattr(args, "diff", False)
     result = format_blueprint_paths(
-        paths, project_name=config.project_name, check_only=args.check
+        paths, project_name=config.project_name, check_only=args.check, diff=diff
     )
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
+    elif diff:
+        for entry in result.files:
+            if entry.skipped:
+                print(f"  skipped {entry.path} ({entry.reason})")
+            elif entry.diff:
+                print(entry.diff, end="" if entry.diff.endswith("\n") else "\n")
+        if not result.would_change:
+            print("All Markdown blueprints are already canonical.")
     else:
         for entry in result.files:
             if entry.skipped:
@@ -1290,7 +1299,7 @@ def cmd_fmt(args: argparse.Namespace) -> int:
                 print(f"  {verb}: {entry.path}")
         if not result.would_change:
             print("All Markdown blueprints are already canonical.")
-    if args.check and result.would_change:
+    if (args.check or diff) and result.would_change:
         return 10
     return 0
 
@@ -2897,6 +2906,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--check",
         action="store_true",
         help="report non-canonical files and exit non-zero (10) without writing",
+    )
+    p_fmt.add_argument(
+        "--diff",
+        action="store_true",
+        help="print a unified diff of canonicalisation without writing; exits 10 on drift",
     )
     p_fmt.add_argument("--json", action="store_true", help="emit the format result as JSON")
     p_fmt.set_defaults(func=cmd_fmt)
