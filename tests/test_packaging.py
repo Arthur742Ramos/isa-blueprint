@@ -6,6 +6,25 @@ import tomllib
 from pathlib import Path
 
 
+def test_package_version_matches_pyproject():
+    """The 1.11.0/1.12.0 drift shipped silently because ``__version__`` was a
+    hand-maintained literal. ``__init__`` now single-sources the version from
+    installed metadata, but the literal fallback must still match pyproject."""
+    import isabelle_blueprint
+
+    root = Path(__file__).resolve().parents[1]
+    data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    declared = data["project"]["version"]
+
+    assert isabelle_blueprint.__version__ == declared, (
+        f"runtime __version__={isabelle_blueprint.__version__!r} != "
+        f"pyproject version={declared!r}"
+    )
+    assert isabelle_blueprint._FALLBACK_VERSION == declared, (
+        "the source-tree fallback version must track pyproject.toml"
+    )
+
+
 def test_py_typed_marker_is_packaged():
     root = Path(__file__).resolve().parents[1]
     data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
