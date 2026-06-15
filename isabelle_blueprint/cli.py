@@ -875,11 +875,11 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(project)
+    report = build_effort_report(project, include_by_tag=args.by_tag)
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        print(json.dumps(report.to_dict(include_by_tag=args.by_tag), indent=2))
     else:
-        print(render_effort_report(report), end="")
+        print(render_effort_report(report, by_tag=args.by_tag), end="")
     return 0
 
 
@@ -2662,6 +2662,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_effort.add_argument("project_dir", nargs="?", default=".")
     p_effort.add_argument(
         "--json", action="store_true", help="emit the effort report as JSON"
+    )
+    p_effort.add_argument(
+        "--by-tag",
+        action="store_true",
+        help="additionally group effort-weighted progress per tag",
     )
     p_effort.set_defaults(func=cmd_effort)
 
