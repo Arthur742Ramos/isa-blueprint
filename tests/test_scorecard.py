@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from isabelle_blueprint import console
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -447,3 +448,21 @@ def test_cli_markdown_composes_with_min_grade_gate(tmp_path: Path, capsys) -> No
     # Gate still controls the exit code, and the file is still written.
     assert rc == 5
     assert (tmp_path / "build" / "scorecard.md").is_file()
+
+
+def test_cli_markdown_no_ansi_when_colour_forced_on(tmp_path: Path, capsys) -> None:
+    # Regression: the file render must never leak ANSI escapes, even when the
+    # console has colour forced on. pytest stdout is non-TTY, so colour is
+    # normally off and this path goes untested without `--color always`.
+    _write_project(tmp_path, _BODY)
+    was_enabled = console.is_enabled()
+    try:
+        rc = cli_main(["--color", "always", "scorecard", str(tmp_path), "--markdown"])
+    finally:
+        console.set_enabled(was_enabled)
+
+    assert rc == 0
+    # Stdout was coloured (proves colour was on for this run), but the file is not.
+    assert "\x1b" in capsys.readouterr().out
+    text = (tmp_path / "build" / "scorecard.md").read_text(encoding="utf-8")
+    assert "\x1b" not in text
