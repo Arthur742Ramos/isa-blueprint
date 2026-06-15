@@ -107,3 +107,51 @@ Sketch.
 
     assert rc == 0
     capsys.readouterr()
+
+
+def test_lint_clean_project_has_no_duplicate_title(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "duplicate-title" not in codes
+
+
+def test_lint_flags_duplicate_titles(tmp_path: Path, capsys) -> None:
+    body = """# dup
+
+::: lemma {#a}
+title: Same Title
+isabelle: Demo.a
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title:   same title
+isabelle: Demo.b
+status: stub
+uses: a
+
+Another statement.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    dup = [f for f in data["findings"] if f["code"] == "duplicate-title"]
+    assert {f["node_id"] for f in dup} == {"a", "b"}
+    assert all(f["severity"] == "warning" for f in dup)
+    assert any("'b'" in f["message"] for f in dup if f["node_id"] == "a")
+
