@@ -106,6 +106,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- `graph --format d2` emits a [D2](https://d2lang.com) (`build/graph.d2`)
+  dependency graph; it is opt-in only and left out of the default `all` set, so
+  existing `graph` output is unchanged.
+- **`duplicate-title` lint rule** flags two or more nodes that share an
+  identical (case-insensitive, trimmed) non-empty title as a warning, catching
+  accidental copy-paste collisions; it surfaces in `lint --json` and SARIF.
+- **`tags --tag NAME`** restricts the roll-up to the named tag(s) (repeatable);
+  an unknown tag yields a zero/empty row rather than an error, so the filter
+  behaves additively. Project-wide `total_nodes`/`untagged_count` and the JSON
+  shape are unchanged.
 - **`assign --json`** now also emits additive `count` (number of assignment
   records) and `owners` (a `node_id -> owner` map) keys alongside the existing
   `project` and `assignments` fields, so consumers no longer have to derive the

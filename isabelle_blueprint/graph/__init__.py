@@ -2,6 +2,7 @@
 
 from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
 from isabelle_blueprint.graph.graphviz_render import (
+    render_d2,
     render_dot,
     render_json,
     render_svg,
@@ -11,6 +12,7 @@ from isabelle_blueprint.graph.graphviz_render import (
 __all__ = [
     "build_graph",
     "dependency_levels",
+    "render_d2",
     "render_dot",
     "render_json",
     "render_svg",
