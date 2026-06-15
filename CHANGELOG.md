@@ -173,6 +173,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call relies on — gained a dedicated behavioural test suite that drives real
   short-lived subprocesses through the happy path, stdin-EOF, non-UTF-8 decode,
   `timeout` tree-kill, and `max_output_bytes` flood-cap paths.
+- **`staleness --markdown`** renders the trust audit as a portable Markdown table
+  (heading, summary line, and one row per flagged trusted node with its
+  problem/incomplete/outdated severity and causes). Mutually exclusive with
+  `--json`; honours `--top` / `--max-causes`; default text output is unchanged.
 
 ### Fixed
 
