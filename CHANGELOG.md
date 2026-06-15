@@ -149,6 +149,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`portfolio --csv`** exports the roll-up as CSV (header plus one row per
+  project: name, path, node count, coverage, proved, problems, cycles flag, and
+  health/status), mutually exclusive with `--json`; the default text view is
+  unchanged.
 
 ### Changed
 

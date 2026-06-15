@@ -217,6 +217,7 @@ from isabelle_blueprint.report.path import (
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     portfolio_payload,
+    render_portfolio_csv,
     render_portfolio_report,
 )
 from isabelle_blueprint.report.pr_comment import (
@@ -1240,6 +1241,8 @@ def cmd_portfolio(args: argparse.Namespace) -> int:
     report = build_portfolio(root)
     if args.json:
         print(json.dumps(portfolio_payload(report), indent=2))
+    elif args.csv:
+        print(render_portfolio_csv(report), end="")
     else:
         print(render_portfolio_report(report), end="")
     if args.fail_on_problem and (
@@ -2994,8 +2997,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=".",
         help="directory tree to scan for blueprint projects (default: .)",
     )
-    p_portfolio.add_argument(
+    p_portfolio_format = p_portfolio.add_mutually_exclusive_group()
+    p_portfolio_format.add_argument(
         "--json", action="store_true", help="emit the roll-up as JSON"
+    )
+    p_portfolio_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit one CSV row per project (header + name, path, counts, status)",
     )
     p_portfolio.add_argument(
         "--fail-on-problem",
