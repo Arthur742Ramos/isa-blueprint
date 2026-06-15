@@ -295,8 +295,19 @@ def test_render_markdown_lists_flagged_node() -> None:
     )
     md = render_staleness_markdown(report)
     assert "| Node | Title | Formal | Severity | Causes |" in md
-    assert "| `b` |" in md
-    assert "incomplete" in md
+    b_row = next(line for line in md.splitlines() if line.startswith("| `b` |"))
+    assert "incomplete" in b_row
+
+
+def test_render_markdown_escapes_pipe_and_newline_in_title() -> None:
+    a = _node("a", formal=FormalStatus.NAMED)
+    b = _node("b", uses=["a"], formal=FormalStatus.PROVED)
+    b.title = "Has | pipe\nand newline"
+    report = build_staleness_report(_project(a, b))
+    md = render_staleness_markdown(report)
+    b_row = next(line for line in md.splitlines() if line.startswith("| `b` |"))
+    # The escaped pipe stays inside the title cell; no raw newline splits the row.
+    assert r"Has \| pipe and newline" in b_row
 
 
 def test_cli_staleness_markdown(tmp_path: Path, capsys) -> None:

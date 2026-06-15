@@ -427,6 +427,16 @@ def render_staleness_report(
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
 def _markdown_cause(cause: StaleCause) -> str:
     """Render a single cause as a compact, table-cell-safe phrase."""
 
@@ -470,8 +480,8 @@ def render_staleness_markdown(
             causes.append(f"... +{hidden} more")
         severity = item.severity + (", cycle" if item.in_cycle else "")
         lines.append(
-            f"| `{item.node_id}` | {item.title} | `{item.formal_status}` "
-            f"| {severity} | {'; '.join(causes)} |"
+            f"| `{item.node_id}` | {_md_cell(item.title)} | `{item.formal_status}` "
+            f"| {severity} | {_md_cell('; '.join(causes))} |"
         )
 
     hidden_nodes = report.stale_count - top
