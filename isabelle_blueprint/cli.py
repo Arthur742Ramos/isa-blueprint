@@ -677,7 +677,7 @@ def cmd_graph(args: argparse.Namespace) -> int:
                 f"unknown node {focus!r}; known node ids: {known}"
             ) from None
     fmt = getattr(args, "format", "all")
-    formats = ("dot", "json", "svg", "mermaid", "graphml", "d2") if fmt == "all" else (fmt,)
+    formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
     for name, path in written.items():
         print(f"{name} -> {path}")

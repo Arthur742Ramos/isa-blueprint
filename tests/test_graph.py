@@ -387,9 +387,13 @@ B builds on A.
     assert '"b" -> "a"' in text
     # Only the d2 artifact should be written for --format d2.
     assert not (tmp_path / "build" / "graph.dot").exists()
+    assert not (tmp_path / "build" / "graph.json").exists()
+    assert not (tmp_path / "build" / "graph.svg").exists()
+    assert not (tmp_path / "build" / "graph.mmd").exists()
+    assert not (tmp_path / "build" / "graph.graphml").exists()
 
 
-def test_cli_graph_format_all_includes_d2(tmp_path, capsys):
+def test_cli_graph_format_all_excludes_d2(tmp_path, capsys):
     (tmp_path / "isabelle-blueprint.toml").write_text(
         '[project]\nname = "graph-all-d2"\n', encoding="utf-8"
     )
@@ -412,7 +416,8 @@ A statement.
 
     assert rc == 0
     capsys.readouterr()
-    assert (tmp_path / "build" / "graph.d2").exists()
+    # d2 is opt-in only; the default `all` set stays byte-unchanged.
+    assert not (tmp_path / "build" / "graph.d2").exists()
 
 
 def test_cli_graph_focus_unknown_node_errors(tmp_path, capsys):
