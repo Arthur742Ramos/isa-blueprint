@@ -65,6 +65,72 @@ def render_explanations(explanations: list[NodeExplanation]) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+def _md_inline(text: str) -> str:
+    """Neutralise newlines in a value used inside a Markdown line."""
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+
+def render_explanations_markdown(
+    explanations: list[NodeExplanation],
+    project: BlueprintProject | None = None,
+) -> str:
+    """Render explanations as a Markdown document.
+
+    Each node gets a heading carrying its id and title, a status block listing
+    the blueprint/formal/agent status, its direct dependencies, and any
+    reasons/suggestions/next steps. ``project`` supplies the blueprint/agent
+    status and dependency list; when omitted only the formal status is shown.
+    """
+
+    by_id = project.by_id() if project is not None else {}
+    blocks: list[str] = []
+    for explanation in explanations:
+        node = by_id.get(explanation.node_id)
+        lines: list[str] = []
+        lines.append(f"# {_md_inline(explanation.node_id)}: {_md_inline(explanation.title)}")
+        lines.append("")
+        lines.append(f"_{_md_inline(explanation.summary)}_ ({_md_inline(explanation.severity)})")
+        lines.append("")
+        lines.append("## Status")
+        lines.append("")
+        if node is not None:
+            lines.append(f"- Blueprint: `{node.status.blueprint.value}`")
+        lines.append(f"- Formal: `{explanation.formal_status}`")
+        if node is not None:
+            lines.append(f"- Agent: `{node.status.agent.value}`")
+        lines.append("")
+        lines.append("## Dependencies")
+        lines.append("")
+        deps = list(node.uses) if node is not None else []
+        if deps:
+            for dep in deps:
+                lines.append(f"- `{_md_inline(dep)}`")
+        else:
+            lines.append("- _none_")
+        lines.append("")
+        if explanation.reasons:
+            lines.append("## Reasons")
+            lines.append("")
+            for reason in explanation.reasons:
+                lines.append(f"- {_md_inline(reason)}")
+            lines.append("")
+        if explanation.suggestions:
+            lines.append("## Suggestions")
+            lines.append("")
+            for suggestion in explanation.suggestions:
+                lines.append(f"- {_md_inline(suggestion)}")
+            lines.append("")
+        if explanation.next_steps:
+            lines.append("## Next steps")
+            lines.append("")
+            for step in explanation.next_steps:
+                lines.append(f"- {_md_inline(step)}")
+            lines.append("")
+        blocks.append("\n".join(lines).rstrip())
+    return "\n\n".join(blocks) + "\n" if blocks else ""
+
+
 def _explain_node(
     project: BlueprintProject,
     node: BlueprintNode,
