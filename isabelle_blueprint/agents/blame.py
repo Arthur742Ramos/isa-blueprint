@@ -218,6 +218,43 @@ def render_blame(blames: list[NodeBlame]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_blame_table(blames: list[NodeBlame]) -> str:
+    """Render ``blames`` as a compact one-row-per-node table (trailing newline)."""
+    if not blames:
+        return "no nodes to blame\n"
+    rows: list[tuple[str, str, str, str]] = []
+    for blame in blames:
+        location = blame.source_file or "(no source)"
+        if blame.source_line is not None:
+            location = f"{location}:{blame.source_line}"
+        if blame.git is not None:
+            git_cell = f"{blame.git.commit} {blame.git.author}"
+        else:
+            git_cell = "-"
+        if blame.memory is not None:
+            outcome = blame.memory.last_outcome or "?"
+            agent_cell = f"{blame.memory.attempts}x {outcome}"
+        else:
+            agent_cell = "-"
+        rows.append((blame.node_id, location, git_cell, agent_cell))
+
+    headers = ("NODE", "SOURCE", "GIT", "AGENT")
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    def _fmt(cols: tuple[str, str, str, str]) -> str:
+        return "  ".join(
+            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i]
+            for i in range(len(cols))
+        ).rstrip()
+
+    lines = [_fmt(headers)]
+    lines.extend(_fmt(row) for row in rows)
+    return "\n".join(lines) + "\n"
+
+
 def blame_payload(blames: list[NodeBlame]) -> dict[str, object]:
     """Render ``blames`` as a JSON-serialisable payload."""
     return {"nodes": [blame.to_dict() for blame in blames]}

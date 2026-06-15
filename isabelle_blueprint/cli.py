@@ -24,6 +24,7 @@ from isabelle_blueprint.agents.blame import (
     blame_payload,
     build_blame,
     render_blame,
+    render_blame_table,
 )
 from isabelle_blueprint.agents.context import (
     DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
@@ -118,7 +119,9 @@ from isabelle_blueprint.isabelle.dump import (
 from isabelle_blueprint.isabelle.fact_search import (
     match_missing_facts,
     render_hits,
+    render_hits_markdown,
     render_matches,
+    render_matches_markdown,
     search_index,
 )
 from isabelle_blueprint.isabelle.root import default_session_dir
@@ -168,7 +171,12 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path,
     write_critical_path,
 )
-from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
+from isabelle_blueprint.report.diff import (
+    build_diff,
+    load_baseline,
+    render_diff,
+    render_diff_markdown,
+)
 from isabelle_blueprint.report.effort import build_effort_report, render_effort_report
 from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
 from isabelle_blueprint.report.github_actions import (
@@ -217,6 +225,7 @@ from isabelle_blueprint.report.path import (
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
     portfolio_payload,
+    render_portfolio_csv,
     render_portfolio_report,
 )
 from isabelle_blueprint.report.pr_comment import (
@@ -245,10 +254,15 @@ from isabelle_blueprint.report.scorecard import (
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
 )
-from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
+from isabelle_blueprint.report.stats import (
+    build_stats_report,
+    render_stats_markdown,
+    render_stats_report,
+)
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.tags import (
     build_tag_gate,
@@ -911,7 +925,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fail_on = _resolve_fail_on(getattr(args, "fail_on", None))
     report = build_gate_report(
-        project, min_coverage=args.min_coverage, fail_on=fail_on
+        project,
+        min_coverage=args.min_coverage,
+        fail_on=fail_on,
+        min_grade=getattr(args, "min_grade", None),
     )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
@@ -1020,6 +1037,8 @@ def cmd_blame(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(blame_payload(blames), indent=2))
+    elif args.table:
+        print(render_blame_table(blames), end="")
     else:
         print(render_blame(blames), end="")
     return 0
@@ -1033,6 +1052,16 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    elif getattr(args, "markdown", False):
+        from isabelle_blueprint import console
+
+        was_enabled = console.is_enabled()
+        console.set_enabled(False)
+        try:
+            markdown = render_critical_path(overview, top=args.top, goal=goal)
+        finally:
+            console.set_enabled(was_enabled)
+        print(markdown, end="")
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
@@ -1165,6 +1194,8 @@ def cmd_stats(args: argparse.Namespace) -> int:
     report = build_stats_report(memory, project)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif args.markdown:
+        print(render_stats_markdown(report), end="")
     else:
         print(render_stats_report(report), end="")
     return 0
@@ -1180,6 +1211,11 @@ def cmd_staleness(args: argparse.Namespace) -> int:
             report, top=args.top, max_causes=args.max_causes
         )
         print(json.dumps(payload, indent=2))
+    elif args.markdown:
+        print(
+            render_staleness_markdown(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
     else:
         print(
             render_staleness_report(report, top=args.top, max_causes=args.max_causes),
@@ -1204,6 +1240,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
     diff = build_diff(baseline_nodes, project)
     if args.json:
         print(json.dumps(diff.to_dict(), indent=2))
+    elif args.markdown:
+        print(render_diff_markdown(diff), end="")
     else:
         print(render_diff(diff), end="")
     if args.fail_on_regression and diff.has_regression:
@@ -1262,6 +1300,8 @@ def cmd_portfolio(args: argparse.Namespace) -> int:
     report = build_portfolio(root)
     if args.json:
         print(json.dumps(portfolio_payload(report), indent=2))
+    elif args.csv:
+        print(render_portfolio_csv(report), end="")
     else:
         print(render_portfolio_report(report), end="")
     if args.fail_on_problem and (
@@ -2437,6 +2477,18 @@ def cmd_theory_index(args: argparse.Namespace) -> int:
                 print("\n".join(result))
         return 0
 
+    if args.counts:
+        counts = index.counts()
+        if args.json:
+            print(json.dumps({"counts": counts}, indent=2))
+        else:
+            print(f"theories:    {counts['theories']}")
+            print(f"entries:     {counts['entries']}")
+            print(f"sorry/oops entries: {counts['sorry_entries']}")
+            print(f"unreferenced: {counts['unreferenced']}")
+            print(f"import edges: {counts['import_edges']}")
+        return 0
+
     if args.json:
         print(json.dumps(index.to_dict(), indent=2))
     else:
@@ -2458,6 +2510,8 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
                     indent=2,
                 )
             )
+        elif args.markdown:
+            print(render_hits_markdown(args.query, hits), end="")
         else:
             print(render_hits(args.query, hits), end="")
         return 0
@@ -2472,6 +2526,8 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
                 {"matches": [match.to_dict() for match in matches]}, indent=2
             )
         )
+    elif args.markdown:
+        print(render_matches_markdown(matches), end="")
     else:
         print(render_matches(matches), end="")
     return 0
@@ -2720,6 +2776,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="fail when any node has this formal status (repeatable; "
         f"'{FAIL_ON_PROBLEM_ALIAS}' expands to all problem statuses)",
     )
+    p_gate.add_argument(
+        "--min-grade",
+        type=_grade_arg,
+        default=None,
+        metavar="GRADE",
+        help=(
+            "fail (exit 5) when the project scorecard grade is below GRADE "
+            f"(one of {', '.join(ALL_GRADES)}; case-insensitive)"
+        ),
+    )
     p_gate.set_defaults(func=cmd_gate)
 
     p_prom = sub.add_parser(
@@ -2837,7 +2903,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="ID",
         help="restrict output to a single node id (default: all nodes)",
     )
-    p_blame.add_argument("--json", action="store_true", help="emit provenance as JSON")
+    p_blame_format = p_blame.add_mutually_exclusive_group()
+    p_blame_format.add_argument(
+        "--json", action="store_true", help="emit provenance as JSON"
+    )
+    p_blame_format.add_argument(
+        "--table",
+        action="store_true",
+        help="compact one-row-per-node table instead of the default detailed view",
+    )
     p_blame.set_defaults(func=cmd_blame)
 
     p_critical = sub.add_parser(
@@ -2845,7 +2919,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="show the longest remaining incomplete dependency chain and bottlenecks",
     )
     p_critical.add_argument("project_dir", nargs="?", default=".")
-    p_critical.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt = p_critical.add_mutually_exclusive_group()
+    p_critical_fmt.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt.add_argument(
+        "--markdown",
+        action="store_true",
+        help="print the report as plain Markdown (no colour) to stdout",
+    )
     p_critical.add_argument(
         "--top",
         type=_positive_int,
@@ -2907,7 +2987,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"
     )
     p_stats.add_argument("project_dir", nargs="?", default=".")
-    p_stats.add_argument("--json", action="store_true", help="emit stats as JSON")
+    p_stats_format = p_stats.add_mutually_exclusive_group()
+    p_stats_format.add_argument("--json", action="store_true", help="emit stats as JSON")
+    p_stats_format.add_argument(
+        "--markdown", action="store_true", help="emit stats as a Markdown document"
+    )
     p_stats.set_defaults(func=cmd_stats)
 
     p_staleness = sub.add_parser(
@@ -2915,7 +2999,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="audit trusted nodes whose found/proved status rests on shaky dependencies",
     )
     p_staleness.add_argument("project_dir", nargs="?", default=".")
-    p_staleness.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_staleness_format = p_staleness.add_mutually_exclusive_group()
+    p_staleness_format.add_argument(
+        "--json", action="store_true", help="emit the analysis as JSON"
+    )
+    p_staleness_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the trust audit as a Markdown table (no colour)",
+    )
     p_staleness.add_argument(
         "--top",
         type=_positive_int,
@@ -2961,7 +3053,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_diff.add_argument("baseline", help="path to a baseline project.json")
     p_diff.add_argument("project_dir", nargs="?", default=".")
-    p_diff.add_argument("--json", action="store_true", help="emit the diff as JSON")
+    p_diff_format = p_diff.add_mutually_exclusive_group()
+    p_diff_format.add_argument("--json", action="store_true", help="emit the diff as JSON")
+    p_diff_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the diff as a Markdown summary",
+    )
     p_diff.add_argument(
         "--fail-on-regression",
         action="store_true",
@@ -3026,8 +3124,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=".",
         help="directory tree to scan for blueprint projects (default: .)",
     )
-    p_portfolio.add_argument(
+    p_portfolio_format = p_portfolio.add_mutually_exclusive_group()
+    p_portfolio_format.add_argument(
         "--json", action="store_true", help="emit the roll-up as JSON"
+    )
+    p_portfolio_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit one CSV row per project (header + name, path, counts, status)",
     )
     p_portfolio.add_argument(
         "--fail-on-problem",
@@ -3617,6 +3721,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="list entries not referenced by any other indexed entry (not dead-code analysis)",
     )
+    p_tindex.add_argument(
+        "--counts",
+        action="store_true",
+        help=(
+            "print a compact numeric summary (theories, entries, sorry/oops "
+            "entries, unreferenced count, import-edge count)"
+        ),
+    )
     p_tindex.set_defaults(func=cmd_theory_index)
 
     p_search = sub.add_parser(
@@ -3668,7 +3780,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="maximum matches to show (per node in target mode; default: 10)",
     )
-    p_search.add_argument("--json", action="store_true", help="emit matches as JSON")
+    p_search_fmt = p_search.add_mutually_exclusive_group()
+    p_search_fmt.add_argument("--json", action="store_true", help="emit results as JSON")
+    p_search_fmt.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render results as a Markdown table (mutually exclusive with --json)",
+    )
     p_search.set_defaults(func=cmd_search_facts)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")

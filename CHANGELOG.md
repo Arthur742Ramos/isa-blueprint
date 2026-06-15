@@ -149,6 +149,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`critical-path --markdown`** prints the report as plain Markdown to stdout
+  (no ANSI colour even on a TTY), distinct from `--write`'s file artifacts. It
+  honours `--goal`/`--top` and is mutually exclusive with `--json`; the default
+  text output is unchanged.
+- **`gate --min-grade GRADE`** adds a scorecard-grade threshold to the CI gate:
+  it additionally fails (exit `5`) when the project scorecard grade is below
+  `GRADE` (case-insensitive A+…F, reusing the `scorecard` grades), and the JSON
+  `checks` array gains a `min_grade` entry. An ungradeable project (no gradeable
+  components) also fails the check — unlike `scorecard --min-grade`, the gate
+  cannot show an unknown grade clears the bar. Without the flag, gate output and
+  exit code are unchanged.
+- **`stats --markdown`** renders the agent-memory analytics as a Markdown
+  document (summary, outcomes, and per-node tables) to stdout; mutually
+  exclusive with `--json` and leaves the default text output unchanged.
+- **`theory-index --counts`** prints a compact numeric summary of the
+  source-only index (theory count, total entries, entries carrying a
+  `sorry`/`oops`, unreferenced-entry count, and total in-project import edges)
+  without needing Isabelle. With `--json` it emits an additive `counts` object;
+  the default index output is unchanged.
+- **`blame --table`** renders a compact one-row-per-node provenance table (node,
+  source, last git commit, agent attempts) as an alternative to the default
+  detailed multi-line view, for quickly scanning provenance across all nodes.
+- **`portfolio --csv`** exports the roll-up as CSV (header plus one row per
+  project: name, path, node count, coverage, proved, problems, cycles flag, and
+  health/status), mutually exclusive with `--json`; the default text view is
+  unchanged.
+- **`staleness --markdown`** renders the trust audit as a portable Markdown table
+  (heading, summary line, and one row per flagged trusted node with its
+  problem/incomplete/outdated severity and causes). Mutually exclusive with
+  `--json`; honours `--top` / `--max-causes`; default text output is unchanged.
+- **`search-facts --markdown`** renders the candidate-fact results as a Markdown
+  table (fact name, score, source theory) under a query heading, for pasting
+  into issues or notes. Mutually exclusive with `--json`; text output unchanged.
+- **`diff --markdown`** renders the project-vs-baseline comparison as a Markdown
+  summary (sections for added, removed, and changed nodes, with regressions
+  flagged) suitable for a PR comment or step summary. It is mutually exclusive
+  with `--json`, preserves the `--fail-on-regression` exit `5` behaviour, and
+  leaves the default text output unchanged.
 - **`tags --fail-under PCT`** turns the tag roll-up into a per-tag CI gate: exit
   `5` when any gated tag's proved-coverage is below `PCT` (an integer `0`–`100`),
   listing the offending tags on stderr. Honours `--tag`, tags with no formal

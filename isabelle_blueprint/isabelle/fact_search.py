@@ -159,6 +159,45 @@ def render_hits(query: str, hits: list[FactHit]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _md_cell(text: str) -> str:
+    """Escape ``|`` so a value never breaks the surrounding Markdown table."""
+    return text.replace("|", "\\|")
+
+
+def render_hits_markdown(query: str, hits: list[FactHit]) -> str:
+    """Render free-text search ``hits`` as a Markdown table (trailing newline)."""
+    lines = [f"# Fact search: {query}", ""]
+    if not hits:
+        lines.append(f"No declarations match {query!r}.")
+        return "\n".join(lines) + "\n"
+    lines.append("| Fact | Score | Theory |")
+    lines.append("| --- | --- | --- |")
+    for hit in hits:
+        lines.append(
+            f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def render_matches_markdown(matches: list[NodeFactMatch]) -> str:
+    """Render missing-target ``matches`` as Markdown (trailing newline)."""
+    lines = ["# Fact search: unresolved targets", ""]
+    if not matches:
+        lines.append("No unresolved fact targets with source matches.")
+        return "\n".join(lines) + "\n"
+    for match in matches:
+        lines.append(f"## `{match.node_id}` (target `{match.target_fact}`)")
+        lines.append("")
+        lines.append("| Fact | Score | Theory |")
+        lines.append("| --- | --- | --- |")
+        for hit in match.hits:
+            lines.append(
+                f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
 def render_matches(matches: list[NodeFactMatch]) -> str:
     """Render missing-target ``matches`` as text (trailing newline)."""
     if not matches:
