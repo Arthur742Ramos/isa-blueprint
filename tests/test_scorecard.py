@@ -276,3 +276,135 @@ def test_cli_min_grade_invalid_value_is_usage_error(tmp_path: Path, capsys) -> N
     assert rc == 2
     assert "invalid grade" in capsys.readouterr().err
 
+
+def test_cli_min_score_below_threshold_fails(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    # _BODY is a real, non-perfect project: it cannot reach a score of 100.
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "100"])
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "min-score policy triggered" in err
+
+
+def test_cli_min_score_met_passes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "0"])
+
+    assert rc == 0
+    assert "policy triggered" not in capsys.readouterr().err
+
+
+def test_cli_min_score_json_gate_present(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "100", "--json"])
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    gate = data["gate"]
+    assert gate["min_score"] == 100
+    assert gate["meets_min_score"] is False
+    assert gate["score"] == data["score"]
+    assert gate["grade"] == data["grade"]
+    # No --min-grade, so grade keys are absent.
+    assert "min_grade" not in gate
+    assert "meets_min_grade" not in gate
+
+
+def test_cli_min_score_json_gate_met(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "0", "--json"])
+
+    assert rc == 0
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert gate["meets_min_score"] is True
+    assert gate["min_score"] == 0
+
+
+def test_cli_min_score_ungradeable_project_does_not_fail(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, "# empty project\n", name="empty")
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "50"])
+
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "min-score 50 not enforced" in err
+
+
+def test_cli_min_score_ungradeable_json_gate_null(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, "# empty project\n", name="empty")
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-score", "50", "--json"])
+
+    assert rc == 0
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert gate["meets_min_score"] is None
+    assert gate["score"] is None
+
+
+def test_cli_min_score_invalid_value_is_usage_error(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        rc = cli_main(["scorecard", str(tmp_path), "--min-score", "150"])
+    except SystemExit as exc:  # argparse raises SystemExit(2) on bad value
+        rc = exc.code
+    assert rc == 2
+    assert "invalid score" in capsys.readouterr().err
+
+
+def test_cli_min_score_non_integer_is_usage_error(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        rc = cli_main(["scorecard", str(tmp_path), "--min-score", "B+"])
+    except SystemExit as exc:
+        rc = exc.code
+    assert rc == 2
+    assert "invalid score" in capsys.readouterr().err
+
+
+def test_cli_min_score_composes_with_min_grade(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    # Grade gate is met (F), but score gate (100) is not -> overall failure.
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "100", "--json"]
+    )
+
+    assert rc == 5
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert gate["meets_min_grade"] is True
+    assert gate["meets_min_score"] is False
+    # Both gates' keys present in the same object.
+    assert gate["min_grade"] == "F"
+    assert gate["min_score"] == 100
+
+
+def test_cli_min_score_composes_both_met(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "0"]
+    )
+
+    assert rc == 0
+    assert "policy triggered" not in capsys.readouterr().err
+
+
+def test_cli_min_grade_gate_byte_identical_without_min_score(tmp_path: Path, capsys) -> None:
+    # Guard the frozen v1 contract: --min-grade alone must emit exactly the
+    # original gate keys in order, with no min_score leakage.
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "A+", "--json"])
+
+    assert rc == 5
+    gate = json.loads(capsys.readouterr().out)["gate"]
+    assert list(gate.keys()) == ["min_grade", "score", "grade", "meets_min_grade"]
+
+

@@ -26,13 +26,15 @@
     },
     "gate": {
       "type": "object",
-      "description": "Present only when --min-grade is passed: the CI gate result. meets_min_grade is null for an ungradeable (empty) project.",
-      "required": ["min_grade", "score", "grade", "meets_min_grade"],
+      "description": "Present when --min-grade and/or --min-score is passed: the CI gate result. The min_grade/meets_min_grade keys appear only with --min-grade, the min_score/meets_min_score keys only with --min-score. A meets_* value is null for an ungradeable (empty) project.",
+      "required": ["score", "grade"],
       "properties": {
         "min_grade": { "type": "string" },
+        "min_score": { "type": "integer", "minimum": 0, "maximum": 100 },
         "score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
         "grade": { "type": "string" },
-        "meets_min_grade": { "type": ["boolean", "null"] }
+        "meets_min_grade": { "type": ["boolean", "null"] },
+        "meets_min_score": { "type": ["boolean", "null"] }
       },
       "additionalProperties": false
     }

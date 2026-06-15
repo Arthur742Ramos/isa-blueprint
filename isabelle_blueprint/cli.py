@@ -348,6 +348,21 @@ def _grade_arg(value: str) -> str:
     return normalized
 
 
+def _score_arg(value: str) -> int:
+    """argparse ``type`` that accepts an integer score in ``[0, 100]``."""
+    try:
+        score = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid score {value!r}; choose an integer from 0 to 100"
+        )
+    if not 0 <= score <= 100:
+        raise argparse.ArgumentTypeError(
+            f"invalid score {value!r}; choose an integer from 0 to 100"
+        )
+    return score
+
+
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
     """Attach shared ``--watch``/``--interval`` flags to a subparser.
 
@@ -693,42 +708,70 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     card = build_scorecard(project)
 
     exit_code = 0
-    gate: dict[str, object] | None = None
+    gate: dict[str, object] = {}
     min_grade = getattr(args, "min_grade", None)
+    min_score = getattr(args, "min_score", None)
+
+    meets_grade: bool | None = None
     if min_grade is not None:
         # Validated at parse time, so the threshold is always defined.
         threshold = grade_threshold(min_grade)
         if card.score is None:
-            meets: bool | None = None  # nothing gradeable; do not fail the gate
+            meets_grade = None  # nothing gradeable; do not fail the gate
         else:
-            meets = card.score >= (threshold or 0)
-            if not meets:
+            meets_grade = card.score >= (threshold or 0)
+            if not meets_grade:
                 exit_code = 5
-        gate = {
-            "min_grade": min_grade,
-            "score": card.score,
-            "grade": card.grade,
-            "meets_min_grade": meets,
-        }
+        gate["min_grade"] = min_grade
+        gate["score"] = card.score
+        gate["grade"] = card.grade
+        gate["meets_min_grade"] = meets_grade
+
+    meets_score: bool | None = None
+    if min_score is not None:
+        if card.score is None:
+            meets_score = None  # nothing gradeable; do not fail the gate
+        else:
+            meets_score = card.score >= min_score
+            if not meets_score:
+                exit_code = 5
+        if "score" not in gate:
+            gate["score"] = card.score
+            gate["grade"] = card.grade
+        gate["min_score"] = min_score
+        gate["meets_min_score"] = meets_score
 
     if args.json:
         payload = card.to_dict()
-        if gate is not None:
+        if gate:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
         print(render_scorecard(card), end="")
-        if gate is not None:
-            if gate["meets_min_grade"] is None:
+        if min_grade is not None:
+            if meets_grade is None:
                 print(
                     f"min-grade {min_grade} not enforced: project has no gradeable "
                     "components yet.",
                     file=sys.stderr,
                 )
-            elif exit_code == 5:
+            elif not meets_grade:
                 print(
                     f"min-grade policy triggered: {card.grade} "
                     f"({card.score}/100) is below {min_grade}.",
+                    file=sys.stderr,
+                )
+        if min_score is not None:
+            if meets_score is None:
+                print(
+                    f"min-score {min_score} not enforced: project has no gradeable "
+                    "components yet.",
+                    file=sys.stderr,
+                )
+            elif not meets_score:
+                print(
+                    f"min-score policy triggered: {card.score}/100 "
+                    f"is below {min_score}.",
                     file=sys.stderr,
                 )
     return exit_code
@@ -2485,6 +2528,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "exit non-zero (5) if the overall grade is below GRADE "
             f"(one of {', '.join(ALL_GRADES)}; case-insensitive). An ungradeable "
             "(empty) project never fails the gate."
+        ),
+    )
+    p_scorecard.add_argument(
+        "--min-score",
+        type=_score_arg,
+        metavar="N",
+        help=(
+            "exit non-zero (5) if the overall score is below N (an integer 0-100). "
+            "Composes with --min-grade (fails if either threshold is unmet). An "
+            "ungradeable (empty) project never fails the gate."
         ),
     )
     p_scorecard.set_defaults(func=cmd_scorecard)
