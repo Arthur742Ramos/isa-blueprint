@@ -149,6 +149,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`critical-path --markdown`** prints the report as plain Markdown to stdout
+  (no ANSI colour even on a TTY), distinct from `--write`'s file artifacts. It
+  honours `--goal`/`--top` and is mutually exclusive with `--json`; the default
+  text output is unchanged.
 
 ### Changed
 
