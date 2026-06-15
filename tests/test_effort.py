@@ -21,6 +21,7 @@ from isabelle_blueprint.parser.markdown import parse_blueprint_text
 from isabelle_blueprint.report.effort import (
     build_effort_gate,
     build_effort_report,
+    render_effort_markdown,
     render_effort_report,
 )
 
@@ -521,3 +522,86 @@ def test_build_effort_gate_helper():
     }
     assert build_effort_gate(report, 62)["meets"] is True
     assert build_effort_gate(report, 63)["meets"] is False
+
+
+# ---------------------------------------------------------------------------
+# --markdown output
+# ---------------------------------------------------------------------------
+
+
+def test_render_effort_markdown_summary_table():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", effort=4, formal=FormalStatus.PROVED)]
+    )
+    report = build_effort_report(project)
+    rendered = render_effort_markdown(report)
+    assert "# Effort-weighted progress" in rendered
+    assert "| Metric | Value |" in rendered
+    assert "| Total effort | 4 |" in rendered
+    assert "| Coverage percent | 100% |" in rendered
+    # The per-tag table is absent unless requested.
+    assert "## Effort by tag" not in rendered
+
+
+def test_render_effort_markdown_by_tag_table():
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=2, formal=FormalStatus.PROVED, tags=["algebra"])]
+    )
+    report = build_effort_report(project, include_by_tag=True)
+    rendered = render_effort_markdown(report, by_tag=True)
+    assert "## Effort by tag" in rendered
+    assert "| algebra |" in rendered
+
+
+def test_render_effort_markdown_escapes_tag_pipe():
+    project = BlueprintProject.from_nodes(
+        "p", [_tagged("a", effort=1, formal=FormalStatus.PROVED, tags=["a|b"])]
+    )
+    report = build_effort_report(project, include_by_tag=True)
+    rendered = render_effort_markdown(report, by_tag=True)
+    assert r"a\|b" in rendered
+
+
+def test_render_effort_markdown_coverage_na():
+    project = BlueprintProject.from_nodes("p", [_node("a", effort=2)])
+    report = build_effort_report(project)
+    rendered = render_effort_markdown(report)
+    assert "| Coverage percent | n/a |" in rendered
+
+
+def test_cli_effort_markdown(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--markdown"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Effort-weighted progress" in out
+    assert "| Coverage percent | 100% |" in out
+    assert "| Metric | Value |" in out
+
+
+def test_cli_effort_markdown_by_tag(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--markdown", "--by-tag"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Effort-weighted progress" in out
+    assert "## Effort by tag" in out
+    assert "| algebra |" in out
+
+
+def test_cli_effort_markdown_and_json_mutually_exclusive(tmp_path):
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["effort", str(tmp_path), "--markdown", "--json"])
+
+
+def test_cli_effort_markdown_with_fail_under_gate_exits_5(tmp_path, capsys):
+    # 66% effort-weighted coverage falls short of 90%; markdown still prints.
+    _write_partial_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--markdown", "--fail-under", "90"])
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "# Effort-weighted progress" in captured.out
+    assert "| Coverage percent | 66% |" in captured.out
+    assert "is below 90" in captured.err
+

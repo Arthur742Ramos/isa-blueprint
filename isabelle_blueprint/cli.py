@@ -180,6 +180,7 @@ from isabelle_blueprint.report.diff import (
 from isabelle_blueprint.report.effort import (
     build_effort_gate,
     build_effort_report,
+    render_effort_markdown,
     render_effort_report,
 )
 from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
@@ -986,7 +987,10 @@ def cmd_effort(args: argparse.Namespace) -> int:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
-        print(render_effort_report(report, by_tag=args.by_tag), end="")
+        if args.markdown:
+            print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+        else:
+            print(render_effort_report(report, by_tag=args.by_tag), end="")
         if gate is not None and not gate["meets"]:
             actual = (
                 "undefined"
@@ -2859,8 +2863,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="report effort-weighted formalization progress (uses optional node 'effort')",
     )
     p_effort.add_argument("project_dir", nargs="?", default=".")
-    p_effort.add_argument(
+    p_effort_format = p_effort.add_mutually_exclusive_group()
+    p_effort_format.add_argument(
         "--json", action="store_true", help="emit the effort report as JSON"
+    )
+    p_effort_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the effort report as a Markdown document with summary tables",
     )
     p_effort.add_argument(
         "--by-tag",

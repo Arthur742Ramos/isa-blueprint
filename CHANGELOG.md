@@ -201,6 +201,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`effort --markdown`** renders the effort-weighted report as a Markdown
+  document with a summary table (total/proved/remaining effort and coverage
+  percent), plus a per-tag table when combined with `--by-tag`. Mutually
+  exclusive with `--json`; composes with `--fail-under` (the gate still sets
+  exit `5`).
 
 ### Changed
 
