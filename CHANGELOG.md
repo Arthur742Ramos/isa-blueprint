@@ -149,6 +149,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`search-facts --markdown`** renders the candidate-fact results as a Markdown
+  table (fact name, score, source theory) under a query heading, for pasting
+  into issues or notes. Mutually exclusive with `--json`; text output unchanged.
 
 ### Changed
 

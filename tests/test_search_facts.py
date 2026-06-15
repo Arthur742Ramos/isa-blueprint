@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 
 _THY = """theory Demo
@@ -116,6 +118,48 @@ def test_search_facts_text_output(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     assert "no declarations match" in capsys.readouterr().out
+
+
+def test_search_facts_markdown_free_text(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, "# sf-test\n")
+    thy = _write_theory(tmp_path)
+
+    rc = cli_main(
+        [
+            "search-facts",
+            str(tmp_path),
+            "--theory",
+            str(thy),
+            "--query",
+            "comm",
+            "--markdown",
+        ]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Fact search: comm" in out
+    assert "| Fact | Score | Theory |" in out
+    assert "`Demo.add_comm`" in out
+
+
+def test_search_facts_markdown_rejects_json(tmp_path: Path) -> None:
+    _write_project(tmp_path, "# sf-test\n")
+    thy = _write_theory(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(
+            [
+                "search-facts",
+                str(tmp_path),
+                "--theory",
+                str(thy),
+                "--query",
+                "comm",
+                "--markdown",
+                "--json",
+            ]
+        )
 
 
 def test_search_index_rejects_nonpositive_limit() -> None:

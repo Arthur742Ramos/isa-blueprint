@@ -118,7 +118,9 @@ from isabelle_blueprint.isabelle.dump import (
 from isabelle_blueprint.isabelle.fact_search import (
     match_missing_facts,
     render_hits,
+    render_hits_markdown,
     render_matches,
+    render_matches_markdown,
     search_index,
 )
 from isabelle_blueprint.isabelle.root import default_session_dir
@@ -2436,6 +2438,8 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
                     indent=2,
                 )
             )
+        elif args.markdown:
+            print(render_hits_markdown(args.query, hits), end="")
         else:
             print(render_hits(args.query, hits), end="")
         return 0
@@ -2450,6 +2454,8 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
                 {"matches": [match.to_dict() for match in matches]}, indent=2
             )
         )
+    elif args.markdown:
+        print(render_matches_markdown(matches), end="")
     else:
         print(render_matches(matches), end="")
     return 0
@@ -3636,7 +3642,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="maximum matches to show (per node in target mode; default: 10)",
     )
-    p_search.add_argument("--json", action="store_true", help="emit matches as JSON")
+    p_search_fmt = p_search.add_mutually_exclusive_group()
+    p_search_fmt.add_argument("--json", action="store_true", help="emit matches as JSON")
+    p_search_fmt.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render matches as a Markdown table (mutually exclusive with --json)",
+    )
     p_search.set_defaults(func=cmd_search_facts)
 
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
