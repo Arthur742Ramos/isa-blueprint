@@ -143,6 +143,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (nodes with multiple tags count under each), always including an `(untagged)`
   bucket that sorts last. The per-tag breakdown is opt-in, so the default output
   and the non-`--by-tag` JSON payload are unchanged.
+- **`scorecard --min-score N`** adds a numeric CI gate alongside `--min-grade`:
+  exit `5` when the overall score falls below `N` (an integer `0`–`100`). It
+  composes with `--min-grade` (fails if either threshold is unmet), an
+  ungradeable (empty) project never trips it, and `--json` adds
+  `min_score`/`meets_min_score` to the `gate` object.
 
 ### Changed
 
