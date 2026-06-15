@@ -1,9 +1,11 @@
 """Tests for Isabelle/AFP compatibility checks."""
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
+from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.config import load_config
 from isabelle_blueprint.isabelle.compat import check_compatibility
 
@@ -134,3 +136,46 @@ def test_compatibility_report_checks_afp_entry(tmp_path: Path, monkeypatch):
     report = check_compatibility(load_config(tmp_path))
     codes = {issue.code for issue in report.issues}
     assert "afp-entry-not-found" in codes
+
+
+def _write_min_config(tmp_path: Path, *, name: str = "compat-cli") -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        f'[project]\nname = "{name}"\n', encoding="utf-8"
+    )
+
+
+def test_cli_compat_json_emits_the_report(tmp_path: Path, capsys) -> None:
+    _write_min_config(tmp_path)
+
+    rc = cli_main(["compat", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # The JSON mirrors the on-disk compat report (CompatibilityReport.to_dict).
+    assert {"ok", "isabelle_available", "issues", "project_root"} <= set(data)
+    assert isinstance(data["issues"], list)
+
+
+def test_cli_compat_json_matches_disk_report(tmp_path: Path, capsys) -> None:
+    _write_min_config(tmp_path)
+
+    rc = cli_main(["compat", str(tmp_path), "--json"])
+
+    assert rc == 0
+    stdout = json.loads(capsys.readouterr().out)
+    disk = json.loads(
+        (tmp_path / "build" / "compat_report.json").read_text(encoding="utf-8")
+    )
+    assert stdout == disk
+
+
+def test_cli_compat_plain_output_unchanged(tmp_path: Path, capsys) -> None:
+    _write_min_config(tmp_path)
+
+    rc = cli_main(["compat", str(tmp_path)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "compat report ->" in out
+    assert "{" not in out  # not JSON
+
