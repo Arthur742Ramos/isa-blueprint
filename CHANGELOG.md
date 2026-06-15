@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
+  downstream blast radius (requires `--node`), mirroring `--format dot` with the
+  focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
+- **`explain --markdown`** renders the per-node status explanations as a
+  Markdown document (a heading with the node id/title, a status block listing
+  blueprint/formal/agent status, a dependency list, and the
+  reasons/suggestions/next steps). Mutually exclusive with `--json`; default
+  text output is unchanged.
 - **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
   These commands emit versioned `--json` payloads but shipped without published
   schemas, unlike the rest of the CLI. They are now registered packaged schemas
@@ -201,6 +209,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`stats --min-success-rate PCT`** turns the agent-memory analytics into a CI
+  gate: exit `5` when the overall proof-attempt success rate falls below `PCT`
+  percent (0–100), matching the exit-5 convention used by `gate`/`diff`/`burndown`.
+  Text mode prints a stderr policy message; `--json` adds an additive `gate`
+  object (`min_success_rate`, `success_rate`, `meets`). The gate compares the
+  exact (unrounded) success rate so verdicts are stable near the threshold. When
+  there are no resolved attempts the gate is not enforced; without the flag,
+  behaviour is unchanged.
+- **`burndown --markdown`** renders the velocity/ETA forecast as a Markdown
+  summary (heading, a status/remaining/eta_days/eta_date/forecast table, and a
+  short note when stalled/regressing/scope-growing); mutually exclusive with
+  `--json`.
+- **`tags --markdown`** renders the per-tag roll-up as a Markdown table (tag,
+  nodes, formal targets, proved, found, problems, proved-coverage%) plus an
+  untagged-count line. Mutually exclusive with `--json`; composes with `--tag`
+  and `--fail-under`, and tag cells escape `|`.
 - **`effort --markdown`** renders the effort-weighted report as a Markdown
   document with a summary table (total/proved/remaining effort and coverage
   percent), plus a per-tag table when combined with `--by-tag`. Mutually
