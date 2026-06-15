@@ -174,7 +174,11 @@ from isabelle_blueprint.report.github_actions import (
     emit_step_outputs,
     emit_step_summary,
 )
-from isabelle_blueprint.report.history import render_trend_summary, summarize_trends
+from isabelle_blueprint.report.history import (
+    render_trend_csv,
+    render_trend_summary,
+    summarize_trends,
+)
 from isabelle_blueprint.report.impact import (
     UnknownNodeError,
     build_impact_overview,
@@ -1114,6 +1118,8 @@ def cmd_history(args: argparse.Namespace) -> int:
     summary = summarize_trends(entries, limit=args.limit)
     if args.json:
         print(json.dumps(summary.to_dict(), indent=2))
+    elif args.csv:
+        print(render_trend_csv(summary), end="")
     else:
         print(render_trend_summary(summary), end="")
     return 0
@@ -2778,7 +2784,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_history = sub.add_parser("history", help="summarize trends.json coverage history")
     p_history.add_argument("project_dir", nargs="?", default=".")
-    p_history.add_argument("--json", action="store_true", help="emit the summary as JSON")
+    p_history_format = p_history.add_mutually_exclusive_group()
+    p_history_format.add_argument(
+        "--json", action="store_true", help="emit the summary as JSON"
+    )
+    p_history_format.add_argument(
+        "--csv", action="store_true", help="emit the trend snapshots as CSV"
+    )
     p_history.add_argument(
         "--limit",
         type=_positive_int,
