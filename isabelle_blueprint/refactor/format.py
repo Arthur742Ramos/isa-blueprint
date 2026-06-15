@@ -12,6 +12,7 @@ in place is out of scope; those files are reported as skipped.
 """
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,14 +34,18 @@ class FormatFileResult:
     changed: bool
     skipped: bool = False
     reason: str | None = None
+    diff: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "path": self.path,
             "changed": self.changed,
             "skipped": self.skipped,
             "reason": self.reason,
         }
+        if self.diff is not None:
+            data["diff"] = self.diff
+        return data
 
 
 @dataclass
@@ -71,12 +76,17 @@ def format_blueprint_paths(
     *,
     project_name: str,
     check_only: bool,
+    diff: bool = False,
 ) -> FormatResult:
     """Format (or check) every Markdown blueprint in ``paths``.
 
     Non-Markdown sources are recorded as skipped. When ``check_only`` is false a
     file whose canonical form differs from disk is rewritten; otherwise nothing
     is written and the drift is reported via :attr:`FormatResult.would_change`.
+
+    When ``diff`` is true nothing is written regardless of ``check_only``;
+    instead each changed file records a unified diff of the canonicalisation in
+    :attr:`FormatFileResult.diff`.
     """
     result = FormatResult(check_only=check_only)
     for path in paths:
@@ -88,7 +98,17 @@ def format_blueprint_paths(
         original = path.read_text(encoding="utf-8")
         formatted = format_markdown_source(original, source=str(path), project_name=project_name)
         changed = formatted != original
-        if changed and not check_only:
+        if changed and not check_only and not diff:
             path.write_text(formatted, encoding="utf-8")
-        result.files.append(FormatFileResult(str(path), changed=changed))
+        file_diff: str | None = None
+        if diff and changed:
+            file_diff = "".join(
+                difflib.unified_diff(
+                    original.splitlines(keepends=True),
+                    formatted.splitlines(keepends=True),
+                    fromfile=f"{path} (current)",
+                    tofile=f"{path} (canonical)",
+                )
+            )
+        result.files.append(FormatFileResult(str(path), changed=changed, diff=file_diff))
     return result
