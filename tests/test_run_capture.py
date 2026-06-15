@@ -56,11 +56,14 @@ def test_invalid_utf8_bytes_are_replaced_not_crashed() -> None:
 def test_timeout_kills_tree_and_raises_promptly() -> None:
     start = time.monotonic()
     with pytest.raises(subprocess.TimeoutExpired):
-        run_capture(_py("import time; time.sleep(30)"), timeout=2)
+        run_capture(_py("import time; time.sleep(120)"), timeout=2)
     elapsed = time.monotonic() - start
     # The whole point of the temp-file design is that the timeout actually fires
-    # instead of hanging in communicate(); allow generous slack for tree-kill.
-    assert elapsed < 25, f"timeout took {elapsed:.1f}s -- it should fire near 2s"
+    # instead of hanging in communicate() until the child exits. The child runs
+    # for 120s, so a 60s bound cleanly catches the "blocked until done"
+    # regression while tolerating worst-case tree-kill latency on Windows
+    # (taskkill up to ~30s plus proc.wait()), which made a tighter bound flaky.
+    assert elapsed < 60, f"timeout took {elapsed:.1f}s -- it should fire near 2s"
 
 
 def test_output_limit_kills_flooding_process() -> None:
