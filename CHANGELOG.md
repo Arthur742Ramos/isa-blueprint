@@ -84,6 +84,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`blame --node ID`** is now accepted as an alias for `blame --node-id ID`, so
   the single-node flag matches `impact`/`memory`/`explain`/`next`. The original
   `--node-id` spelling keeps working.
+- **`compat --json` and `dump --json`** emit their report to stdout (the same
+  JSON already written to disk), closing the last machine-readability gaps in an
+  otherwise JSON-everywhere CLI. Exit codes and the default human output are
+  unchanged; under `--json` the per-issue / `report -> path` lines are replaced
+  by the structured payload, and `dump --json` reports a blueprint-validation
+  failure as a JSON object (exit `2`).
 
 ### Changed
 

@@ -1289,7 +1289,15 @@ def cmd_dump(args: argparse.Namespace) -> int:
     try:
         project.validate().raise_if_failed()
     except ValidationError as exc:
-        print(f"validation failed: {exc}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(
+                json.dumps(
+                    {"ran": False, "ok": False, "error": str(exc), "issues": exc.issues},
+                    indent=2,
+                )
+            )
+        else:
+            print(f"validation failed: {exc}", file=sys.stderr)
         return 2
 
     if args.from_dir:
@@ -1311,10 +1319,14 @@ def cmd_dump(args: argparse.Namespace) -> int:
     write_dump_report(result, config.dump_report_path)
     apply_dump_report(project, result)
     write_project_report(project, config.project_json_path)
-    print(f"dump report -> {config.dump_report_path}")
-    if result.error:
-        print(f"note: {result.error}", file=sys.stderr)
-        return 3 if args.strict else 0
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(f"dump report -> {config.dump_report_path}")
+        if result.error:
+            print(f"note: {result.error}", file=sys.stderr)
+    if result.error and args.strict:
+        return 3
     return 0
 
 
@@ -1325,10 +1337,13 @@ def cmd_compat(args: argparse.Namespace) -> int:
         config, isabelle_executable=args.isabelle or config.isabelle_executable
     )
     write_compat_report(report, config.compat_report_path)
-    print(f"compat report -> {config.compat_report_path}")
-    for issue in report.issues:
-        stream = sys.stderr if issue.severity == "error" else sys.stdout
-        print(f"{issue.severity}: {issue.code}: {issue.message}", file=stream)
+    if getattr(args, "json", False):
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(f"compat report -> {config.compat_report_path}")
+        for issue in report.issues:
+            stream = sys.stderr if issue.severity == "error" else sys.stdout
+            print(f"{issue.severity}: {issue.code}: {issue.message}", file=stream)
     return 0 if report.ok or not args.strict else 5
 
 
@@ -2881,6 +2896,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="exit non-zero if dump execution/inspection fails",
     )
+    p_dump.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the dump report as JSON (the same report written to disk)",
+    )
     p_dump.set_defaults(func=cmd_dump)
 
     p_compat = sub.add_parser(
@@ -2890,6 +2910,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_compat.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
     p_compat.add_argument(
         "--strict", action="store_true", help="exit non-zero on compatibility errors"
+    )
+    p_compat.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the compatibility report as JSON (the same report written to disk)",
     )
     p_compat.set_defaults(func=cmd_compat)
 
