@@ -163,6 +163,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`stats --markdown`** renders the agent-memory analytics as a Markdown
   document (summary, outcomes, and per-node tables) to stdout; mutually
   exclusive with `--json` and leaves the default text output unchanged.
+- **`theory-index --counts`** prints a compact numeric summary of the
+  source-only index (theory count, total entries, entries carrying a
+  `sorry`/`oops`, unreferenced-entry count, and total in-project import edges)
+  without needing Isabelle. With `--json` it emits an additive `counts` object;
+  the default index output is unchanged.
 
 ### Changed
 
