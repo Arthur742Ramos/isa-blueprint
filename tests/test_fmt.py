@@ -89,3 +89,42 @@ def test_fmt_skips_latex_sources(tmp_path: Path, capsys) -> None:
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert data["files"][0]["skipped"] is True
+
+
+def test_fmt_diff_prints_unified_diff_without_writing(tmp_path: Path, capsys) -> None:
+    path = _write(tmp_path)
+    before = path.read_text(encoding="utf-8")
+
+    rc = cli_main(["fmt", str(tmp_path), "--diff"])
+
+    assert rc == 10
+    out = capsys.readouterr().out
+    assert "--- " in out and "+++ " in out  # unified diff headers
+    assert "@@" in out
+    assert "+  blueprint: stub" in out  # the canonicalisation the diff would apply
+    assert path.read_text(encoding="utf-8") == before  # nothing written
+
+
+def test_fmt_diff_canonical_exits_zero(tmp_path: Path, capsys) -> None:
+    _write(tmp_path)
+    assert cli_main(["fmt", str(tmp_path)]) == 0  # canonicalize first
+    capsys.readouterr()
+
+    rc = cli_main(["fmt", str(tmp_path), "--diff"])
+
+    assert rc == 0
+    assert "already canonical" in capsys.readouterr().out
+
+
+def test_fmt_diff_json_includes_diff_field(tmp_path: Path, capsys) -> None:
+    _write(tmp_path)
+
+    rc = cli_main(["fmt", str(tmp_path), "--diff", "--json"])
+
+    assert rc == 10
+    data = json.loads(capsys.readouterr().out)
+    # --diff never writes, so check_only must report true even without --check.
+    assert data["check_only"] is True
+    changed = [f for f in data["files"] if f["changed"]]
+    assert len(changed) == 1
+    assert "blueprint: stub" in changed[0]["diff"]

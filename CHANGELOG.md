@@ -106,6 +106,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- `graph --format d2` emits a [D2](https://d2lang.com) (`build/graph.d2`)
+  dependency graph; it is opt-in only and left out of the default `all` set, so
+  existing `graph` output is unchanged.
+- **`duplicate-title` lint rule** flags two or more nodes that share an
+  identical (case-insensitive, trimmed) non-empty title as a warning, catching
+  accidental copy-paste collisions; it surfaces in `lint --json` and SARIF.
+- **`tags --tag NAME`** restricts the roll-up to the named tag(s) (repeatable);
+  an unknown tag yields a zero/empty row rather than an error, so the filter
+  behaves additively. Project-wide `total_nodes`/`untagged_count` and the JSON
+  shape are unchanged.
+- **`assign --json`** now also emits additive `count` (number of assignment
+  records) and `owners` (a `node_id -> owner` map) keys alongside the existing
+  `project` and `assignments` fields, so consumers no longer have to derive the
+  total or a lookup table themselves. Existing keys and the persisted
+  `assignments.json` store format are unchanged.
+- **`history --csv`** exports the recorded trend snapshots as CSV (a header row
+  plus one row per snapshot, carrying the timestamp and the same numeric
+  coverage/count metrics shown in text mode). It is mutually exclusive with
+  `--json`, respects `--limit`, and leaves the default text output unchanged,
+  so trend history can be piped into spreadsheets and plotting tools without
+  post-processing JSON.
+- **`fmt --diff`** previews canonicalisation as a unified diff without writing,
+  exiting `10` on drift. Diff mode implies check-only semantics, so the
+  `--json` payload reports `check_only: true` to reflect that nothing was
+  written.
+- **`critical-path --write`** persists `critical-path.json` and a plain-Markdown
+  `critical-path.md` into the configured build dir alongside the printed report.
+  The Markdown mirrors the printed output (honouring `--goal`) and never embeds
+  ANSI colour codes; printing and exit codes are otherwise unchanged.
+- **`prometheus --label KEY=VALUE`** injects extra static labels onto every
+  emitted metric line; repeatable, with last-wins on duplicate keys. Label names
+  must be valid Prometheus identifiers and may not begin with the reserved `__`
+  prefix; invalid names exit `2`.
+- **`effort --by-tag`** additionally groups effort-weighted progress per tag
+  (nodes with multiple tags count under each), always including an `(untagged)`
+  bucket that sorts last. The per-tag breakdown is opt-in, so the default output
+  and the non-`--by-tag` JSON payload are unchanged.
+- **`scorecard --min-score N`** adds a numeric CI gate alongside `--min-grade`:
+  exit `5` when the overall score falls below `N` (an integer `0`–`100`). It
+  composes with `--min-grade` (fails if either threshold is unmet), an
+  ungradeable (empty) project never trips it, and `--json` adds
+  `min_score`/`meets_min_score` to the `gate` object.
 
 ### Changed
 
