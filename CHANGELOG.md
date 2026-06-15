@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`critical-path --write`** persists `critical-path.json` and a plain-Markdown
+  `critical-path.md` into the configured build dir alongside the printed report.
+  The Markdown mirrors the printed output (honouring `--goal`) and never embeds
+  ANSI colour codes; printing and exit codes are otherwise unchanged.
 
 ### Changed
 

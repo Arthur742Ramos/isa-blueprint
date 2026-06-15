@@ -309,6 +309,30 @@ def test_cli_write_json_payload_matches_stdout(tmp_path: Path, capsys) -> None:
     assert file_payload == stdout_payload
 
 
+def test_cli_write_goal_focus_is_plain_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(
+        ["critical-path", str(tmp_path), "--goal", "b", "--write", "--color", "always"]
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    # The printed report is goal-focused...
+    assert "Goal `b`" in out
+    assert "`a` -> `b`" in out
+
+    md = (tmp_path / "build" / "critical-path.md").read_text(encoding="utf-8")
+    # ...and the written artifact matches that goal-focused output, not the
+    # project-wide one (no "## Bottlenecks" section is emitted for a single goal).
+    assert "Goal `b`" in md
+    assert "`a` -> `b`" in md
+    assert "## Bottlenecks" not in md
+    # The persisted Markdown is plain: it never contains ANSI escape codes even
+    # though colour was forced on for the terminal.
+    assert "\033[" not in md
+
+
 def test_cli_fail_on_cycle(tmp_path: Path, capsys) -> None:
     body = """# cyc
 

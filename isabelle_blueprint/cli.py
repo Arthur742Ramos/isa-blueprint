@@ -936,7 +936,8 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
         stream = sys.stderr if args.json else sys.stdout
-        for name, path in write_critical_path(overview, config.build_dir, top=args.top).items():
+        written = write_critical_path(overview, config.build_dir, top=args.top, goal=goal)
+        for name, path in written.items():
             print(f"critical-path {name} -> {path}", file=stream)
     failures = critical_path_strict_failures(overview) if args.fail_on_cycle else []
     for failure in failures:
@@ -2695,7 +2696,8 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_critical.add_argument(
         "--write",
         action="store_true",
-        help="write build/critical-path.json and build/critical-path.md in addition to printing",
+        help="write critical-path.json and critical-path.md into the build dir "
+        "in addition to printing",
     )
     p_critical.set_defaults(func=cmd_critical_path)
 
