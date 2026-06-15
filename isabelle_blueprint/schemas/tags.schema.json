@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/tags.schema.json",
+  "title": "IsabelleBlueprint tag coverage report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "total_nodes",
+    "untagged_count",
+    "tag_count",
+    "tags"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "total_nodes": { "type": "integer", "minimum": 0 },
+    "untagged_count": { "type": "integer", "minimum": 0 },
+    "tag_count": { "type": "integer", "minimum": 0 },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tag",
+          "node_count",
+          "formal_target_count",
+          "proved_count",
+          "found_count",
+          "problem_count",
+          "coverage_percent"
+        ],
+        "properties": {
+          "tag": { "type": "string" },
+          "node_count": { "type": "integer", "minimum": 0 },
+          "formal_target_count": { "type": "integer", "minimum": 0 },
+          "proved_count": { "type": "integer", "minimum": 0 },
+          "found_count": { "type": "integer", "minimum": 0 },
+          "problem_count": { "type": "integer", "minimum": 0 },
+          "coverage_percent": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

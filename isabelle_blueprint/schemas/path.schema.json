@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/path.schema.json",
+  "title": "IsabelleBlueprint dependency path",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "source",
+    "target",
+    "source_title",
+    "target_title",
+    "found",
+    "direction",
+    "path",
+    "length"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "source": { "type": "string" },
+    "target": { "type": "string" },
+    "source_title": { "type": "string" },
+    "target_title": { "type": "string" },
+    "found": { "type": "boolean" },
+    "direction": {
+      "type": ["string", "null"],
+      "enum": ["self", "depends-on", "depended-on-by", null]
+    },
+    "path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "length": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}
