@@ -106,6 +106,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`scorecard --min-score N`** adds a numeric CI gate alongside `--min-grade`:
+  exit `5` when the overall score falls below `N` (an integer `0`–`100`). It
+  composes with `--min-grade` (fails if either threshold is unmet), an
+  ungradeable (empty) project never trips it, and `--json` adds
+  `min_score`/`meets_min_score` to the `gate` object.
 
 ### Changed
 

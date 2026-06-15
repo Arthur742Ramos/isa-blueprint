@@ -166,9 +166,9 @@ Sketch.
 title: B
 isabelle: Demo.b
 status: written
-uses: a
+uses: a, ghost
 
-Depends on a.
+Depends on a (and a missing 'ghost' node, so structure can never be perfect).
 
 Sketch.
 :::

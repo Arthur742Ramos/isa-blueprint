@@ -352,10 +352,10 @@ def _score_arg(value: str) -> int:
     """argparse ``type`` that accepts an integer score in ``[0, 100]``."""
     try:
         score = int(value)
-    except ValueError:
+    except ValueError as err:
         raise argparse.ArgumentTypeError(
             f"invalid score {value!r}; choose an integer from 0 to 100"
-        )
+        ) from err
     if not 0 <= score <= 100:
         raise argparse.ArgumentTypeError(
             f"invalid score {value!r}; choose an integer from 0 to 100"
