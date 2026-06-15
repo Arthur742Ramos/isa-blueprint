@@ -192,6 +192,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   listing the offending tags on stderr. Honours `--tag`, tags with no formal
   targets never fail, and `--json` adds a `gate` object
   (`fail_under`/`failing_tags`/`ok`).
+- **`effort --fail-under PCT`** turns the effort report into a CI gate: exit `5`
+  when effort-weighted coverage is below `PCT` percent (0–100, float or int), or
+  undefined, matching the fail flags on `gate`/`staleness`/`diff`/`burndown`.
+  `--json` adds an additive `gate` object (`fail_under`, `effort_percent`,
+  `meets`); without the flag, behaviour and exit code are unchanged.
 
 ### Changed
 
