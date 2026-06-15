@@ -132,3 +132,41 @@ def shutil_which_git() -> str | None:
     import shutil
 
     return shutil.which("git")
+
+
+def test_blame_without_node_id_lists_every_node(tmp_path: Path, capsys) -> None:
+    # No --node-id -> provenance for ALL nodes, in both text and JSON.
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [n["id"] for n in data["nodes"]] == ["a", "b"]
+
+
+def test_blame_table_lists_every_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--table"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    # One header row plus one compact row per node.
+    assert lines[0].split() == ["NODE", "SOURCE", "GIT", "AGENT"]
+    assert lines[1].startswith("a ")
+    assert lines[2].startswith("b ")
+    # Compact form: no multi-line detailed labels.
+    assert "(no commit history)" not in out
+
+
+def test_blame_table_single_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--node-id", "b", "--table"])
+
+    assert rc == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].split() == ["NODE", "SOURCE", "GIT", "AGENT"]
+    assert [line.split()[0] for line in lines[1:]] == ["b"]

@@ -149,6 +149,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`blame --table`** renders a compact one-row-per-node provenance table (node,
+  source, last git commit, agent attempts) as an alternative to the default
+  detailed multi-line view, for quickly scanning provenance across all nodes.
 
 ### Changed
 
