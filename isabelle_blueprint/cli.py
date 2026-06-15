@@ -200,6 +200,7 @@ from isabelle_blueprint.report.impact import (
     impact_overview_payload,
     impact_report_payload,
     render_impact_dot,
+    render_impact_mermaid,
     render_impact_overview,
     render_impact_report,
 )
@@ -1113,8 +1114,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fmt = _resolve_lint_format(args)
     node = getattr(args, "node", None)
-    if fmt == "dot" and not node:
-        raise BlueprintError("--format dot requires --node NODE")
+    if fmt in ("dot", "mermaid") and not node:
+        raise BlueprintError(f"--format {fmt} requires --node NODE")
     if node:
         try:
             report = build_impact_report(project, node)
@@ -1125,6 +1126,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
             ) from None
         if fmt == "dot":
             print(render_impact_dot(project, node), end="")
+        elif fmt == "mermaid":
+            print(render_impact_mermaid(project, node), end="")
         elif fmt == "json":
             print(json.dumps(impact_report_payload(report), indent=2))
         else:
@@ -3053,12 +3056,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_impact.add_argument(
         "--format",
-        choices=("text", "json", "dot"),
+        choices=("text", "json", "dot", "mermaid"),
         default=None,
         help=(
             "output format (default: text); `dot` emits a Graphviz subgraph of the "
-            "node's blast radius and requires --node. `--json` is an alias for "
-            "`--format json`."
+            "node's blast radius and requires --node. `mermaid` emits the same blast "
+            "radius as a Mermaid flowchart and likewise requires --node. `--json` is "
+            "an alias for `--format json`."
         ),
     )
     p_impact.add_argument(
