@@ -13,6 +13,7 @@ from isabelle_blueprint.report.impact import (
     UnknownNodeError,
     build_impact_overview,
     build_impact_report,
+    render_impact_dot,
 )
 
 
@@ -278,9 +279,49 @@ def test_cli_format_json_matches_json_flag(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
     rc = cli_main(["impact", str(tmp_path), "--node", "a", "--format", "json"])
-
     assert rc == 0
-    data = json.loads(capsys.readouterr().out)
-    assert data["node_id"] == "a"
-    assert data["blast_radius_count"] == 1
+    format_out = capsys.readouterr().out
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--json"])
+    assert rc == 0
+    json_out = capsys.readouterr().out
+
+    # `--format json` must be exactly equivalent to the legacy `--json` alias.
+    assert format_out == json_out
+    assert json.loads(format_out)["node_id"] == "a"
+
+
+def test_cli_json_conflicts_with_format_dot(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--json", "--format", "dot"])
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "--json conflicts with --format dot" in err
+
+
+def test_dot_escapes_node_id_with_quote_and_backslash() -> None:
+    # A node id containing a double-quote, backslash and newline must be escaped
+    # in both the node declarations and the edge statements so the emitted DOT
+    # stays valid and cannot be used for DOT injection.
+    evil = 'a"x\\y\nz'
+    project = _project(
+        _node(evil),
+        _node("b", uses=[evil]),
+    )
+
+    dot = render_impact_dot(project, evil)
+
+    escaped = 'a\\"x\\\\y\\nz'
+    # The raw, unescaped id must never appear inside a quoted token.
+    assert '"a"x' not in dot
+    assert "\\y\nz" not in dot
+    # The escaped id appears in the node declaration and on the edge.
+    assert f'"{escaped}" [label=' in dot
+    assert f'"b" -> "{escaped}";' in dot
+    # Every quoted token must contain balanced, escaped quotes only; verify the
+    # declaration line and edge line are present and well-formed.
+    assert f'digraph "impact_{escaped}"' in dot
+
 

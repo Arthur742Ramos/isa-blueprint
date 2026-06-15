@@ -351,20 +351,24 @@ def render_impact_dot(project: BlueprintProject, node_id: str) -> str:
     ]
     for member in members:
         node = by_id[member]
+        member_id = _impact_dot_escape(member)
         label = _impact_dot_escape(f"{node.id}\n{node.title}")
         if member == node_id:
             lines.append(
-                f'  "{member}" [label="{label}", fillcolor="#fde047", '
+                f'  "{member_id}" [label="{label}", fillcolor="#fde047", '
                 f'color="#1f2937", penwidth=2];'
             )
         else:
             lines.append(
-                f'  "{member}" [label="{label}", fillcolor="#e5e7eb", color="#1f2937"];'
+                f'  "{member_id}" [label="{label}", fillcolor="#e5e7eb", '
+                f'color="#1f2937"];'
             )
     for src in members:
         for dep in graph.edges.get(src, []):
             if dep in member_set:
-                lines.append(f'  "{src}" -> "{dep}";')
+                lines.append(
+                    f'  "{_impact_dot_escape(src)}" -> "{_impact_dot_escape(dep)}";'
+                )
     lines.append("}")
     return "\n".join(lines) + "\n"
 
