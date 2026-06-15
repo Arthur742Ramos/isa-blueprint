@@ -201,6 +201,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`roadmap --csv`** emits one CSV row per node in the staged plan (columns:
+  `stage`, `node_id`, `kind`, `formal_status`, `agent_status`,
+  `blocked_by_count`) plus a header to stdout. Mutually exclusive with
+  `--json`/`--mermaid`, and it honours the existing `--status`/`--stage`/`--kind`
+  filters.
 
 ### Changed
 
