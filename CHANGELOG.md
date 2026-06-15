@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`tags --tag NAME`** restricts the roll-up to the named tag(s) (repeatable);
+  an unknown tag yields a zero/empty row rather than an error, so the filter
+  behaves additively. Project-wide `total_nodes`/`untagged_count` and the JSON
+  shape are unchanged.
 
 ### Changed
 
