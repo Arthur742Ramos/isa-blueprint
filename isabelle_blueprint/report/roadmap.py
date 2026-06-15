@@ -399,6 +399,47 @@ def render_roadmap(
     return "\n".join(lines)
 
 
+def render_roadmap_mermaid(
+    roadmap: RoadmapOverview,
+    *,
+    filters: RoadmapFilters | None = None,
+) -> str:
+    """Render the staged roadmap as a Mermaid ``flowchart``.
+
+    Each dependency stage becomes a ``subgraph`` whose nodes are labelled by id,
+    and ``uses`` relationships between items are emitted as edges. Honours the
+    same ``--status``/``--stage``/``--kind`` filters as the Markdown rendering so
+    the diagram mirrors what the user asked to see.
+    """
+
+    filters = filters or RoadmapFilters()
+    rendered = filter_roadmap(roadmap, filters) if filters.active else roadmap
+    visible_ids = {item.node_id for stage in rendered.stages for item in stage.items}
+    lines = ["flowchart TB"]
+    for stage in rendered.stages:
+        lines.append(f"  subgraph stage{stage.index}[\"Stage {stage.index}\"]")
+        for item in stage.items:
+            lines.append(f'    {_mermaid_node_id(item.node_id)}["{_mermaid_text(item.node_id)}"]')
+        lines.append("  end")
+    for stage in rendered.stages:
+        for item in stage.items:
+            for blocker in item.blocked_by:
+                if blocker.id in visible_ids:
+                    lines.append(
+                        f"  {_mermaid_node_id(blocker.id)} --> {_mermaid_node_id(item.node_id)}"
+                    )
+    return "\n".join(lines) + "\n"
+
+
+def _mermaid_node_id(node_id: str) -> str:
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
+    return f"n_{safe}"
+
+
+def _mermaid_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', "&quot;")
+
+
 def write_roadmap(
     roadmap: RoadmapOverview,
     build_dir: Path,

@@ -103,6 +103,39 @@ def test_cli_roadmap_json_output(tmp_path: Path, capsys) -> None:
     assert data["suggested_path"] == ["b", "c"]
 
 
+def test_cli_roadmap_mermaid_emits_staged_flowchart(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--mermaid"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    assert "subgraph stage1" in out
+    assert "n_b" in out
+    assert "n_b --> n_c" in out
+
+
+def test_cli_roadmap_mermaid_rejects_json_combo(tmp_path: Path) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--mermaid", "--json"])
+
+    assert rc != 0
+
+
+def test_cli_roadmap_mermaid_respects_status_filter(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--mermaid", "--status", "ready"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "flowchart" in out
+    assert "n_b" in out
+    assert "n_c" not in out
+
+
 def test_cli_roadmap_write_outputs_artifacts(tmp_path: Path, capsys) -> None:
     _write_roadmap_project(tmp_path)
 
