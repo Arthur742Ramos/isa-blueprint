@@ -7,6 +7,8 @@ glance shows whether coverage is moving in the right direction.
 """
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass, field
 
 # Numeric metric keys we compute a delta for, in display order.
@@ -138,3 +140,27 @@ def _format_delta(delta: TrendDelta) -> str:
     else:
         change = " (no change)"
     return f"{before} -> {after}{change}"
+
+
+# CSV columns, in display order: the timestamp plus the same numeric metrics
+# surfaced in the text/delta views.
+_CSV_COLUMNS = ("timestamp",) + _DELTA_KEYS
+
+
+def render_trend_csv(summary: TrendSummary) -> str:
+    """Render ``summary.entries`` as CSV (header row + one row per snapshot).
+
+    Columns are the timestamp followed by the numeric coverage / count metrics.
+    Missing values are emitted as empty cells. Uses ``\\r\\n`` line terminators
+    per the :mod:`csv` module default.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(_CSV_COLUMNS)
+    for entry in summary.entries:
+        row = []
+        for column in _CSV_COLUMNS:
+            value = entry.get(column)
+            row.append("" if value is None else value)
+        writer.writerow(row)
+    return buffer.getvalue()

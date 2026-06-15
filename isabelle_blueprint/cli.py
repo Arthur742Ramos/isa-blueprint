@@ -174,7 +174,11 @@ from isabelle_blueprint.report.github_actions import (
     emit_step_outputs,
     emit_step_summary,
 )
-from isabelle_blueprint.report.history import render_trend_summary, summarize_trends
+from isabelle_blueprint.report.history import (
+    render_trend_csv,
+    render_trend_summary,
+    summarize_trends,
+)
 from isabelle_blueprint.report.impact import (
     UnknownNodeError,
     build_impact_overview,
@@ -739,7 +743,7 @@ def cmd_tags(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_tag_report(project)
+    report = build_tag_report(project, only=args.tag or None)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -1120,6 +1124,8 @@ def cmd_history(args: argparse.Namespace) -> int:
     summary = summarize_trends(entries, limit=args.limit)
     if args.json:
         print(json.dumps(summary.to_dict(), indent=2))
+    elif args.csv:
+        print(render_trend_csv(summary), end="")
     else:
         print(render_trend_summary(summary), end="")
     return 0
@@ -1230,7 +1236,13 @@ def _assignments_payload(store, project, node_id):  # type: ignore[no-untyped-de
                 "updated_at": assignment.updated_at,
             }
         )
-    return {"project": project.name, "assignments": items}
+    owners = {item["node_id"]: item["owner"] for item in items}
+    return {
+        "project": project.name,
+        "count": len(items),
+        "owners": owners,
+        "assignments": items,
+    }
 
 
 def _render_assignments(payload: dict) -> str:
@@ -1270,11 +1282,20 @@ def cmd_fmt(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config = load_config_checked(project_dir)
     paths = [p for p in config.blueprint_paths if p.exists()]
+    diff = getattr(args, "diff", False)
     result = format_blueprint_paths(
-        paths, project_name=config.project_name, check_only=args.check
+        paths, project_name=config.project_name, check_only=args.check, diff=diff
     )
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
+    elif diff:
+        for entry in result.files:
+            if entry.skipped:
+                print(f"  skipped {entry.path} ({entry.reason})")
+            elif entry.diff:
+                print(entry.diff, end="" if entry.diff.endswith("\n") else "\n")
+        if not result.would_change:
+            print("All Markdown blueprints are already canonical.")
     else:
         for entry in result.files:
             if entry.skipped:
@@ -1284,7 +1305,7 @@ def cmd_fmt(args: argparse.Namespace) -> int:
                 print(f"  {verb}: {entry.path}")
         if not result.would_change:
             print("All Markdown blueprints are already canonical.")
-    if args.check and result.would_change:
+    if (args.check or diff) and result.would_change:
         return 10
     return 0
 
@@ -2452,11 +2473,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
-    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML dependency graph")
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.add_argument(
         "--format",
-        choices=("all", "dot", "json", "svg", "mermaid", "graphml"),
+        choices=("all", "dot", "json", "svg", "mermaid", "graphml", "d2"),
         default="all",
         help="which artifact(s) to write (default: all)",
     )
@@ -2501,6 +2522,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
     p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="restrict the roll-up to the named tag (repeatable)",
+    )
     p_tags.set_defaults(func=cmd_tags)
 
     p_path = sub.add_parser(
@@ -2794,7 +2822,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_history = sub.add_parser("history", help="summarize trends.json coverage history")
     p_history.add_argument("project_dir", nargs="?", default=".")
-    p_history.add_argument("--json", action="store_true", help="emit the summary as JSON")
+    p_history_format = p_history.add_mutually_exclusive_group()
+    p_history_format.add_argument(
+        "--json", action="store_true", help="emit the summary as JSON"
+    )
+    p_history_format.add_argument(
+        "--csv", action="store_true", help="emit the trend snapshots as CSV"
+    )
     p_history.add_argument(
         "--limit",
         type=_positive_int,
@@ -2888,6 +2922,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--check",
         action="store_true",
         help="report non-canonical files and exit non-zero (10) without writing",
+    )
+    p_fmt.add_argument(
+        "--diff",
+        action="store_true",
+        help="print a unified diff of canonicalisation without writing; exits 10 on drift",
     )
     p_fmt.add_argument("--json", action="store_true", help="emit the format result as JSON")
     p_fmt.set_defaults(func=cmd_fmt)

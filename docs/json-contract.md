@@ -913,11 +913,19 @@ lacks a numeric value.
 ```json
 {
   "project": "demo",
+  "count": 1,
+  "owners": { "main-theorem": "alice" },
   "assignments": [
     { "node_id": "main-theorem", "owner": "alice", "note": "", "updated_at": "2026-06-01T12:00:00Z" }
   ]
 }
 ```
+
+`count` is the number of `assignments` entries, and `owners` is a convenience
+`node_id -> owner` map derived from the same entries (mirroring each entry's
+`owner`, so it is `null` for an explicitly-queried but unassigned node). Both are
+additive over the original `{project, assignments}` shape; existing keys are
+unchanged.
 
 When a specific `node_id` is queried but unassigned, its entry has `owner:
 null`. The persisted store (the configured `assignments.json`) uses a different,
