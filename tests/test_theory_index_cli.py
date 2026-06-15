@@ -214,3 +214,13 @@ def test_theory_index_mermaid_rejects_json(tmp_path: Path, capsys) -> None:
     rc = cli_main(["theory-index", "--root", str(root), "--mermaid", "--json"])
     assert rc == 1
     assert "mutually exclusive" in capsys.readouterr().err.lower()
+
+
+def test_theory_index_mermaid_rejects_mode_flags(tmp_path: Path, capsys) -> None:
+    root = _make_session(tmp_path)
+    rc = cli_main(["theory-index", "--root", str(root), "--mermaid", "--sorry"])
+    assert rc == 1
+    err = capsys.readouterr().err.lower()
+    assert "--mermaid" in err
+    assert "--sorry" in err
+    assert "standalone" in err

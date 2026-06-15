@@ -2467,6 +2467,24 @@ def _theory_index_summary(index: SourceIndex) -> str:
 def cmd_theory_index(args: argparse.Namespace) -> int:
     if args.mermaid and args.json:
         raise BlueprintError("theory-index --mermaid and --json are mutually exclusive")
+    if args.mermaid:
+        conflicting = [
+            flag
+            for flag, active in (
+                ("--callers", args.callers is not None),
+                ("--callees", args.callees is not None),
+                ("--deps", args.deps is not None),
+                ("--sorry", args.sorry),
+                ("--unreferenced", args.unreferenced),
+                ("--counts", args.counts),
+            )
+            if active
+        ]
+        if conflicting:
+            raise BlueprintError(
+                "theory-index --mermaid is a standalone output mode and cannot be "
+                f"combined with {', '.join(conflicting)}"
+            )
     files = _resolve_index_files(args)
     index = build_index(files)
 
