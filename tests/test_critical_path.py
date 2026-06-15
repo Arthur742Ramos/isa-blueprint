@@ -266,6 +266,49 @@ def test_cli_goal_focus(tmp_path: Path, capsys) -> None:
     assert out.endswith("\n")
 
 
+def test_cli_write_artifacts(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--write"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    json_path = tmp_path / "build" / "critical-path.json"
+    md_path = tmp_path / "build" / "critical-path.md"
+    assert json_path.exists()
+    assert md_path.exists()
+    # The text report is still printed, and the write locations are announced.
+    assert "critical path" in out.lower()
+    assert "critical-path json ->" in out
+    assert "critical-path md ->" in out
+
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert data["project"] == "cp-test"
+    assert data["schema_version"] == 1
+    assert data["longest"]["path"] == ["a", "b"]
+
+    md = md_path.read_text(encoding="utf-8")
+    assert "critical path" in md.lower()
+    assert "`a` -> `b`" in md
+
+
+def test_cli_write_json_payload_matches_stdout(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json", "--write"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    # With --json the JSON goes to stdout; the write notices go to stderr.
+    stdout_payload = json.loads(captured.out)
+    assert "critical-path json ->" in captured.err
+
+    file_payload = json.loads(
+        (tmp_path / "build" / "critical-path.json").read_text(encoding="utf-8")
+    )
+    assert file_payload == stdout_payload
+
+
 def test_cli_fail_on_cycle(tmp_path: Path, capsys) -> None:
     body = """# cyc
 
