@@ -143,6 +143,32 @@ def test_search_facts_markdown_free_text(tmp_path: Path, capsys) -> None:
     assert "`Demo.add_comm`" in out
 
 
+def test_search_facts_markdown_target_mode(tmp_path: Path, capsys) -> None:
+    body = """# sf-test
+
+::: lemma {#comm}
+title: Addition commutes
+isabelle: Demo.add_commm
+status: not_found
+
+a + b = b + a.
+
+By induction.
+:::
+"""
+    _write_project(tmp_path, body)
+    thy = _write_theory(tmp_path)
+
+    rc = cli_main(["search-facts", str(tmp_path), "--theory", str(thy), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Fact search: unresolved targets" in out
+    assert "## `comm` (target `Demo.add_commm`)" in out
+    assert "| Fact | Score | Theory |" in out
+    assert "`Demo.add_comm`" in out
+
+
 def test_search_facts_markdown_rejects_json(tmp_path: Path) -> None:
     _write_project(tmp_path, "# sf-test\n")
     thy = _write_theory(tmp_path)

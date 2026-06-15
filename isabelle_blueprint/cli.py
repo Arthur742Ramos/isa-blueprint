@@ -3643,11 +3643,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="maximum matches to show (per node in target mode; default: 10)",
     )
     p_search_fmt = p_search.add_mutually_exclusive_group()
-    p_search_fmt.add_argument("--json", action="store_true", help="emit matches as JSON")
+    p_search_fmt.add_argument("--json", action="store_true", help="emit results as JSON")
     p_search_fmt.add_argument(
         "--markdown",
         action="store_true",
-        help="render matches as a Markdown table (mutually exclusive with --json)",
+        help="render results as a Markdown table (mutually exclusive with --json)",
     )
     p_search.set_defaults(func=cmd_search_facts)
 

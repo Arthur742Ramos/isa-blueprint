@@ -168,7 +168,7 @@ def render_hits_markdown(query: str, hits: list[FactHit]) -> str:
     """Render free-text search ``hits`` as a Markdown table (trailing newline)."""
     lines = [f"# Fact search: {query}", ""]
     if not hits:
-        lines.append(f"No declarations match `{query}`.")
+        lines.append(f"No declarations match {query!r}.")
         return "\n".join(lines) + "\n"
     lines.append("| Fact | Score | Theory |")
     lines.append("| --- | --- | --- |")
