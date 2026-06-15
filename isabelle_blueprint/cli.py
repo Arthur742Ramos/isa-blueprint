@@ -169,7 +169,11 @@ from isabelle_blueprint.report.critical_path import (
     write_critical_path,
 )
 from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
-from isabelle_blueprint.report.effort import build_effort_report, render_effort_report
+from isabelle_blueprint.report.effort import (
+    build_effort_gate,
+    build_effort_report,
+    render_effort_report,
+)
 from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
@@ -280,6 +284,16 @@ def _positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError("must be an integer") from exc
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _percent(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not 0 <= parsed <= 100:
+        raise argparse.ArgumentTypeError("must be between 0 and 100")
     return parsed
 
 
@@ -924,10 +938,27 @@ def cmd_effort(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     report = build_effort_report(project, include_by_tag=args.by_tag)
+    fail_under = getattr(args, "fail_under", None)
+    gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
-        print(json.dumps(report.to_dict(include_by_tag=args.by_tag), indent=2))
+        payload = report.to_dict(include_by_tag=args.by_tag)
+        if gate is not None:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
     else:
         print(render_effort_report(report, by_tag=args.by_tag), end="")
+        if gate is not None and not gate["meets"]:
+            actual = (
+                "undefined"
+                if report.coverage_percent is None
+                else f"{report.coverage_percent}%"
+            )
+            print(
+                f"effort-weighted coverage {actual} is below {fail_under}%",
+                file=sys.stderr,
+            )
+    if gate is not None and not gate["meets"]:
+        return 5
     return 0
 
 
@@ -2731,6 +2762,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--by-tag",
         action="store_true",
         help="additionally group effort-weighted progress per tag",
+    )
+    p_effort.add_argument(
+        "--fail-under",
+        type=_percent,
+        default=None,
+        metavar="PCT",
+        help=(
+            "fail (exit 5) when effort-weighted coverage is below PCT percent "
+            "(0-100), or undefined"
+        ),
     )
     p_effort.set_defaults(func=cmd_effort)
 

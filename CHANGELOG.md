@@ -149,6 +149,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`effort --fail-under PCT`** turns the effort report into a CI gate: exit `5`
+  when effort-weighted coverage is below `PCT` percent (0–100, float or int), or
+  undefined, matching the fail flags on `gate`/`staleness`/`diff`/`burndown`.
+  `--json` adds an additive `gate` object (`fail_under`, `effort_percent`,
+  `meets`); without the flag, behaviour and exit code are unchanged.
 
 ### Changed
 
