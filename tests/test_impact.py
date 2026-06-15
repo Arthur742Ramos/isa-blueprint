@@ -14,6 +14,7 @@ from isabelle_blueprint.report.impact import (
     build_impact_overview,
     build_impact_report,
     render_impact_dot,
+    render_impact_mermaid,
 )
 
 
@@ -273,6 +274,50 @@ def test_cli_dot_format_requires_node(tmp_path: Path, capsys) -> None:
     assert rc != 0
     err = capsys.readouterr().err
     assert "--format dot requires --node" in err
+
+
+def test_cli_mermaid_format_emits_flowchart(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--format", "mermaid"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "flowchart" in out
+    # The focus node id and its downstream dependent both appear as Mermaid nodes,
+    # with the dependency edge and the focus-node highlight style.
+    assert "n_a" in out
+    assert "n_b" in out
+    assert "n_b --> n_a" in out
+    assert "style n_a fill:#fde047" in out
+
+
+def test_cli_mermaid_format_requires_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--format", "mermaid"])
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "--format mermaid requires --node" in err
+
+
+def test_mermaid_label_escapes_newline_and_quote() -> None:
+    # A node whose label text contains a double-quote, backslash and newline must
+    # be escaped per the project Mermaid convention so the flowchart stays valid.
+    evil = 'a"x\\y\nz'
+    project = _project(
+        _node(evil),
+        _node("b", uses=[evil]),
+    )
+
+    mermaid = render_impact_mermaid(project, evil)
+
+    assert "flowchart" in mermaid
+    assert "&quot;" in mermaid
+    assert "<br/>" in mermaid
+    # The raw newline must not survive inside the emitted label.
+    assert "\ny\nz" not in mermaid
 
 
 def test_cli_format_json_matches_json_flag(tmp_path: Path, capsys) -> None:
