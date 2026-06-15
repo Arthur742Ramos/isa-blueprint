@@ -168,7 +168,12 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path,
     write_critical_path,
 )
-from isabelle_blueprint.report.diff import build_diff, load_baseline, render_diff
+from isabelle_blueprint.report.diff import (
+    build_diff,
+    load_baseline,
+    render_diff,
+    render_diff_markdown,
+)
 from isabelle_blueprint.report.effort import build_effort_report, render_effort_report
 from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
 from isabelle_blueprint.report.github_actions import (
@@ -1182,6 +1187,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
     diff = build_diff(baseline_nodes, project)
     if args.json:
         print(json.dumps(diff.to_dict(), indent=2))
+    elif args.markdown:
+        print(render_diff_markdown(diff), end="")
     else:
         print(render_diff(diff), end="")
     if args.fail_on_regression and diff.has_regression:
@@ -2929,7 +2936,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_diff.add_argument("baseline", help="path to a baseline project.json")
     p_diff.add_argument("project_dir", nargs="?", default=".")
-    p_diff.add_argument("--json", action="store_true", help="emit the diff as JSON")
+    p_diff_format = p_diff.add_mutually_exclusive_group()
+    p_diff_format.add_argument("--json", action="store_true", help="emit the diff as JSON")
+    p_diff_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the diff as a Markdown summary",
+    )
     p_diff.add_argument(
         "--fail-on-regression",
         action="store_true",

@@ -126,6 +126,59 @@ def test_load_baseline_rejects_duplicate_ids(tmp_path: Path) -> None:
         load_baseline(path)
 
 
+def test_diff_markdown_reports_removed_and_changed(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    baseline = _write_baseline(
+        tmp_path,
+        [
+            {"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}},
+            {"id": "gone", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}},
+        ],
+    )
+
+    rc = cli_main(
+        ["diff", str(baseline), str(tmp_path), "--markdown", "--fail-on-regression"]
+    )
+
+    # --fail-on-regression still wins exit code 5 alongside --markdown.
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "## diff: diff-test" in out
+    # The removed node appears under its own section.
+    assert "### Removed" in out
+    assert "`gone`" in out
+    # The downgraded node appears in the changes table flagged as a regression.
+    assert "### Changed" in out
+    assert "| `a` | formal | proved | missing | yes |" in out
+    # Markdown output carries no colour escape codes.
+    assert "\033[" not in out
+
+
+def test_diff_markdown_rejects_json_combo(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    baseline = _write_baseline(
+        tmp_path,
+        [{"id": "a", "status": {"formal": "proved", "agent": "idle", "blueprint": "stub"}}],
+    )
+
+    with pytest.raises(SystemExit):
+        cli_main(["diff", str(baseline), str(tmp_path), "--markdown", "--json"])
+
+
+def test_diff_markdown_no_changes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    rc = cli_main(["report", str(tmp_path)])
+    assert rc == 0
+    capsys.readouterr()
+    baseline = tmp_path / "build" / "project.json"
+
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "No changes vs baseline." in out
+
+
 def teardown_function() -> None:
     # A --color always test below forces colour on; reset so it never leaks.
     from isabelle_blueprint import console
