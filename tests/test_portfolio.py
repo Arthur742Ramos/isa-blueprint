@@ -365,9 +365,7 @@ def test_cli_portfolio_markdown_examples_tree(
     assert "| Infinitude of the primes |" in out
 
 
-def test_cli_portfolio_markdown_and_json_mutually_exclusive(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_portfolio_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
     _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a", formal="proved"))
 
     with pytest.raises(SystemExit) as excinfo:
@@ -376,9 +374,7 @@ def test_cli_portfolio_markdown_and_json_mutually_exclusive(
     assert excinfo.value.code == 2
 
 
-def test_cli_portfolio_markdown_and_csv_mutually_exclusive(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_portfolio_markdown_and_csv_mutually_exclusive(tmp_path: Path) -> None:
     _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a", formal="proved"))
 
     with pytest.raises(SystemExit) as excinfo:
