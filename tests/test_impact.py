@@ -248,3 +248,39 @@ def test_cli_unknown_node_errors(tmp_path: Path, capsys) -> None:
     assert rc != 0
     err = capsys.readouterr().err
     assert "unknown node" in err
+
+
+def test_cli_dot_format_emits_subgraph(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--format", "dot"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "digraph" in out
+    # The focus node and its downstream dependent appear, with the dependency edge.
+    assert '"a"' in out
+    assert '"b"' in out
+    assert '"b" -> "a"' in out
+
+
+def test_cli_dot_format_requires_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--format", "dot"])
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "--format dot requires --node" in err
+
+
+def test_cli_format_json_matches_json_flag(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--format", "json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["node_id"] == "a"
+    assert data["blast_radius_count"] == 1
+

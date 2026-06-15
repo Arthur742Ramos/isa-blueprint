@@ -181,6 +181,7 @@ from isabelle_blueprint.report.impact import (
     build_impact_report,
     impact_overview_payload,
     impact_report_payload,
+    render_impact_dot,
     render_impact_overview,
     render_impact_report,
 )
@@ -943,7 +944,10 @@ def cmd_impact(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
+    fmt = _resolve_lint_format(args)
     node = getattr(args, "node", None)
+    if fmt == "dot" and not node:
+        raise BlueprintError("--format dot requires --node NODE")
     if node:
         try:
             report = build_impact_report(project, node)
@@ -952,13 +956,15 @@ def cmd_impact(args: argparse.Namespace) -> int:
             raise BlueprintError(
                 f"unknown node {node!r}; known node ids: {known}"
             ) from None
-        if args.json:
+        if fmt == "dot":
+            print(render_impact_dot(project, node), end="")
+        elif fmt == "json":
             print(json.dumps(impact_report_payload(report), indent=2))
         else:
             print(render_impact_report(report, top=args.top), end="")
         return 0
     overview = build_impact_overview(project)
-    if args.json:
+    if fmt == "json":
         print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
     else:
         print(render_impact_overview(overview, top=args.top), end="")
@@ -2701,6 +2707,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="focus on a single node's blast radius (omit for a project-wide ranking)",
     )
     p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_impact.add_argument(
+        "--format",
+        choices=("text", "json", "dot"),
+        default=None,
+        help=(
+            "output format (default: text); `dot` emits a Graphviz subgraph of the "
+            "node's blast radius and requires --node. `--json` is an alias for "
+            "`--format json`."
+        ),
+    )
     p_impact.add_argument(
         "--top",
         type=_positive_int,

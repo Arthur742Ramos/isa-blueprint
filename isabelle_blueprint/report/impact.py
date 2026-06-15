@@ -322,6 +322,53 @@ def render_impact_report(report: ImpactReport, *, top: int = 10) -> str:
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
+def _impact_dot_escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def render_impact_dot(project: BlueprintProject, node_id: str) -> str:
+    """Return a Graphviz DOT subgraph of ``node_id`` and its blast radius.
+
+    The subgraph contains the focus node plus every downstream dependent, with
+    edges following ``uses`` (drawn from dependent to dependency, matching the
+    project's dependency-graph orientation). The focus node is highlighted.
+    Raises :class:`UnknownNodeError` when ``node_id`` is not a known node.
+    """
+
+    by_id, graph, _cycle_nodes = _build_context(project)
+    if node_id not in by_id:
+        raise UnknownNodeError(node_id)
+
+    distances = _blast_radius(graph, node_id)
+    members = [node_id] + sorted(distances, key=lambda dep: (distances[dep], dep))
+    member_set = set(members)
+
+    lines = [
+        f'digraph "impact_{_impact_dot_escape(node_id)}" {{',
+        '  graph [rankdir=BT, splines=true, bgcolor="white", fontname="Helvetica"];',
+        '  node  [shape=box, style="filled,rounded", fontname="Helvetica", fontsize=11];',
+        '  edge  [color="#94a3b8"];',
+    ]
+    for member in members:
+        node = by_id[member]
+        label = _impact_dot_escape(f"{node.id}\n{node.title}")
+        if member == node_id:
+            lines.append(
+                f'  "{member}" [label="{label}", fillcolor="#fde047", '
+                f'color="#1f2937", penwidth=2];'
+            )
+        else:
+            lines.append(
+                f'  "{member}" [label="{label}", fillcolor="#e5e7eb", color="#1f2937"];'
+            )
+    for src in members:
+        for dep in graph.edges.get(src, []):
+            if dep in member_set:
+                lines.append(f'  "{src}" -> "{dep}";')
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def render_impact_overview(overview: ImpactOverview, *, top: int = 10) -> str:
     """Render the project-wide blast-radius ranking as compact Markdown."""
 
