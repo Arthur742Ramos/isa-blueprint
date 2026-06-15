@@ -163,10 +163,13 @@ def render_graphml(project: BlueprintProject) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_svg(dot_source: str, executable: str = "dot") -> str | None:
+def render_svg(dot_source: str, executable: str = "dot", *, timeout: float = 30.0) -> str | None:
     """Render ``dot_source`` to SVG using the ``dot`` binary.
 
-    Returns the SVG XML, or ``None`` if Graphviz is not installed.
+    Returns the SVG XML, or ``None`` if Graphviz is not installed. A ``dot``
+    process that hangs is bounded by ``timeout`` seconds (a malformed or huge
+    graph should never block the caller indefinitely); on timeout or failure an
+    SVG comment describing the problem is returned instead of raising.
     """
     if shutil.which(executable) is None:
         return None
@@ -177,7 +180,10 @@ def render_svg(dot_source: str, executable: str = "dot") -> str | None:
             text=True,
             capture_output=True,
             check=True,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired:
+        return f"<!-- graphviz timed out after {timeout:g}s -->"
     except subprocess.CalledProcessError as exc:  # pragma: no cover - graphviz failure
         return f"<!-- graphviz failed: {exc.stderr.strip()} -->"
     return proc.stdout

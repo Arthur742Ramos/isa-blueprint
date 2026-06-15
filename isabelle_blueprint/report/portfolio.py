@@ -23,7 +23,7 @@ from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.project_io import load_project_with_check
-from isabelle_blueprint.report.metrics import build_status_metrics
+from isabelle_blueprint.report.metrics import build_status_metrics, coverage_percent
 from isabelle_blueprint.report.status_overview import build_status_overview
 
 PORTFOLIO_SCHEMA_VERSION = 1
@@ -208,15 +208,7 @@ def _aggregate(projects: list[PortfolioProject]) -> PortfolioTotals:
 
     targets = total("formal_target_count")
     proved = total("proved_count")
-    # Truncate (not round) so portfolio-wide 100% means every formal target is
-    # proved, matching the per-project metric in metrics.py; clamp a non-zero
-    # sub-1% ratio up to 1 so real progress is never shown as a misleading 0%.
-    if targets:
-        coverage: int | None = proved * 100 // targets
-        if coverage == 0 and proved > 0:
-            coverage = 1
-    else:
-        coverage = None
+    coverage = coverage_percent(proved, targets)
     return PortfolioTotals(
         project_count=len(projects),
         loaded_count=len(loaded),

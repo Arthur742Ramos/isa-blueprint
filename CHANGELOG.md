@@ -90,6 +90,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run on `status`, `report`, `portfolio`, `roadmap`, and `agent-context`). Output
   is unchanged; a regression test asserts the index build count no longer scales
   with node count.
+- **Coverage percentage is computed in one place.** The status metric, the
+  effort-weighted report, and the portfolio roll-up now all call a single
+  `report.metrics.coverage_percent()` helper (truncate-not-round, with the
+  sub-1% clamp), so the badge, README, CI summary, and dashboards can no longer
+  drift apart as three hand-copied formulas. No output change.
+
+### Fixed
+
+- **`graph --format svg` can no longer hang** on a wedged or pathological
+  Graphviz `dot` process: `render_svg` now bounds the subprocess with a timeout
+  (default 30s) and degrades to an SVG comment instead of blocking the caller
+  indefinitely.
 
 ## [1.12.0] - 2026-06-06
 
