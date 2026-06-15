@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it exits `5` when there is *any* difference vs the baseline (an added node, a
   removed node, or any status change), not just regressions. It composes with
   `--json`/`--markdown` (the gate only affects the exit code).
+- **`portfolio --markdown`** renders the cross-project roll-up as Markdown: a
+  heading, a totals summary line, and a table with one row per project (name,
+  node count, coverage, proved, problems, cycles, health). Mutually exclusive
+  with `--json` and `--csv`.
 - **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
   These commands emit versioned `--json` payloads but shipped without published
   schemas, unlike the rest of the CLI. They are now registered packaged schemas

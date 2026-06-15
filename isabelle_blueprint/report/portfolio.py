@@ -309,6 +309,76 @@ _CSV_COLUMNS = (
 )
 
 
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+_MARKDOWN_HEADERS = (
+    "Project",
+    "Nodes",
+    "Coverage",
+    "Proved",
+    "Problems",
+    "Cycles",
+    "Health",
+)
+
+
+def render_portfolio_markdown(report: PortfolioReport) -> str:
+    """Render ``report`` as a Markdown document (trailing newline).
+
+    A level-2 heading, a one-line totals summary, and a table with one row per
+    project: name, node count, coverage, proved, problems, a cycles flag, and
+    health/status. Errored projects use ``error`` as their status and leave
+    numeric cells blank. User-controlled text (project names) is escaped so a
+    stray ``|`` or newline cannot break the table.
+    """
+    totals = report.totals
+    lines = ["## Portfolio"]
+    if totals.project_count == 0:
+        lines.append("")
+        lines.append(
+            f"No IsabelleBlueprint projects found under `{report.root}`."
+        )
+        return "\n".join(lines) + "\n"
+
+    lines.append("")
+    lines.append(
+        f"**Totals:** {totals.project_count} project(s); coverage "
+        f"{_coverage_text(totals.coverage_percent)} "
+        f"({totals.proved_count}/{totals.formal_target_count} proved across "
+        f"{totals.node_count} nodes); problems {totals.problem_count} in "
+        f"{totals.projects_with_problems} project(s); cycles in "
+        f"{totals.projects_with_cycles}; complete "
+        f"{totals.projects_complete}/{totals.loaded_count}"
+        + (f"; failed to load {totals.error_count}" if totals.error_count else "")
+    )
+    lines.append("")
+    lines.append("| " + " | ".join(_MARKDOWN_HEADERS) + " |")
+    lines.append("| " + " | ".join("---" for _ in _MARKDOWN_HEADERS) + " |")
+    for project in report.projects:
+        if project.error is not None:
+            cells = [_md_cell(project.name), "", "", "", "", "", "error"]
+        else:
+            cells = [
+                _md_cell(project.name),
+                "" if project.node_count is None else str(project.node_count),
+                _coverage_text(project.coverage_percent),
+                "" if project.proved_count is None else str(project.proved_count),
+                "" if project.problem_count is None else str(project.problem_count),
+                "" if project.has_cycles is None else ("yes" if project.has_cycles else "no"),
+                project.health or "",
+            ]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
 def render_portfolio_csv(report: PortfolioReport) -> str:
     """Render ``report`` as CSV: a header row plus one row per project.
 
