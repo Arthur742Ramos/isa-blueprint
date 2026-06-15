@@ -106,6 +106,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`history --csv`** exports the recorded trend snapshots as CSV (a header row
+  plus one row per snapshot, carrying the timestamp and the same numeric
+  coverage/count metrics shown in text mode). It is mutually exclusive with
+  `--json`, respects `--limit`, and leaves the default text output unchanged,
+  so trend history can be piped into spreadsheets and plotting tools without
+  post-processing JSON.
 
 ### Changed
 
