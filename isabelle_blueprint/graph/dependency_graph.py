@@ -48,6 +48,29 @@ def build_graph(project: BlueprintProject) -> DependencyGraph:
     return g
 
 
+def roots_subproject(project: BlueprintProject) -> BlueprintProject:
+    """Return a pruned copy of ``project`` limited to its ROOT nodes.
+
+    A root is a node that nothing else ``uses`` (no incoming dependency edge);
+    these are the end-goals of the blueprint. Edges among the surviving roots
+    are preserved automatically by :func:`build_graph`, which drops any edge
+    whose target was pruned. The original :class:`BlueprintNode` objects are
+    reused unchanged and the relevant source files are kept, mirroring
+    :func:`focus_subproject`.
+    """
+    graph = build_graph(project)
+    keep = {node_id for node_id in graph.nodes if not graph.reverse_edges.get(node_id)}
+    kept_nodes = [node for node in project.nodes if node.id in keep]
+    sources = [
+        src
+        for src in project.source_files
+        if any(node.source_file == src for node in kept_nodes)
+    ]
+    if not sources and not any(node.source_file for node in kept_nodes):
+        sources = list(project.source_files)
+    return BlueprintProject.from_nodes(project.name, kept_nodes, sources)
+
+
 def dependency_levels(project: BlueprintProject) -> list[list[str]]:
     """Topological layering: level 0 = roots, level k = all-deps-in-prior-levels.
 

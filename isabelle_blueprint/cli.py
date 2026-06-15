@@ -102,6 +102,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    roots_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
 from isabelle_blueprint.isabelle.checker import (
@@ -755,6 +756,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
             raise BlueprintError(
                 f"unknown node {focus!r}; known node ids: {known}"
             ) from None
+    if getattr(args, "roots_only", False):
+        project = roots_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -2688,6 +2691,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="N",
         help="with --focus, include nodes within N dependency hops (default: unlimited)",
+    )
+    p_graph.add_argument(
+        "--roots-only",
+        action="store_true",
+        help="prune the graph to root nodes (those nothing else uses); "
+        "composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
 

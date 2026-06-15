@@ -201,6 +201,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subgraph` per dependency stage, nodes labelled by id, edges following `uses`
   between stages) to stdout. Mutually exclusive with `--json`, and it honours the
   existing `--status`/`--stage`/`--kind` filters.
+- **`graph --roots-only`** prunes the emitted graph (every format) to root nodes
+  — those nothing else `uses` (no incoming dependency edges, the end-goals);
+  composes with `--focus`/`--depth` and is a no-op without the flag.
 
 ### Changed
 
