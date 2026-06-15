@@ -86,9 +86,11 @@ def format_blueprint_paths(
 
     When ``diff`` is true nothing is written regardless of ``check_only``;
     instead each changed file records a unified diff of the canonicalisation in
-    :attr:`FormatFileResult.diff`.
+    :attr:`FormatFileResult.diff`. Because diff mode never writes, the reported
+    :attr:`FormatResult.check_only` is true whenever ``diff`` is set, so the JSON
+    output accurately reflects that no file was modified.
     """
-    result = FormatResult(check_only=check_only)
+    result = FormatResult(check_only=check_only or diff)
     for path in paths:
         if path.suffix.lower() != ".md":
             result.files.append(

@@ -123,6 +123,8 @@ def test_fmt_diff_json_includes_diff_field(tmp_path: Path, capsys) -> None:
 
     assert rc == 10
     data = json.loads(capsys.readouterr().out)
+    # --diff never writes, so check_only must report true even without --check.
+    assert data["check_only"] is True
     changed = [f for f in data["files"] if f["changed"]]
     assert len(changed) == 1
     assert "blueprint: stub" in changed[0]["diff"]

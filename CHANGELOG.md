@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`fmt --diff`** previews canonicalisation as a unified diff without writing,
+  exiting `10` on drift. Diff mode implies check-only semantics, so the
+  `--json` payload reports `check_only: true` to reflect that nothing was
+  written.
 
 ### Changed
 
