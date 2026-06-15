@@ -677,7 +677,7 @@ def cmd_graph(args: argparse.Namespace) -> int:
                 f"unknown node {focus!r}; known node ids: {known}"
             ) from None
     fmt = getattr(args, "format", "all")
-    formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
+    formats = ("dot", "json", "svg", "mermaid", "graphml", "d2") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
     for name, path in written.items():
         print(f"{name} -> {path}")
@@ -2446,11 +2446,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
-    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML dependency graph")
+    p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.add_argument(
         "--format",
-        choices=("all", "dot", "json", "svg", "mermaid", "graphml"),
+        choices=("all", "dot", "json", "svg", "mermaid", "graphml", "d2"),
         default="all",
         help="which artifact(s) to write (default: all)",
     )
