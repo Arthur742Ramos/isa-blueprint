@@ -1224,7 +1224,13 @@ def _assignments_payload(store, project, node_id):  # type: ignore[no-untyped-de
                 "updated_at": assignment.updated_at,
             }
         )
-    return {"project": project.name, "assignments": items}
+    owners = {item["node_id"]: item["owner"] for item in items}
+    return {
+        "project": project.name,
+        "count": len(items),
+        "owners": owners,
+        "assignments": items,
+    }
 
 
 def _render_assignments(payload: dict) -> str:
