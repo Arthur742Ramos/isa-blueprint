@@ -96,7 +96,11 @@ from isabelle_blueprint.completion import (
 from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
-from isabelle_blueprint.explain import explain_project, render_explanations
+from isabelle_blueprint.explain import (
+    explain_project,
+    render_explanations,
+    render_explanations_markdown,
+)
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
 )
@@ -2373,6 +2377,8 @@ def cmd_explain(args: argparse.Namespace) -> int:
     explanations = explain_project(project, node_id=args.node, fact_suggestions=fact_suggestions)
     if args.json:
         print(json.dumps({"explanations": [item.to_dict() for item in explanations]}, indent=2))
+    elif args.markdown:
+        print(render_explanations_markdown(explanations, project), end="")
     else:
         print(render_explanations(explanations), end="")
     return 0
@@ -3695,7 +3701,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_explain.add_argument("project_dir", nargs="?", default=".")
     p_explain.add_argument("--node", default=None, help="only explain one node id")
-    p_explain.add_argument("--json", action="store_true", help="emit machine-readable explanations")
+    p_explain_format = p_explain.add_mutually_exclusive_group()
+    p_explain_format.add_argument(
+        "--json", action="store_true", help="emit machine-readable explanations"
+    )
+    p_explain_format.add_argument(
+        "--markdown", action="store_true", help="render explanations as a Markdown document"
+    )
     p_explain.set_defaults(func=cmd_explain)
 
     p_import = sub.add_parser(
