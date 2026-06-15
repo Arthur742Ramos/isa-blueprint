@@ -893,7 +893,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     fail_on = _resolve_fail_on(getattr(args, "fail_on", None))
     report = build_gate_report(
-        project, min_coverage=args.min_coverage, fail_on=fail_on
+        project,
+        min_coverage=args.min_coverage,
+        fail_on=fail_on,
+        min_grade=getattr(args, "min_grade", None),
     )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
@@ -1015,6 +1018,16 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    elif getattr(args, "markdown", False):
+        from isabelle_blueprint import console
+
+        was_enabled = console.is_enabled()
+        console.set_enabled(False)
+        try:
+            markdown = render_critical_path(overview, top=args.top, goal=goal)
+        finally:
+            console.set_enabled(was_enabled)
+        print(markdown, end="")
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
@@ -2694,6 +2707,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="fail when any node has this formal status (repeatable; "
         f"'{FAIL_ON_PROBLEM_ALIAS}' expands to all problem statuses)",
     )
+    p_gate.add_argument(
+        "--min-grade",
+        type=_grade_arg,
+        default=None,
+        metavar="GRADE",
+        help=(
+            "fail (exit 5) when the project scorecard grade is below GRADE "
+            f"(one of {', '.join(ALL_GRADES)}; case-insensitive)"
+        ),
+    )
     p_gate.set_defaults(func=cmd_gate)
 
     p_prom = sub.add_parser(
@@ -2819,7 +2842,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="show the longest remaining incomplete dependency chain and bottlenecks",
     )
     p_critical.add_argument("project_dir", nargs="?", default=".")
-    p_critical.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt = p_critical.add_mutually_exclusive_group()
+    p_critical_fmt.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+    p_critical_fmt.add_argument(
+        "--markdown",
+        action="store_true",
+        help="print the report as plain Markdown (no colour) to stdout",
+    )
     p_critical.add_argument(
         "--top",
         type=_positive_int,

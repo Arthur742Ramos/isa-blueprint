@@ -149,6 +149,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`critical-path --markdown`** prints the report as plain Markdown to stdout
+  (no ANSI colour even on a TTY), distinct from `--write`'s file artifacts. It
+  honours `--goal`/`--top` and is mutually exclusive with `--json`; the default
+  text output is unchanged.
+- **`gate --min-grade GRADE`** adds a scorecard-grade threshold to the CI gate:
+  it additionally fails (exit `5`) when the project scorecard grade is below
+  `GRADE` (case-insensitive A+…F, reusing the `scorecard` grades), and the JSON
+  `checks` array gains a `min_grade` entry. An ungradeable project (no gradeable
+  components) also fails the check — unlike `scorecard --min-grade`, the gate
+  cannot show an unknown grade clears the bar. Without the flag, gate output and
+  exit code are unchanged.
 - **`stats --markdown`** renders the agent-memory analytics as a Markdown
   document (summary, outcomes, and per-node tables) to stdout; mutually
   exclusive with `--json` and leaves the default text output unchanged.
