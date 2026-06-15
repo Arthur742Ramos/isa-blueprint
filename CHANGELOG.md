@@ -149,6 +149,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   composes with `--min-grade` (fails if either threshold is unmet), an
   ungradeable (empty) project never trips it, and `--json` adds
   `min_score`/`meets_min_score` to the `gate` object.
+- **`tags --fail-under PCT`** turns the tag roll-up into a per-tag CI gate: exit
+  `5` when any gated tag's proved-coverage is below `PCT` (an integer `0`–`100`),
+  listing the offending tags on stderr. Honours `--tag`, tags with no formal
+  targets never fail, and `--json` adds a `gate` object
+  (`fail_under`/`failing_tags`/`ok`).
 
 ### Changed
 

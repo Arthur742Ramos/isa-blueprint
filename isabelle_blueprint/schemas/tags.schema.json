@@ -45,6 +45,19 @@
         },
         "additionalProperties": true
       }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["fail_under", "failing_tags", "ok"],
+      "properties": {
+        "fail_under": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "failing_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ok": { "type": "boolean" }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true
