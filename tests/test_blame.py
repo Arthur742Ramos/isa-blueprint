@@ -132,3 +132,52 @@ def shutil_which_git() -> str | None:
     import shutil
 
     return shutil.which("git")
+
+
+def test_blame_without_node_id_lists_every_node(tmp_path: Path, capsys) -> None:
+    # No --node-id -> the default TEXT view shows provenance for ALL nodes.
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "a  (A)" in out
+    assert "b  (B)" in out
+
+
+def test_blame_json_and_table_are_mutually_exclusive(tmp_path: Path) -> None:
+    # --json and --table are competing output formats; argparse must reject both.
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["blame", str(tmp_path), "--json", "--table"])
+
+    assert exc.value.code == 2
+
+
+def test_blame_table_lists_every_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--table"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    # One header row plus one compact row per node.
+    assert lines[0].split() == ["NODE", "SOURCE", "GIT", "AGENT"]
+    assert lines[1].startswith("a ")
+    assert lines[2].startswith("b ")
+    # Compact form: no multi-line detailed labels.
+    assert "(no commit history)" not in out
+
+
+def test_blame_table_single_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--node-id", "b", "--table"])
+
+    assert rc == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].split() == ["NODE", "SOURCE", "GIT", "AGENT"]
+    assert [line.split()[0] for line in lines[1:]] == ["b"]

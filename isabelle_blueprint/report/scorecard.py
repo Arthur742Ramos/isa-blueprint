@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
-from isabelle_blueprint.report.metrics import build_status_metrics
+from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
 SCORECARD_SCHEMA_VERSION = 1
 
@@ -159,10 +159,19 @@ def grade_threshold(grade: str) -> int | None:
     return None
 
 
-def build_scorecard(project: BlueprintProject) -> Scorecard:
-    """Compute the composite :class:`Scorecard` for ``project``."""
+def build_scorecard(
+    project: BlueprintProject, *, metrics: StatusMetrics | None = None
+) -> Scorecard:
+    """Compute the composite :class:`Scorecard` for ``project``.
 
-    metrics = build_status_metrics(project)
+    ``metrics`` lets a caller pass an already-computed
+    :class:`~isabelle_blueprint.report.metrics.StatusMetrics` to avoid a
+    redundant recomputation; when ``None`` (the default) it is computed here, so
+    every existing caller is unaffected.
+    """
+
+    if metrics is None:
+        metrics = build_status_metrics(project)
     node_count = metrics.node_count
     targets = metrics.formal_target_count
 

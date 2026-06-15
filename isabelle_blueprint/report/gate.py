@@ -16,6 +16,9 @@ The checks are:
                   be shown to clear the bar.
 * ``fail-on``   - only evaluated when ``fail_on`` statuses are given. Fails when
                   any node's formal status is in the selected set.
+* ``min_grade`` - only evaluated when ``min_grade`` is given. Fails when the
+                  project scorecard grade is below the requested letter grade,
+                  or is undefined (no gradeable components).
 
 The gate is pure: it never talks to Isabelle or the network. Feed it a project
 that already had any stored check report applied.
@@ -27,6 +30,7 @@ from dataclasses import dataclass, field
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.report.lint import build_lint_report
 from isabelle_blueprint.report.metrics import build_status_metrics
+from isabelle_blueprint.report.scorecard import build_scorecard, grade_threshold
 
 
 @dataclass(frozen=True)
@@ -70,9 +74,18 @@ def build_gate_report(
     *,
     min_coverage: int | None = None,
     fail_on: set[str] | None = None,
+    min_grade: str | None = None,
 ) -> GateReport:
     """Evaluate every requested gate check against ``project``."""
     checks: list[GateCheck] = []
+
+    # Status metrics feed both the coverage and min_grade checks; compute them
+    # once (when either is requested) and share the single object.
+    metrics = (
+        build_status_metrics(project)
+        if (min_coverage is not None or min_grade is not None)
+        else None
+    )
 
     lint = build_lint_report(project)
     checks.append(
@@ -89,7 +102,7 @@ def build_gate_report(
     )
 
     if min_coverage is not None:
-        metrics = build_status_metrics(project)
+        assert metrics is not None  # computed above when min_coverage is set
         coverage = metrics.coverage_percent
         if coverage is None:
             checks.append(
@@ -128,6 +141,31 @@ def build_gate_report(
                     name="fail-on",
                     ok=True,
                     detail=f"no node matches [{selected}]",
+                )
+            )
+
+    if min_grade is not None:
+        assert metrics is not None  # computed above when min_grade is set
+        threshold = grade_threshold(min_grade)
+        card = build_scorecard(project, metrics=metrics)
+        if card.score is None:
+            # Intentional divergence from ``scorecard --min-grade``: an
+            # ungradeable project (no gradeable components) FAILS the gate,
+            # because CI cannot show an unknown grade clears the bar.
+            checks.append(
+                GateCheck(
+                    name="min_grade",
+                    ok=False,
+                    detail=f"grade is undefined (no gradeable components); need >= {min_grade}",
+                )
+            )
+        else:
+            ok = threshold is not None and card.score >= threshold
+            checks.append(
+                GateCheck(
+                    name="min_grade",
+                    ok=ok,
+                    detail=f"grade {card.grade} ({card.score}/100); threshold {min_grade}",
                 )
             )
 
