@@ -248,7 +248,11 @@ from isabelle_blueprint.report.staleness import (
     render_staleness_report,
     staleness_payload,
 )
-from isabelle_blueprint.report.stats import build_stats_report, render_stats_report
+from isabelle_blueprint.report.stats import (
+    build_stats_report,
+    render_stats_markdown,
+    render_stats_report,
+)
 from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
 from isabelle_blueprint.report.tags import build_tag_report, render_tag_report
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
@@ -1156,6 +1160,8 @@ def cmd_stats(args: argparse.Namespace) -> int:
     report = build_stats_report(memory, project)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif args.markdown:
+        print(render_stats_markdown(report), end="")
     else:
         print(render_stats_report(report), end="")
     return 0
@@ -2904,7 +2910,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "stats", help="aggregate agent-memory analytics (outcomes, success rate, per-node)"
     )
     p_stats.add_argument("project_dir", nargs="?", default=".")
-    p_stats.add_argument("--json", action="store_true", help="emit stats as JSON")
+    p_stats_format = p_stats.add_mutually_exclusive_group()
+    p_stats_format.add_argument("--json", action="store_true", help="emit stats as JSON")
+    p_stats_format.add_argument(
+        "--markdown", action="store_true", help="emit stats as a Markdown document"
+    )
     p_stats.set_defaults(func=cmd_stats)
 
     p_staleness = sub.add_parser(
