@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
+- **`explain --markdown`** renders the per-node status explanations as a
+  Markdown document (a heading with the node id/title, a status block listing
+  blueprint/formal/agent status, a dependency list, and the
+  reasons/suggestions/next steps). Mutually exclusive with `--json`; default
+  text output is unchanged.
 - **Packaged JSON Schemas for the `path`, `scorecard`, and `tags` commands.**
   These commands emit versioned `--json` payloads but shipped without published
   schemas, unlike the rest of the CLI. They are now registered packaged schemas
