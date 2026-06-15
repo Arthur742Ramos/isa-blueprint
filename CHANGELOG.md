@@ -205,8 +205,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gate: exit `5` when the overall proof-attempt success rate falls below `PCT`
   percent (0–100), matching the exit-5 convention used by `gate`/`diff`/`burndown`.
   Text mode prints a stderr policy message; `--json` adds an additive `gate`
-  object (`min_success_rate`, `success_rate`, `meets`). When there are no resolved
-  attempts the gate is not enforced; without the flag, behaviour is unchanged.
+  object (`min_success_rate`, `success_rate`, `meets`). The gate compares the
+  exact (unrounded) success rate so verdicts are stable near the threshold. When
+  there are no resolved attempts the gate is not enforced; without the flag,
+  behaviour is unchanged.
 
 ### Changed
 

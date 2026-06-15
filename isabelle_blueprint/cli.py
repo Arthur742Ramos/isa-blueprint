@@ -1229,11 +1229,17 @@ def cmd_stats(args: argparse.Namespace) -> int:
     gate: dict[str, object] = {}
     min_rate = getattr(args, "min_success_rate", None)
     meets: bool | None = None
+    # Gate on the RAW rate (succeeded / resolved), not report.success_rate which
+    # is rounded to 4 decimals and could flip the verdict near the threshold.
+    succeeded = report.outcomes.get("succeeded", 0)
+    failed = report.outcomes.get("failed", 0)
+    resolved = succeeded + failed
+    raw_rate = succeeded / resolved if resolved else None
     if min_rate is not None:
-        if report.success_rate is None:
+        if raw_rate is None:
             meets = None  # no resolved attempts; do not fail the gate
         else:
-            meets = report.success_rate * 100 >= min_rate
+            meets = raw_rate * 100 >= min_rate
             if not meets:
                 exit_code = 5
         gate["min_success_rate"] = min_rate
@@ -1258,9 +1264,9 @@ def cmd_stats(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         elif not meets:
-            assert report.success_rate is not None
+            assert raw_rate is not None
             print(
-                f"min-success-rate policy triggered: {report.success_rate * 100:.0f}% "
+                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% "
                 f"is below {min_rate:g}%.",
                 file=sys.stderr,
             )
