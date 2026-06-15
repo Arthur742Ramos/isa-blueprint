@@ -154,4 +154,5 @@ Because a holds.
     assert {f["node_id"] for f in dup} == {"a", "b"}
     assert all(f["severity"] == "warning" for f in dup)
     assert any("'b'" in f["message"] for f in dup if f["node_id"] == "a")
+    assert any("'a'" in f["message"] for f in dup if f["node_id"] == "b")
 

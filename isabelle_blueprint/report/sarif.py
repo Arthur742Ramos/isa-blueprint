@@ -45,6 +45,7 @@ _RULE_DESCRIPTIONS = {
     "missing-informal-proof": "A proof-bearing node has no informal proof sketch.",
     "no-isabelle-fact": "A node has no Isabelle fact assigned yet.",
     "isolated-node": "A node has no dependencies and nothing depends on it.",
+    "duplicate-title": "Two or more nodes share an identical title.",
 }
 
 

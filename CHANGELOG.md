@@ -106,6 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged; under `--json` the per-issue / `report -> path` lines are replaced
   by the structured payload, and `dump --json` reports a blueprint-validation
   failure as a JSON object (exit `2`).
+- **`duplicate-title` lint rule** flags two or more nodes that share an
+  identical (case-insensitive, trimmed) non-empty title as a warning, catching
+  accidental copy-paste collisions; it surfaces in `lint --json` and SARIF.
 
 ### Changed
 
