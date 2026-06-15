@@ -738,7 +738,7 @@ def cmd_tags(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_tag_report(project)
+    report = build_tag_report(project, only=args.tag or None)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -2495,6 +2495,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
     p_tags.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
+    p_tags.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="restrict the roll-up to the named tag (repeatable)",
+    )
     p_tags.set_defaults(func=cmd_tags)
 
     p_path = sub.add_parser(
