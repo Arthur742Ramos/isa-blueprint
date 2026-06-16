@@ -3187,8 +3187,8 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_graph_prune.add_argument(
         "--incomplete-only",
         action="store_true",
-        help="prune the graph to nodes whose formal status is not found/proved "
-        "(the remaining work); composes with --focus/--depth",
+        help="prune the graph to nodes whose formal status is neither "
+        "'found' nor 'proved' (the remaining work); composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
 
