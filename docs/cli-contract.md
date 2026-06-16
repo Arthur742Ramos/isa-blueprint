@@ -1306,8 +1306,9 @@ isabelle-blueprint proof-debt [project_dir] [--json] [--fail-over N]
 
 Computes a single **proof debt** figure: the effort-weighted total of remaining
 proof work. Every formal-target node that is not yet `proved` contributes its
-`effort` weight (defaulting to `1` when no `effort` is set); `missing` (blueprint
--only) and `proved` nodes contribute nothing. The figure is attributed to status
+`effort` weight (defaulting to `1` when no `effort` is set); `missing`
+(blueprint-only) and `proved` nodes contribute nothing. The figure is attributed
+to status
 buckets so a reviewer can see *where* the debt sits: `named` (assigned but
 unchecked), `found` (exists/stale but not trusted-proved), `problem` (not found,
 broken, tainted), and `missing` (informational; not counted in the total). The

@@ -32,7 +32,7 @@
       "type": "object",
       "required": ["fail_over", "total_debt", "exceeds"],
       "properties": {
-        "fail_over": { "type": "integer" },
+        "fail_over": { "type": "integer", "minimum": 0 },
         "total_debt": { "type": "integer", "minimum": 0 },
         "exceeds": { "type": "boolean" }
       },

@@ -3552,7 +3552,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_proof_debt.add_argument(
         "--fail-over",
-        type=int,
+        type=_non_negative_int,
         default=None,
         metavar="N",
         help="fail (exit 5) when total proof debt exceeds N (a CI debt ceiling)",

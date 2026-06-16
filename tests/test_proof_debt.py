@@ -95,6 +95,21 @@ def test_missing_nodes_excluded_from_total() -> None:
     assert report.remaining_node_count == 1
 
 
+def test_default_effort_not_flagged_for_excluded_missing_node() -> None:
+    # The only node without an explicit effort is a 'missing' (excluded) node,
+    # so it never contributes to the counted debt: default_effort_used stays
+    # False because no *counted* node fell back to the default effort.
+    report = build_proof_debt_report(
+        _project(
+            _node("a", formal=FormalStatus.MISSING),
+            _node("b", formal=FormalStatus.NAMED, effort=2),
+        )
+    )
+    assert report.total_debt == 2
+    assert report.remaining_node_count == 1
+    assert report.default_effort_used is False
+
+
 def test_fully_proved_project_has_zero_debt() -> None:
     report = build_proof_debt_report(
         _project(_node("a", formal=FormalStatus.PROVED, effort=9))
@@ -237,6 +252,13 @@ def test_cli_fail_over_high_ceiling_passes(tmp_path, capsys):
     _write_debt_project(tmp_path)
     rc = cli_main(["proof-debt", str(tmp_path), "--fail-over", "100"])
     assert rc == 0
+
+
+def test_cli_fail_over_negative_is_usage_error(tmp_path, capsys):
+    _write_debt_project(tmp_path)
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["proof-debt", str(tmp_path), "--fail-over", "-1"])
+    assert excinfo.value.code == 2
 
 
 def test_cli_clean_project_zero_debt_and_gate_passes(tmp_path, capsys):

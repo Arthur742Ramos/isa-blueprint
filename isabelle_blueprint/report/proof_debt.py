@@ -118,7 +118,7 @@ def build_proof_debt_report(project: BlueprintProject) -> ProofDebtReport:
         weight = _weight(node)
         counts[bucket] += 1
         debts[bucket] += weight
-        if node.effort is None:
+        if node.effort is None and bucket != "missing":
             default_used = True
 
     buckets = tuple(
