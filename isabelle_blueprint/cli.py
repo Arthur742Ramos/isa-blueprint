@@ -293,7 +293,9 @@ from isabelle_blueprint.report.scorecard import (
     ALL_GRADES,
     SCORE_COMPONENTS,
     build_scorecard,
+    build_scorecard_delta,
     grade_threshold,
+    load_scorecard_baseline,
     render_scorecard,
     write_scorecard_markdown,
 )
@@ -851,8 +853,17 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     card = build_scorecard(project)
 
+    since = getattr(args, "since", None)
+    delta = (
+        build_scorecard_delta(card, load_scorecard_baseline(Path(since).resolve()))
+        if since
+        else None
+    )
+
     if getattr(args, "markdown", False):
-        md_path = write_scorecard_markdown(card, config.build_dir / "scorecard.md")
+        md_path = write_scorecard_markdown(
+            card, config.build_dir / "scorecard.md", delta=delta
+        )
         print(f"scorecard markdown -> {md_path}", file=sys.stderr)
 
     exit_code = 0
@@ -918,13 +929,15 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
 
     if args.json:
         payload = card.to_dict()
+        if delta is not None:
+            payload["delta"] = delta.to_dict()
         if gate:
             payload["gate"] = gate
         if component_gates:
             payload["component_gates"] = component_gates
         print(json.dumps(payload, indent=2))
     else:
-        print(render_scorecard(card), end="")
+        print(render_scorecard(card, delta=delta), end="")
         if min_grade is not None:
             if meets_grade is None:
                 print(
@@ -3083,6 +3096,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "Repeatable; composes with --min-grade/--min-score (fails if any "
             "threshold is unmet). A component with no defined score never fails "
             "the gate."
+        ),
+    )
+    p_scorecard.add_argument(
+        "--since",
+        metavar="PATH",
+        help=(
+            "compare against a previously-saved scorecard JSON (as produced by "
+            "scorecard --json) at PATH (a file or a directory containing "
+            "scorecard.json) and report the delta in the overall score and each "
+            "component. Adds a [+N since baseline] suffix to text/Markdown and an "
+            "additive 'delta' object to --json. Errors if PATH is missing or "
+            "unreadable. Composes with the gates and --markdown."
         ),
     )
     p_scorecard.set_defaults(func=cmd_scorecard)

@@ -32,9 +32,11 @@ score is ``None`` and the grade is ``n/a``.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
@@ -133,6 +135,135 @@ class Scorecard:
             "grade": self.grade,
             "components": [component.to_dict() for component in self.components],
         }
+
+
+@dataclass(frozen=True)
+class ScorecardDelta:
+    """The change in a scorecard's overall score and components vs a baseline.
+
+    ``baseline_score`` is the previous overall score (``None`` if the baseline
+    was ungradeable). ``score_change`` is ``current - baseline`` overall score
+    (``None`` when either side is ungradeable). ``component_changes`` maps each
+    component name to its percentage-point change (``current% - baseline%``),
+    omitting any component undefined on either side.
+    """
+
+    baseline_score: int | None
+    score_change: int | None
+    component_changes: dict[str, int]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "baseline_score": self.baseline_score,
+            "score_change": self.score_change,
+            "component_changes": dict(self.component_changes),
+        }
+
+
+def load_scorecard_baseline(path: Path) -> Scorecard:
+    """Load a previously-saved scorecard JSON payload as a :class:`Scorecard`.
+
+    ``path`` may point directly at a JSON file (as produced by
+    ``scorecard --json``) or at a directory containing ``scorecard.json``.
+    Raises :class:`BlueprintError` with a clear message when the file is
+    missing, unreadable, not valid JSON, or not a recognised scorecard payload.
+    """
+
+    payload_path = path / "scorecard.json" if path.is_dir() else path
+    try:
+        raw = payload_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise BlueprintError(f"scorecard baseline not found at {payload_path}") from exc
+    except OSError as exc:
+        raise BlueprintError(
+            f"scorecard baseline could not be read: {payload_path}: {exc}"
+        ) from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise BlueprintError(
+            f"scorecard baseline is not valid JSON: {payload_path}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise BlueprintError(f"scorecard baseline must be a JSON object: {payload_path}")
+    schema_version = data.get("schema_version")
+    if schema_version != SCORECARD_SCHEMA_VERSION:
+        raise BlueprintError(
+            f"unsupported scorecard baseline schema_version {schema_version!r}; "
+            f"expected {SCORECARD_SCHEMA_VERSION}"
+        )
+    score = data.get("score")
+    if not (score is None or isinstance(score, int)):
+        raise BlueprintError(
+            f"scorecard baseline has an invalid 'score': {payload_path}"
+        )
+    raw_components = data.get("components")
+    if not isinstance(raw_components, list):
+        raise BlueprintError(
+            f"scorecard baseline is missing its 'components': {payload_path}"
+        )
+    components: list[ScoreComponent] = []
+    for entry in raw_components:
+        if not isinstance(entry, dict) or "name" not in entry:
+            raise BlueprintError(
+                f"scorecard baseline has a malformed component: {payload_path}"
+            )
+        comp_score = entry.get("score")
+        if not (comp_score is None or isinstance(comp_score, (int, float))):
+            raise BlueprintError(
+                f"scorecard baseline component '{entry['name']}' has an invalid "
+                f"score: {payload_path}"
+            )
+        components.append(
+            ScoreComponent(
+                name=str(entry["name"]),
+                label=str(entry.get("label", entry["name"])),
+                score=None if comp_score is None else float(comp_score),
+                weight=float(entry.get("weight", 0.0)),
+                detail=str(entry.get("detail", "")),
+            )
+        )
+    return Scorecard(
+        project=str(data.get("project", "")),
+        score=score,
+        grade=str(data.get("grade", grade_for(score))),
+        components=tuple(components),
+        schema_version=SCORECARD_SCHEMA_VERSION,
+    )
+
+
+def build_scorecard_delta(current: Scorecard, baseline: Scorecard) -> ScorecardDelta:
+    """Compute the :class:`ScorecardDelta` of ``current`` against ``baseline``."""
+
+    if current.score is None or baseline.score is None:
+        score_change: int | None = None
+    else:
+        score_change = current.score - baseline.score
+
+    baseline_by_name = {c.name: c.score for c in baseline.components}
+    component_changes: dict[str, int] = {}
+    for component in current.components:
+        if component.score is None:
+            continue
+        prev = baseline_by_name.get(component.name)
+        if prev is None:
+            continue
+        component_changes[component.name] = round(component.score * 100) - round(
+            prev * 100
+        )
+    return ScorecardDelta(
+        baseline_score=baseline.score,
+        score_change=score_change,
+        component_changes=component_changes,
+    )
+
+
+def render_score_delta(score_change: int | None) -> str:
+    """Format an overall ``score_change`` as a signed ``since baseline`` suffix."""
+
+    if score_change is None:
+        return "[n/a since baseline]"
+    return f"[{score_change:+d} since baseline]"
 
 
 def grade_for(score: int | None) -> str:
@@ -268,13 +399,21 @@ def build_scorecard(
     )
 
 
-def render_scorecard(card: Scorecard) -> str:
-    """Render the scorecard as compact Markdown for the terminal or a file."""
+def render_scorecard(card: Scorecard, *, delta: ScorecardDelta | None = None) -> str:
+    """Render the scorecard as compact Markdown for the terminal or a file.
+
+    When ``delta`` is provided (from a ``--since`` baseline) the overall line
+    gains a signed ``[+N since baseline]`` suffix and each changed component row
+    shows its percentage-point change; ``delta=None`` (the default) leaves the
+    output byte-for-byte identical to the historical rendering.
+    """
 
     from isabelle_blueprint import console
 
     headline = "n/a" if card.score is None else f"{card.score}/100"
     overall = _paint_score(f"{headline} ({card.grade})", card.score, console)
+    if delta is not None:
+        overall = f"{overall} {render_score_delta(delta.score_change)}"
     lines = [
         f"# {card.project} scorecard",
         "",
@@ -285,6 +424,8 @@ def render_scorecard(card: Scorecard) -> str:
     ]
     for component in card.components:
         score_text = "n/a" if component.score is None else f"{round(component.score * 100)}%"
+        if delta is not None and component.name in delta.component_changes:
+            score_text = f"{score_text} ({delta.component_changes[component.name]:+d})"
         weight_text = f"{round(component.weight * 100)}%"
         lines.append(f"| {component.label} | {score_text} | {weight_text} |")
     lines.append("")
@@ -294,13 +435,16 @@ def render_scorecard(card: Scorecard) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_scorecard_markdown(card: Scorecard, path: Path) -> Path:
+def write_scorecard_markdown(
+    card: Scorecard, path: Path, *, delta: ScorecardDelta | None = None
+) -> Path:
     """Write :func:`render_scorecard` Markdown for ``card`` to ``path``.
 
     The parent directory is created if needed. Returns the path written.
     Colour is disabled while rendering so the persisted ``.md`` never contains
     ANSI escape codes even when stdout is an interactive TTY; the CLI's stdout
-    colour behaviour is left unchanged.
+    colour behaviour is left unchanged. ``delta`` is forwarded to
+    :func:`render_scorecard` so a ``--since`` run records the trend too.
     """
 
     from isabelle_blueprint import console
@@ -309,7 +453,7 @@ def write_scorecard_markdown(card: Scorecard, path: Path) -> Path:
     was_enabled = console.is_enabled()
     console.set_enabled(False)
     try:
-        markdown = render_scorecard(card)
+        markdown = render_scorecard(card, delta=delta)
     finally:
         console.set_enabled(was_enabled)
     path.write_text(markdown, encoding="utf-8")
