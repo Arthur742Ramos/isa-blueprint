@@ -184,6 +184,13 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path_mermaid,
     write_critical_path,
 )
+from isabelle_blueprint.report.depends import (
+    UnknownNodeError as DependsUnknownNodeError,
+)
+from isabelle_blueprint.report.depends import (
+    build_depends_report,
+    render_depends_report,
+)
 from isabelle_blueprint.report.diff import (
     build_diff,
     load_baseline,
@@ -1080,6 +1087,25 @@ def cmd_path(args: argparse.Namespace) -> int:
         print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
+    return 0
+
+
+def cmd_depends(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        report = build_depends_report(project, args.node)
+    except DependsUnknownNodeError as exc:
+        unknown = exc.args[0] if exc.args else "?"
+        known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+        raise BlueprintError(
+            f"unknown node {unknown!r}; known node ids: {known}"
+        ) from None
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_depends_report(report), end="")
     return 0
 
 
@@ -3331,6 +3357,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_depends = sub.add_parser(
+        "depends",
+        help="list a node's direct dependencies and direct dependents",
+    )
+    p_depends.add_argument("node", help="node id to inspect")
+    p_depends.add_argument("project_dir", nargs="?", default=".")
+    p_depends.add_argument(
+        "--json", action="store_true", help="emit the neighbourhood report as JSON"
+    )
+    p_depends.set_defaults(func=cmd_depends)
 
     p_orphans = sub.add_parser(
         "orphans",

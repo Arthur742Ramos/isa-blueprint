@@ -968,6 +968,40 @@ with fewer than two tags contribute no pairs.
 
 ---
 
+## `depends --json`
+
+Written to stdout by `depends NODE --json` and validated by the packaged
+`depends.schema.json` (see `schema depends`). It reports a single node's
+**direct** (one-hop) neighbourhood: the nodes it immediately `uses` and the
+nodes that immediately `uses` it.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "node": "mid",
+  "depends_on": [
+    { "id": "base", "kind": "definition", "formal_status": "missing" }
+  ],
+  "depended_on_by": [
+    { "id": "top", "kind": "theorem", "formal_status": "missing" }
+  ]
+}
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 depends shape. |
+| `project` | string | Project name from `[project].name`. |
+| `node` | string | The inspected node id. |
+| `depends_on` | array | Direct dependencies (ids in the node's `uses`), each `{id, kind, formal_status}`; sorted by id. |
+| `depended_on_by` | array | Direct dependents (nodes whose `uses` names the node), each `{id, kind, formal_status}`; sorted by id. |
+
+Only real nodes appear; unresolved `uses` entries (missing-dependency edges) are
+omitted. An unknown node id is a fatal error (exit 1).
+
+---
+
 ## Compatibility rules
 
 For the v1.x line:

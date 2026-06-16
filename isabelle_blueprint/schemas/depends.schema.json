@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/depends.schema.json",
+  "title": "IsabelleBlueprint direct dependencies report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "node",
+    "depends_on",
+    "depended_on_by"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "node": { "type": "string" },
+    "depends_on": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/neighbour" }
+    },
+    "depended_on_by": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/neighbour" }
+    }
+  },
+  "$defs": {
+    "neighbour": {
+      "type": "object",
+      "required": ["id", "kind", "formal_status"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string" },
+        "formal_status": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

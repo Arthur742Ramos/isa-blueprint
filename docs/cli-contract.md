@@ -927,6 +927,31 @@ analysis walks the `uses`-dependency graph; any node it never reaches is an
 
 Orphans are listed by id for deterministic output.
 
+### `depends`
+
+```text
+isabelle-blueprint depends NODE [project_dir] [--json]
+```
+
+Lists a single node's **direct** (one-hop) neighbourhood: the nodes it
+immediately `uses` (its dependencies) and the nodes that immediately `uses` it
+(its dependents). It is the focused complement to `impact` (transitive
+downstream blast radius) and `path` (a chain between two nodes): `depends` stops
+at the immediate neighbours.
+
+- Default text output prints two short sections, `Depends on:` and `Depended on
+  by:`, each listing every neighbour's id, kind, and formal status (or `(none)`
+  when empty).
+- `--json` emits `{schema_version, project, node, depends_on:[{id, kind,
+  formal_status}], depended_on_by:[{id, kind, formal_status}]}` (validated by the
+  packaged `depends.schema.json`).
+- An unknown `NODE` is a fatal error (exit 1) that lists the known node ids, like
+  `path`/`explain`.
+
+Only real nodes appear; a `uses` entry that does not resolve to a known node is
+a missing-dependency edge (surfaced by `lint`) and is omitted. Both lists are
+sorted by id for deterministic output.
+
 ### `agent-context`
 
 ```text
