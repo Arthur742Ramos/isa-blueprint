@@ -234,6 +234,10 @@ from isabelle_blueprint.report.impact import (
     render_impact_report_csv,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
+from isabelle_blueprint.report.kinds import (
+    build_kind_report,
+    render_kind_report,
+)
 from isabelle_blueprint.report.levels import (
     build_levels_report,
     render_levels_mermaid,
@@ -1058,6 +1062,18 @@ def cmd_tags(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     return exit_code
+
+
+def cmd_kinds(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_kind_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_kind_report(report), end="")
+    return 0
 
 
 def cmd_tag_cooccurrence(args: argparse.Namespace) -> int:
@@ -3292,6 +3308,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_scorecard.set_defaults(func=cmd_scorecard)
+
+    p_kinds = sub.add_parser(
+        "kinds",
+        help="roll up node counts and coverage per blueprint node kind",
+    )
+    p_kinds.add_argument("project_dir", nargs="?", default=".")
+    p_kinds.add_argument(
+        "--json", action="store_true", help="emit the kind roll-up as JSON"
+    )
+    p_kinds.set_defaults(func=cmd_kinds)
 
     p_tags = sub.add_parser(
         "tags",

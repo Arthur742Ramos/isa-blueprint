@@ -497,6 +497,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   among them, giving a "what is left to do" view. Mutually exclusive with
   `--roots-only`/`--leaves-only`; composes with `--focus`/`--depth`/`--format`.
   Without it the graph is unchanged.
+- **`kinds` command** rolls up nodes by their `kind`
+  (definition/lemma/theorem/…): per-kind node count, formal targets,
+  proved/found/problem counts, and proved-coverage percentage, ranked by
+  descending node count. The by-kind sibling of `tags`. `--json` emits the
+  structured rollup against a packaged `kinds.schema.json`.
 
 ### Fixed
 
