@@ -361,6 +361,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`lint` `duplicate-fact` rule** flags (as a `warning`) when two or more nodes
+  reference the same fully-qualified Isabelle fact (`isabelle: Theory.fact`),
+  naming the fact and the colliding node ids. Case-sensitive; nodes with no fact
+  are ignored. Also surfaced in SARIF output.
 
 ### Changed
 
