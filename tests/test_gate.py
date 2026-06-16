@@ -233,6 +233,42 @@ def test_gate_min_grade_ungradeable_project_fails(tmp_path: Path, capsys) -> Non
     assert "min_grade" in data["failed"]
 
 
+def test_gate_markdown_passing_project(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["gate", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Gate: gate-test" in out
+    assert "**Overall:** PASS" in out
+    assert "| Check | OK | Detail |" in out
+    # one row per check; the lint check is always present
+    assert "| lint | yes |" in out
+    assert "\033[" not in out  # no ANSI colour leaks into Markdown
+
+
+def test_gate_markdown_failing_gate_exits_5(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BROKEN_CYCLE)
+
+    rc = cli_main(["gate", str(tmp_path), "--markdown"])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "# Gate: gate-test" in out
+    assert "**Overall:** FAIL" in out
+    assert "| lint | no |" in out
+
+
+def test_gate_markdown_and_json_are_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    import pytest
+
+    with pytest.raises(SystemExit):
+        cli_main(["gate", str(tmp_path), "--markdown", "--json"])
+
+
 def teardown_function() -> None:
     # A --color always test below forces colour on; reset so it never leaks.
     from isabelle_blueprint import console

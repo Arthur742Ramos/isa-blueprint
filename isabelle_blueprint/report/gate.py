@@ -187,3 +187,36 @@ def render_gate_report(report: GateReport) -> str:
         mark = console.success("ok") if check.ok else console.error("FAIL")
         lines.append(f"  [{mark}] {check.name}: {check.detail}")
     return "\n".join(lines) + "\n"
+
+
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_gate_markdown(report: GateReport) -> str:
+    """Render ``report`` as a Markdown document (trailing newline).
+
+    A heading is followed by an overall PASS/FAIL verdict line and a table of
+    every check (name, ok, detail). The output is plain Markdown with no ANSI
+    colour, so it is safe to capture into a file or a CI summary.
+    """
+    verdict = "PASS" if report.ok else "FAIL"
+    lines = [
+        f"# Gate: {_md_cell(report.project)}",
+        "",
+        f"**Overall:** {verdict}",
+        "",
+        "| Check | OK | Detail |",
+        "| --- | :---: | --- |",
+    ]
+    for check in report.checks:
+        ok_mark = "yes" if check.ok else "no"
+        lines.append(
+            f"| {_md_cell(check.name)} | {ok_mark} | {_md_cell(check.detail)} |"
+        )
+    return "\n".join(lines) + "\n"

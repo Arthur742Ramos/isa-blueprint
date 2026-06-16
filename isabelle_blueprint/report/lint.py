@@ -271,6 +271,42 @@ def render_lint_report(report: LintReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _escape_cell(text: str) -> str:
+    """Flatten newlines and escape ``|`` so a value cannot break a table row."""
+
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_lint_markdown(report: LintReport) -> str:
+    """Render ``report`` as a standalone Markdown document (trailing newline).
+
+    A heading, a one-line summary count, and a table of findings (code,
+    severity, node, message). Message cells are escaped so a literal ``|`` in a
+    message cannot break the table.
+    """
+
+    lines = [
+        f"# {report.project} lint",
+        "",
+        f"{_headline(report)}.",
+        "",
+    ]
+    if report.findings:
+        lines.extend(
+            [
+                "| Code | Severity | Node | Message |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for finding in report.findings:
+            node = finding.node_id or "-"
+            lines.append(
+                f"| {_escape_cell(finding.code)} | {_escape_cell(finding.severity)} | "
+                f"{_escape_cell(node)} | {_escape_cell(finding.message)} |"
+            )
+    return "\n".join(lines) + "\n"
+
+
 def _paint_severity(severity: str) -> str:
     if severity == SEVERITY_ERROR:
         return console.error(severity)

@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`history --markdown`** renders the trend snapshots as a Markdown table (one
+  row per snapshot: timestamp plus the coverage / count metrics), respecting
+  `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
+  unchanged.
+- **`blame --markdown`** renders per-node provenance (node, source location,
+  last git author/commit, agent memory note) as a Markdown table, for all nodes
+  or a single `--node-id`. Mutually exclusive with `--json` and `--table`;
+  default text output is unchanged.
+- **`path --markdown`** renders the shortest dependency path as a Markdown
+  document (a heading naming source/target, a direction line, and the chain as
+  an ordered list; with `--all` each shortest path is its own section).
+  Mutually exclusive with `--json`; default text output is unchanged.
+- **`critical-path --mermaid`** emits a Mermaid `flowchart` of the longest
+  remaining incomplete dependency chain (or a single goal's chain via `--goal`),
+  with high-leverage bottleneck nodes highlighted. Mutually exclusive with
+  `--json` and `--markdown`.
+- **`lint --format markdown`** renders the lint findings as a Markdown document
+  (heading, a summary count line, and a table of findings: code, severity, node,
+  message, with `|` escaped in cells). Existing text/json/sarif output and the
+  `--strict` exit behaviour are unchanged.
+- **`gate --markdown`** renders the pass/fail gate result as a Markdown report
+  (a heading, an overall PASS/FAIL line, and a table of each check with name,
+  ok, and detail). Mutually exclusive with `--json`; the exit code and existing
+  `--min-coverage`/`--min-grade`/`--fail-on` behaviour are unchanged.
+- **`status --markdown`** renders the health overview as Markdown: a heading
+  with the project name and health label, a metrics table
+  (coverage/proved/problems/stale/ready-tasks/cycle-status), and a short
+  next-task line. Mutually exclusive with `--json`; the existing filter and
+  `--fail-on` flags keep working and default text output is unchanged.
 - **`staleness --fail-on-outdated`** exits `5` when any trusted node is flagged
   as outdated (rests on a dependency that is stale or was re-checked more
   recently than the node). It composes with `--fail-on-problem` (either gate can
@@ -263,6 +292,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `blocked_by_count`) plus a header to stdout. Mutually exclusive with
   `--json`/`--mermaid`, and it honours the existing `--status`/`--stage`/`--kind`
   filters.
+- **`impact --format csv`** exports the blast-radius analysis as CSV: one row
+  per node ranked by blast radius (columns: `node_id`, `direct_dependent_count`,
+  `blast_radius_count`, `affected_goal_count`), or one row per dependent (columns:
+  `dependent_id`, `distance`) when `--node` is given.
+- **`portfolio --min-coverage PCT`** is a cross-project coverage floor: it exits
+  `5` when any project's proved-coverage is below `PCT`, naming the offending
+  projects on stderr (text mode) and adding a `coverage_gate` object in `--json`
+  mode. Projects with undefined coverage (no formal targets, or load errors) are
+  excluded from failures. Composes with `--fail-on-problem`; absent the flag,
+  behaviour is unchanged.
+- **`tags --csv`** emits one CSV row per tag (columns: `tag`, `nodes`,
+  `formal_targets`, `proved`, `found`, `problems`, `proved_coverage_percent`)
+  plus a header and a trailing `(untagged)` count row to stdout. Mutually
+  exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
+  gate.
 
 ### Changed
 
