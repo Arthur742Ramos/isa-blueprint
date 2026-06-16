@@ -224,18 +224,17 @@ def render_status_oneline(overview: StatusOverview) -> str:
     """Render a single compact line summarising project health.
 
     Designed for shell prompts, CI logs, and grepping across projects, e.g.
-    ``my-proj: 28% proved, 3 ready, 1 problem, 0 cycles [health: ready]``.
+    ``my-proj: 28% proved, 3 ready, 1 problem, cycles: no [health: ready]``.
     Used by ``status --oneline``.
     """
 
     metrics = overview.metrics
     coverage = "n/a" if metrics.coverage_percent is None else f"{metrics.coverage_percent}%"
-    cycles = 1 if metrics.has_cycles else 0
     return (
         f"{overview.project}: {coverage} proved, "
         f"{overview.ready_task_count} ready, "
         f"{metrics.problem_count} problem, "
-        f"{cycles} cycles "
+        f"cycles: {_yes_no(metrics.has_cycles)} "
         f"[health: {overview.health}]\n"
     )
 

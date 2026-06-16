@@ -754,8 +754,8 @@ expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
 
 `--oneline` prints a single compact health summary line (project name, coverage
-percent, ready-task count, problem count, cycle count, and the bracketed health
-label) for shell prompts, CI logs, and grepping across projects. Mutually
+percent, ready-task count, problem count, cycle status (yes/no), and the bracketed
+health label) for shell prompts, CI logs, and grepping across projects. Mutually
 exclusive with `--json` and `--markdown`; default multi-line text output and all
 filter flags are unchanged.
 

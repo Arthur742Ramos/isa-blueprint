@@ -146,6 +146,7 @@ def test_render_status_oneline_is_single_summary_line() -> None:
     assert line.count("\n") == 1
     assert line.startswith("oneline-test: ")
     assert "33% proved" in line
+    assert "cycles: no" in line
     assert "[health: ready]" in line
 
 
