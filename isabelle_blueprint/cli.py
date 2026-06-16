@@ -197,6 +197,10 @@ from isabelle_blueprint.report.effort import (
     render_effort_markdown,
     render_effort_report,
 )
+from isabelle_blueprint.report.fact_coverage import (
+    build_fact_coverage_report,
+    render_fact_coverage_report,
+)
 from isabelle_blueprint.report.gate import (
     build_gate_report,
     render_gate_markdown,
@@ -314,6 +318,10 @@ from isabelle_blueprint.report.status_overview import (
     render_status_markdown,
     render_status_overview,
 )
+from isabelle_blueprint.report.tag_cooccurrence import (
+    build_tag_cooccurrence_report,
+    render_tag_cooccurrence_report,
+)
 from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
@@ -350,6 +358,16 @@ def _positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError("must be an integer") from exc
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _non_negative_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be at least 0")
     return parsed
 
 
@@ -1006,6 +1024,18 @@ def cmd_tags(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def cmd_tag_cooccurrence(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_tag_cooccurrence_report(project, min_shared=args.min)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_tag_cooccurrence_report(report), end="")
+    return 0
+
+
 def cmd_path(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -1029,6 +1059,19 @@ def cmd_path(args: argparse.Namespace) -> int:
         print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
+    return 0
+
+
+def cmd_fact_coverage(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_fact_coverage_report(project)
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_fact_coverage_report(report), end="")
     return 0
 
 
@@ -1118,21 +1161,32 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(project, include_by_tag=args.by_tag)
+    report = build_effort_report(
+        project, include_by_tag=args.by_tag, include_nodes=args.nodes
+    )
     fail_under = getattr(args, "fail_under", None)
     gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
-        payload = report.to_dict(include_by_tag=args.by_tag)
+        payload = report.to_dict(include_by_tag=args.by_tag, include_nodes=args.nodes)
         if gate is not None:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
         if args.markdown:
-            print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_markdown(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         elif args.csv:
-            print(render_effort_csv(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_csv(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         else:
-            print(render_effort_report(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_report(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         if gate is not None and not gate["meets"]:
             actual = (
                 "undefined"
@@ -1242,10 +1296,21 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     overview = build_critical_path(project)
     goal = getattr(args, "goal", None)
+    min_leverage = getattr(args, "min_leverage", 0)
     if args.json:
-        print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+        print(
+            json.dumps(
+                critical_path_payload(overview, top=args.top, min_leverage=min_leverage),
+                indent=2,
+            )
+        )
     elif getattr(args, "mermaid", False):
-        print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path_mermaid(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     elif getattr(args, "csv", False):
         if goal is not None and goal_chain_for(overview, goal) is None:
             print(
@@ -1253,22 +1318,36 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
                 "(it is complete, unknown, has incomplete dependents, or is in a cycle).",
                 file=sys.stderr,
             )
-        print(render_critical_path_csv(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path_csv(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
         was_enabled = console.is_enabled()
         console.set_enabled(False)
         try:
-            markdown = render_critical_path(overview, top=args.top, goal=goal)
+            markdown = render_critical_path(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            )
         finally:
             console.set_enabled(was_enabled)
         print(markdown, end="")
     else:
-        print(render_critical_path(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     if getattr(args, "write", False):
         stream = sys.stderr if (args.json or getattr(args, "csv", False)) else sys.stdout
-        written = write_critical_path(overview, config.build_dir, top=args.top, goal=goal)
+        written = write_critical_path(
+            overview, config.build_dir, top=args.top, goal=goal, min_leverage=min_leverage
+        )
         for name, path in written.items():
             print(f"critical-path {name} -> {path}", file=stream)
     failures = critical_path_strict_failures(overview) if args.fail_on_cycle else []
@@ -3130,6 +3209,28 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_tags.set_defaults(func=cmd_tags)
 
+    p_tag_cooccurrence = sub.add_parser(
+        "tag-cooccurrence",
+        help="rank tag pairs by how many nodes carry both tags",
+    )
+    p_tag_cooccurrence.add_argument("project_dir", nargs="?", default=".")
+    p_tag_cooccurrence.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the tag co-occurrence report as JSON",
+    )
+    p_tag_cooccurrence.add_argument(
+        "--min",
+        type=_positive_int,
+        default=1,
+        metavar="N",
+        help=(
+            "only report tag pairs shared by at least N nodes (an integer >= 1; "
+            "default 1)"
+        ),
+    )
+    p_tag_cooccurrence.set_defaults(func=cmd_tag_cooccurrence)
+
     p_path = sub.add_parser(
         "path",
         help="find the shortest dependency path between two node ids",
@@ -3153,6 +3254,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_fact_coverage = sub.add_parser(
+        "fact-coverage",
+        help="roll up node counts and coverage per Isabelle theory",
+    )
+    p_fact_coverage.add_argument("project_dir", nargs="?", default=".")
+    p_fact_coverage.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as JSON",
+    )
+    p_fact_coverage.set_defaults(func=cmd_fact_coverage)
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
@@ -3280,6 +3393,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--by-tag",
         action="store_true",
         help="additionally group effort-weighted progress per tag",
+    )
+    p_effort.add_argument(
+        "--nodes",
+        action="store_true",
+        help="additionally list each node with its effort and contribution",
     )
     p_effort.add_argument(
         "--fail-under",
@@ -3418,6 +3536,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="NODE",
         help="focus the output on a single goal node's critical chain",
+    )
+    p_critical.add_argument(
+        "--min-leverage",
+        type=_non_negative_int,
+        default=0,
+        metavar="N",
+        help="only show bottlenecks that unblock at least N incomplete "
+        "descendants (default: 0, no filter)",
     )
     p_critical.add_argument(
         "--fail-on-cycle",
