@@ -329,3 +329,86 @@ def test_cli_staleness_markdown_rejects_json(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         cli_main(["staleness", str(tmp_path), "--markdown", "--json"])
 
+
+_OUTDATED_BODY = """# stale-cli
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status: stale
+
+A base that drifted (its proof is stale).
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: proved
+uses: a
+
+Rests on a stale dependency.
+:::
+"""
+
+
+_CLEAN_BODY = """# stale-cli
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status: proved
+
+A base.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: proved
+uses: a
+
+Rests on a.
+:::
+"""
+
+
+def test_cli_staleness_fail_on_outdated_trips(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _OUTDATED_BODY)
+    # No problem-severity nodes, so --fail-on-problem alone passes...
+    assert cli_main(["staleness", str(tmp_path), "--fail-on-problem"]) == 0
+    capsys.readouterr()
+    # ...but the outdated gate trips on the proved node resting on a stale dep.
+    rc = cli_main(["staleness", str(tmp_path), "--fail-on-outdated"])
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "outdated" in err
+    assert "1 trusted node(s)" in err
+
+
+def test_cli_staleness_fail_on_outdated_clean_passes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN_BODY)
+    rc = cli_main(["staleness", str(tmp_path), "--fail-on-outdated"])
+    assert rc == 0
+    assert "outdated" not in capsys.readouterr().err
+
+
+def test_cli_staleness_outdated_without_flag_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _OUTDATED_BODY)
+    rc = cli_main(["staleness", str(tmp_path)])
+    assert rc == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_staleness_fail_on_outdated_composes_with_problem(
+    tmp_path: Path, capsys
+) -> None:
+    # A broken-dependency project trips when either gate is enabled, confirming
+    # the two flags compose without interfering with each other.
+    _write_project(tmp_path, _BODY)
+    rc = cli_main(
+        ["staleness", str(tmp_path), "--fail-on-problem", "--fail-on-outdated"]
+    )
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "broken/missing" in err
+

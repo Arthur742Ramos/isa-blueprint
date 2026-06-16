@@ -1367,14 +1367,22 @@ def cmd_staleness(args: argparse.Namespace) -> int:
             render_staleness_report(report, top=args.top, max_causes=args.max_causes),
             end="",
         )
+    tripped = False
     if args.fail_on_problem and report.problem_count > 0:
         print(
             f"{report.problem_count} trusted node(s) rest on broken/missing "
             "dependencies",
             file=sys.stderr,
         )
-        return 5
-    return 0
+        tripped = True
+    if args.fail_on_outdated and report.outdated_count > 0:
+        print(
+            f"{report.outdated_count} trusted node(s) are outdated (rest on a "
+            "dependency that is stale or was re-checked more recently than the node)",
+            file=sys.stderr,
+        )
+        tripped = True
+    return 5 if tripped else 0
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
@@ -3340,6 +3348,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--fail-on-problem",
         action="store_true",
         help="exit non-zero (5) when any trusted node rests on broken/missing deps",
+    )
+    p_staleness.add_argument(
+        "--fail-on-outdated",
+        action="store_true",
+        help=(
+            "exit non-zero (5) when any trusted node is outdated (rests on a "
+            "dependency that is stale or was re-checked more recently than the node)"
+        ),
     )
     p_staleness.set_defaults(func=cmd_staleness)
 

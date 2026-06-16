@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (coverage/proved/problems/stale/ready-tasks/cycle-status), and a short
   next-task line. Mutually exclusive with `--json`; the existing filter and
   `--fail-on` flags keep working and default text output is unchanged.
+- **`staleness --fail-on-outdated`** exits `5` when any trusted node is flagged
+  as outdated (rests on a dependency that is stale or was re-checked more
+  recently than the node). It composes with `--fail-on-problem` (either gate can
+  trip), prints a stderr note with the outdated node count in text mode, and
+  leaves behaviour unchanged when absent.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
