@@ -15,6 +15,7 @@ from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_le
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
     StatusMetrics,
@@ -424,14 +425,17 @@ def render_roadmap_mermaid(
     for stage in rendered.stages:
         lines.append(f"  subgraph stage{stage.index}[\"Stage {stage.index}\"]")
         for item in stage.items:
-            lines.append(f'    {_mermaid_node_id(item.node_id)}["{_mermaid_text(item.node_id)}"]')
+            lines.append(
+                f'    {mermaid_node_id(item.node_id)}'
+                f'["{mermaid_label(item.node_id, escape_pipe=False)}"]'
+            )
         lines.append("  end")
     for stage in rendered.stages:
         for item in stage.items:
             for dep_id in item.uses:
                 if dep_id in visible_ids:
                     lines.append(
-                        f"  {_mermaid_node_id(dep_id)} --> {_mermaid_node_id(item.node_id)}"
+                        f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(item.node_id)}"
                     )
     return "\n".join(lines) + "\n"
 
@@ -476,15 +480,6 @@ def render_roadmap_csv(
                 ]
             )
     return buffer.getvalue()
-
-
-def _mermaid_node_id(node_id: str) -> str:
-    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
-    return f"n_{safe}"
-
-
-def _mermaid_text(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
 
 
 def write_roadmap(

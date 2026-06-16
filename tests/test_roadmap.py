@@ -10,7 +10,12 @@ from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.roadmap import build_roadmap, render_roadmap, write_roadmap
+from isabelle_blueprint.report.roadmap import (
+    build_roadmap,
+    render_roadmap,
+    render_roadmap_mermaid,
+    write_roadmap,
+)
 
 
 def _node(
@@ -190,6 +195,30 @@ def test_cli_roadmap_mermaid_respects_status_filter(tmp_path: Path, capsys) -> N
     assert "flowchart" in out
     assert "n_b" in out
     assert "n_c" not in out
+
+
+def test_roadmap_mermaid_label_leaves_pipe_unescaped() -> None:
+    # The roadmap flowchart historically did NOT escape `|` in node-id labels.
+    # After routing through the shared mermaid_label helper that escaping must
+    # stay disabled so the emitted Mermaid output is byte-identical.
+    project = BlueprintProject.from_nodes(
+        "pipe-roadmap",
+        [
+            _node("root", FormalStatus.PROVED),
+            _node("a|b", FormalStatus.NAMED, uses=["root"]),
+        ],
+    )
+    roadmap = build_roadmap(project, generate_tasks(project))
+
+    mermaid = render_roadmap_mermaid(roadmap)
+
+    assert "flowchart" in mermaid
+    # The raw pipe survives in the label; it is never rewritten to `&#124;`.
+    label_line = next(
+        line for line in mermaid.splitlines() if line.lstrip().startswith("n_a_124_b[")
+    )
+    assert '["a|b"]' in label_line
+    assert "&#124;" not in mermaid
 
 
 def test_cli_roadmap_write_outputs_artifacts(tmp_path: Path, capsys) -> None:
