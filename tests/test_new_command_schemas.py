@@ -19,7 +19,16 @@ from isabelle_blueprint.schemas import available_schemas, read_schema
 pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
-_NEW_SCHEMAS = ["path", "scorecard", "tags", "orphans", "fact-coverage", "tag-cooccurrence"]
+_NEW_SCHEMAS = [
+    "path",
+    "scorecard",
+    "tags",
+    "orphans",
+    "fact-coverage",
+    "tag-cooccurrence",
+    "kinds",
+    "critical-path",
+]
 
 _BLUEPRINT = """# contracts
 
@@ -171,3 +180,24 @@ def test_tag_cooccurrence_json_conforms(tmp_path: Path, capsys) -> None:
     # `mid` carries both `core` and `alg`, so the pair item shape is exercised.
     assert data["pair_count"] >= 1
     _validate(data, "tag-cooccurrence")
+
+
+def test_kinds_json_conforms(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    assert cli_main(["kinds", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # The blueprint mixes definition/lemma/theorem, so the KindStat shape is exercised.
+    assert data["kind_count"] >= 1
+    _validate(data, "kinds")
+
+
+def test_critical_path_json_conforms(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    assert cli_main(["critical-path", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # All three nodes are stubs forming base -> mid -> top, so the longest chain,
+    # goals, and bottleneck item shapes are all exercised against the schema.
+    assert data["longest"]["depth"] == 3
+    assert data["goals"]
+    assert any(b["leverage"] >= 1 for b in data["bottlenecks"])
+    _validate(data, "critical-path")

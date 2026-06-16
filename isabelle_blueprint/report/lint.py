@@ -45,6 +45,16 @@ _PROOF_BEARING_KINDS = frozenset(
     }
 )
 
+# Goal kinds where a missing effort estimate is worth flagging: top-level
+# results whose effort most informs planning.
+_GOAL_KINDS = frozenset(
+    {
+        NodeKind.THEOREM,
+        NodeKind.PROPOSITION,
+        NodeKind.COROLLARY,
+    }
+)
+
 
 @dataclass(frozen=True)
 class LintFinding:
@@ -116,6 +126,7 @@ def build_lint_report(project: BlueprintProject) -> LintReport:
     findings.extend(_duplicate_fact_findings(project))
     findings.extend(_singleton_tag_findings(project))
     findings.extend(_tag_case_collision_findings(project))
+    findings.extend(_missing_effort_findings(project))
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f.severity, 99), f.node_id or "", f.code))
     return LintReport(project=project.name, findings=findings)
@@ -368,6 +379,38 @@ def _tag_case_collision_findings(project: BlueprintProject) -> list[LintFinding]
                 message=f"tags differ only by case: {parts}",
             )
         )
+    return findings
+
+
+def _missing_effort_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag unproved top-level goals that carry no ``effort:`` estimate.
+
+    A *goal* is a node that nothing else ``uses`` (no incoming dependency edge):
+    one of the blueprint's end results. When such a node is a theorem,
+    proposition, or corollary that is not yet proved and has no effort estimate,
+    an ``info`` finding suggests adding one - these are the high-value remaining
+    goals where an effort estimate most helps planning.
+    """
+    depended_on: set[str] = set()
+    for node in project.nodes:
+        depended_on.update(node.uses)
+
+    findings: list[LintFinding] = []
+    for node in project.nodes:
+        if (
+            node.kind in _GOAL_KINDS
+            and node.id not in depended_on
+            and node.status.formal != FormalStatus.PROVED
+            and node.effort is None
+        ):
+            findings.append(
+                LintFinding(
+                    code="missing-effort",
+                    severity=SEVERITY_INFO,
+                    node_id=node.id,
+                    message=f"unproved goal {node.id!r} has no effort estimate",
+                )
+            )
     return findings
 
 

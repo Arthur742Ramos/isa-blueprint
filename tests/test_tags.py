@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from isabelle_blueprint.cli import _load
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -14,6 +15,7 @@ from isabelle_blueprint.report.tags import (
     render_tag_report,
     render_tags_csv,
     render_tags_markdown,
+    sort_tag_report,
 )
 
 
@@ -575,3 +577,137 @@ def test_cli_csv_and_json_mutually_exclusive(tmp_path: Path) -> None:
         assert exc.code == 2
     else:  # pragma: no cover - argparse should reject the combination
         raise AssertionError("expected --csv/--json to be mutually exclusive")
+
+
+def _sort_project() -> BlueprintProject:
+    # zed: 1 node, 100% proved. core: 2 nodes, 50% proved. doc: 1 node, no targets.
+    return _project(
+        _node("a", tags=["core"], formal=FormalStatus.PROVED),
+        _node("b", tags=["core"], formal=FormalStatus.FOUND),
+        _node("c", tags=["zed"], formal=FormalStatus.PROVED),
+        _node("d", tags=["doc"], formal=FormalStatus.MISSING),
+    )
+
+
+def test_sort_name_orders_alphabetically() -> None:
+    report = sort_tag_report(build_tag_report(_sort_project()), "name")
+
+    assert [stat.tag for stat in report.tags] == ["core", "doc", "zed"]
+
+
+def test_sort_nodes_orders_by_descending_node_count() -> None:
+    report = sort_tag_report(build_tag_report(_sort_project()), "nodes")
+    ordered = [stat.tag for stat in report.tags]
+
+    # core has 2 nodes; the single-node tags tie and break alphabetically.
+    assert ordered == ["core", "doc", "zed"]
+
+
+def test_sort_coverage_orders_by_descending_coverage() -> None:
+    report = sort_tag_report(build_tag_report(_sort_project()), "coverage")
+    ordered = [stat.tag for stat in report.tags]
+
+    # zed 100% > core 50%; doc has no targets (None) so it sorts last.
+    assert ordered == ["zed", "core", "doc"]
+
+
+def test_sort_unknown_key_leaves_order_untouched() -> None:
+    base = build_tag_report(_sort_project())
+
+    assert sort_tag_report(base, "bogus").tags == base.tags
+
+
+def test_cli_sort_coverage_orders_descending(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json", "--sort", "coverage"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # alg is 100%, core is 50% -> alg leads.
+    assert [stat["tag"] for stat in data["tags"]] == ["alg", "core"]
+
+
+def test_cli_sort_name_orders_alphabetically(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--json", "--sort", "name"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [stat["tag"] for stat in data["tags"]] == ["alg", "core"]
+
+
+def test_cli_sort_default_is_byte_unchanged(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    cli_main(["tags", str(tmp_path)])
+    default_text = capsys.readouterr().out
+
+    cli_main(["tags", str(tmp_path), "--json"])
+    default_json = capsys.readouterr().out
+
+    cli_main(["tags", str(tmp_path), "--csv"])
+    default_csv = capsys.readouterr().out
+
+    cli_main(["tags", str(tmp_path), "--markdown"])
+    default_md = capsys.readouterr().out
+
+    # Re-run every format without --sort: output must be byte-identical (the flag
+    # being absent must not perturb the original, deterministic ordering).
+    cli_main(["tags", str(tmp_path)])
+    assert capsys.readouterr().out == default_text
+    cli_main(["tags", str(tmp_path), "--json"])
+    assert capsys.readouterr().out == default_json
+    cli_main(["tags", str(tmp_path), "--csv"])
+    assert capsys.readouterr().out == default_csv
+    cli_main(["tags", str(tmp_path), "--markdown"])
+    assert capsys.readouterr().out == default_md
+
+    # And the --sort-absent CLI output must equal the renderer output built from
+    # the same TagReport with no sorting applied.
+    _config, project = _load(tmp_path)
+    report = build_tag_report(project)
+    assert default_text == render_tag_report(report)
+    assert default_json == json.dumps(report.to_dict(), indent=2) + "\n"
+    assert default_csv == render_tags_csv(report)
+    assert default_md == render_tags_markdown(report)
+    assert "core" in default_text
+    assert "core,2," in default_csv
+    assert "| core | 2 |" in default_md
+
+
+def test_cli_sort_composes_with_tag_filter(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(
+        ["tags", str(tmp_path), "--json", "--sort", "name", "--tag", "core"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [stat["tag"] for stat in data["tags"]] == ["core"]
+
+
+def test_cli_sort_invalid_choice_rejected(tmp_path: Path) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        cli_main(["tags", str(tmp_path), "--sort", "bogus"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:  # pragma: no cover - argparse should reject the choice
+        raise AssertionError("expected --sort to validate its choice at parse time")
+
+
+def test_cli_sort_composes_with_fail_under(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(
+        ["tags", str(tmp_path), "--json", "--sort", "coverage", "--fail-under", "80"]
+    )
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    assert [stat["tag"] for stat in data["tags"]] == ["alg", "core"]
+    assert data["gate"]["failing_tags"] == ["core"]

@@ -24,6 +24,8 @@ SCHEMA_NAMES = (
     "levels",
     "fact-coverage",
     "tag-cooccurrence",
+    "kinds",
+    "critical-path",
 )
 
 
