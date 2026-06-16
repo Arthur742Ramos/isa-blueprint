@@ -313,8 +313,16 @@ Rewrites blueprint sources (Markdown ids and `uses`, LaTeX `\label`/`\uses`)
 and re-keys agent/sync stores so a node id can be changed in one step. Errors
 if `new_id` already exists or `old_id` is absent.
 
-- `--dry-run` previews the changes without writing.
-- `--json` emits the machine-readable result.
+- `--dry-run` previews the changes without writing. The existing
+  `  source: {path}` lines are unchanged; a separate additive `Edits per file:`
+  block then lists each path with its edit count, followed by a
+  `total edits: N` line.
+- `--json` emits the machine-readable result. It always carries the additive
+  `total_edits` and `files: [{path, edit_count}]` keys (alongside the existing
+  keys). The per-file `edit_count` covers source id edits only (the node
+  definition plus each `uses` reference). `total_edits` is the sum of those
+  per-source edits plus one for each store file rekeyed, so rekeyed stores are
+  counted in the rollup but never in the per-file counts.
 
 A re-parse safety check runs before any write, and source writes roll back on a
 mid-operation failure.

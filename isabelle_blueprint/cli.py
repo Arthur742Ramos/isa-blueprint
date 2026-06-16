@@ -1795,6 +1795,11 @@ def cmd_rename(args: argparse.Namespace) -> int:
             print(f"  {action} {rekey.name} store: {rekey.path}")
     if not result.changed_files:
         print("  (no source files referenced this id)")
+    if result.dry_run:
+        print("Edits per file:")
+        for edit in result.file_edits:
+            print(f"  {edit.path}: {edit.edit_count} edit(s)")
+        print(f"total edits: {result.total_edits}")
     return 0
 
 
