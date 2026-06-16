@@ -23,6 +23,7 @@ from isabelle_blueprint.parser.markdown import parse_blueprint_text
 from isabelle_blueprint.report.effort import (
     build_effort_gate,
     build_effort_report,
+    render_effort_csv,
     render_effort_markdown,
     render_effort_report,
 )
@@ -688,5 +689,135 @@ def test_cli_effort_csv_and_json_mutually_exclusive(tmp_path):
     _write_project(tmp_path)
     with pytest.raises(SystemExit):
         cli_main(["effort", str(tmp_path), "--csv", "--json"])
+
+
+# ---------------------------------------------------------------------------
+# --nodes per-node breakdown
+# ---------------------------------------------------------------------------
+
+
+def test_build_effort_report_nodes_empty_by_default():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", effort=2, formal=FormalStatus.PROVED)]
+    )
+    assert build_effort_report(project).nodes == ()
+    report = build_effort_report(project, include_nodes=True)
+    assert report.nodes != ()
+    node = report.nodes[0]
+    assert node.id == "a"
+    assert node.effort == 2
+    assert node.formal_status == "proved"
+    assert node.proved is True
+
+
+def test_build_effort_report_nodes_default_weight_and_not_proved():
+    project = BlueprintProject.from_nodes("p", [_node("a")])
+    report = build_effort_report(project, include_nodes=True)
+    node = report.nodes[0]
+    # No explicit effort -> default weight 1, missing -> not proved.
+    assert node.effort == 1
+    assert node.formal_status == "missing"
+    assert node.proved is False
+
+
+def test_to_dict_includes_nodes_only_when_requested():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", effort=3, formal=FormalStatus.PROVED)]
+    )
+    report = build_effort_report(project, include_nodes=True)
+    assert "nodes" not in report.to_dict()
+    payload = report.to_dict(include_nodes=True)
+    assert payload["nodes"] == [
+        {"id": "a", "effort": 3, "formal_status": "proved", "proved": True}
+    ]
+
+
+def test_render_effort_report_nodes_table():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", effort=5, formal=FormalStatus.PROVED)]
+    )
+    report = build_effort_report(project, include_nodes=True)
+    assert "Effort by node" not in render_effort_report(report)
+    rendered = render_effort_report(report, nodes=True)
+    assert "## Effort by node" in rendered
+    assert "| a | 5 | proved | yes |" in rendered
+
+
+def test_cli_effort_nodes_text(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--nodes"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Effort-weighted progress" in out
+    assert "## Effort by node" in out
+    # Node a carries explicit effort 4 and is proved.
+    assert "| a | 4 | proved | yes |" in out
+
+
+def test_cli_effort_json_nodes_includes_array(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--json", "--nodes"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["nodes"] == [
+        {"id": "a", "effort": 4, "formal_status": "proved", "proved": True}
+    ]
+
+
+def test_cli_effort_json_without_nodes_omits_key(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "nodes" not in payload
+
+
+def test_cli_effort_text_without_nodes_unchanged(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Effort by node" not in out
+
+
+def test_cli_effort_csv_nodes(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--csv", "--nodes"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    rows = _parse_csv(out)
+    assert rows[0] == ["id", "effort", "formal_status", "proved"]
+    by_id = {r[0]: r for r in rows[1:]}
+    assert by_id["a"] == ["a", "4", "proved", "true"]
+    # Node b has no formal ref (missing) and default-ish effort 2, not proved.
+    assert by_id["b"] == ["b", "2", "missing", "false"]
+
+
+def test_cli_effort_markdown_nodes(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--markdown", "--nodes"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "## Effort by node" in out
+    assert "| a | 4 | proved | yes |" in out
+
+
+def test_render_effort_csv_nodes_no_carriage_return():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", effort=1, formal=FormalStatus.PROVED)]
+    )
+    report = build_effort_report(project, include_nodes=True)
+    assert "\r" not in render_effort_csv(report, nodes=True)
+
+
+def test_render_effort_markdown_escapes_node_pipe():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a|b", effort=1, formal=FormalStatus.PROVED)]
+    )
+    report = build_effort_report(project, include_nodes=True)
+    rendered = render_effort_markdown(report, nodes=True)
+    assert r"a\|b" in rendered
+
 
 

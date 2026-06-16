@@ -115,6 +115,7 @@ def build_lint_report(project: BlueprintProject) -> LintReport:
     findings.extend(_duplicate_title_findings(project))
     findings.extend(_duplicate_fact_findings(project))
     findings.extend(_singleton_tag_findings(project))
+    findings.extend(_tag_case_collision_findings(project))
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f.severity, 99), f.node_id or "", f.code))
     return LintReport(project=project.name, findings=findings)
@@ -331,6 +332,40 @@ def _singleton_tag_findings(project: BlueprintProject) -> list[LintFinding]:
                 severity=SEVERITY_INFO,
                 node_id=node_id,
                 message=f"tag {tag!r} is used by only one node {node_id!r}",
+            )
+        )
+    return findings
+
+
+def _tag_case_collision_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag tags that differ only by case across the blueprint.
+
+    Tags whose spellings agree under case-folding but disagree literally (e.g.
+    ``"Algebra"`` and ``"algebra"``) fragment the tag rollup into separate
+    buckets. One ``info`` finding is emitted per colliding fold key, listing the
+    colliding spellings with an example node for each.
+    """
+    spellings: dict[str, dict[str, str]] = {}
+    for node in project.nodes:
+        for tag in dict.fromkeys(node.tags):
+            key = tag.casefold()
+            seen = spellings.setdefault(key, {})
+            seen.setdefault(tag, node.id)
+
+    findings: list[LintFinding] = []
+    for key in sorted(spellings):
+        seen = spellings[key]
+        if len(seen) < 2:
+            continue
+        parts = ", ".join(
+            f"{tag!r} (e.g. node {node_id!r})" for tag, node_id in sorted(seen.items())
+        )
+        findings.append(
+            LintFinding(
+                code="tag-case-collision",
+                severity=SEVERITY_INFO,
+                node_id=None,
+                message=f"tags differ only by case: {parts}",
             )
         )
     return findings

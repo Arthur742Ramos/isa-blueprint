@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/fact-coverage.schema.json",
+  "title": "IsabelleBlueprint per-theory fact coverage report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "total_nodes",
+    "theory_count",
+    "theories"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "total_nodes": { "type": "integer", "minimum": 0 },
+    "theory_count": { "type": "integer", "minimum": 0 },
+    "theories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "theory",
+          "node_count",
+          "proved_count",
+          "found_count",
+          "problem_count",
+          "coverage_percent"
+        ],
+        "properties": {
+          "theory": { "type": "string" },
+          "node_count": { "type": "integer", "minimum": 0 },
+          "proved_count": { "type": "integer", "minimum": 0 },
+          "found_count": { "type": "integer", "minimum": 0 },
+          "problem_count": { "type": "integer", "minimum": 0 },
+          "coverage_percent": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

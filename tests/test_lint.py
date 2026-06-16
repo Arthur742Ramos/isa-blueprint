@@ -337,6 +337,76 @@ def test_lint_clean_project_has_no_self_dependency(tmp_path: Path, capsys) -> No
     assert "self-dependency" not in codes
 
 
+_TAG_CASE_COLLISION = """# tag-case
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+tags: Algebra
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+tags: algebra
+
+Another statement.
+
+Because a holds.
+:::
+"""
+
+
+def test_lint_flags_tag_case_collision(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TAG_CASE_COLLISION)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    collisions = [f for f in data["findings"] if f["code"] == "tag-case-collision"]
+    assert len(collisions) == 1
+    finding = collisions[0]
+    assert finding["severity"] == "info"
+    assert finding["node_id"] is None
+    assert "'Algebra'" in finding["message"]
+    assert "'algebra'" in finding["message"]
+    # Each colliding spelling cites an example node.
+    assert "'a'" in finding["message"]
+    assert "'b'" in finding["message"]
+
+
+def test_lint_no_tag_case_collision_for_consistent_casing(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "tag-case-collision" not in codes
+
+
+def test_lint_tag_case_collision_in_sarif_rules(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _TAG_CASE_COLLISION)
+
+    rc = cli_main(["lint", str(tmp_path), "--format", "sarif"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    rules = data["runs"][0]["tool"]["driver"]["rules"]
+    rule_ids = {r["id"] for r in rules}
+    assert "tag-case-collision" in rule_ids
+
+
+
 def test_lint_flags_duplicate_fact(tmp_path: Path, capsys) -> None:
     body = """# dup-fact
 
@@ -418,5 +488,3 @@ Because a holds.
     data = json.loads(capsys.readouterr().out)
     codes = {f["code"] for f in data["findings"]}
     assert "duplicate-fact" not in codes
-
-

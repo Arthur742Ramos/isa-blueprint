@@ -49,6 +49,7 @@ _RULE_DESCRIPTIONS = {
     "duplicate-title": "Two or more nodes share an identical title.",
     "duplicate-fact": "Two or more nodes reference the same Isabelle fact.",
     "singleton-tag": "A tag is used by exactly one node.",
+    "tag-case-collision": "Tags differ only by case, fragmenting the tag rollup.",
 }
 
 

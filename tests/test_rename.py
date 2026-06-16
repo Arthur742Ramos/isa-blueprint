@@ -190,3 +190,105 @@ def test_rename_rejects_identical_id(tmp_path: Path) -> None:
         assert "identical" in str(exc)
     else:  # pragma: no cover - guard
         raise AssertionError("expected BlueprintError for identical id")
+
+
+_MULTI_REF_BLUEPRINT = """# rename-impact
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+
+Uses a.
+:::
+
+::: theorem {#c}
+title: C
+isabelle: Demo.c
+status: stub
+uses: a
+
+Also uses a.
+:::
+
+::: theorem {#d}
+title: D
+isabelle: Demo.d
+status: stub
+uses:
+  - a
+  - b
+
+Uses a and b.
+:::
+"""
+
+
+def _write_multi_ref_project(tmp_path: Path) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "rename-impact"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "blueprint.md").write_text(_MULTI_REF_BLUEPRINT, encoding="utf-8")
+
+
+def test_rename_dry_run_reports_edit_count(tmp_path: Path, capsys) -> None:
+    _write_multi_ref_project(tmp_path)
+    before = (tmp_path / "blueprint.md").read_text(encoding="utf-8")
+
+    rc = cli_main(
+        ["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # The opener id plus three `uses` references (b, c, and d's list item).
+    assert data["total_edits"] == 4
+    assert len(data["files"]) == 1
+    entry = data["files"][0]
+    assert entry["path"].endswith("blueprint.md")
+    assert entry["edit_count"] == 4
+    assert data["stores"] == [] or all(not s["changed"] for s in data["stores"])
+    # Dry-run leaves the source untouched.
+    assert (tmp_path / "blueprint.md").read_text(encoding="utf-8") == before
+
+
+def test_rename_dry_run_text_shows_per_file_count(tmp_path: Path, capsys) -> None:
+    _write_multi_ref_project(tmp_path)
+
+    rc = cli_main(["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "4 edit(s)" in out
+    assert "total edits: 4" in out
+
+
+def test_rename_dry_run_counts_store_rekey_in_total(tmp_path: Path, capsys) -> None:
+    _write_multi_ref_project(tmp_path)
+    config = load_config(tmp_path)
+    store = config.github_sync_state_path
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(
+        json.dumps({"schema_version": 1, "nodes": {"a": {"issue_number": 5}}}),
+        encoding="utf-8",
+    )
+
+    rc = cli_main(
+        ["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"]
+    )
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # Four source edits plus one rekeyed store.
+    assert data["total_edits"] == 5
+
