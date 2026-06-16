@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from isabelle_blueprint.cli import _load
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -652,9 +653,26 @@ def test_cli_sort_default_is_byte_unchanged(tmp_path: Path, capsys) -> None:
     cli_main(["tags", str(tmp_path), "--markdown"])
     default_md = capsys.readouterr().out
 
-    # No --sort must produce byte-identical output to before the flag existed.
+    # Re-run every format without --sort: output must be byte-identical (the flag
+    # being absent must not perturb the original, deterministic ordering).
+    cli_main(["tags", str(tmp_path)])
+    assert capsys.readouterr().out == default_text
+    cli_main(["tags", str(tmp_path), "--json"])
+    assert capsys.readouterr().out == default_json
+    cli_main(["tags", str(tmp_path), "--csv"])
+    assert capsys.readouterr().out == default_csv
+    cli_main(["tags", str(tmp_path), "--markdown"])
+    assert capsys.readouterr().out == default_md
+
+    # And the --sort-absent CLI output must equal the renderer output built from
+    # the same TagReport with no sorting applied.
+    _config, project = _load(tmp_path)
+    report = build_tag_report(project)
+    assert default_text == render_tag_report(report)
+    assert default_json == json.dumps(report.to_dict(), indent=2) + "\n"
+    assert default_csv == render_tags_csv(report)
+    assert default_md == render_tags_markdown(report)
     assert "core" in default_text
-    assert default_json == default_json  # sanity: deterministic
     assert "core,2," in default_csv
     assert "| core | 2 |" in default_md
 

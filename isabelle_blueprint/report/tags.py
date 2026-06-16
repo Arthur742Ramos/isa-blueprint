@@ -100,7 +100,7 @@ class TagGate:
 TAG_SORT_KEYS = ("name", "nodes", "coverage")
 
 
-def sort_tag_report(report: TagReport, sort_key: str) -> TagReport:
+def sort_tag_report(report: TagReport, sort_key: str | None) -> TagReport:
     """Return ``report`` with its ``tags`` reordered by ``sort_key``.
 
     ``name`` orders tags alphabetically (ascending); ``nodes`` and ``coverage``
