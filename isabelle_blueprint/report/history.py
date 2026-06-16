@@ -164,3 +164,32 @@ def render_trend_csv(summary: TrendSummary) -> str:
             row.append("" if value is None else value)
         writer.writerow(row)
     return buffer.getvalue()
+
+
+def _md_cell(value: object) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell."""
+    if value is None:
+        return ""
+    return (
+        str(value)
+        .replace("\r\n", " ")
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .replace("|", r"\|")
+    )
+
+
+def render_trend_markdown(summary: TrendSummary) -> str:
+    """Render ``summary.entries`` as a Markdown table (trailing newline).
+
+    The columns mirror the CSV view: the timestamp followed by the numeric
+    coverage / count metrics, one row per snapshot. Missing values are emitted
+    as empty cells. User-controlled cell text is escaped for table safety.
+    """
+    header = "| " + " | ".join(_CSV_COLUMNS) + " |"
+    separator = "| " + " | ".join("---" for _ in _CSV_COLUMNS) + " |"
+    lines = [header, separator]
+    for entry in summary.entries:
+        cells = [_md_cell(entry.get(column)) for column in _CSV_COLUMNS]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
