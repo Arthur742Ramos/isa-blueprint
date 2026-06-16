@@ -922,8 +922,10 @@ analysis walks the `uses`-dependency graph; any node it never reaches is an
   status, isolated) plus a summary count; a clean project prints a single line.
 - `--json` emits `{schema_version, project, orphan_count, orphans:[{id, kind,
   formal_status, isolated}]}` (validated by the packaged `orphans.schema.json`).
-- `--markdown` renders the orphans as a standalone Markdown table (node, kind,
-  formal status, isolated); a clean project prints `_(no orphan nodes)_`.
+- `--markdown` renders a standalone Markdown document: an `# <project> orphans`
+  heading, a summary count line, then the orphans table (node, kind, formal
+  status, isolated); a clean project prints the heading plus `_(no orphan
+  nodes)_` instead of the summary and table.
 - `--csv` emits one row per orphan (`id,kind,formal_status,isolated`) with a
   header row (`lineterminator='\n'`); a clean project emits just the header.
 - `--json`, `--markdown`, and `--csv` are mutually exclusive.

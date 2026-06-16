@@ -114,14 +114,12 @@ def build_orphan_report(project: BlueprintProject) -> OrphanReport:
     )
 
 
-def render_orphan_report(report: OrphanReport) -> str:
-    """Render the orphan report as compact Markdown for the terminal."""
+def _render_orphan_table(report: OrphanReport) -> str:
+    """Render the heading, summary and Markdown table for a non-empty report.
 
-    if not report.orphans:
-        return (
-            f"{report.project}: No orphan nodes "
-            "(every node is reachable from a project goal).\n"
-        )
+    Shared by :func:`render_orphan_report` and :func:`render_orphans_markdown`
+    so the two only differ in how they handle the clean/empty case.
+    """
 
     lines = [f"# {report.project} orphans", ""]
     lines.append(
@@ -144,6 +142,18 @@ def render_orphan_report(report: OrphanReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_orphan_report(report: OrphanReport) -> str:
+    """Render the orphan report as compact Markdown for the terminal."""
+
+    if not report.orphans:
+        return (
+            f"{report.project}: No orphan nodes "
+            "(every node is reachable from a project goal).\n"
+        )
+
+    return _render_orphan_table(report)
+
+
 def _escape_cell(text: str) -> str:
     """Neutralise Markdown table delimiters in a user-controlled cell."""
 
@@ -155,31 +165,12 @@ def render_orphans_markdown(report: OrphanReport) -> str:
 
     Columns: id, kind, formal status, isolated. Id cells are escaped so a
     ``|`` in a node id cannot break the table. The clean case renders a single
-    note line with no table.
+    note line under the heading with no table.
     """
 
-    lines = [f"# {report.project} orphans", ""]
     if report.orphans:
-        lines.append(
-            f"{report.orphan_count} orphan node(s) unreachable from any goal "
-            f"({report.isolated_count} fully isolated)."
-        )
-        lines.extend(
-            [
-                "",
-                "| Node | Kind | Formal status | Isolated |",
-                "| --- | --- | --- | --- |",
-            ]
-        )
-        for orphan in report.orphans:
-            isolated = "yes" if orphan.isolated else "no"
-            lines.append(
-                f"| {_escape_cell(orphan.id)} | {orphan.kind} | "
-                f"{orphan.formal_status} | {isolated} |"
-            )
-    else:
-        lines.append("_(no orphan nodes)_")
-    return "\n".join(lines) + "\n"
+        return _render_orphan_table(report)
+    return f"# {report.project} orphans\n\n_(no orphan nodes)_\n"
 
 
 ORPHANS_CSV_COLUMNS = ("id", "kind", "formal_status", "isolated")
