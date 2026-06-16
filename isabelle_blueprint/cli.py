@@ -861,11 +861,14 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         scores_by_name = {c.name: c.score for c in card.components}
         for name, threshold in min_components:
             raw = scores_by_name.get(name)
-            pct = None if raw is None else round(raw * 100)
-            if pct is None:
+            if raw is None:
+                pct: int | None = None
                 meets_component: bool | None = None  # undefined; never fails
             else:
-                meets_component = pct >= threshold
+                pct = round(raw * 100)  # display value only
+                # Compare the RAW ratio (unrounded) so e.g. 79.7% fails an =80
+                # gate even though it rounds up to 80 for display.
+                meets_component = raw * 100 >= threshold
                 if not meets_component:
                     exit_code = 5
                     failed_components.append((name, threshold, pct))

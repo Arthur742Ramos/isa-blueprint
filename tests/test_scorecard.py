@@ -203,6 +203,45 @@ Sketch.
 """
 
 
+_BODY_COV_NEAR = """# card-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A base.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: proved
+uses: a
+
+B is proved.
+
+Sketch.
+:::
+
+::: lemma {#c}
+title: C
+isabelle: Demo.c
+status:
+  formal: named
+uses: a
+
+C is not proved -> coverage 2/3 = 66.67% (rounds to 67).
+
+Sketch.
+:::
+"""
+
+
 def test_cli_text(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
@@ -504,6 +543,24 @@ def test_cli_min_component_below_threshold_fails(tmp_path: Path, capsys) -> None
     assert rc == 5
     err = capsys.readouterr().err
     assert "min-component policy triggered: coverage" in err
+
+
+def test_cli_min_component_raw_below_rounded_threshold_fails(
+    tmp_path: Path, capsys
+) -> None:
+    # Coverage is 2/3 = 66.67%, which ROUNDS to 67 for display. A gate at =67
+    # must still trip on the raw ratio (66.67 < 67); a rounded comparison would
+    # wrongly pass it.
+    _write_project(tmp_path, _BODY_COV_NEAR)
+
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-component", "coverage=67", "--json"]
+    )
+
+    assert rc == 5
+    gate = json.loads(capsys.readouterr().out)["component_gates"][0]
+    assert gate["score"] == 67  # rounded display value
+    assert gate["meets"] is False  # but the raw ratio fails the gate
 
 
 def test_cli_min_component_met_passes(tmp_path: Path, capsys) -> None:
