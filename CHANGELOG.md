@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`lint` `self-dependency` rule** flags any node whose `uses` list contains
+  its own id (a node depending on itself) as an `error`-severity finding, naming
+  the offending node id; also surfaced in SARIF output.
 - **`history --markdown`** renders the trend snapshots as a Markdown table (one
   row per snapshot: timestamp plus the coverage / count metrics), respecting
   `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is

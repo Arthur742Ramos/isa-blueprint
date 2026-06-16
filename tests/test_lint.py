@@ -206,3 +206,55 @@ Sketch.
     assert "| Code | Severity | Node | Message |" in out
 
 
+_SELF_DEP = """# self-dep
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+uses: a
+
+A statement.
+
+Sketch.
+:::
+"""
+
+
+def test_lint_flags_self_dependency(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _SELF_DEP)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    findings = [f for f in data["findings"] if f["code"] == "self-dependency"]
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding["severity"] == "error"
+    assert finding["node_id"] == "a"
+    assert "'a'" in finding["message"]
+
+
+def test_lint_self_dependency_trips_strict(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _SELF_DEP)
+
+    rc = cli_main(["lint", str(tmp_path), "--strict", "--json"])
+
+    assert rc == 2
+    data = json.loads(capsys.readouterr().out)
+    assert data["ok"] is False
+    assert any(f["code"] == "self-dependency" for f in data["findings"])
+
+
+def test_lint_clean_project_has_no_self_dependency(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "self-dependency" not in codes
+
+
