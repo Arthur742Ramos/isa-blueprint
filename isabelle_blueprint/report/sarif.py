@@ -39,6 +39,7 @@ _RULE_DESCRIPTIONS = {
     "duplicate-id": "A node id is declared more than once.",
     "missing-dependency": "A node depends on an undefined node id.",
     "cycle": "The dependency graph contains a cycle.",
+    "self-dependency": "A node lists its own id as a dependency.",
     "broken-formal-status": "A node's formal status indicates active breakage.",
     "stale-formal-status": "A node's proof is stale and should be re-checked.",
     "empty-statement": "A node has no statement text.",

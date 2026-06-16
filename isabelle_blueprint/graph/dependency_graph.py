@@ -72,6 +72,31 @@ def roots_subproject(project: BlueprintProject) -> BlueprintProject:
     return BlueprintProject.from_nodes(project.name, kept_nodes, sources)
 
 
+def leaves_subproject(project: BlueprintProject) -> BlueprintProject:
+    """Return a pruned copy of ``project`` limited to its LEAF nodes.
+
+    A leaf is a node that does not ``use`` anything (no outgoing dependency
+    edge); these are the foundational axioms/definitions the blueprint builds
+    on. Because leaves have no outgoing edges they cannot depend on one another,
+    so the pruned graph has no edges between them: when :func:`build_graph`
+    rebuilds the graph on the pruned project it drops every edge to a pruned
+    (non-leaf) node. The original :class:`BlueprintNode` objects are reused
+    unchanged and the relevant source files are kept, mirroring
+    :func:`roots_subproject`.
+    """
+    graph = build_graph(project)
+    keep = {node_id for node_id in graph.nodes if not graph.edges.get(node_id)}
+    kept_nodes = [node for node in project.nodes if node.id in keep]
+    sources = [
+        src
+        for src in project.source_files
+        if any(node.source_file == src for node in kept_nodes)
+    ]
+    if not sources and not any(node.source_file for node in kept_nodes):
+        sources = list(project.source_files)
+    return BlueprintProject.from_nodes(project.name, kept_nodes, sources)
+
+
 def dependency_levels(project: BlueprintProject) -> list[list[str]]:
     """Topological layering: level 0 = roots, level k = all-deps-in-prior-levels.
 
