@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`portfolio --sort {name,coverage,nodes,problems}`** orders the listed
+  projects (`name` ascending; `coverage`/`nodes`/`problems` descending) across
+  text/JSON/CSV/Markdown output; default discovery order is unchanged.
+- **`lint` `self-dependency` rule** flags any node whose `uses` list contains
+  its own id (a node depending on itself) as an `error`-severity finding, naming
+  the offending node id; also surfaced in SARIF output.
 - **`history --markdown`** renders the trend snapshots as a Markdown table (one
   row per snapshot: timestamp plus the coverage / count metrics), respecting
   `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
@@ -312,6 +318,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`graph --leaves-only`** prunes the emitted graph (every format) to leaf
+  nodes — those that use nothing (the foundational axioms/definitions).
+  Composes with `--focus`/`--depth`/`--format`; mutually exclusive with
+  `--roots-only`; default graph output is unchanged.
 - **`staleness --csv`** emits one CSV row per flagged trusted node (columns:
   `node_id`, `severity`, `cause_count`, `first_cause`) plus a header to stdout.
   Mutually exclusive with `--json`/`--markdown`; honours `--top`/`--max-causes`

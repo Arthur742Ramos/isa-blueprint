@@ -107,6 +107,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    leaves_subproject,
     roots_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
@@ -250,12 +251,14 @@ from isabelle_blueprint.report.path import (
     render_path_report,
 )
 from isabelle_blueprint.report.portfolio import (
+    PORTFOLIO_SORT_KEYS,
     build_portfolio,
     coverage_gate_failures,
     portfolio_payload,
     render_portfolio_csv,
     render_portfolio_markdown,
     render_portfolio_report,
+    sort_portfolio_report,
 )
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
@@ -821,6 +824,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
             ) from None
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
+    if getattr(args, "leaves_only", False):
+        project = leaves_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -1537,6 +1542,8 @@ def cmd_burndown(args: argparse.Namespace) -> int:
 def cmd_portfolio(args: argparse.Namespace) -> int:
     root = Path(args.root_dir).resolve()
     report = build_portfolio(root)
+    if args.sort is not None:
+        report = sort_portfolio_report(report, args.sort)
     coverage_failures: list[str] = []
     if args.min_coverage is not None:
         coverage_failures = coverage_gate_failures(report, args.min_coverage)
@@ -2960,10 +2967,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="with --focus, include nodes within N dependency hops (default: unlimited)",
     )
-    p_graph.add_argument(
+    p_graph_prune = p_graph.add_mutually_exclusive_group()
+    p_graph_prune.add_argument(
         "--roots-only",
         action="store_true",
         help="prune the graph to root nodes (those nothing else uses); "
+        "composes with --focus/--depth",
+    )
+    p_graph_prune.add_argument(
+        "--leaves-only",
+        action="store_true",
+        help="prune the graph to leaf nodes (those that use nothing); "
         "composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
@@ -3596,6 +3610,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "(an integer from 0 to 100; a cross-project coverage floor); projects "
             "with undefined coverage (no formal targets, or load errors) are "
             "excluded from failures; composes with --fail-on-problem"
+        ),
+    )
+    p_portfolio.add_argument(
+        "--sort",
+        choices=PORTFOLIO_SORT_KEYS,
+        default=None,
+        help=(
+            "order the listed projects by KEY: 'name' ascending, or 'coverage', "
+            "'nodes', 'problems' descending (highest first); applies to text, "
+            "JSON, CSV, and Markdown output (default: discovery order)"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)
