@@ -97,6 +97,43 @@ class TagGate:
         }
 
 
+TAG_SORT_KEYS = ("name", "nodes", "coverage")
+
+
+def sort_tag_report(report: TagReport, sort_key: str) -> TagReport:
+    """Return ``report`` with its ``tags`` reordered by ``sort_key``.
+
+    ``name`` orders tags alphabetically (ascending); ``nodes`` and ``coverage``
+    order descending (highest first), with the tag name as an ascending
+    tie-break for stable output. A tag with no formal targets sorts last under
+    ``coverage`` (its ``coverage_percent`` is ``None``). Any other key (including
+    the ``None`` default) leaves the report's own ordering untouched.
+    """
+
+    if sort_key == "name":
+        ordered = sorted(report.tags, key=lambda stat: stat.tag)
+    elif sort_key == "nodes":
+        ordered = sorted(report.tags, key=lambda stat: (-stat.node_count, stat.tag))
+    elif sort_key == "coverage":
+        ordered = sorted(
+            report.tags,
+            key=lambda stat: (
+                stat.coverage_percent is None,
+                -(stat.coverage_percent or 0),
+                stat.tag,
+            ),
+        )
+    else:
+        return report
+    return TagReport(
+        project=report.project,
+        total_nodes=report.total_nodes,
+        untagged_count=report.untagged_count,
+        tags=tuple(ordered),
+        schema_version=report.schema_version,
+    )
+
+
 def build_tag_gate(report: TagReport, fail_under: int) -> TagGate:
     """Evaluate the per-tag coverage gate over ``report``'s (already filtered) tags."""
 
