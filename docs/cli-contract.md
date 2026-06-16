@@ -863,7 +863,7 @@ leverage then id.
 ### `levels`
 
 ```text
-isabelle-blueprint levels [project_dir] [--json]
+isabelle-blueprint levels [project_dir] [--json | --mermaid]
 ```
 
 Arranges the dependency DAG into topological **levels**: level 0 holds the
@@ -874,7 +874,9 @@ giving the total level count (the DAG depth) and the widest level. Nodes that
 participate in a dependency cycle cannot be placed and are reported separately,
 never crashing. `--json` emits a schema-versioned payload (`schema_version`,
 `project`, `level_count`, `max_width`, `levels` of `{index, node_ids, count}`,
-and `cyclic_nodes`); see `schema levels`.
+and `cyclic_nodes`); see `schema levels`. `--mermaid` emits a Mermaid
+`flowchart BT` with one `subgraph` per level (level 0 at the bottom) and one
+edge per cross-level `uses`; it is mutually exclusive with `--json`.
 
 ### `impact`
 

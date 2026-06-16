@@ -236,6 +236,7 @@ from isabelle_blueprint.report.impact import (
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.levels import (
     build_levels_report,
+    render_levels_mermaid,
     render_levels_report,
 )
 from isabelle_blueprint.report.lint import (
@@ -1119,6 +1120,8 @@ def cmd_levels(args: argparse.Namespace) -> int:
     report = build_levels_report(project)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "mermaid", False):
+        print(render_levels_mermaid(report, project), end="")
     else:
         print(render_levels_report(report), end="")
     return 0
@@ -3370,8 +3373,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="arrange the dependency DAG into topological levels",
     )
     p_levels.add_argument("project_dir", nargs="?", default=".")
-    p_levels.add_argument(
+    p_levels_format = p_levels.add_mutually_exclusive_group()
+    p_levels_format.add_argument(
         "--json", action="store_true", help="emit the level layering as JSON"
+    )
+    p_levels_format.add_argument(
+        "--mermaid",
+        action="store_true",
+        help="emit the levels as a Mermaid flowchart (one subgraph per level)",
     )
     p_levels.set_defaults(func=cmd_levels)
 

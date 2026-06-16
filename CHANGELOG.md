@@ -440,6 +440,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blank coverage cell when undefined, `lineterminator='\n'`), and `--markdown`
   renders the table as a Markdown document (escaping `|` in theory cells).
   Mutually exclusive with `--json`; default text output is unchanged.
+- **`levels --mermaid`** emits a Mermaid `flowchart BT` of the topological
+  layering: one `subgraph` per level (level 0/foundations at the bottom), nodes
+  labelled by id, and one edge per cross-level `uses` (dependency up to
+  dependent). Cycle participants are omitted. Mutually exclusive with `--json`;
+  default text output is unchanged.
 
 ### Changed
 
