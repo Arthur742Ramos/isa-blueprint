@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -12,6 +14,8 @@ from isabelle_blueprint.report.orphans import (
     ORPHANS_SCHEMA_VERSION,
     build_orphan_report,
     render_orphan_report,
+    render_orphans_csv,
+    render_orphans_markdown,
 )
 
 
@@ -289,3 +293,108 @@ def test_cli_clean_project_exits_0_and_reports_none(tmp_path: Path, capsys) -> N
     assert rc == 0
     out = capsys.readouterr().out
     assert "No orphan nodes" in out
+
+
+# ---- markdown / csv render helpers -----------------------------------------
+
+
+def test_render_markdown_table_has_orphan_row() -> None:
+    project = _project(
+        _node("base", kind=NodeKind.DEFINITION),
+        _node("top", uses=["base"], kind=NodeKind.THEOREM),
+        _node("a|b"),
+    )
+
+    rendered = render_orphans_markdown(build_orphan_report(project))
+
+    assert "| Node | Kind | Formal status | Isolated |" in rendered
+    assert "| --- | --- | --- | --- |" in rendered
+    # Pipe in the id is escaped so it cannot break the table.
+    assert r"a\|b" in rendered
+    assert "yes" in rendered
+
+
+def test_render_markdown_clean_has_no_table() -> None:
+    project = _project(
+        _node("base", kind=NodeKind.DEFINITION),
+        _node("top", uses=["base"], kind=NodeKind.THEOREM),
+    )
+
+    rendered = render_orphans_markdown(build_orphan_report(project))
+
+    assert "_(no orphan nodes)_" in rendered
+    assert "| Node |" not in rendered
+
+
+def test_render_csv_no_carriage_return() -> None:
+    project = _project(
+        _node("base", kind=NodeKind.DEFINITION),
+        _node("top", uses=["base"], kind=NodeKind.THEOREM),
+        _node("alone"),
+    )
+
+    rendered = render_orphans_csv(build_orphan_report(project))
+
+    assert "\r" not in rendered
+    assert rendered.splitlines()[0] == "id,kind,formal_status,isolated"
+    assert "alone,lemma,missing,true" in rendered
+
+
+# ---- end-to-end CLI: markdown / csv ----------------------------------------
+
+
+def test_cli_markdown_table_with_orphan_row(tmp_path: Path, capsys) -> None:
+    _write(tmp_path, _BLUEPRINT_WITH_ORPHAN)
+
+    rc = cli_main(["orphans", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "| Node | Kind | Formal status | Isolated |" in out
+    assert "| ca |" in out
+    assert "| cb |" in out
+
+
+def test_cli_csv_header_and_orphan_row_no_cr(tmp_path: Path, capsys) -> None:
+    _write(tmp_path, _BLUEPRINT_WITH_ORPHAN)
+
+    rc = cli_main(["orphans", str(tmp_path), "--csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    assert out.splitlines()[0] == "id,kind,formal_status,isolated"
+    ids = {line.split(",")[0] for line in out.splitlines()[1:]}
+    assert {"ca", "cb"} <= ids
+
+
+def test_cli_csv_with_fail_on_orphan_exits_5(tmp_path: Path, capsys) -> None:
+    _write(tmp_path, _BLUEPRINT_WITH_ORPHAN)
+
+    rc = cli_main(["orphans", str(tmp_path), "--csv", "--fail-on-orphan"])
+
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "\r" not in captured.out
+    assert captured.out.splitlines()[0] == "id,kind,formal_status,isolated"
+    assert "fail-on-orphan policy triggered" in captured.err
+
+
+def test_cli_markdown_clean_project_exits_0(tmp_path: Path, capsys) -> None:
+    _write(tmp_path, _BLUEPRINT_CLEAN)
+
+    rc = cli_main(["orphans", str(tmp_path), "--markdown", "--fail-on-orphan"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "_(no orphan nodes)_" in out
+
+
+def test_cli_markdown_and_json_rejected(tmp_path: Path) -> None:
+    _write(tmp_path, _BLUEPRINT_WITH_ORPHAN)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["orphans", str(tmp_path), "--markdown", "--json"])
+
+    assert exc.value.code == 2
+
