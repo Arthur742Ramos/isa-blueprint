@@ -381,8 +381,13 @@ def test_cli_csv_overview_ranks_nodes(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     out = capsys.readouterr().out
+    # CSV must use \n line terminators only - no \r (Windows stdout re-translation
+    # would otherwise yield \r\r\n per row when redirected to a file).
+    assert "\r" not in out
     rows = out.splitlines()
-    assert rows[0] == "node_id,direct_dependents,blast_radius,affected_goals"
+    assert rows[0] == (
+        "node_id,direct_dependent_count,blast_radius_count,affected_goal_count"
+    )
     # `a` ranks first (one dependent `b`, which is also a terminal goal); `b` has
     # no dependents.
     assert rows[1] == "a,1,1,1"
@@ -396,6 +401,7 @@ def test_cli_csv_single_node_lists_dependents(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     out = capsys.readouterr().out
+    assert "\r" not in out
     rows = out.splitlines()
     assert rows[0] == "dependent_id,distance"
     assert rows[1] == "b,1"

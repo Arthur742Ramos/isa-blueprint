@@ -1170,7 +1170,7 @@ def cmd_impact(args: argparse.Namespace) -> int:
     if fmt == "json":
         print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
     elif fmt == "csv":
-        print(render_impact_overview_csv(project, overview, top=args.top), end="")
+        print(render_impact_overview_csv(overview, top=args.top), end="")
     else:
         print(render_impact_overview(overview, top=args.top), end="")
     return 0

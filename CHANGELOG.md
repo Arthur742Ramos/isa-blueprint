@@ -259,8 +259,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--json`/`--mermaid`, and it honours the existing `--status`/`--stage`/`--kind`
   filters.
 - **`impact --format csv`** exports the blast-radius analysis as CSV: one row
-  per node ranked by blast radius (columns: `node_id`, `direct_dependents`,
-  `blast_radius`, `affected_goals`), or one row per dependent (columns:
+  per node ranked by blast radius (columns: `node_id`, `direct_dependent_count`,
+  `blast_radius_count`, `affected_goal_count`), or one row per dependent (columns:
   `dependent_id`, `distance`) when `--node` is given.
 
 ### Changed

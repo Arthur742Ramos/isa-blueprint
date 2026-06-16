@@ -100,6 +100,7 @@ class ImpactRank:
     formal_status: str
     blast_radius_count: int
     direct_dependent_count: int
+    affected_goal_count: int
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -108,6 +109,7 @@ class ImpactRank:
             "formal_status": self.formal_status,
             "blast_radius_count": self.blast_radius_count,
             "direct_dependent_count": self.direct_dependent_count,
+            "affected_goal_count": self.affected_goal_count,
         }
 
 
@@ -226,18 +228,30 @@ def build_impact_overview(project: BlueprintProject) -> ImpactOverview:
 
     graph = build_graph(project)
     cycles = project.validate().cycles
-    rankings = [
-        ImpactRank(
-            node_id=node.id,
-            title=node.title,
-            formal_status=node.status.formal.value,
-            blast_radius_count=len(_blast_radius(graph, node.id)),
-            direct_dependent_count=len(
-                [dep for dep in graph.reverse_edges.get(node.id, []) if dep != node.id]
-            ),
+    rankings = []
+    for node in project.nodes:
+        distances = _blast_radius(graph, node.id)
+        affected_goal_count = sum(
+            1
+            for dep_id in distances
+            if not [
+                child
+                for child in graph.reverse_edges.get(dep_id, [])
+                if child != dep_id
+            ]
         )
-        for node in project.nodes
-    ]
+        rankings.append(
+            ImpactRank(
+                node_id=node.id,
+                title=node.title,
+                formal_status=node.status.formal.value,
+                blast_radius_count=len(distances),
+                direct_dependent_count=len(
+                    [dep for dep in graph.reverse_edges.get(node.id, []) if dep != node.id]
+                ),
+                affected_goal_count=affected_goal_count,
+            )
+        )
     rankings.sort(key=lambda rank: (-rank.blast_radius_count, rank.node_id))
 
     return ImpactOverview(
@@ -438,7 +452,7 @@ def render_impact_report_csv(report: ImpactReport) -> str:
     import io
 
     out = io.StringIO()
-    writer = csv.writer(out)
+    writer = csv.writer(out, lineterminator="\n")
     writer.writerow(["dependent_id", "distance"])
     for item in report.blast_radius:
         writer.writerow([item.node_id, item.distance])
@@ -446,41 +460,37 @@ def render_impact_report_csv(report: ImpactReport) -> str:
 
 
 def render_impact_overview_csv(
-    project: BlueprintProject, overview: ImpactOverview, *, top: int | None = None
+    overview: ImpactOverview, *, top: int | None = None
 ) -> str:
     """Return the project-wide blast-radius ranking as CSV (one row per node).
 
-    Columns: ``node_id``, ``direct_dependents``, ``blast_radius``,
-    ``affected_goals``. Rows follow the same ranking order as the JSON/Markdown
-    overview (largest blast radius first, ties broken by node id).
+    Columns: ``node_id``, ``direct_dependent_count``, ``blast_radius_count``,
+    ``affected_goal_count``. Rows follow the same ranking order as the
+    JSON/Markdown overview (largest blast radius first, ties broken by node id).
     """
 
     import csv
     import io
 
-    graph = build_graph(project)
     rankings = overview.rankings if top is None else overview.rankings[:top]
 
     out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(["node_id", "direct_dependents", "blast_radius", "affected_goals"])
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(
+        [
+            "node_id",
+            "direct_dependent_count",
+            "blast_radius_count",
+            "affected_goal_count",
+        ]
+    )
     for rank in rankings:
-        distances = _blast_radius(graph, rank.node_id)
-        affected_goals = sum(
-            1
-            for dep_id in distances
-            if not [
-                child
-                for child in graph.reverse_edges.get(dep_id, [])
-                if child != dep_id
-            ]
-        )
         writer.writerow(
             [
                 rank.node_id,
                 rank.direct_dependent_count,
                 rank.blast_radius_count,
-                affected_goals,
+                rank.affected_goal_count,
             ]
         )
     return out.getvalue()
