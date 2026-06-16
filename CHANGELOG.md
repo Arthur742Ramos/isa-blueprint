@@ -350,6 +350,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Respects the `--status`/`--stage`/`--kind` filters and joins the existing
   `--json`/`--mermaid`/`--csv` mutually-exclusive group; default text output is
   unchanged.
+- **`tasks --summary`** prints a compact aligned table of the ready tasks
+  (columns: task id, node id, kind, priority, difficulty, blocked-by count) to
+  stdout and writes no files. Composes with the selection filters
+  (`--kind`/`--priority`/`--difficulty`/etc.); default behaviour is unchanged.
 
 ### Changed
 

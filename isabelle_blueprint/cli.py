@@ -81,6 +81,7 @@ from isabelle_blueprint.agents.tasks import (
     generate_tasks,
     render_sledgehammer_appendix,
     render_task_prompt,
+    render_tasks_summary,
     write_tasks,
 )
 from isabelle_blueprint.agents.tracker_export import (
@@ -1841,6 +1842,24 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
     all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
     filters = _ready_task_filters_from_args(args)
     ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    if getattr(args, "summary", False):
+        side_effect_flags = (
+            ("--github-issues", args.github_issues),
+            ("--github-sync", args.github_sync),
+            ("--github-sync-confirm", args.github_sync_confirm),
+            ("--github-sync-pull", args.github_sync_pull),
+            ("--tracker-export", getattr(args, "tracker_export", None)),
+        )
+        conflicting = [name for name, value in side_effect_flags if value]
+        if conflicting:
+            raise BlueprintError(
+                "--summary prints to stdout and writes no files; it cannot be combined with "
+                + "/".join(conflicting)
+            )
+        print(render_tasks_summary(ready_tasks), end="")
+        if filters.active and not ready_tasks:
+            print(_no_ready_task_message(len(all_ready_tasks), filters), file=sys.stderr)
+        return 0
     payload_metadata = (
         _selection_metadata(
             filters,
@@ -3838,6 +3857,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="TRACKER",
         help="also write build/tasks-<tracker>.csv for import into jira or linear",
+    )
+    p_tasks.add_argument(
+        "--summary",
+        action="store_true",
+        help="print a compact table of ready tasks to stdout and write no files",
     )
     _add_ready_task_filter_arguments(p_tasks)
     _add_watch_arguments(p_tasks, action="task generation")
