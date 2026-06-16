@@ -96,7 +96,7 @@ client configuration examples.
 | `2` | argparse usage error, a structural validation failure on `check`/`dump`, `lint --strict` found an error-severity finding, or `lint --fix` refused to rewrite (duplicate ids or cycles present) |
 | `3` | `check --strict` or `dump --strict` ran in degraded mode (Isabelle unavailable, or the build/dump never ran) |
 | `4` | `check` found Isabelle but `isabelle build` exited non-zero |
-| `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, `diff --fail-on-regression` found a regression, or `gate` failed one of its checks |
+| `5` | A policy gate fired: `--fail-on STATUS` matched a node on `check`/`report`/`status`, `diff --fail-on-regression` found a regression, `gate` failed one of its checks, or `doctor --require TOOL` found a required tool unavailable |
 | `6` | `--strict` was passed and the subcommand could not produce its primary side-effect (e.g. `comment --strict` couldn't resolve the PR context) |
 | `7` | `doctor --strict` found a setup error |
 | `8` | Live serving was requested in CI without `--allow-ci` |
@@ -983,12 +983,17 @@ isabelle-blueprint doctor [project_dir]
                           [--json]
                           [--output PATH]
                           [--strict]
+                          [--require TOOL [--require TOOL ...]]
 ```
 
 Diagnoses local setup: Python/package version, config loading, blueprint
 validation, writable output directories, Graphviz, Isabelle, and AFP paths.
 `--json` emits the structured report. `--strict` exits 7 when any diagnostic is
-an error.
+an error. `--require TOOL` (repeatable; choices: `graphviz`, `isabelle`) turns
+doctor into a CI precondition gate: it exits 5 when any required tool is
+unavailable. In `--json` mode `--require` adds an additive `requirements` array
+of `{tool, available, required}` entries. Without `--require`, doctor stays
+informational and its behaviour/exit are unchanged.
 
 ### `memory`
 

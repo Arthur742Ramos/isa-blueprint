@@ -411,6 +411,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crashing. `--json` emits a schema-versioned payload (`schema_version`,
   `project`, `level_count`, `max_width`, `levels`, `cyclic_nodes`) with a
   packaged `levels` JSON Schema.
+- **`doctor --require TOOL`** (repeatable; choices `graphviz`, `isabelle`) turns
+  doctor into a CI precondition gate: it exits `5` when any required tool is
+  unavailable. In `--json` mode it adds an additive `requirements` array of
+  `{tool, available, required}` entries. Without `--require`, doctor stays
+  informational and its behaviour/exit are unchanged.
 
 ### Changed
 
