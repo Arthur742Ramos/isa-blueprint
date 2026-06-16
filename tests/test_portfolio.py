@@ -514,3 +514,76 @@ def test_cli_portfolio_min_coverage_out_of_range_rejected(
 
     # argparse rejects an invalid --min-coverage as a usage error (exit 2).
     assert excinfo.value.code == 2
+
+
+def _write_sort_tree(tmp_path: Path) -> None:
+    # gamma: highest coverage; beta: middle; alpha: lowest. Discovery order is
+    # alpha, beta, gamma (sorted by relative path).
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a1", formal="named"), _node_md("a2", formal="named")),
+    )
+    _write_project(
+        tmp_path / "beta",
+        name="beta",
+        body=_nodes(_node_md("b1", formal="proved"), _node_md("b2", formal="named")),
+    )
+    _write_project(
+        tmp_path / "gamma",
+        name="gamma",
+        body=_nodes(_node_md("g1", formal="proved"), _node_md("g2", formal="proved")),
+    )
+
+
+def test_cli_portfolio_sort_coverage_descending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_sort_tree(tmp_path)
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--json", "--sort", "coverage"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["gamma", "beta", "alpha"]
+    coverages = [p["coverage_percent"] for p in payload["projects"]]
+    assert coverages == sorted(coverages, reverse=True)
+
+
+def test_cli_portfolio_sort_name_ascending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(tmp_path / "zeta", name="zeta", body=_node_md("z"))
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a"))
+    _write_project(tmp_path / "mu", name="mu", body=_node_md("m"))
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--json", "--sort", "name"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["alpha", "mu", "zeta"]
+
+
+def test_cli_portfolio_sort_default_is_byte_unchanged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_sort_tree(tmp_path)
+
+    assert cli_main(["portfolio", str(tmp_path), "--json"]) == 0
+    baseline = capsys.readouterr().out
+    assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "name"]) == 0
+    capsys.readouterr()
+    # Re-run without --sort: identical to the original output.
+    assert cli_main(["portfolio", str(tmp_path), "--json"]) == 0
+    assert capsys.readouterr().out == baseline
+
+
+def test_cli_portfolio_sort_rejects_unknown_key(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--sort", "bogus"])
+
+    assert excinfo.value.code == 2

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`portfolio --sort {name,coverage,nodes,problems}`** orders the listed
+  projects (`name` ascending; `coverage`/`nodes`/`problems` descending) across
+  text/JSON/CSV/Markdown output; default discovery order is unchanged.
 - **`history --markdown`** renders the trend snapshots as a Markdown table (one
   row per snapshot: timestamp plus the coverage / count metrics), respecting
   `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
