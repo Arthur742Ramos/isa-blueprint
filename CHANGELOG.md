@@ -423,6 +423,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **`fact-coverage --csv` and `--markdown`** add output formats to the
+  per-theory roll-up: `--csv` emits one row per theory
+  (`theory,node_count,proved_count,found_count,problem_count,coverage_percent`,
+  blank coverage cell when undefined, `lineterminator='\n'`), and `--markdown`
+  renders the table as a Markdown document (escaping `|` in theory cells).
+  Mutually exclusive with `--json`; default text output is unchanged.
 
 ### Changed
 

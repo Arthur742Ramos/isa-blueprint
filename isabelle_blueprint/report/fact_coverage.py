@@ -17,6 +17,8 @@ Isabelle invocation is required.
 """
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
@@ -27,6 +29,16 @@ FACT_COVERAGE_SCHEMA_VERSION = 1
 
 # Label for nodes carrying no Isabelle theory (no fact, or an unqualified fact).
 NO_FACT_LABEL = "(no fact)"
+
+# Column order shared by the CSV and Markdown per-theory roll-ups.
+FACT_COVERAGE_CSV_COLUMNS = (
+    "theory",
+    "node_count",
+    "proved_count",
+    "found_count",
+    "problem_count",
+    "coverage_percent",
+)
 
 
 @dataclass(frozen=True)
@@ -135,6 +147,63 @@ def _escape_cell(text: str) -> str:
 
 def render_fact_coverage_report(report: FactCoverageReport) -> str:
     """Render the roll-up as a compact Markdown table for the terminal."""
+
+    lines = [
+        f"# {report.project} fact coverage",
+        "",
+        (
+            f"{report.total_nodes} node(s) across {len(report.theories)} "
+            "theory(s)."
+        ),
+        "",
+    ]
+    if not report.theories:
+        lines.append("_(no nodes)_")
+        return "\n".join(lines) + "\n"
+
+    lines.extend(
+        [
+            "| Theory | Nodes | Proved | Found | Problems | Coverage |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    for stat in report.theories:
+        coverage = "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
+        lines.append(
+            f"| {_escape_cell(stat.theory)} | {stat.node_count} | "
+            f"{stat.proved_count} | {stat.found_count} | {stat.problem_count} | {coverage} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def render_fact_coverage_csv(report: FactCoverageReport) -> str:
+    """Render the roll-up as CSV: one row per theory under
+    :data:`FACT_COVERAGE_CSV_COLUMNS`.
+
+    A ``None`` coverage is rendered as a blank cell. The writer pins
+    ``lineterminator="\\n"`` so no ``\\r`` ever appears in the output.
+    """
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(FACT_COVERAGE_CSV_COLUMNS)
+    for stat in report.theories:
+        coverage = "" if stat.coverage_percent is None else stat.coverage_percent
+        writer.writerow(
+            [
+                stat.theory,
+                stat.node_count,
+                stat.proved_count,
+                stat.found_count,
+                stat.problem_count,
+                coverage,
+            ]
+        )
+    return buffer.getvalue()
+
+
+def render_fact_coverage_markdown(report: FactCoverageReport) -> str:
+    """Render the per-theory roll-up as a Markdown document with a table."""
 
     lines = [
         f"# {report.project} fact coverage",
