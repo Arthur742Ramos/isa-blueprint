@@ -439,6 +439,101 @@ def test_cli_mermaid_rejects_markdown(tmp_path: Path, capsys) -> None:
         cli_main(["critical-path", str(tmp_path), "--mermaid", "--markdown"])
 
 
+def test_cli_csv_output(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    # No carriage returns: csv writer uses lineterminator='\n'.
+    assert "\r" not in out
+    lines = out.splitlines()
+    assert lines[0] == "node_id,kind,leverage,on_critical_path"
+    # ``a`` is the bottleneck (it unblocks ``b``) and lies on the critical chain.
+    assert "a,definition,1,true" in lines
+    # ``b`` is a leaf goal with no dependents, so it is not a bottleneck row.
+    assert not any(row.startswith("b,") for row in lines[1:])
+
+
+def test_cli_csv_honours_top(tmp_path: Path, capsys) -> None:
+    body = _BODY + """
+::: lemma {#c}
+title: C
+isabelle: Demo.c
+status: stub
+uses: a
+
+Depends on a.
+
+Sketch.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--top", "1"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Header + exactly one bottleneck row when top trims the ranking.
+    lines = out.splitlines()
+    assert lines[0] == "node_id,kind,leverage,on_critical_path"
+    assert len(lines) == 2
+    assert lines[1].startswith("a,")
+
+
+def test_cli_csv_rejects_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--csv", "--json"])
+
+
+def test_cli_csv_honours_goal(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--goal", "b"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    # ``a`` is on goal ``b``'s critical chain (a -> b).
+    assert "a,definition,1,true" in out.splitlines()
+
+
+def test_cli_csv_invalid_goal_warns_and_emits_header_only(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    # ``a`` is not a remaining goal (it has an incomplete dependent ``b``).
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--goal", "a"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    # stdout carries only the header - no misleading on_critical_path rows.
+    lines = captured.out.splitlines()
+    assert lines == ["node_id,kind,leverage,on_critical_path"]
+    # The invalid-goal reason is surfaced on stderr, matching the other renderers.
+    assert "is not a remaining goal" in captured.err
+    assert "'a'" in captured.err
+
+
+def test_cli_csv_write_stdout_is_pure_csv(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--write"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    # Every stdout line is CSV; the write-location notices go to stderr only.
+    out_lines = captured.out.splitlines()
+    assert out_lines[0] == "node_id,kind,leverage,on_critical_path"
+    assert all("critical-path " not in line for line in out_lines)
+    assert "-> " not in captured.out
+    # The notices are routed to stderr (treated like --json).
+    assert "critical-path json ->" in captured.err
+    assert "critical-path md ->" in captured.err
+
+
 def test_mermaid_invalid_goal_carries_distinct_message() -> None:
     # An unknown/invalid goal must render a message distinct from the
     # all-complete and cycle-tangled cases, mirroring the text renderer.
