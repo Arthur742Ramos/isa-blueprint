@@ -1067,7 +1067,8 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, `agent-memory`, `path`, `scorecard`, and `tags`.
+`plugin-annotations`, `agent-memory`, `path`, `scorecard`, `tags`, and
+`tag-cooccurrence`.
 
 ### `stats`
 
@@ -1210,6 +1211,21 @@ remaining effort sits. It composes with the other output formats: a per-node
 table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
 additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
 Without `--nodes` the output is unchanged.
+### `tag-cooccurrence`
+
+```text
+isabelle-blueprint tag-cooccurrence [project_dir] [--json] [--min N]
+```
+
+Reports which tags appear together on the same nodes. For each unordered pair of
+distinct tags it counts the nodes carrying both, ranked by descending shared
+count (ties broken alphabetically by the pair). Nodes with fewer than two tags
+contribute no pairs, and repeated tags within a node are de-duplicated. Only
+pairs shared by at least one node are reported; `--min N` (an integer `>= 1`,
+default `1`) filters out pairs shared by fewer than `N` nodes. Text output is a
+ranked table (tag A, tag B, shared node count); `--json` emits the structured
+report (`project`, `min_shared`, `pair_count`, and `pairs` carrying `tags`,
+`shared_count`, and `node_ids`). Always exits 0.
 
 ### `version`
 

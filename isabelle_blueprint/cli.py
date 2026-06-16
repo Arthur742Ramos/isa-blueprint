@@ -314,6 +314,10 @@ from isabelle_blueprint.report.status_overview import (
     render_status_markdown,
     render_status_overview,
 )
+from isabelle_blueprint.report.tag_cooccurrence import (
+    build_tag_cooccurrence_report,
+    render_tag_cooccurrence_report,
+)
 from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
@@ -1014,6 +1018,18 @@ def cmd_tags(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     return exit_code
+
+
+def cmd_tag_cooccurrence(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_tag_cooccurrence_report(project, min_shared=args.min)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_tag_cooccurrence_report(report), end="")
+    return 0
 
 
 def cmd_path(args: argparse.Namespace) -> int:
@@ -3170,6 +3186,28 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_tags.set_defaults(func=cmd_tags)
+
+    p_tag_cooccurrence = sub.add_parser(
+        "tag-cooccurrence",
+        help="rank tag pairs by how many nodes carry both tags",
+    )
+    p_tag_cooccurrence.add_argument("project_dir", nargs="?", default=".")
+    p_tag_cooccurrence.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the tag co-occurrence report as JSON",
+    )
+    p_tag_cooccurrence.add_argument(
+        "--min",
+        type=_positive_int,
+        default=1,
+        metavar="N",
+        help=(
+            "only report tag pairs shared by at least N nodes (an integer >= 1; "
+            "default 1)"
+        ),
+    )
+    p_tag_cooccurrence.set_defaults(func=cmd_tag_cooccurrence)
 
     p_path = sub.add_parser(
         "path",
