@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remaining incomplete dependency chain (or a single goal's chain via `--goal`),
   with high-leverage bottleneck nodes highlighted. Mutually exclusive with
   `--json` and `--markdown`.
+- **`critical-path --csv`** emits the bottleneck/leverage ranking as CSV
+  (`node_id`, `kind`, `leverage`, `on_critical_path`), honouring `--top` and
+  `--goal`. Mutually exclusive with the other output-format flags; default text
+  output is unchanged.
 - **`lint --format markdown`** renders the lint findings as a Markdown document
   (heading, a summary count line, and a table of findings: code, severity, node,
   message, with `|` escaped in cells). Existing text/json/sarif output and the

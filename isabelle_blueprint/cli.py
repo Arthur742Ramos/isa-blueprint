@@ -177,6 +177,7 @@ from isabelle_blueprint.report.critical_path import (
     critical_path_payload,
     critical_path_strict_failures,
     render_critical_path,
+    render_critical_path_csv,
     render_critical_path_mermaid,
     write_critical_path,
 )
@@ -1217,6 +1218,8 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
     elif getattr(args, "mermaid", False):
         print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
+    elif getattr(args, "csv", False):
+        print(render_critical_path_csv(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
@@ -3314,6 +3317,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--mermaid",
         action="store_true",
         help="emit the critical chain as a Mermaid flowchart (bottlenecks highlighted)",
+    )
+    p_critical_fmt.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the bottleneck/leverage ranking as CSV "
+        "(node_id, kind, leverage, on_critical_path)",
     )
     p_critical.add_argument(
         "--top",
