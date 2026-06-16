@@ -1,5 +1,5 @@
 """Command-line interface for IsabelleBlueprint."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import json
@@ -58,23 +58,11 @@ from isabelle_blueprint.agents.selection import (
     READY_TASK_LAST_OUTCOMES,
     READY_TASK_MEMORY_STATES,
     READY_TASK_PRIORITIES,
-)
-from isabelle_blueprint.agents.selection import (
     filter_ready_tasks as _filter_ready_tasks,
-)
-from isabelle_blueprint.agents.selection import (
     no_ready_task_message as _no_ready_task_message,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_from_args as _ready_task_filters_from_args,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_to_argv as _ready_task_filters_to_argv,
-)
-from isabelle_blueprint.agents.selection import (
     select_ready_task as _select_ready_task,
-)
-from isabelle_blueprint.agents.selection import (
     selection_metadata as _selection_metadata,
 )
 from isabelle_blueprint.agents.tasks import (
@@ -86,8 +74,6 @@ from isabelle_blueprint.agents.tasks import (
 )
 from isabelle_blueprint.agents.tracker_export import (
     SUPPORTED_TRACKERS as TRACKER_EXPORTS,
-)
-from isabelle_blueprint.agents.tracker_export import (
     render_tracker_csv,
 )
 from isabelle_blueprint.completion import (
@@ -105,8 +91,6 @@ from isabelle_blueprint.explain import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
-)
-from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
     leaves_subproject,
     roots_subproject,
@@ -186,8 +170,6 @@ from isabelle_blueprint.report.critical_path import (
 )
 from isabelle_blueprint.report.depends import (
     UnknownNodeError as DependsUnknownNodeError,
-)
-from isabelle_blueprint.report.depends import (
     build_depends_report,
     render_depends_report,
 )
@@ -255,11 +237,7 @@ from isabelle_blueprint.report.metrics import (
 )
 from isabelle_blueprint.report.notify import (
     FORMAT_CHOICES as NOTIFY_FORMATS,
-)
-from isabelle_blueprint.report.notify import (
     MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
-)
-from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
     render_markdown,
@@ -271,8 +249,6 @@ from isabelle_blueprint.report.orphans import (
 )
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
-)
-from isabelle_blueprint.report.path import (
     build_path_report,
     render_path_markdown,
     render_path_report,

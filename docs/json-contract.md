@@ -973,7 +973,7 @@ with fewer than two tags contribute no pairs.
 Written to stdout by `depends NODE --json` and validated by the packaged
 `depends.schema.json` (see `schema depends`). It reports a single node's
 **direct** (one-hop) neighbourhood: the nodes it immediately `uses` and the
-nodes that immediately `uses` it.
+nodes that immediately `use` it.
 
 ```json
 {

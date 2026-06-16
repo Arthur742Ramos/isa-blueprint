@@ -934,7 +934,7 @@ isabelle-blueprint depends NODE [project_dir] [--json]
 ```
 
 Lists a single node's **direct** (one-hop) neighbourhood: the nodes it
-immediately `uses` (its dependencies) and the nodes that immediately `uses` it
+immediately `uses` (its dependencies) and the nodes that immediately `use` it
 (its dependents). It is the focused complement to `impact` (transitive
 downstream blast radius) and `path` (a chain between two nodes): `depends` stops
 at the immediate neighbours.
