@@ -353,9 +353,10 @@ def _coverage_text(coverage: int | None) -> str:
 def render_portfolio_report(report: PortfolioReport, *, details: bool = False) -> str:
     """Render ``report`` as concise human-readable text (trailing newline).
 
-    When ``details`` is set, a short per-project ``Problems:`` block is appended
-    beneath the project table, naming each project's actively-wrong node ids
-    (and flagging dependency cycles). Without it the output is unchanged.
+    When ``details`` is set, a short per-project ``Problem details:`` block is
+    appended beneath the project table, naming each project's actively-wrong
+    node ids (and flagging dependency cycles). Without it the output is
+    unchanged.
     """
     totals = report.totals
     if totals.project_count == 0:
