@@ -190,7 +190,11 @@ from isabelle_blueprint.report.effort import (
     render_effort_markdown,
     render_effort_report,
 )
-from isabelle_blueprint.report.gate import build_gate_report, render_gate_report
+from isabelle_blueprint.report.gate import (
+    build_gate_report,
+    render_gate_markdown,
+    render_gate_report,
+)
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
     emit_step_outputs,
@@ -974,6 +978,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif args.markdown:
+        print(render_gate_markdown(report), end="")
     else:
         print(render_gate_report(report), end="")
     return 0 if report.ok else 5
@@ -2941,7 +2947,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="run a single pass/fail CI gate (lint errors + coverage + status policy)",
     )
     p_gate.add_argument("project_dir", nargs="?", default=".")
-    p_gate.add_argument("--json", action="store_true", help="emit the gate result as JSON")
+    p_gate_format = p_gate.add_mutually_exclusive_group()
+    p_gate_format.add_argument(
+        "--json", action="store_true", help="emit the gate result as JSON"
+    )
+    p_gate_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the gate result as a Markdown report (heading, verdict, check table)",
+    )
     p_gate.add_argument(
         "--min-coverage",
         type=int,
