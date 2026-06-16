@@ -200,6 +200,8 @@ from isabelle_blueprint.report.effort import (
 )
 from isabelle_blueprint.report.fact_coverage import (
     build_fact_coverage_report,
+    render_fact_coverage_csv,
+    render_fact_coverage_markdown,
     render_fact_coverage_report,
 )
 from isabelle_blueprint.report.gate import (
@@ -327,6 +329,7 @@ from isabelle_blueprint.report.stats import (
 from isabelle_blueprint.report.status_overview import (
     build_status_overview,
     render_status_markdown,
+    render_status_oneline,
     render_status_overview,
 )
 from isabelle_blueprint.report.tag_cooccurrence import (
@@ -1129,6 +1132,10 @@ def cmd_fact_coverage(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif args.csv:
+        print(render_fact_coverage_csv(report), end="")
+    elif args.markdown:
+        print(render_fact_coverage_markdown(report), end="")
     else:
         print(render_fact_coverage_report(report), end="")
     return 0
@@ -2175,6 +2182,8 @@ def _run_status_once(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
+    elif getattr(args, "oneline", False):
+        print(render_status_oneline(overview), end="")
     elif getattr(args, "markdown", False):
         was_enabled = console.is_enabled()
         console.set_enabled(False)
@@ -3371,10 +3380,21 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="roll up node counts and coverage per Isabelle theory",
     )
     p_fact_coverage.add_argument("project_dir", nargs="?", default=".")
-    p_fact_coverage.add_argument(
+    p_fact_coverage_format = p_fact_coverage.add_mutually_exclusive_group()
+    p_fact_coverage_format.add_argument(
         "--json",
         action="store_true",
         help="emit the per-theory fact-coverage roll-up as JSON",
+    )
+    p_fact_coverage_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as CSV (one row per theory)",
+    )
+    p_fact_coverage_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as a Markdown document",
     )
     p_fact_coverage.set_defaults(func=cmd_fact_coverage)
 
@@ -4321,6 +4341,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="render the health overview as a Markdown table (mutually exclusive with --json)",
+    )
+    p_status_format.add_argument(
+        "--oneline",
+        action="store_true",
+        help="print a single compact health summary line (excludes --json/--markdown)",
     )
     p_status.add_argument(
         "--top-tasks",

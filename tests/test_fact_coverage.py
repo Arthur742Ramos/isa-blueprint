@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
@@ -11,6 +13,8 @@ from isabelle_blueprint.report.fact_coverage import (
     FACT_COVERAGE_SCHEMA_VERSION,
     NO_FACT_LABEL,
     build_fact_coverage_report,
+    render_fact_coverage_csv,
+    render_fact_coverage_markdown,
     render_fact_coverage_report,
 )
 
@@ -211,3 +215,75 @@ def test_cli_json_two_theories_and_no_fact(tmp_path: Path, capsys) -> None:
     # Node d carries no Isabelle fact.
     assert by_theory[NO_FACT_LABEL]["node_count"] == 1
     assert by_theory[NO_FACT_LABEL]["coverage_percent"] is None
+
+
+def test_render_csv_columns_and_no_carriage_return() -> None:
+    project = _project(
+        _node("a", fact="Alpha.a", formal=FormalStatus.PROVED),
+        _node("b", fact="Alpha.b", formal=FormalStatus.FOUND),
+    )
+
+    out = render_fact_coverage_csv(build_fact_coverage_report(project))
+
+    lines = out.splitlines()
+    assert lines[0] == (
+        "theory,node_count,proved_count,found_count,problem_count,coverage_percent"
+    )
+    assert lines[1] == "Alpha,2,1,1,0,50"
+    assert "\r" not in out
+
+
+def test_render_csv_blank_for_undefined_coverage() -> None:
+    out = render_fact_coverage_csv(build_fact_coverage_report(_project(_node("a"))))
+
+    # No formal targets -> coverage cell is blank, not "None".
+    assert out.splitlines()[1] == "(no fact),1,0,0,0,"
+
+
+def test_render_markdown_escapes_pipe_in_theory() -> None:
+    text = render_fact_coverage_markdown(
+        build_fact_coverage_report(_project(_node("a", fact="A|B.a")))
+    )
+
+    assert "| Theory | Nodes | Proved | Found | Problems | Coverage |" in text
+    assert r"A\|B" in text
+
+
+def test_cli_csv_two_theories_and_no_fact(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["fact-coverage", str(tmp_path), "--csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    lines = out.splitlines()
+    assert lines[0] == (
+        "theory,node_count,proved_count,found_count,problem_count,coverage_percent"
+    )
+    rows = {line.split(",", 1)[0]: line for line in lines[1:]}
+    assert rows["Alpha"] == "Alpha,2,1,1,0,50"
+    assert rows["Beta"] == "Beta,1,1,0,0,100"
+    assert rows[NO_FACT_LABEL] == "(no fact),1,0,0,0,"
+
+
+def test_cli_markdown_two_theories_and_no_fact(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["fact-coverage", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# fc-test fact coverage" in out
+    assert "| Theory | Nodes | Proved | Found | Problems | Coverage |" in out
+    assert "| Alpha | 2 | 1 | 1 | 0 | 50% |" in out
+
+
+def test_cli_csv_with_json_rejected(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["fact-coverage", str(tmp_path), "--csv", "--json"])
+
+    assert exc.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err

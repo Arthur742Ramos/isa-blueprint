@@ -720,6 +720,7 @@ polling every `--interval` seconds (default `1.0`). Stop with Ctrl-C. A
 
 ```text
 isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
+                          [--markdown] [--oneline]
                           [--kind KIND]
                           [--priority high|medium|low]
                           [--difficulty low|medium|high]
@@ -755,6 +756,12 @@ tasks emit a short note to stderr listing how many ready tasks were excluded.
 statuses. Repeat the flag to select multiple statuses (the `problem` alias
 expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
+
+`--oneline` prints a single compact health summary line (project name, coverage
+percent, ready-task count, problem count, cycle status (yes/no), and the bracketed
+health label) for shell prompts, CI logs, and grepping across projects. Mutually
+exclusive with `--json` and `--markdown`; default multi-line text output and all
+filter flags are unchanged.
 
 `--watch` re-renders the overview whenever the configuration or blueprint
 sources change, polling every `--interval` seconds (default `1.0`). Stop with
@@ -1144,7 +1151,7 @@ writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 ### `fact-coverage`
 
 ```text
-isabelle-blueprint fact-coverage [project_dir] [--json]
+isabelle-blueprint fact-coverage [project_dir] [--json | --csv | --markdown]
 ```
 
 Groups nodes by the **theory** of their Isabelle fact - the `Theory` part of a
@@ -1157,7 +1164,12 @@ per-theory Markdown table; `--json` emits
 `{project, theories: [{theory, node_count, proved_count, found_count,
 problem_count, coverage_percent}]}` plus
 `schema_version`/`total_nodes`/`theory_count`,
-validated by the packaged `fact-coverage` schema.
+validated by the packaged `fact-coverage` schema. `--csv` emits one row per
+theory under the header `theory,node_count,proved_count,found_count,
+problem_count,coverage_percent` (blank coverage cell when the theory has no
+formal targets; `lineterminator='\n'`); `--markdown` renders the per-theory
+table as a Markdown document. `--json`/`--csv`/`--markdown` are mutually
+exclusive.
 `levels`.
 
 ### `stats`
