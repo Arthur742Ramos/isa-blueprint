@@ -361,6 +361,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`tag-cooccurrence` command** ranks unordered tag pairs by how many nodes
+  carry both tags (descending shared count), surfacing tag clusters and
+  redundancy. Nodes with fewer than two tags contribute no pairs. `--min N`
+  filters out pairs shared by fewer than `N` nodes (default `1`); `--json`
+  emits `{project, min_shared, pair_count, pairs:[{tags, shared_count,
+  node_ids}]}` backed by a packaged schema. Always exits 0.
 
 ### Changed
 
