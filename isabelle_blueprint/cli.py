@@ -193,6 +193,7 @@ from isabelle_blueprint.report.diff import (
 from isabelle_blueprint.report.effort import (
     build_effort_gate,
     build_effort_report,
+    render_effort_csv,
     render_effort_markdown,
     render_effort_report,
 )
@@ -1128,6 +1129,8 @@ def cmd_effort(args: argparse.Namespace) -> int:
     else:
         if args.markdown:
             print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+        elif args.csv:
+            print(render_effort_csv(report, by_tag=args.by_tag), end="")
         else:
             print(render_effort_report(report, by_tag=args.by_tag), end="")
         if gate is not None and not gate["meets"]:
@@ -3262,6 +3265,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="emit the effort report as a Markdown document with summary tables",
+    )
+    p_effort_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the effort report as CSV (summary row, or one row per tag with --by-tag)",
     )
     p_effort.add_argument(
         "--by-tag",

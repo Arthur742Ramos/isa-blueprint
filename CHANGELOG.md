@@ -354,6 +354,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (columns: task id, node id, kind, priority, difficulty, blocked-by count) to
   stdout and writes no files. Composes with the selection filters
   (`--kind`/`--priority`/`--difficulty`/etc.); default behaviour is unchanged.
+- **`effort --csv`** exports the effort-weighted report as CSV: a single summary
+  row (columns: `total_effort`, `formal_target_effort`, `proved_effort`,
+  `found_effort`, `remaining_effort`, `coverage_percent`), or one row per tag
+  plus the untagged bucket (`tag`, `total_effort`, `proved_effort`,
+  `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
+  with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
+  gate.
 
 ### Changed
 
