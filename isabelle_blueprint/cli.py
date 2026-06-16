@@ -96,7 +96,7 @@ from isabelle_blueprint.completion import (
     render_completion,
 )
 from isabelle_blueprint.config import BlueprintConfig, load_config
-from isabelle_blueprint.doctor import run_doctor
+from isabelle_blueprint.doctor import REQUIREMENT_TOOLS, run_doctor
 from isabelle_blueprint.errors import BlueprintError, ValidationError
 from isabelle_blueprint.explain import (
     explain_project,
@@ -2578,8 +2578,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         Path(args.project_dir),
         isabelle_executable=args.isabelle,
     )
+    required = list(dict.fromkeys(args.require or []))
+    missing = report.missing_requirements(required)
     if args.json:
-        output = report.to_json()
+        payload = report.to_dict()
+        if required:
+            payload["requirements"] = report.requirements(required)
+        output = json.dumps(payload, indent=2)
         if args.output:
             path = Path(args.output).resolve()
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -2590,6 +2595,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         for check in report.checks:
             print(f"[{_paint_doctor_status(check.status)}] {check.name}: {check.message}")
+        for tool in missing:
+            print(f"[{console.error('missing')}] required tool unavailable: {tool}")
+    if missing:
+        return 5
     return 7 if args.strict and report.has_errors else 0
 
 
@@ -4206,6 +4215,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_doctor.add_argument("--output", default=None, help="write --json output to a file")
     p_doctor.add_argument(
         "--strict", action="store_true", help="exit non-zero when an error is found"
+    )
+    p_doctor.add_argument(
+        "--require",
+        action="append",
+        choices=list(REQUIREMENT_TOOLS),
+        metavar="TOOL",
+        help="exit 5 if TOOL is unavailable (repeatable; turns doctor into a CI gate)",
     )
     p_doctor.set_defaults(func=cmd_doctor)
 

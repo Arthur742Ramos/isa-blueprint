@@ -361,6 +361,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`doctor --require TOOL`** (repeatable; choices `graphviz`, `isabelle`) turns
+  doctor into a CI precondition gate: it exits `5` when any required tool is
+  unavailable. In `--json` mode it adds an additive `requirements` array of
+  `{tool, available, required}` entries. Without `--require`, doctor stays
+  informational and its behaviour/exit are unchanged.
 
 ### Changed
 
