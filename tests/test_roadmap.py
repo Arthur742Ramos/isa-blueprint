@@ -13,6 +13,7 @@ from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     render_roadmap,
+    render_roadmap_markdown,
     render_roadmap_mermaid,
     write_roadmap,
 )
@@ -165,6 +166,54 @@ def test_cli_roadmap_csv_rejects_json_combo(tmp_path: Path) -> None:
     _write_roadmap_project(tmp_path)
 
     rc = cli_main(["roadmap", str(tmp_path), "--csv", "--json"])
+
+    assert rc != 0
+
+
+def test_render_roadmap_markdown_escapes_pipe_in_cells() -> None:
+    project = BlueprintProject.from_nodes(
+        "md-escape",
+        [_node("a|b", FormalStatus.NAMED)],
+    )
+    roadmap = build_roadmap(project, generate_tasks(project))
+
+    out = render_roadmap_markdown(roadmap)
+
+    assert "# md-escape roadmap" in out
+    assert "## Stage 1" in out
+    assert r"a\|b" in out
+    assert "| id | kind | formal status | agent status | blocker count |" in out
+
+
+def test_cli_roadmap_markdown_emits_staged_tables(capsys) -> None:
+    example = Path("examples/euclid-primes")
+
+    rc = cli_main(["roadmap", str(example), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# ")
+    assert "## Stage 1" in out
+    assert "| id | kind | formal status | agent status | blocker count |" in out
+    # `prime-pred` has no dependencies, so it lands in the first stage.
+    assert "| prime-pred | definition |" in out
+
+
+def test_cli_roadmap_markdown_respects_status_filter(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--markdown", "--status", "ready"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "| b |" in out
+    assert "| c |" not in out
+
+
+def test_cli_roadmap_markdown_rejects_json_combo(tmp_path: Path) -> None:
+    _write_roadmap_project(tmp_path)
+
+    rc = cli_main(["roadmap", str(tmp_path), "--markdown", "--json"])
 
     assert rc != 0
 
