@@ -944,6 +944,30 @@ Readers should ignore unknown keys.
 
 ---
 
+## `tag-cooccurrence --json`
+
+Written to stdout by `tag-cooccurrence --json`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "min_shared": 1,
+  "pair_count": 1,
+  "pairs": [
+    { "tags": ["alg", "core"], "shared_count": 2, "node_ids": ["a", "b"] }
+  ]
+}
+```
+
+`pairs` lists each unordered tag pair carried by at least `min_shared` nodes
+(an integer `>= 1`, from `--min`, default `1`), ranked by descending
+`shared_count` then alphabetically by `tags`. `tags` is a sorted 2-element
+array; `node_ids` lists the nodes carrying both tags in project order. Nodes
+with fewer than two tags contribute no pairs.
+
+---
+
 ## Compatibility rules
 
 For the v1.x line:

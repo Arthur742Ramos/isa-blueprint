@@ -21,6 +21,8 @@ SCHEMA_NAMES = (
     "scorecard",
     "tags",
     "levels",
+    "fact-coverage",
+    "tag-cooccurrence",
 )
 
 
