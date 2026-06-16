@@ -357,6 +357,16 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _non_negative_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be at least 0")
+    return parsed
+
+
 def _percent(value: str) -> float:
     try:
         parsed = float(value)
@@ -1134,21 +1144,32 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(project, include_by_tag=args.by_tag)
+    report = build_effort_report(
+        project, include_by_tag=args.by_tag, include_nodes=args.nodes
+    )
     fail_under = getattr(args, "fail_under", None)
     gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
-        payload = report.to_dict(include_by_tag=args.by_tag)
+        payload = report.to_dict(include_by_tag=args.by_tag, include_nodes=args.nodes)
         if gate is not None:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
         if args.markdown:
-            print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_markdown(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         elif args.csv:
-            print(render_effort_csv(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_csv(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         else:
-            print(render_effort_report(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_report(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         if gate is not None and not gate["meets"]:
             actual = (
                 "undefined"
@@ -1258,10 +1279,21 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     overview = build_critical_path(project)
     goal = getattr(args, "goal", None)
+    min_leverage = getattr(args, "min_leverage", 0)
     if args.json:
-        print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+        print(
+            json.dumps(
+                critical_path_payload(overview, top=args.top, min_leverage=min_leverage),
+                indent=2,
+            )
+        )
     elif getattr(args, "mermaid", False):
-        print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path_mermaid(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     elif getattr(args, "csv", False):
         if goal is not None and goal_chain_for(overview, goal) is None:
             print(
@@ -1269,22 +1301,36 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
                 "(it is complete, unknown, has incomplete dependents, or is in a cycle).",
                 file=sys.stderr,
             )
-        print(render_critical_path_csv(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path_csv(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
         was_enabled = console.is_enabled()
         console.set_enabled(False)
         try:
-            markdown = render_critical_path(overview, top=args.top, goal=goal)
+            markdown = render_critical_path(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            )
         finally:
             console.set_enabled(was_enabled)
         print(markdown, end="")
     else:
-        print(render_critical_path(overview, top=args.top, goal=goal), end="")
+        print(
+            render_critical_path(
+                overview, top=args.top, goal=goal, min_leverage=min_leverage
+            ),
+            end="",
+        )
     if getattr(args, "write", False):
         stream = sys.stderr if (args.json or getattr(args, "csv", False)) else sys.stdout
-        written = write_critical_path(overview, config.build_dir, top=args.top, goal=goal)
+        written = write_critical_path(
+            overview, config.build_dir, top=args.top, goal=goal, min_leverage=min_leverage
+        )
         for name, path in written.items():
             print(f"critical-path {name} -> {path}", file=stream)
     failures = critical_path_strict_failures(overview) if args.fail_on_cycle else []
@@ -3315,6 +3361,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="additionally group effort-weighted progress per tag",
     )
     p_effort.add_argument(
+        "--nodes",
+        action="store_true",
+        help="additionally list each node with its effort and contribution",
+    )
+    p_effort.add_argument(
         "--fail-under",
         type=_percent,
         default=None,
@@ -3451,6 +3502,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="NODE",
         help="focus the output on a single goal node's critical chain",
+    )
+    p_critical.add_argument(
+        "--min-leverage",
+        type=_non_negative_int,
+        default=0,
+        metavar="N",
+        help="only show bottlenecks that unblock at least N incomplete "
+        "descendants (default: 0, no filter)",
     )
     p_critical.add_argument(
         "--fail-on-cycle",

@@ -789,9 +789,14 @@ number of downstream nodes blocked and then by node id.
 ```text
 isabelle-blueprint critical-path [project_dir]
                                  [--json]
+                                 [--markdown]
+                                 [--mermaid]
+                                 [--csv]
                                  [--top N]
                                  [--goal NODE]
+                                 [--min-leverage N]
                                  [--fail-on-cycle]
+                                 [--write]
 ```
 
 Prints a longest-pole analysis of the remaining (incomplete) proof work without
@@ -808,6 +813,11 @@ other incomplete node depends on (terminal remaining work).
   shown (default 5; must be a positive integer).
 - `--goal NODE` focuses the terminal view on a single goal's chain. It does not
   affect `--json` output.
+- `--min-leverage N` filters the bottleneck/leverage ranking to nodes that
+  unblock at least `N` incomplete descendants (leverage ≥ `N`), focusing on the
+  highest-impact work. `N` must be a non-negative integer; the default `0`
+  applies no filter. The filter applies to the text, JSON, Markdown, CSV, and
+  Mermaid (bottleneck-highlight) outputs.
 - Dependency cycles are excluded from depth/path/leverage ranking and reported in
   a separate `cycles` section. References to unknown dependency ids
   (`missing_dependencies`) and complete nodes that still depend on incomplete
@@ -1195,6 +1205,12 @@ the structured report (`proved_effort`, `formal_target_effort`,
 `remaining_effort`, `coverage_percent`, `total_effort`, `explicit_effort_count`,
 `default_effort`). Always exits 0.
 
+The `--nodes` flag additionally lists each node with its `effort` weight, formal
+status, and whether it counts toward proved effort, so you can see *where* the
+remaining effort sits. It composes with the other output formats: a per-node
+table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
+additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
+Without `--nodes` the output is unchanged.
 ### `tag-cooccurrence`
 
 ```text
