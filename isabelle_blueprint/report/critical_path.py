@@ -278,14 +278,31 @@ def goal_chain_for(overview: CriticalPathOverview, node_id: str) -> GoalChain | 
     return None
 
 
+def _apply_min_leverage(
+    bottlenecks: list[Bottleneck], min_leverage: int
+) -> list[Bottleneck]:
+    """Keep only bottlenecks whose leverage meets ``min_leverage`` (0 = no filter)."""
+
+    if min_leverage <= 0:
+        return list(bottlenecks)
+    return [b for b in bottlenecks if b.leverage >= min_leverage]
+
+
 def critical_path_payload(
-    overview: CriticalPathOverview, *, top: int | None = None
+    overview: CriticalPathOverview, *, top: int | None = None, min_leverage: int = 0
 ) -> dict[str, object]:
-    """Return the JSON payload, optionally limiting the bottleneck list."""
+    """Return the JSON payload, optionally filtering and limiting the bottlenecks.
+
+    ``min_leverage`` keeps only bottleneck nodes that unblock at least that many
+    incomplete descendants; ``top`` then caps the surviving ranking. Both default
+    to "no filter", leaving the full ranking unchanged.
+    """
 
     payload = overview.to_dict()
+    bottlenecks = _apply_min_leverage(overview.bottlenecks, min_leverage)
     if top is not None:
-        payload["bottlenecks"] = payload["bottlenecks"][:top]  # type: ignore[index]
+        bottlenecks = bottlenecks[:top]
+    payload["bottlenecks"] = [b.to_dict() for b in bottlenecks]
     return payload
 
 
@@ -294,6 +311,7 @@ def render_critical_path(
     *,
     top: int = 5,
     goal: str | None = None,
+    min_leverage: int = 0,
 ) -> str:
     """Render the analysis as compact Markdown for the terminal or a file."""
 
@@ -335,14 +353,15 @@ def render_critical_path(
     lines.append("")
 
     lines.extend(["## Bottlenecks", ""])
-    if overview.bottlenecks:
-        for bottleneck in overview.bottlenecks[:top]:
+    filtered_bottlenecks = _apply_min_leverage(overview.bottlenecks, min_leverage)
+    if filtered_bottlenecks:
+        for bottleneck in filtered_bottlenecks[:top]:
             lines.append(
                 f"- `{bottleneck.node_id}` - {bottleneck.title} "
                 f"(unblocks `{bottleneck.leverage}` node(s), "
                 f"formal `{bottleneck.formal_status}`)"
             )
-        hidden = len(overview.bottlenecks) - top
+        hidden = len(filtered_bottlenecks) - top
         if hidden > 0:
             lines.append(console.dim(f"  ... and {hidden} more"))
     else:
@@ -373,6 +392,7 @@ def render_critical_path_mermaid(
     *,
     top: int = 5,
     goal: str | None = None,
+    min_leverage: int = 0,
 ) -> str:
     """Render the critical (longest incomplete) chain as a Mermaid ``flowchart``.
 
@@ -402,7 +422,9 @@ def render_critical_path_mermaid(
             "No critical path: remaining work is tangled in cycles."
         )
 
-    bottleneck_ids = {b.node_id for b in overview.bottlenecks[:top]}
+    bottleneck_ids = {
+        b.node_id for b in _apply_min_leverage(overview.bottlenecks, min_leverage)[:top]
+    }
 
     lines = ["flowchart TB"]
     if not path:
@@ -433,6 +455,7 @@ def render_critical_path_csv(
     *,
     top: int | None = None,
     goal: str | None = None,
+    min_leverage: int = 0,
 ) -> str:
     """Render the bottleneck/leverage ranking as CSV.
 
@@ -463,7 +486,9 @@ def render_critical_path_csv(
     else:
         critical_ids = set()
 
-    bottlenecks = overview.bottlenecks if top is None else overview.bottlenecks[:top]
+    bottlenecks = _apply_min_leverage(overview.bottlenecks, min_leverage)
+    if top is not None:
+        bottlenecks = bottlenecks[:top]
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CRITICAL_PATH_CSV_COLUMNS)
@@ -489,6 +514,7 @@ def write_critical_path(
     *,
     top: int | None = None,
     goal: str | None = None,
+    min_leverage: int = 0,
     json_name: str = "critical-path.json",
     md_name: str = "critical-path.md",
 ) -> dict[str, Path]:
@@ -504,13 +530,15 @@ def write_critical_path(
     build_dir.mkdir(parents=True, exist_ok=True)
     json_path = build_dir / json_name
     md_path = build_dir / md_name
-    payload = critical_path_payload(overview, top=top)
+    payload = critical_path_payload(overview, top=top, min_leverage=min_leverage)
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     md_top = top if top is not None else 5
     was_enabled = console.is_enabled()
     console.set_enabled(False)
     try:
-        markdown = render_critical_path(overview, top=md_top, goal=goal)
+        markdown = render_critical_path(
+            overview, top=md_top, goal=goal, min_leverage=min_leverage
+        )
     finally:
         console.set_enabled(was_enabled)
     md_path.write_text(markdown, encoding="utf-8")
