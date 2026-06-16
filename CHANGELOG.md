@@ -446,6 +446,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependent). Cycle participants are omitted. Mutually exclusive with `--json`;
   default text output is unchanged.
 
+- **`tags --sort {name,nodes,coverage}`** orders the listed tags (`name`
+  ascending; `nodes`/`coverage` descending, with targetless tags last under
+  `coverage`) across text/JSON/CSV/Markdown output. Composes with
+  `--tag`/`--fail-under`; default most-used-first ordering is unchanged.
+
 ### Changed
 
 - **Task and roadmap generation share a single node index** instead of rebuilding

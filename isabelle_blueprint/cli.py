@@ -338,11 +338,13 @@ from isabelle_blueprint.report.tag_cooccurrence import (
     render_tag_cooccurrence_report,
 )
 from isabelle_blueprint.report.tags import (
+    TAG_SORT_KEYS,
     build_tag_gate,
     build_tag_report,
     render_tag_report,
     render_tags_csv,
     render_tags_markdown,
+    sort_tag_report,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -1011,6 +1013,10 @@ def cmd_tags(args: argparse.Namespace) -> int:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     report = build_tag_report(project, only=args.tag or None)
+
+    sort_key = getattr(args, "sort", None)
+    if sort_key is not None:
+        report = sort_tag_report(report, sort_key)
 
     exit_code = 0
     gate = None
@@ -3303,6 +3309,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "exit non-zero (5) if any gated tag's proved-coverage is below PCT "
             "(an integer 0-100). Honours --tag; tags with no formal targets never "
             "fail the gate."
+        ),
+    )
+    p_tags.add_argument(
+        "--sort",
+        choices=TAG_SORT_KEYS,
+        metavar="{name,nodes,coverage}",
+        help=(
+            "order the listed tags: 'name' ascending, 'nodes'/'coverage' "
+            "descending. Default keeps the most-used-first ordering."
         ),
     )
     p_tags.set_defaults(func=cmd_tags)
