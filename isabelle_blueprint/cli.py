@@ -108,6 +108,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    incomplete_subproject,
     leaves_subproject,
     roots_subproject,
 )
@@ -866,6 +867,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
         project = roots_subproject(project)
     if getattr(args, "leaves_only", False):
         project = leaves_subproject(project)
+    if getattr(args, "incomplete_only", False):
+        project = incomplete_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -3189,6 +3192,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="prune the graph to leaf nodes (those that use nothing); "
         "composes with --focus/--depth",
+    )
+    p_graph_prune.add_argument(
+        "--incomplete-only",
+        action="store_true",
+        help="prune the graph to nodes whose formal status is neither "
+        "'found' nor 'proved' (the remaining work); composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
 
