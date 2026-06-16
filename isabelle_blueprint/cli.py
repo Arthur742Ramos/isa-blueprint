@@ -216,7 +216,11 @@ from isabelle_blueprint.report.impact import (
     render_impact_report,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
-from isabelle_blueprint.report.lint import build_lint_report, render_lint_report
+from isabelle_blueprint.report.lint import (
+    build_lint_report,
+    render_lint_markdown,
+    render_lint_report,
+)
 from isabelle_blueprint.report.markdown_report import write_markdown_report
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
@@ -960,6 +964,8 @@ def cmd_lint(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
     elif fmt == "sarif":
         print(render_sarif(report, project), end="")
+    elif fmt == "markdown":
+        print(render_lint_markdown(report), end="")
     else:
         print(render_lint_report(report), end="")
     if args.strict and not report.ok:
@@ -2935,9 +2941,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_lint.add_argument(
         "--format",
-        choices=("text", "json", "sarif"),
+        choices=("text", "json", "sarif", "markdown"),
         default=None,
-        help="output format: text (default), json, or sarif (SARIF 2.1.0 for code scanning)",
+        help=(
+            "output format: text (default), json, sarif (SARIF 2.1.0 for code "
+            "scanning), or markdown"
+        ),
     )
     p_lint.add_argument(
         "--strict",
