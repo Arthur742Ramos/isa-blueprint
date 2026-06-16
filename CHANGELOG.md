@@ -361,6 +361,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`lint` `tag-case-collision` rule** flags tags that differ only by case
+  across the blueprint (e.g. `Algebra` and `algebra`), which fragment the tag
+  rollup, as an `info`-severity finding listing the colliding spellings with an
+  example node for each; also surfaced in SARIF output.
+- **`critical-path --min-leverage N`** filters the bottleneck/leverage ranking to
+  nodes that unblock at least `N` incomplete descendants (leverage ≥ `N`),
+  focusing attention on the highest-impact work. Applies to the text, JSON,
+  Markdown, CSV, and Mermaid outputs; `N` must be a non-negative integer and the
+  default `0` shows the full ranking unchanged.
+- **`effort --nodes`** lists each node with its `effort` weight, formal status,
+  and whether it counts toward proved effort, so you can see where the remaining
+  effort sits. It composes with every output format (a per-node table beneath
+  the summary in text/Markdown, per-node CSV rows with `--csv`, and an additive
+  `nodes` array `{id, effort, formal_status, proved}` under `--json`); without
+  the flag output is unchanged.
+- **`tag-cooccurrence` command** ranks unordered tag pairs by how many nodes
+  carry both tags (descending shared count), surfacing tag clusters and
+  redundancy. Nodes with fewer than two tags contribute no pairs. `--min N`
+  filters out pairs shared by fewer than `N` nodes (default `1`); `--json`
+  emits `{project, min_shared, pair_count, pairs:[{tags, shared_count,
+  node_ids}]}` backed by a packaged schema. Always exits 0.
+- **`fact-coverage` command** groups nodes by the theory of their Isabelle fact
+  (`Theory.fact` -> `Theory`) and reports per-theory node count, proved/found/
+  problem counts, and proved-coverage%. Nodes with no fact fall under
+  `(no fact)`. Text is a per-theory table; `--json` emits
+  `{project, theories: [...]}` validated by the packaged `fact-coverage` schema.
+- **`rename --dry-run` impact preview** adds a per-file edit count (the node
+  definition plus each `uses` reference) and a `total_edits` rollup. `--json`
+  gains additive `total_edits` and `files: [{path, edit_count}]` keys; text
+  output adds a separate `Edits per file:` block and a `total edits:` line,
+  leaving the existing `source:` lines unchanged. `total_edits` sums the
+  per-source edits plus one per rekeyed store, so store rekeys appear only in
+  the rollup, never in the per-file counts. The rename behaviour and re-parse
+  safety check are unchanged.
 - **`portfolio --details`** lists each project's specific problem node ids
   (`broken`/`not_found`/`tainted`/`failed_check`) and cycle flag: `--json` gains
   an additive `problem_nodes` array of `{id, formal_status}` per project,
