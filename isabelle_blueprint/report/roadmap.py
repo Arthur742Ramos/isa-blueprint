@@ -478,6 +478,59 @@ def render_roadmap_csv(
     return buffer.getvalue()
 
 
+ROADMAP_MARKDOWN_COLUMNS = (
+    "id",
+    "kind",
+    "formal status",
+    "agent status",
+    "blocker count",
+)
+
+
+def render_roadmap_markdown(
+    roadmap: RoadmapOverview,
+    *,
+    filters: RoadmapFilters | None = None,
+) -> str:
+    """Render the staged roadmap as Markdown: one section per stage.
+
+    Each stage becomes a ``## Stage N`` heading followed by a table of that
+    stage's nodes (id, kind, formal status, agent status, blocker count).
+    Honours the same ``--status``/``--stage``/``--kind`` filters as the other
+    roadmap renderings; ``|`` in cells is escaped.
+    """
+
+    filters = filters or RoadmapFilters()
+    rendered = filter_roadmap(roadmap, filters) if filters.active else roadmap
+    lines = [f"# {_md_cell(roadmap.project)} roadmap", ""]
+    if not rendered.stages:
+        lines.extend(["_(no matching roadmap items)_", ""])
+        return "\n".join(lines)
+    header = "| " + " | ".join(ROADMAP_MARKDOWN_COLUMNS) + " |"
+    separator = "| " + " | ".join("---" for _ in ROADMAP_MARKDOWN_COLUMNS) + " |"
+    for stage in rendered.stages:
+        lines.extend([f"## Stage {stage.index}", ""])
+        if not stage.items:
+            lines.extend(["_(no nodes)_", ""])
+            continue
+        lines.extend([header, separator])
+        for item in stage.items:
+            cells = [
+                _md_cell(item.node_id),
+                _md_cell(item.kind),
+                _md_cell(item.formal_status),
+                _md_cell(item.agent_status),
+                str(len(item.blocked_by)),
+            ]
+            lines.append("| " + " | ".join(cells) + " |")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _md_cell(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br/>")
+
+
 def _mermaid_node_id(node_id: str) -> str:
     safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
     return f"n_{safe}"
