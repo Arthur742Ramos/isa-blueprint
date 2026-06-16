@@ -13,6 +13,8 @@ project is still adopting effort estimates incrementally.
 """
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass, field
 
 from isabelle_blueprint.model.node import BlueprintNode
@@ -230,6 +232,60 @@ def render_effort_report(report: EffortReport, *, by_tag: bool = False) -> str:
                     f"{t.proved_effort} | {t.remaining_effort} | {pct} |"
                 )
     return "\n".join(lines) + "\n"
+
+
+#: Column headers for the summary CSV (no ``--by-tag``).
+EFFORT_CSV_COLUMNS = (
+    "total_effort",
+    "formal_target_effort",
+    "proved_effort",
+    "found_effort",
+    "remaining_effort",
+    "coverage_percent",
+)
+
+#: Column headers for the per-tag CSV (``--by-tag``).
+EFFORT_BY_TAG_CSV_COLUMNS = (
+    "tag",
+    "total_effort",
+    "proved_effort",
+    "remaining_effort",
+    "coverage_percent",
+)
+
+
+def render_effort_csv(report: EffortReport, *, by_tag: bool = False) -> str:
+    """Render ``report`` as CSV.
+
+    Without ``by_tag`` a single summary row is emitted under
+    :data:`EFFORT_CSV_COLUMNS`. With ``by_tag`` one row per tag (plus the
+    untagged bucket) is emitted under :data:`EFFORT_BY_TAG_CSV_COLUMNS`. A
+    ``None`` coverage is rendered as a blank cell. The writer pins
+    ``lineterminator="\\n"`` so no ``\\r`` ever appears in the output.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    if by_tag:
+        writer.writerow(EFFORT_BY_TAG_CSV_COLUMNS)
+        for t in report.by_tag:
+            pct = "" if t.percent is None else t.percent
+            writer.writerow(
+                [t.tag, t.total_effort, t.proved_effort, t.remaining_effort, pct]
+            )
+    else:
+        writer.writerow(EFFORT_CSV_COLUMNS)
+        coverage = "" if report.coverage_percent is None else report.coverage_percent
+        writer.writerow(
+            [
+                report.total_effort,
+                report.formal_target_effort,
+                report.proved_effort,
+                report.found_effort,
+                report.remaining_effort,
+                coverage,
+            ]
+        )
+    return buffer.getvalue()
 
 
 def _md_cell(text: str) -> str:

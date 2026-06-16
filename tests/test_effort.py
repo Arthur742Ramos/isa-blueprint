@@ -1,6 +1,8 @@
 """Tests for the optional per-node ``effort`` weight and effort-weighted report."""
 from __future__ import annotations
 
+import csv
+import io
 import json
 import textwrap
 from pathlib import Path
@@ -614,4 +616,77 @@ def test_cli_effort_markdown_with_fail_under_gate_exits_5(tmp_path, capsys):
     assert "# Effort-weighted progress" in captured.out
     assert "| Coverage percent | 66% |" in captured.out
     assert "is below 90" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# --csv output
+# ---------------------------------------------------------------------------
+
+
+def _parse_csv(text: str) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(text)))
+
+
+def test_cli_effort_csv_summary(tmp_path, capsys):
+    _write_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--csv"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    rows = _parse_csv(out)
+    assert rows[0] == [
+        "total_effort",
+        "formal_target_effort",
+        "proved_effort",
+        "found_effort",
+        "remaining_effort",
+        "coverage_percent",
+    ]
+    # Single proved node with effort 4 -> fully covered.
+    assert rows[1] == ["4", "4", "4", "0", "0", "100"]
+    assert len(rows) == 2
+
+
+def test_cli_effort_csv_by_tag(tmp_path, capsys):
+    _write_tagged_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--csv", "--by-tag"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    rows = _parse_csv(out)
+    assert rows[0] == [
+        "tag",
+        "total_effort",
+        "proved_effort",
+        "remaining_effort",
+        "coverage_percent",
+    ]
+    by_tag = {r[0]: r for r in rows[1:]}
+    assert by_tag["algebra"] == ["algebra", "4", "4", "0", "100"]
+    assert by_tag["core"] == ["core", "4", "4", "0", "100"]
+    # Untagged bucket holds node b (effort 2, not proved); 0% coverage.
+    assert by_tag["(untagged)"] == ["(untagged)", "2", "0", "2", "0"]
+    # Untagged bucket sorts last.
+    assert rows[-1][0] == "(untagged)"
+
+
+def test_cli_effort_csv_with_fail_under_gate_exits_5(tmp_path, capsys):
+    # CSV still prints, and the unmet gate sets exit 5.
+    _write_partial_project(tmp_path)
+    rc = cli_main(["effort", str(tmp_path), "--csv", "--fail-under", "90"])
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "\r" not in captured.out
+    rows = _parse_csv(captured.out)
+    assert rows[0][0] == "total_effort"
+    # proved 4 / target 6 -> 66%.
+    assert rows[1] == ["6", "6", "4", "2", "2", "66"]
+    assert "is below 90" in captured.err
+
+
+def test_cli_effort_csv_and_json_mutually_exclusive(tmp_path):
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["effort", str(tmp_path), "--csv", "--json"])
+
 

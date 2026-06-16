@@ -312,6 +312,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`effort --csv`** exports the effort-weighted report as CSV: a single summary
+  row (columns: `total_effort`, `formal_target_effort`, `proved_effort`,
+  `found_effort`, `remaining_effort`, `coverage_percent`), or one row per tag
+  plus the untagged bucket (`tag`, `total_effort`, `proved_effort`,
+  `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
+  with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
+  gate.
 
 ### Changed
 
