@@ -290,6 +290,7 @@ from isabelle_blueprint.report.scorecard import (
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_csv,
     render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
@@ -1430,6 +1431,11 @@ def cmd_staleness(args: argparse.Namespace) -> int:
     elif args.markdown:
         print(
             render_staleness_markdown(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
+    elif args.csv:
+        print(
+            render_staleness_csv(report, top=args.top, max_causes=args.max_causes),
             end="",
         )
     else:
@@ -3422,6 +3428,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="render the trust audit as a Markdown table (no colour)",
+    )
+    p_staleness_format.add_argument(
+        "--csv",
+        action="store_true",
+        help=(
+            "emit one CSV row per flagged trusted node "
+            "(columns: node_id, severity, cause_count, first_cause)"
+        ),
     )
     p_staleness.add_argument(
         "--top",

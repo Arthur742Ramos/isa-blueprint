@@ -322,6 +322,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nodes — those that use nothing (the foundational axioms/definitions).
   Composes with `--focus`/`--depth`/`--format`; mutually exclusive with
   `--roots-only`; default graph output is unchanged.
+- **`staleness --csv`** emits one CSV row per flagged trusted node (columns:
+  `node_id`, `severity`, `cause_count`, `first_cause`) plus a header to stdout.
+  Mutually exclusive with `--json`/`--markdown`; honours `--top`/`--max-causes`
+  and composes with the `--fail-on-problem`/`--fail-on-outdated` gates.
 
 ### Changed
 
