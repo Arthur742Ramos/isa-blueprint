@@ -423,6 +423,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **Packaged JSON Schema for the `critical-path` command.** Its versioned
+  `--json` payload shipped without a published schema, unlike `path`/`tags`/
+  `scorecard`/`orphans`. It is now a registered packaged schema
+  (`isabelle-blueprint schema critical-path`, included in `schema --out` and
+  over MCP), and a contract test asserts the command's JSON conforms to it.
+  Output is unchanged.
 - **`status --oneline`** prints a single compact health summary line (project
   name, coverage percent, ready-task count, problem count, cycle status (yes/no),
   and a bracketed health label) for shell prompts, CI logs, and grepping across
