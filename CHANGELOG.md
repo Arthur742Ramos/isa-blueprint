@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`history --markdown`** renders the trend snapshots as a Markdown table (one
+  row per snapshot: timestamp plus the coverage / count metrics), respecting
+  `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
+  unchanged.
+- **`blame --markdown`** renders per-node provenance (node, source location,
+  last git author/commit, agent memory note) as a Markdown table, for all nodes
+  or a single `--node-id`. Mutually exclusive with `--json` and `--table`;
+  default text output is unchanged.
+- **`path --markdown`** renders the shortest dependency path as a Markdown
+  document (a heading naming source/target, a direction line, and the chain as
+  an ordered list; with `--all` each shortest path is its own section).
+  Mutually exclusive with `--json`; default text output is unchanged.
+- **`critical-path --mermaid`** emits a Mermaid `flowchart` of the longest
+  remaining incomplete dependency chain (or a single goal's chain via `--goal`),
+  with high-leverage bottleneck nodes highlighted. Mutually exclusive with
+  `--json` and `--markdown`.
 - **`lint --format markdown`** renders the lint findings as a Markdown document
   (heading, a summary count line, and a table of findings: code, severity, node,
   message, with `|` escaped in cells). Existing text/json/sarif output and the
