@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   last git author/commit, agent memory note) as a Markdown table, for all nodes
   or a single `--node-id`. Mutually exclusive with `--json` and `--table`;
   default text output is unchanged.
+- **`path --markdown`** renders the shortest dependency path as a Markdown
+  document (a heading naming source/target, a direction line, and the chain as
+  an ordered list; with `--all` each shortest path is its own section).
+  Mutually exclusive with `--json`; default text output is unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
