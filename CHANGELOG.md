@@ -423,6 +423,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **`lint` `missing-effort` rule** flags unproved top-level goals (a
+  theorem/proposition/corollary that nothing else `uses`) carrying no `effort:`
+  estimate as an `info`-severity finding naming the node, highlighting the
+  high-value remaining goals where an estimate most helps planning; also
+  surfaced in SARIF output.
 
 ### Changed
 

@@ -50,6 +50,7 @@ _RULE_DESCRIPTIONS = {
     "duplicate-fact": "Two or more nodes reference the same Isabelle fact.",
     "singleton-tag": "A tag is used by exactly one node.",
     "tag-case-collision": "Tags differ only by case, fragmenting the tag rollup.",
+    "missing-effort": "An unproved top-level goal has no effort estimate.",
 }
 
 

@@ -488,3 +488,138 @@ Because a holds.
     data = json.loads(capsys.readouterr().out)
     codes = {f["code"] for f in data["findings"]}
     assert "duplicate-fact" not in codes
+
+
+_MISSING_EFFORT = """# goals
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#goal}
+title: Goal
+isabelle: Demo.goal
+status: stub
+uses: a
+
+The end result.
+
+Because a holds.
+:::
+"""
+
+
+def test_lint_flags_missing_effort_on_goal(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _MISSING_EFFORT)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    missing = [f for f in data["findings"] if f["code"] == "missing-effort"]
+    # Only the unproved theorem goal trips; sub-lemma 'a' is depended upon.
+    assert len(missing) == 1
+    finding = missing[0]
+    assert finding["severity"] == "info"
+    assert finding["node_id"] == "goal"
+    assert "'goal'" in finding["message"]
+
+
+def test_lint_no_missing_effort_when_goal_has_effort(tmp_path: Path, capsys) -> None:
+    body = """# goals
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#goal}
+title: Goal
+isabelle: Demo.goal
+status: stub
+uses: a
+effort: 5
+
+The end result.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "missing-effort" not in codes
+
+
+def test_lint_no_missing_effort_for_proved_goal(tmp_path: Path, capsys) -> None:
+    body = """# goals
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#goal}
+title: Goal
+isabelle: Demo.goal
+status: proved
+uses: a
+
+The end result.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "missing-effort" not in codes
+
+
+def test_lint_no_missing_effort_for_lemma_goal(tmp_path: Path, capsys) -> None:
+    # A lemma goal is out of scope: only theorem/proposition/corollary goals
+    # are flagged. _CLEAN has lemma 'a' (depended upon) and theorem goal 'b'.
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    missing = [f for f in data["findings"] if f["code"] == "missing-effort"]
+    assert {f["node_id"] for f in missing} == {"b"}
+
+
+def test_lint_missing_effort_in_sarif_rules(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _MISSING_EFFORT)
+
+    rc = cli_main(["lint", str(tmp_path), "--format", "sarif"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    rules = data["runs"][0]["tool"]["driver"]["rules"]
+    rule_ids = {r["id"] for r in rules}
+    assert "missing-effort" in rule_ids

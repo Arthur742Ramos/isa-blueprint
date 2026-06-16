@@ -181,8 +181,9 @@ isabelle-blueprint lint [project_dir] [--json] [--format text|json|sarif]
 Runs structural and quality checks over the blueprint and prints findings with
 a severity (`error`/`warning`/`info`). Codes include `duplicate-id`,
 `missing-dependency`, `cycle`, `broken-formal-status`, `stale-formal-status`,
-`empty-statement`, `missing-informal-proof`, `no-isabelle-fact`, and
-`isolated-node`.
+`empty-statement`, `missing-informal-proof`, `no-isabelle-fact`,
+`isolated-node`, and `missing-effort` (an unproved top-level theorem/
+proposition/corollary goal that carries no `effort:` estimate).
 
 - `--format` selects the output: `text` (default), `json`, or `sarif` (a
   SARIF 2.1.0 document suitable for GitHub code scanning).
