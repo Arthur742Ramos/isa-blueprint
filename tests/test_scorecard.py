@@ -868,3 +868,78 @@ def test_since_baseline_directory_lookup(tmp_path: Path, capsys) -> None:
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["delta"]["score_change"] > 0
 
+
+def _corrupt_baseline(tmp_path: Path, capsys, mutate) -> Path:
+    """Save a real baseline, mutate its parsed payload, and rewrite it."""
+
+    assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    mutate(payload)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+    return baseline
+
+
+def test_cli_since_null_grade_errors(tmp_path: Path, capsys) -> None:
+    # A baseline whose 'grade' is null must fail fast rather than coerce to "None".
+    _write_project(tmp_path, _BODY)
+
+    def _null_grade(payload: dict) -> None:
+        payload["grade"] = None
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _null_grade)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "'grade' must be a string" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_component_missing_score_errors(tmp_path: Path, capsys) -> None:
+    # A component without a 'score' key is a malformed baseline; expect a clear error.
+    _write_project(tmp_path, _BODY)
+
+    def _drop_score(payload: dict) -> None:
+        del payload["components"][0]["score"]
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _drop_score)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "weight" in err or "score" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_component_score_out_of_range_errors(tmp_path: Path, capsys) -> None:
+    # Component scores are ratios in [0, 1]; an out-of-range value is rejected.
+    _write_project(tmp_path, _BODY)
+
+    def _out_of_range(payload: dict) -> None:
+        payload["components"][0]["score"] = 1.5
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _out_of_range)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "out of range" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_schema_mismatch_names_path(tmp_path: Path, capsys) -> None:
+    # The schema_version-mismatch error includes the baseline file path.
+    _write_project(tmp_path, _BODY)
+
+    def _bump_version(payload: dict) -> None:
+        payload["schema_version"] = SCORECARD_SCHEMA_VERSION + 1
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _bump_version)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "schema_version" in err
+    assert str(baseline) in err
+

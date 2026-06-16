@@ -190,12 +190,22 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
     if schema_version != SCORECARD_SCHEMA_VERSION:
         raise BlueprintError(
             f"unsupported scorecard baseline schema_version {schema_version!r}; "
-            f"expected {SCORECARD_SCHEMA_VERSION}"
+            f"expected {SCORECARD_SCHEMA_VERSION}: {payload_path}"
         )
     score = data.get("score")
     if not (score is None or isinstance(score, int)):
         raise BlueprintError(
             f"scorecard baseline has an invalid 'score': {payload_path}"
+        )
+    project = data.get("project")
+    if not isinstance(project, str):
+        raise BlueprintError(
+            f"scorecard baseline 'project' must be a string: {payload_path}"
+        )
+    grade = data.get("grade")
+    if not isinstance(grade, str):
+        raise BlueprintError(
+            f"scorecard baseline 'grade' must be a string: {payload_path}"
         )
     raw_components = data.get("components")
     if not isinstance(raw_components, list):
@@ -204,29 +214,53 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
         )
     components: list[ScoreComponent] = []
     for entry in raw_components:
-        if not isinstance(entry, dict) or "name" not in entry:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
             raise BlueprintError(
                 f"scorecard baseline has a malformed component: {payload_path}"
             )
-        comp_score = entry.get("score")
+        name = entry["name"]
+        label = entry.get("label")
+        detail = entry.get("detail")
+        if not isinstance(label, str) or not isinstance(detail, str):
+            raise BlueprintError(
+                f"scorecard baseline component '{name}' is missing a string "
+                f"'label'/'detail': {payload_path}"
+            )
+        if "score" not in entry:
+            raise BlueprintError(
+                f"scorecard baseline component '{name}' is missing its "
+                f"'score': {payload_path}"
+            )
+        comp_score = entry["score"]
         if not (comp_score is None or isinstance(comp_score, (int, float))):
             raise BlueprintError(
-                f"scorecard baseline component '{entry['name']}' has an invalid "
+                f"scorecard baseline component '{name}' has an invalid "
                 f"score: {payload_path}"
+            )
+        if comp_score is not None and not (0.0 <= float(comp_score) <= 1.0):
+            raise BlueprintError(
+                f"scorecard baseline component '{name}' score is out of range "
+                f"[0, 1]: {payload_path}"
+            )
+        weight = entry.get("weight")
+        if not isinstance(weight, (int, float)) or float(weight) < 0.0:
+            raise BlueprintError(
+                f"scorecard baseline component '{name}' has an invalid "
+                f"weight: {payload_path}"
             )
         components.append(
             ScoreComponent(
-                name=str(entry["name"]),
-                label=str(entry.get("label", entry["name"])),
+                name=name,
+                label=label,
                 score=None if comp_score is None else float(comp_score),
-                weight=float(entry.get("weight", 0.0)),
-                detail=str(entry.get("detail", "")),
+                weight=float(weight),
+                detail=detail,
             )
         )
     return Scorecard(
-        project=str(data.get("project", "")),
+        project=project,
         score=score,
-        grade=str(data.get("grade", grade_for(score))),
+        grade=grade,
         components=tuple(components),
         schema_version=SCORECARD_SCHEMA_VERSION,
     )
