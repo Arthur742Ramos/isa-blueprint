@@ -243,6 +243,44 @@ def build_portfolio(root: Path) -> PortfolioReport:
     )
 
 
+PORTFOLIO_SORT_KEYS = ("name", "coverage", "nodes", "problems")
+
+
+def sort_portfolio_report(report: PortfolioReport, sort_by: str) -> PortfolioReport:
+    """Return ``report`` with its projects reordered by ``sort_by``.
+
+    ``name`` sorts ascending (case-insensitive); ``coverage``, ``nodes`` and
+    ``problems`` sort descending (highest first). Projects whose chosen metric is
+    None (load error or undefined, e.g. no formal targets) sort last. The original
+    report-discovery order is the tie-breaker, so the sort is stable. Totals are
+    unaffected. An unknown ``sort_by`` raises ``ValueError``.
+    """
+    projects = list(report.projects)
+    if sort_by == "name":
+        projects.sort(key=lambda p: p.name.casefold())
+    else:
+        attrs = {
+            "coverage": "coverage_percent",
+            "nodes": "node_count",
+            "problems": "problem_count",
+        }
+        if sort_by not in attrs:
+            raise ValueError(f"unknown sort key: {sort_by!r}")
+        attr = attrs[sort_by]
+
+        def metric_key(project: PortfolioProject) -> tuple[bool, int]:
+            value = getattr(project, attr)
+            return (value is None, -(value or 0))
+
+        projects.sort(key=metric_key)
+    return PortfolioReport(
+        schema_version=report.schema_version,
+        root=report.root,
+        totals=report.totals,
+        projects=projects,
+    )
+
+
 def coverage_gate_failures(report: PortfolioReport, min_coverage: int) -> list[str]:
     """Return the ids of projects whose proved-coverage is below ``min_coverage``.
 

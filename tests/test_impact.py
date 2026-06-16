@@ -324,6 +324,26 @@ def test_mermaid_label_escapes_newline_and_quote() -> None:
     assert "\n" not in label_line
 
 
+def test_impact_mermaid_label_escapes_pipe() -> None:
+    # Impact routes labels through the shared mermaid_label helper, which (unlike
+    # the roadmap diagram) escapes `|` so the focus-node label stays valid.
+    project = _project(
+        _node("a|b"),
+        _node("b", uses=["a|b"]),
+    )
+
+    mermaid = render_impact_mermaid(project, "a|b")
+
+    assert "flowchart" in mermaid
+    # The raw pipe is rewritten to its HTML entity inside the quoted label.
+    assert "&#124;" in mermaid
+    label_line = next(
+        line for line in mermaid.splitlines() if line.lstrip().startswith("n_a_124_b[")
+    )
+    assert "a&#124;b" in label_line
+    assert "|" not in label_line.split("[", 1)[1]
+
+
 def test_cli_format_json_matches_json_flag(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 

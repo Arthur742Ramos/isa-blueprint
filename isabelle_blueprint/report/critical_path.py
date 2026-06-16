@@ -29,6 +29,8 @@ scheduler-style weighted critical path: there is no duration/effort weighting.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -70,6 +72,7 @@ class Bottleneck:
     title: str
     formal_status: str
     leverage: int
+    kind: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -222,6 +225,7 @@ def build_critical_path(project: BlueprintProject) -> CriticalPathOverview:
             title=by_id[node_id].title,
             formal_status=by_id[node_id].status.formal.value,
             leverage=len(descendants(node_id)),
+            kind=by_id[node_id].kind.value,
         )
         for node_id in relevant_ids
     ]
@@ -414,6 +418,65 @@ def render_critical_path_mermaid(
                 "fill:#fde047,stroke:#1f2937,color:#111827"
             )
     return "\n".join(lines) + "\n"
+
+
+CRITICAL_PATH_CSV_COLUMNS = (
+    "node_id",
+    "kind",
+    "leverage",
+    "on_critical_path",
+)
+
+
+def render_critical_path_csv(
+    overview: CriticalPathOverview,
+    *,
+    top: int | None = None,
+    goal: str | None = None,
+) -> str:
+    """Render the bottleneck/leverage ranking as CSV.
+
+    One row per ranked bottleneck node (highest leverage first), plus a header.
+    Columns: node id, kind, leverage (transitive incomplete-dependent count),
+    and a boolean flagging whether the node lies on the critical chain. The
+    chain used is the project-wide critical path, or - when ``goal`` is given -
+    that goal's own longest incomplete chain. ``top`` limits the rows the same
+    way the JSON/Markdown renderings do.
+
+    When ``goal`` is given but is not a remaining goal, no data rows are
+    emitted (only the header) - mirroring the text and Mermaid renderers, which
+    refuse to chart an invalid goal. The CLI surfaces the reason on stderr.
+    """
+
+    if goal is not None:
+        goal_chain = goal_chain_for(overview, goal)
+        if goal_chain is None:
+            # Invalid goal: emit only the header so consumers get an explicit
+            # empty result instead of a full ranking with on_critical_path=false.
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, lineterminator="\n")
+            writer.writerow(CRITICAL_PATH_CSV_COLUMNS)
+            return buffer.getvalue()
+        critical_ids = set(goal_chain.path)
+    elif overview.longest is not None:
+        critical_ids = set(overview.longest.path)
+    else:
+        critical_ids = set()
+
+    bottlenecks = overview.bottlenecks if top is None else overview.bottlenecks[:top]
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(CRITICAL_PATH_CSV_COLUMNS)
+    for bottleneck in bottlenecks:
+        writer.writerow(
+            [
+                bottleneck.node_id,
+                bottleneck.kind,
+                bottleneck.leverage,
+                str(bottleneck.node_id in critical_ids).lower(),
+            ]
+        )
+    return buffer.getvalue()
 
 
 def _mermaid_message(message: str) -> str:
