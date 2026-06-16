@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint import __version__
 from isabelle_blueprint.cli import main as cli_main
 
@@ -223,6 +225,47 @@ def test_cli_agent_context_without_filters_omits_filter_fields(
             "--exclude-node",
         ):
             assert token not in cmd["argv"]
+
+
+def test_cli_agent_context_markdown_stdout_writes_no_files(
+    tmp_path: Path, capsys
+) -> None:
+    _write_agent_context_project(tmp_path)
+
+    rc = cli_main(["agent-context", str(tmp_path), "--markdown", "--max-tasks", "1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    out = captured.out
+    assert out.startswith("# Agent context agent context")
+    assert "## Ready tasks" in out
+    assert "`task-main`" in out
+    assert "## Recommended commands" in out
+    assert not (tmp_path / "build").exists()
+
+
+def test_cli_agent_context_markdown_composes_with_filters(
+    tmp_path: Path, capsys
+) -> None:
+    _write_agent_context_project(tmp_path)
+
+    rc = cli_main(["agent-context", str(tmp_path), "--markdown", "--kind", "theorem"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Filters: `kind=theorem`" in out
+    assert "## Ready tasks matching filters" in out
+    assert "`task-main`" in out
+    assert "`task-helper`" not in out
+    assert not (tmp_path / "build").exists()
+
+
+def test_cli_agent_context_markdown_conflicts_with_json(tmp_path: Path) -> None:
+    _write_agent_context_project(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(["agent-context", str(tmp_path), "--markdown", "--json"])
 
 
 def _write_agent_context_project(tmp_path: Path) -> None:

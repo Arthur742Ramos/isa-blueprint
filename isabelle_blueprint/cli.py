@@ -4036,8 +4036,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit an AI-agent handoff bundle with status, roadmap, tasks, and commands",
     )
     p_agent_context.add_argument("project_dir", nargs="?", default=".")
-    p_agent_context.add_argument(
+    p_agent_context_format = p_agent_context.add_mutually_exclusive_group()
+    p_agent_context_format.add_argument(
         "--json", action="store_true", help="emit machine-readable context JSON"
+    )
+    p_agent_context_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="print the agent-context Markdown handoff to stdout without writing files",
     )
     p_agent_context.add_argument(
         "--write",

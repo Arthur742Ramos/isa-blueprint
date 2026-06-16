@@ -312,6 +312,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`agent-context --markdown`** prints the agent-context Markdown handoff (the
+  same content `render_agent_context` / `--write` produces in `agent-context.md`)
+  to stdout without writing any files. Mutually exclusive with `--json`; the
+  existing filter flags compose with it and default behaviour is unchanged.
 
 ### Changed
 
