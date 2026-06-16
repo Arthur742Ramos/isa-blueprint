@@ -22,17 +22,17 @@
         "required": [
           "theory",
           "node_count",
-          "proved",
-          "found",
-          "problem",
+          "proved_count",
+          "found_count",
+          "problem_count",
           "coverage_percent"
         ],
         "properties": {
           "theory": { "type": "string" },
           "node_count": { "type": "integer", "minimum": 0 },
-          "proved": { "type": "integer", "minimum": 0 },
-          "found": { "type": "integer", "minimum": 0 },
-          "problem": { "type": "integer", "minimum": 0 },
+          "proved_count": { "type": "integer", "minimum": 0 },
+          "found_count": { "type": "integer", "minimum": 0 },
+          "problem_count": { "type": "integer", "minimum": 0 },
           "coverage_percent": {
             "type": ["integer", "null"],
             "minimum": 0,

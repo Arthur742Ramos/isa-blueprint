@@ -1073,8 +1073,9 @@ percentage over the theory's formal targets (nodes whose formal status is not
 `missing`). Nodes with no Isabelle fact are grouped under `(no fact)`. Theories
 are ordered most-used-first, ties broken alphabetically. The text form is a
 per-theory Markdown table; `--json` emits
-`{project, theories: [{theory, node_count, proved, found, problem,
-coverage_percent}]}` plus `schema_version`/`total_nodes`/`theory_count`,
+`{project, theories: [{theory, node_count, proved_count, found_count,
+problem_count, coverage_percent}]}` plus
+`schema_version`/`total_nodes`/`theory_count`,
 validated by the packaged `fact-coverage` schema.
 
 ### `stats`

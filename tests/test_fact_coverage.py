@@ -51,12 +51,12 @@ def test_groups_by_theory_with_counts() -> None:
     assert {s.theory for s in report.theories} == {"Alpha", "Beta"}
     alpha = _theory(report, "Alpha")
     assert alpha.node_count == 2
-    assert alpha.proved == 1
-    assert alpha.found == 1
+    assert alpha.proved_count == 1
+    assert alpha.found_count == 1
     assert alpha.coverage_percent == 50  # 1 of 2 targets proved
     beta = _theory(report, "Beta")
     assert beta.node_count == 1
-    assert beta.proved == 1
+    assert beta.proved_count == 1
     assert beta.coverage_percent == 100
 
 
@@ -83,7 +83,7 @@ def test_problem_status_counted() -> None:
 
     alpha = _theory(build_fact_coverage_report(project), "Alpha")
 
-    assert alpha.problem == 1
+    assert alpha.problem_count == 1
     assert alpha.coverage_percent == 50  # 1 of 2 targets proved
 
 
@@ -203,8 +203,8 @@ def test_cli_json_two_theories_and_no_fact(tmp_path: Path, capsys) -> None:
     assert data["total_nodes"] == 4
     by_theory = {s["theory"]: s for s in data["theories"]}
     assert by_theory["Alpha"]["node_count"] == 2
-    assert by_theory["Alpha"]["proved"] == 1
-    assert by_theory["Alpha"]["found"] == 1
+    assert by_theory["Alpha"]["proved_count"] == 1
+    assert by_theory["Alpha"]["found_count"] == 1
     assert by_theory["Alpha"]["coverage_percent"] == 50
     assert by_theory["Beta"]["node_count"] == 1
     assert by_theory["Beta"]["coverage_percent"] == 100

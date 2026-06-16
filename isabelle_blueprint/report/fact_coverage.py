@@ -35,18 +35,18 @@ class TheoryStat:
 
     theory: str
     node_count: int
-    proved: int
-    found: int
-    problem: int
+    proved_count: int
+    found_count: int
+    problem_count: int
     coverage_percent: int | None
 
     def to_dict(self) -> dict[str, object]:
         return {
             "theory": self.theory,
             "node_count": self.node_count,
-            "proved": self.proved,
-            "found": self.found,
-            "problem": self.problem,
+            "proved_count": self.proved_count,
+            "found_count": self.found_count,
+            "problem_count": self.problem_count,
             "coverage_percent": self.coverage_percent,
         }
 
@@ -107,9 +107,9 @@ def build_fact_coverage_report(project: BlueprintProject) -> FactCoverageReport:
         TheoryStat(
             theory=theory,
             node_count=bucket.nodes,
-            proved=bucket.proved,
-            found=bucket.found,
-            problem=bucket.problems,
+            proved_count=bucket.proved,
+            found_count=bucket.found,
+            problem_count=bucket.problems,
             coverage_percent=_coverage(bucket.proved, bucket.targets),
         )
         for theory, bucket in buckets.items()
@@ -141,7 +141,7 @@ def render_fact_coverage_report(report: FactCoverageReport) -> str:
         "",
         (
             f"{report.total_nodes} node(s) across {len(report.theories)} "
-            "Isabelle theory/theories."
+            "theory(s)."
         ),
         "",
     ]
@@ -159,7 +159,7 @@ def render_fact_coverage_report(report: FactCoverageReport) -> str:
         coverage = "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
         lines.append(
             f"| {_escape_cell(stat.theory)} | {stat.node_count} | "
-            f"{stat.proved} | {stat.found} | {stat.problem} | {coverage} |"
+            f"{stat.proved_count} | {stat.found_count} | {stat.problem_count} | {coverage} |"
         )
     return "\n".join(lines) + "\n"
 
