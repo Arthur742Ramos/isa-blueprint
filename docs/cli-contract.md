@@ -252,7 +252,7 @@ The `status` is one of `no_history`, `no_targets`, `complete`,
 ### `portfolio`
 
 ```text
-isabelle-blueprint portfolio [root_dir] [--json | --csv | --markdown] [--fail-on-problem] [--min-coverage PCT]
+isabelle-blueprint portfolio [root_dir] [--json | --csv | --markdown] [--fail-on-problem] [--min-coverage PCT] [--details]
 ```
 
 Scans `root_dir` (default `.`) for every IsabelleBlueprint project and rolls them
@@ -285,6 +285,15 @@ aggregate counts rather than aborting the whole roll-up. `coverage_percent` is
   `{min_coverage, failing_projects, ok}` (`failing_projects` is the list of
   offending project ids, `ok` is `true` when none fail). The object is present
   only when `--min-coverage` is supplied. Composes with `--fail-on-problem`.
+- `--details` lists each project's specific problem node ids (the
+  `broken`/`not_found`/`tainted`/`failed_check` nodes) and cycle flag, so a
+  monorepo maintainer sees *which* nodes are wrong, not just *that* a project is.
+  In `--json` each project gains an additive `problem_nodes` array of
+  `{id, formal_status}`; in `--csv`/`--markdown` a trailing `problem_nodes`
+  column carries a semicolon-joined `id (status)` list; in text mode a
+  per-project `Problem details:` block is appended beneath the table. Without
+  `--details` the output is byte-identical to before. Composes with every other
+  flag.
 
 ### `assign`
 
@@ -313,8 +322,16 @@ Rewrites blueprint sources (Markdown ids and `uses`, LaTeX `\label`/`\uses`)
 and re-keys agent/sync stores so a node id can be changed in one step. Errors
 if `new_id` already exists or `old_id` is absent.
 
-- `--dry-run` previews the changes without writing.
-- `--json` emits the machine-readable result.
+- `--dry-run` previews the changes without writing. The existing
+  `  source: {path}` lines are unchanged; a separate additive `Edits per file:`
+  block then lists each path with its edit count, followed by a
+  `total edits: N` line.
+- `--json` emits the machine-readable result. It always carries the additive
+  `total_edits` and `files: [{path, edit_count}]` keys (alongside the existing
+  keys). The per-file `edit_count` covers source id edits only (the node
+  definition plus each `uses` reference). `total_edits` is the sum of those
+  per-source edits plus one for each store file rekeyed, so rekeyed stores are
+  counted in the rollup but never in the per-file counts.
 
 A re-parse safety check runs before any write, and source writes roll back on a
 mid-operation failure.
@@ -789,9 +806,14 @@ number of downstream nodes blocked and then by node id.
 ```text
 isabelle-blueprint critical-path [project_dir]
                                  [--json]
+                                 [--markdown]
+                                 [--mermaid]
+                                 [--csv]
                                  [--top N]
                                  [--goal NODE]
+                                 [--min-leverage N]
                                  [--fail-on-cycle]
+                                 [--write]
 ```
 
 Prints a longest-pole analysis of the remaining (incomplete) proof work without
@@ -808,6 +830,11 @@ other incomplete node depends on (terminal remaining work).
   shown (default 5; must be a positive integer).
 - `--goal NODE` focuses the terminal view on a single goal's chain. It does not
   affect `--json` output.
+- `--min-leverage N` filters the bottleneck/leverage ranking to nodes that
+  unblock at least `N` incomplete descendants (leverage ≥ `N`), focusing on the
+  highest-impact work. `N` must be a non-negative integer; the default `0`
+  applies no filter. The filter applies to the text, JSON, Markdown, CSV, and
+  Mermaid (bottleneck-highlight) outputs.
 - Dependency cycles are excluded from depth/path/leverage ranking and reported in
   a separate `cycles` section. References to unknown dependency ids
   (`missing_dependencies`) and complete nodes that still depend on incomplete
@@ -821,6 +848,22 @@ other incomplete node depends on (terminal remaining work).
 All ordering is deterministic: dependency and dependent iteration is sorted by
 id, goals are ordered by descending depth then id, and bottlenecks by descending
 leverage then id.
+
+### `levels`
+
+```text
+isabelle-blueprint levels [project_dir] [--json]
+```
+
+Arranges the dependency DAG into topological **levels**: level 0 holds the
+leaves (nodes with no dependencies) and each subsequent level holds nodes whose
+dependencies all live in strictly earlier levels. The text form prints one
+section per level (its index, node count, and node ids) plus a summary line
+giving the total level count (the DAG depth) and the widest level. Nodes that
+participate in a dependency cycle cannot be placed and are reported separately,
+never crashing. `--json` emits a schema-versioned payload (`schema_version`,
+`project`, `level_count`, `max_width`, `levels` of `{index, node_ids, count}`,
+and `cyclic_nodes`); see `schema levels`.
 
 ### `impact`
 
@@ -1062,7 +1105,28 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, `agent-memory`, `path`, `scorecard`, and `tags`.
+`plugin-annotations`, `agent-memory`, `path`, `scorecard`, `tags`, and
+`tag-cooccurrence`.
+`fact-coverage`.
+
+### `fact-coverage`
+
+```text
+isabelle-blueprint fact-coverage [project_dir] [--json]
+```
+
+Groups nodes by the **theory** of their Isabelle fact - the `Theory` part of a
+`Theory.fact` qualified name (`node.isabelle.theory`) - and reports, per theory:
+node count, how many nodes are `proved`/`found`/`problem`, and a proved-coverage
+percentage over the theory's formal targets (nodes whose formal status is not
+`missing`). Nodes with no Isabelle fact are grouped under `(no fact)`. Theories
+are ordered most-used-first, ties broken alphabetically. The text form is a
+per-theory Markdown table; `--json` emits
+`{project, theories: [{theory, node_count, proved_count, found_count,
+problem_count, coverage_percent}]}` plus
+`schema_version`/`total_nodes`/`theory_count`,
+validated by the packaged `fact-coverage` schema.
+`levels`.
 
 ### `stats`
 
@@ -1198,6 +1262,28 @@ effort; nodes without an explicit `effort` are weighted as `1`. `--json` emits
 the structured report (`proved_effort`, `formal_target_effort`,
 `remaining_effort`, `coverage_percent`, `total_effort`, `explicit_effort_count`,
 `default_effort`). Always exits 0.
+
+The `--nodes` flag additionally lists each node with its `effort` weight, formal
+status, and whether it counts toward proved effort, so you can see *where* the
+remaining effort sits. It composes with the other output formats: a per-node
+table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
+additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
+Without `--nodes` the output is unchanged.
+### `tag-cooccurrence`
+
+```text
+isabelle-blueprint tag-cooccurrence [project_dir] [--json] [--min N]
+```
+
+Reports which tags appear together on the same nodes. For each unordered pair of
+distinct tags it counts the nodes carrying both, ranked by descending shared
+count (ties broken alphabetically by the pair). Nodes with fewer than two tags
+contribute no pairs, and repeated tags within a node are de-duplicated. Only
+pairs shared by at least one node are reported; `--min N` (an integer `>= 1`,
+default `1`) filters out pairs shared by fewer than `N` nodes. Text output is a
+ranked table (tag A, tag B, shared node count); `--json` emits the structured
+report (`project`, `min_shared`, `pair_count`, and `pairs` carrying `tags`,
+`shared_count`, and `node_ids`). Always exits 0.
 
 ### `version`
 

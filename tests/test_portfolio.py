@@ -666,3 +666,179 @@ def test_sort_portfolio_report_unknown_key_raises_value_error(tmp_path: Path) ->
 
     with pytest.raises(ValueError, match="unknown sort key"):
         sort_portfolio_report(report, "bogus")
+
+
+# --- --details: per-project problem nodes -----------------------------------
+
+
+def _write_unhealthy_tree(tmp_path: Path) -> None:
+    # sick: two actively-wrong nodes (broken + not_found). clean: all proved.
+    _write_project(
+        tmp_path / "sick",
+        name="sick",
+        body=_nodes(
+            _node_md("p1", formal="broken"),
+            _node_md("p2", formal="not_found"),
+            _node_md("ok", formal="proved"),
+        ),
+    )
+    _write_project(
+        tmp_path / "clean",
+        name="clean",
+        body=_node_md("c", formal="proved"),
+    )
+
+
+def test_build_portfolio_records_problem_nodes(tmp_path: Path) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    report = build_portfolio(tmp_path)
+    by_id = {project.id: project for project in report.projects}
+
+    sick = by_id["sick"]
+    assert [n.id for n in sick.problem_nodes] == ["p1", "p2"]
+    assert {n.formal_status for n in sick.problem_nodes} == {"broken", "not_found"}
+    # A clean project has no problem nodes; ``ok`` (proved) is never listed.
+    assert by_id["clean"].problem_nodes == ()
+
+
+def test_portfolio_payload_details_adds_problem_nodes_array(tmp_path: Path) -> None:
+    _write_unhealthy_tree(tmp_path)
+    report = build_portfolio(tmp_path)
+
+    plain = portfolio_payload(report)
+    assert "problem_nodes" not in plain["projects"][0]
+
+    detailed = portfolio_payload(report, details=True)
+    by_id = {p["id"]: p for p in detailed["projects"]}
+    assert by_id["sick"]["problem_nodes"] == [
+        {"id": "p1", "formal_status": "broken"},
+        {"id": "p2", "formal_status": "not_found"},
+    ]
+    assert by_id["clean"]["problem_nodes"] == []
+
+
+def test_cli_portfolio_details_json_lists_problem_node_ids(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--json", "--details"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    by_id = {p["id"]: p for p in payload["projects"]}
+    assert [n["id"] for n in by_id["sick"]["problem_nodes"]] == ["p1", "p2"]
+
+
+def test_cli_portfolio_json_unchanged_without_details(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    assert cli_main(["portfolio", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    for project in payload["projects"]:
+        assert "problem_nodes" not in project
+
+
+def test_cli_portfolio_details_text_lists_problem_nodes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--details"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Problem details:" in out
+    assert "p1 (broken)" in out
+    assert "p2 (not_found)" in out
+
+
+def test_cli_portfolio_text_default_unchanged_by_details(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    assert cli_main(["portfolio", str(tmp_path)]) == 0
+    baseline = capsys.readouterr().out
+    assert "Problem details:" not in baseline
+
+
+def test_cli_portfolio_details_examples_tree_default_unchanged(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The bundled examples are healthy: --details adds a "(none)" breakdown but
+    # leaves the rollup section byte-identical to the default output.
+    assert cli_main(["portfolio", str(EXAMPLES_DIR)]) == 0
+    baseline = capsys.readouterr().out
+
+    assert cli_main(["portfolio", str(EXAMPLES_DIR), "--details"]) == 0
+    detailed = capsys.readouterr().out
+
+    assert detailed.startswith(baseline.rstrip("\n"))
+    assert "Problem details:" in detailed
+    assert "(none)" in detailed
+
+
+def test_render_portfolio_csv_details_adds_column_no_cr(tmp_path: Path) -> None:
+    _write_unhealthy_tree(tmp_path)
+    report = build_portfolio(tmp_path)
+
+    text = render_portfolio_csv(report, details=True)
+    rows = list(csv.reader(io.StringIO(text)))
+
+    assert rows[0][-1] == "problem_nodes"
+    by_name = {row[0]: row for row in rows[1:]}
+    assert "p1 (broken)" in by_name["sick"][-1]
+    assert "p2 (not_found)" in by_name["sick"][-1]
+    assert by_name["clean"][-1] == ""
+
+
+def test_render_portfolio_csv_unchanged_without_details(tmp_path: Path) -> None:
+    _write_unhealthy_tree(tmp_path)
+    report = build_portfolio(tmp_path)
+
+    rows = list(csv.reader(io.StringIO(render_portfolio_csv(report))))
+    assert rows[0] == [
+        "name",
+        "path",
+        "node_count",
+        "coverage_percent",
+        "proved_count",
+        "problem_count",
+        "has_cycles",
+        "health",
+    ]
+
+
+def test_render_portfolio_markdown_details_adds_column(tmp_path: Path) -> None:
+    _write_unhealthy_tree(tmp_path)
+    report = build_portfolio(tmp_path)
+
+    text = render_portfolio_markdown(report, details=True)
+
+    header = (
+        "| Project | Nodes | Coverage | Proved | Problems | Cycles | Health "
+        "| Problem nodes |"
+    )
+    assert header in text
+    assert "p1 (broken)" in text
+
+
+def test_cli_portfolio_details_composes_with_fail_on_problem(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_unhealthy_tree(tmp_path)
+
+    exit_code = cli_main(
+        ["portfolio", str(tmp_path), "--details", "--fail-on-problem"]
+    )
+    out = capsys.readouterr().out
+
+    # --fail-on-problem still trips (exit 5) and the breakdown is printed.
+    assert exit_code == 5
+    assert "p1 (broken)" in out
+

@@ -24,6 +24,20 @@
         "additionalProperties": true
       }
     },
+    "delta": {
+      "type": "object",
+      "description": "Present only with --since PATH: the change versus a previously-saved scorecard baseline. 'baseline_score' is the baseline overall score (null if ungradeable); 'score_change' is current minus baseline overall score (null when either side is ungradeable); 'component_changes' maps a component name to its percentage-point change, omitting components undefined on either side.",
+      "required": ["baseline_score", "score_change", "component_changes"],
+      "properties": {
+        "baseline_score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "score_change": { "type": ["integer", "null"] },
+        "component_changes": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        }
+      },
+      "additionalProperties": false
+    },
     "gate": {
       "type": "object",
       "description": "Present when --min-grade and/or --min-score is passed: the CI gate result. The min_grade/meets_min_grade keys appear only with --min-grade, the min_score/meets_min_score keys only with --min-score. A meets_* value is null for an ungradeable (empty) project.",

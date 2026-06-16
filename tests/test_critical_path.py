@@ -572,3 +572,128 @@ def test_mermaid_cycle_tangled_message() -> None:
     assert "tangled in cycles" in mermaid
     assert "is not a remaining goal" not in mermaid
 
+
+# Two bottlenecks with distinct leverage: ``a`` unblocks b, c, d (leverage 3);
+# ``b`` unblocks c (leverage 1). Used to exercise the --min-leverage filter.
+_LEVERAGE_BODY = _BODY + """
+::: lemma {#c}
+title: C
+isabelle: Demo.c
+status: stub
+uses: b
+
+Depends on b.
+
+Sketch.
+:::
+
+::: lemma {#d}
+title: D
+isabelle: Demo.d
+status: stub
+uses: a
+
+Depends on a.
+
+Sketch.
+:::
+"""
+
+
+def test_build_min_leverage_filter_unaffected() -> None:
+    # The build/overview is unchanged: filtering is a render concern.
+    project = _project(
+        _node("a"),
+        _node("b", uses=["a"]),
+        _node("c", uses=["b"]),
+        _node("d", uses=["a"]),
+    )
+    overview = build_critical_path(project)
+    leverage = {b.node_id: b.leverage for b in overview.bottlenecks}
+    assert leverage == {"a": 3, "b": 1}
+
+
+def test_cli_min_leverage_excludes_low_leverage_bottleneck(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json", "--min-leverage", "2"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    ids = {b["node_id"] for b in data["bottlenecks"]}
+    # ``a`` (leverage 3) survives; ``b`` (leverage 1) is filtered out.
+    assert ids == {"a"}
+
+
+def test_cli_min_leverage_zero_equals_no_filter(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json", "--min-leverage", "0"])
+    assert rc == 0
+    with_zero = json.loads(capsys.readouterr().out)["bottlenecks"]
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json"])
+    assert rc == 0
+    default = json.loads(capsys.readouterr().out)["bottlenecks"]
+
+    assert with_zero == default
+    assert {b["node_id"] for b in default} == {"a", "b"}
+
+
+def test_cli_min_leverage_default_unchanged(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    # Without the flag the full ranking is shown.
+    assert {b["node_id"] for b in data["bottlenecks"]} == {"a", "b"}
+
+
+def test_cli_min_leverage_text_output(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--min-leverage", "2"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "## Bottlenecks" in out
+    assert "`a`" in out
+    # ``b`` (leverage 1) must not appear as a bottleneck row.
+    assert "`b` - B (unblocks" not in out
+
+
+def test_cli_min_leverage_csv_filters_rows(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--min-leverage", "2"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    lines = out.splitlines()
+    assert lines[0] == "node_id,kind,leverage,on_critical_path"
+    rows = lines[1:]
+    assert any(row.startswith("a,") for row in rows)
+    assert not any(row.startswith("b,") for row in rows)
+
+
+def test_cli_min_leverage_mermaid_only_highlights_survivors(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _LEVERAGE_BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--mermaid", "--min-leverage", "2"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    # ``a`` survives the filter and stays highlighted; ``b`` does not.
+    assert "style n_a" in out
+    assert "style n_b" not in out
+
+
+def test_cli_min_leverage_rejects_negative(tmp_path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--min-leverage", "-1"])
+
