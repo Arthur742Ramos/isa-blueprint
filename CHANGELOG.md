@@ -282,6 +282,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per node ranked by blast radius (columns: `node_id`, `direct_dependent_count`,
   `blast_radius_count`, `affected_goal_count`), or one row per dependent (columns:
   `dependent_id`, `distance`) when `--node` is given.
+- **`portfolio --min-coverage PCT`** is a cross-project coverage floor: it exits
+  `5` when any project's proved-coverage is below `PCT`, naming the offending
+  projects on stderr (text mode) and adding a `coverage_gate` object in `--json`
+  mode. Projects with undefined coverage (no formal targets, or load errors) are
+  excluded from failures. Composes with `--fail-on-problem`; absent the flag,
+  behaviour is unchanged.
 
 ### Changed
 
