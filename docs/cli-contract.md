@@ -1194,6 +1194,13 @@ the structured report (`proved_effort`, `formal_target_effort`,
 `remaining_effort`, `coverage_percent`, `total_effort`, `explicit_effort_count`,
 `default_effort`). Always exits 0.
 
+The `--nodes` flag additionally lists each node with its `effort` weight, formal
+status, and whether it counts toward proved effort, so you can see *where* the
+remaining effort sits. It composes with the other output formats: a per-node
+table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
+additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
+Without `--nodes` the output is unchanged.
+
 ### `version`
 
 ```text

@@ -361,6 +361,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`effort --nodes`** lists each node with its `effort` weight, formal status,
+  and whether it counts toward proved effort, so you can see where the remaining
+  effort sits. It composes with every output format (a per-node table beneath
+  the summary in text/Markdown, per-node CSV rows with `--csv`, and an additive
+  `nodes` array `{id, effort, formal_status, proved}` under `--json`); without
+  the flag output is unchanged.
 
 ### Changed
 
