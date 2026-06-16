@@ -1708,13 +1708,8 @@ def cmd_rename(args: argparse.Namespace) -> int:
         return 0
     verb = "would rename" if result.dry_run else "renamed"
     print(f"{verb} {result.old_id!r} -> {result.new_id!r}")
-    if result.dry_run:
-        edits = {e.path: e.edit_count for e in result.file_edits}
-        for path in result.changed_files:
-            print(f"  source: {path} ({edits.get(path, 0)} edit(s))")
-    else:
-        for path in result.changed_files:
-            print(f"  source: {path}")
+    for path in result.changed_files:
+        print(f"  source: {path}")
     for rekey in result.store_rekeys:
         if rekey.changed:
             action = "would update" if result.dry_run else "updated"
@@ -1722,7 +1717,10 @@ def cmd_rename(args: argparse.Namespace) -> int:
     if not result.changed_files:
         print("  (no source files referenced this id)")
     if result.dry_run:
-        print(f"  total edits: {result.total_edits}")
+        print("Edits per file:")
+        for edit in result.file_edits:
+            print(f"  {edit.path}: {edit.edit_count} edit(s)")
+        print(f"total edits: {result.total_edits}")
     return 0
 
 
