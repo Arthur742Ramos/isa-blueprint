@@ -258,6 +258,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `blocked_by_count`) plus a header to stdout. Mutually exclusive with
   `--json`/`--mermaid`, and it honours the existing `--status`/`--stage`/`--kind`
   filters.
+- **`portfolio --min-coverage PCT`** is a cross-project coverage floor: it exits
+  `5` when any project's proved-coverage is below `PCT`, naming the offending
+  projects on stderr (text mode) and adding a `coverage_gate` object in `--json`
+  mode. Composes with `--fail-on-problem`; absent the flag, behaviour is unchanged.
 
 ### Changed
 

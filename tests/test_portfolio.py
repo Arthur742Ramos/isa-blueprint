@@ -11,6 +11,7 @@ from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.report.portfolio import (
     PORTFOLIO_SCHEMA_VERSION,
     build_portfolio,
+    coverage_gate_failures,
     discover_project_roots,
     portfolio_payload,
     render_portfolio_csv,
@@ -381,3 +382,124 @@ def test_cli_portfolio_markdown_and_csv_mutually_exclusive(tmp_path: Path) -> No
         cli_main(["portfolio", str(tmp_path), "--markdown", "--csv"])
 
     assert excinfo.value.code == 2
+
+
+def test_cli_portfolio_min_coverage_trips_and_lists_projects(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A high floor over the examples tree fails: several projects sit below 100%.
+    exit_code = cli_main(
+        ["portfolio", str(EXAMPLES_DIR), "--min-coverage", "100"]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 5
+    assert "coverage gate failed" in captured.err
+    assert "100%" in captured.err
+    # A known sub-100% example project is named (by its relative path) in stderr.
+    assert "euclid-primes" in captured.err
+
+
+def test_cli_portfolio_min_coverage_zero_passes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--min-coverage", "0"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "coverage gate failed" not in captured.err
+
+
+def test_cli_portfolio_no_min_coverage_unchanged(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Absent the flag, a sub-100% portfolio still exits 0 (behaviour unchanged).
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "coverage gate" not in captured.err
+
+
+def test_cli_portfolio_min_coverage_json_gate_object(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        ["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "100"]
+    )
+    out = capsys.readouterr().out
+
+    assert exit_code == 5
+    payload = json.loads(out)
+    gate = payload["coverage_gate"]
+    assert gate["min_coverage"] == 100
+    assert gate["ok"] is False
+    assert "euclid-primes" in gate["failing_projects"]
+
+
+def test_cli_portfolio_min_coverage_json_pass(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(
+        ["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "0"]
+    )
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    assert payload["coverage_gate"] == {
+        "min_coverage": 0,
+        "failing_projects": [],
+        "ok": True,
+    }
+
+
+def test_cli_portfolio_json_no_gate_key_without_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--json"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "coverage_gate" not in json.loads(out)
+
+
+def test_cli_portfolio_min_coverage_composes_with_fail_on_problem(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Clean (no problems) but sub-threshold coverage still trips the gate.
+    _write_project(
+        tmp_path / "half",
+        name="half",
+        body=_nodes(_node_md("a", formal="proved"), _node_md("b", formal="named")),
+    )
+
+    exit_code = cli_main(
+        [
+            "portfolio",
+            str(tmp_path),
+            "--fail-on-problem",
+            "--min-coverage",
+            "75",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 5
+    assert "half" in captured.err
+
+
+def test_coverage_gate_failures_ignores_undefined_coverage(tmp_path: Path) -> None:
+    _write_project(tmp_path / "full", name="full", body=_node_md("a", formal="proved"))
+    # A project with no formal targets has undefined coverage and never fails.
+    draft_body = (
+        "::: lemma {#text-only}\n"
+        "title: Text only\n\n"
+        "Just prose.\n"
+        ":::\n"
+    )
+    _write_project(tmp_path / "draft", name="draft", body=draft_body)
+
+    report = build_portfolio(tmp_path)
+
+    assert coverage_gate_failures(report, 100) == []

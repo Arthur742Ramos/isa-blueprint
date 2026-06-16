@@ -237,6 +237,7 @@ from isabelle_blueprint.report.path import (
 )
 from isabelle_blueprint.report.portfolio import (
     build_portfolio,
+    coverage_gate_failures,
     portfolio_payload,
     render_portfolio_csv,
     render_portfolio_markdown,
@@ -1414,21 +1415,41 @@ def cmd_burndown(args: argparse.Namespace) -> int:
 def cmd_portfolio(args: argparse.Namespace) -> int:
     root = Path(args.root_dir).resolve()
     report = build_portfolio(root)
+    coverage_failures: list[str] = []
+    if args.min_coverage is not None:
+        coverage_failures = coverage_gate_failures(report, args.min_coverage)
     if args.json:
-        print(json.dumps(portfolio_payload(report), indent=2))
+        payload = portfolio_payload(report)
+        if args.min_coverage is not None:
+            payload["coverage_gate"] = {
+                "min_coverage": args.min_coverage,
+                "failing_projects": coverage_failures,
+                "ok": not coverage_failures,
+            }
+        print(json.dumps(payload, indent=2))
     elif args.csv:
         print(render_portfolio_csv(report), end="")
     elif args.markdown:
         print(render_portfolio_markdown(report), end="")
     else:
         print(render_portfolio_report(report), end="")
+    exit_code = 0
     if args.fail_on_problem and (
         report.totals.projects_with_problems
         or report.totals.projects_with_cycles
         or report.totals.error_count
     ):
-        return 5
-    return 0
+        exit_code = 5
+    if coverage_failures:
+        if not args.json:
+            print(
+                f"coverage gate failed: {len(coverage_failures)} project(s) below "
+                f"{args.min_coverage}% proved-coverage: "
+                f"{', '.join(coverage_failures)}",
+                file=sys.stderr,
+            )
+        exit_code = 5
+    return exit_code
 
 
 def cmd_assign(args: argparse.Namespace) -> int:
@@ -3364,6 +3385,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help=(
             "exit non-zero (5) when any project has problems, dependency "
             "cycles, or fails to load"
+        ),
+    )
+    p_portfolio.add_argument(
+        "--min-coverage",
+        type=int,
+        metavar="PCT",
+        default=None,
+        help=(
+            "exit non-zero (5) when any project's proved-coverage is below PCT "
+            "(a cross-project coverage floor); composes with --fail-on-problem"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)
