@@ -19,7 +19,7 @@ from isabelle_blueprint.schemas import available_schemas, read_schema
 pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
-_NEW_SCHEMAS = ["path", "scorecard", "tags"]
+_NEW_SCHEMAS = ["path", "scorecard", "tags", "fact-coverage", "tag-cooccurrence"]
 
 _BLUEPRINT = """# contracts
 
@@ -117,3 +117,21 @@ def test_tags_json_conforms(tmp_path: Path, capsys) -> None:
     # The blueprint declares tagged nodes, so the TagStat item shape is exercised.
     assert data["tag_count"] >= 1
     _validate(data, "tags")
+
+
+def test_fact_coverage_json_conforms(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    assert cli_main(["fact-coverage", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # The blueprint references the Demo theory, so the TheoryStat shape is exercised.
+    assert data["theory_count"] >= 1
+    _validate(data, "fact-coverage")
+
+
+def test_tag_cooccurrence_json_conforms(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    assert cli_main(["tag-cooccurrence", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # `mid` carries both `core` and `alg`, so the pair item shape is exercised.
+    assert data["pair_count"] >= 1
+    _validate(data, "tag-cooccurrence")
