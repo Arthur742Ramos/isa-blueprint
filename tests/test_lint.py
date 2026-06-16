@@ -156,3 +156,53 @@ Because a holds.
     assert any("'b'" in f["message"] for f in dup if f["node_id"] == "a")
     assert any("'a'" in f["message"] for f in dup if f["node_id"] == "b")
 
+
+def test_lint_markdown_renders_findings_table(tmp_path: Path, capsys) -> None:
+    body = """# broken
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+uses: ghost
+
+A statement.
+
+Sketch.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--format", "markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# lint-test lint")
+    assert "| Code | Severity | Node | Message |" in out
+    assert "| --- | --- | --- | --- |" in out
+    assert "| missing-dependency | error | a |" in out
+
+
+def test_lint_markdown_strict_trips_exit(tmp_path: Path, capsys) -> None:
+    body = """# broken
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+uses: ghost
+
+A statement.
+
+Sketch.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--format", "markdown", "--strict"])
+
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "| Code | Severity | Node | Message |" in out
+
+

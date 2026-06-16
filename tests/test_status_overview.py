@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
+from isabelle_blueprint.report.status_overview import (
+    build_status_overview,
+    render_status_markdown,
+    render_status_overview,
+)
 
 
 def _node(
@@ -354,4 +360,76 @@ def test_cli_status_without_filters_omits_filter_fields(
     data = json.loads(capsys.readouterr().out)
     assert "filters" not in data
     assert "filtered_ready_task_count" not in data
+
+
+def test_render_status_markdown_includes_heading_and_coverage() -> None:
+    project = BlueprintProject.from_nodes(
+        "status-test",
+        [
+            _node("a", FormalStatus.PROVED, fact="Demo.a"),
+            _node("b", FormalStatus.NAMED, fact="Demo.b", uses=["a"]),
+            _node("c", FormalStatus.NAMED, fact="Demo.c", uses=["b"]),
+        ],
+    )
+
+    overview = build_status_overview(project, generate_tasks(project))
+    markdown = render_status_markdown(overview)
+
+    assert markdown.startswith("# status-test status: ready")
+    assert "| Coverage | 33% formal (1/3 proved) |" in markdown
+    assert "| Metric | Value |" in markdown
+    assert "Next task: task-b" in markdown
+
+
+def test_cli_status_markdown_output(tmp_path: Path, capsys) -> None:
+    _write_status_project(tmp_path)
+
+    rc = cli_main(["status", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# CLI status status: ready")
+    assert "| Coverage | 50% formal (1/2 proved) |" in out
+    assert "| Ready tasks | 1 |" in out
+    assert "Next task: task-b" in out
+    # No ANSI escape sequences should leak into the Markdown artifact.
+    assert "\033[" not in out
+
+
+def test_cli_status_markdown_respects_filters(tmp_path: Path, capsys) -> None:
+    _write_multi_status_project(tmp_path)
+
+    rc = cli_main(["status", str(tmp_path), "--markdown", "--kind", "theorem"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "| Ready tasks | 2 total, 1 match filters |" in out
+    assert "Filters: kind=theorem" in out
+    assert "Next task matching filters: task-main" in out
+
+
+def test_cli_status_markdown_with_fail_on_trips_and_passes(
+    tmp_path: Path, capsys
+) -> None:
+    _write_status_project(tmp_path)
+
+    # Node "b" is named, so the gate trips with exit 5 while still rendering.
+    rc = cli_main(["status", str(tmp_path), "--markdown", "--fail-on", "named"])
+    out = capsys.readouterr().out
+    assert rc == 5
+    assert out.startswith("# CLI status status: ready")
+
+    # A status that no node has leaves the gate satisfied (exit 0).
+    rc = cli_main(["status", str(tmp_path), "--markdown", "--fail-on", "broken"])
+    assert rc == 0
+
+
+def test_cli_status_markdown_and_json_are_mutually_exclusive(
+    tmp_path: Path,
+) -> None:
+    _write_status_project(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(["status", str(tmp_path), "--markdown", "--json"])
+
 

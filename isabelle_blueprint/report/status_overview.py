@@ -160,6 +160,66 @@ def render_status_overview(overview: StatusOverview) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_status_markdown(overview: StatusOverview) -> str:
+    """Render the health overview as a Markdown document.
+
+    A heading carries the project name and health label, a metrics table lists
+    coverage/proved/problems/stale/ready-tasks/cycle-status, and a short
+    next-task line closes the document. Used by ``status --markdown``.
+    """
+
+    metrics = overview.metrics
+    filters_active = overview.filters is not None
+    if filters_active:
+        ready_cell = (
+            f"{overview.ready_task_count} total, "
+            f"{overview.filtered_ready_task_count or 0} match filters"
+        )
+    else:
+        ready_cell = str(overview.ready_task_count)
+    rows = (
+        ("Coverage", _coverage_text(metrics)),
+        ("Proved", f"{metrics.proved_count}/{metrics.formal_target_count}"),
+        ("Problems", str(metrics.problem_count)),
+        ("Stale", str(metrics.stale_count)),
+        ("Ready tasks", ready_cell),
+        ("Cycles", _yes_no(metrics.has_cycles)),
+    )
+    lines = [
+        f"# {_md_cell(overview.project)} status: {_md_cell(overview.health)}",
+        "",
+        "| Metric | Value |",
+        "| --- | --- |",
+    ]
+    lines.extend(f"| {label} | {_md_cell(value)} |" for label, value in rows)
+    if filters_active:
+        formatted = _format_filters_dict(overview.filters or {})
+        if formatted:
+            lines.extend(["", f"Filters: {_md_cell(formatted)}"])
+    lines.append("")
+    next_label = "Next task matching filters" if filters_active else "Next task"
+    if overview.next_task is None:
+        if filters_active and overview.ready_task_count:
+            lines.append(
+                f"{next_label}: none "
+                f"({overview.ready_task_count} ready task(s) excluded by filters)"
+            )
+        else:
+            lines.append(f"{next_label}: none")
+    else:
+        lines.append(f"{next_label}: {_md_cell(_next_task_text(overview.next_task))}")
+    return "\n".join(lines) + "\n"
+
+
 def _paint_health(health: str, metrics: StatusMetrics) -> str:
     """Colour the health label red/yellow/green by project condition."""
 

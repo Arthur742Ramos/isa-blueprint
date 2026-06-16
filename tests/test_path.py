@@ -15,6 +15,7 @@ from isabelle_blueprint.report.path import (
     PATH_SCHEMA_VERSION,
     UnknownNodeError,
     build_path_report,
+    render_path_markdown,
     render_path_report,
 )
 
@@ -340,3 +341,77 @@ def test_cli_json_without_all_has_single_element_paths(tmp_path: Path, capsys) -
     data = json.loads(capsys.readouterr().out)
     assert data["path"] == ["goal", "m1", "base"]
     assert data["paths"] == [["goal", "m1", "base"]]
+
+
+def test_render_markdown_depends_on_chain() -> None:
+    text = render_path_markdown(build_path_report(_chain(), "c", "a"))
+
+    assert "# Dependency path: `c` -> `a`" in text
+    assert f"`{DIRECTION_DEPENDS_ON}`" in text
+    assert "1. `c`" in text
+    assert "2. `b`" in text
+    assert "3. `a`" in text
+
+
+def test_render_markdown_backward_direction() -> None:
+    text = render_path_markdown(build_path_report(_chain(), "a", "c"))
+
+    assert f"`{DIRECTION_DEPENDED_ON_BY}`" in text
+
+
+def test_render_markdown_not_connected() -> None:
+    text = render_path_markdown(
+        build_path_report(_project(_node("x"), _node("y")), "x", "y")
+    )
+
+    assert "not connected" in text
+
+
+def test_render_markdown_lists_each_path() -> None:
+    text = render_path_markdown(build_path_report(_diamond(), "goal", "base", all_paths=True))
+
+    assert "2 shortest path(s)" in text
+    assert "## Path 1" in text
+    assert "## Path 2" in text
+
+
+def test_cli_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["path", "c", "a", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# Dependency path: `c` -> `a`" in out
+    assert "1. `c`" in out
+    assert "2. `b`" in out
+    assert "3. `a`" in out
+
+
+def test_cli_markdown_all(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _DIAMOND_BODY)
+
+    rc = cli_main(["path", "goal", "base", str(tmp_path), "--markdown", "--all"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "## Path 1" in out
+    assert "## Path 2" in out
+
+
+def test_cli_markdown_unknown_node_errors(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["path", "c", "missing", str(tmp_path), "--markdown"])
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "unknown node" in err
+    assert "missing" in err
+
+
+def test_cli_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["path", "c", "a", str(tmp_path), "--markdown", "--json"])
