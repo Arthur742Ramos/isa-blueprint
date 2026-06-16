@@ -30,6 +30,12 @@ from isabelle_blueprint.report.metrics import StatusMetrics
 
 SUPPORTED_FORMATS: tuple[str, ...] = ("slack", "teams", "discord", "generic")
 
+#: Local preview format; emitted to stdout, never POSTed to a webhook.
+MARKDOWN_FORMAT = "markdown"
+
+#: All ``--format`` choices accepted by the CLI (webhook formats + preview).
+FORMAT_CHOICES: tuple[str, ...] = (*SUPPORTED_FORMATS, MARKDOWN_FORMAT)
+
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
 
@@ -111,6 +117,22 @@ def render_payload(content: NotificationContent, fmt: str) -> dict[str, object]:
         f"unsupported notification format {fmt!r}; "
         f"choose one of {', '.join(SUPPORTED_FORMATS)}"
     )
+
+
+def render_markdown(content: NotificationContent) -> str:
+    """Render ``content`` as a plain Markdown notification body.
+
+    This is a local *preview* format: the result is meant for stdout (or a CI
+    job summary), never POSTed to a webhook. The heading carries the project
+    name and coverage, followed by a one-line status summary and the same
+    aggregate metric lines as the webhook formats (including the optional
+    burndown ETA line, when present).
+    """
+    body = [f"# {content.title}", "", content.summary]
+    if content.lines:
+        body.append("")
+        body.extend(f"- {line}" for line in content.lines)
+    return "\n".join(body) + "\n"
 
 
 def post_notification(
