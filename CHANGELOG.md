@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`portfolio --sort {name,coverage,nodes,problems}`** orders the listed
+  projects (`name` ascending; `coverage`/`nodes`/`problems` descending) across
+  text/JSON/CSV/Markdown output; default discovery order is unchanged.
+- **`lint` `self-dependency` rule** flags any node whose `uses` list contains
+  its own id (a node depending on itself) as an `error`-severity finding, naming
+  the offending node id; also surfaced in SARIF output.
 - **`history --markdown`** renders the trend snapshots as a Markdown table (one
   row per snapshot: timestamp plus the coverage / count metrics), respecting
   `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
@@ -316,6 +322,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`graph --leaves-only`** prunes the emitted graph (every format) to leaf
+  nodes — those that use nothing (the foundational axioms/definitions).
+  Composes with `--focus`/`--depth`/`--format`; mutually exclusive with
+  `--roots-only`; default graph output is unchanged.
+- **`staleness --csv`** emits one CSV row per flagged trusted node (columns:
+  `node_id`, `severity`, `cause_count`, `first_cause`) plus a header to stdout.
+  Mutually exclusive with `--json`/`--markdown`; honours `--top`/`--max-causes`
+  and composes with the `--fail-on-problem`/`--fail-on-outdated` gates.
+- **`notify --format markdown`** prints a plain Markdown notification body
+  (heading with project name + coverage, a one-line status summary, the metric
+  lines, and the optional burndown ETA) to stdout as a local preview. It is
+  never POSTed: combining it with `--send` errors that markdown is preview-only.
+  Existing webhook formats and `--send` behaviour are unchanged.
+- **`lint` adds a `singleton-tag` rule** (INFO) flagging any tag used by exactly
+  one node across the blueprint (likely a typo or orphaned category); the message
+  names the tag and the single node carrying it. Purely additive: it never fires
+  for tags shared by two or more nodes.
 
 ### Changed
 

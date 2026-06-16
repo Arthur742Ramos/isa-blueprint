@@ -107,6 +107,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    leaves_subproject,
     roots_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
@@ -236,11 +237,15 @@ from isabelle_blueprint.report.metrics import (
     output_values,
 )
 from isabelle_blueprint.report.notify import (
-    SUPPORTED_FORMATS as NOTIFY_FORMATS,
+    FORMAT_CHOICES as NOTIFY_FORMATS,
+)
+from isabelle_blueprint.report.notify import (
+    MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
 )
 from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
+    render_markdown,
     render_payload,
 )
 from isabelle_blueprint.report.path import (
@@ -252,12 +257,14 @@ from isabelle_blueprint.report.path import (
     render_path_report,
 )
 from isabelle_blueprint.report.portfolio import (
+    PORTFOLIO_SORT_KEYS,
     build_portfolio,
     coverage_gate_failures,
     portfolio_payload,
     render_portfolio_csv,
     render_portfolio_markdown,
     render_portfolio_report,
+    sort_portfolio_report,
 )
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
@@ -289,6 +296,7 @@ from isabelle_blueprint.report.scorecard import (
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_csv,
     render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
@@ -822,6 +830,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
             ) from None
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
+    if getattr(args, "leaves_only", False):
+        project = leaves_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -1161,6 +1171,18 @@ def cmd_notify(args: argparse.Namespace) -> int:
         entries = load_trends(config.trends_path)
         eta_days = build_burndown_report(entries).eta_days
     content = build_notification(project, metrics, eta_days=eta_days)
+
+    if args.format == NOTIFY_MARKDOWN_FORMAT:
+        if args.send:
+            print(
+                "error: --format markdown is preview-only and cannot be sent; "
+                "drop --send (or choose a webhook format)",
+                file=sys.stderr,
+            )
+            return 1
+        print(render_markdown(content), end="")
+        return 0
+
     payload = render_payload(content, args.format)
 
     if not args.send:
@@ -1437,6 +1459,11 @@ def cmd_staleness(args: argparse.Namespace) -> int:
             render_staleness_markdown(report, top=args.top, max_causes=args.max_causes),
             end="",
         )
+    elif args.csv:
+        print(
+            render_staleness_csv(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
     else:
         print(
             render_staleness_report(report, top=args.top, max_causes=args.max_causes),
@@ -1541,6 +1568,8 @@ def cmd_burndown(args: argparse.Namespace) -> int:
 def cmd_portfolio(args: argparse.Namespace) -> int:
     root = Path(args.root_dir).resolve()
     report = build_portfolio(root)
+    if args.sort is not None:
+        report = sort_portfolio_report(report, args.sort)
     coverage_failures: list[str] = []
     if args.min_coverage is not None:
         coverage_failures = coverage_gate_failures(report, args.min_coverage)
@@ -2964,10 +2993,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="with --focus, include nodes within N dependency hops (default: unlimited)",
     )
-    p_graph.add_argument(
+    p_graph_prune = p_graph.add_mutually_exclusive_group()
+    p_graph_prune.add_argument(
         "--roots-only",
         action="store_true",
         help="prune the graph to root nodes (those nothing else uses); "
+        "composes with --focus/--depth",
+    )
+    p_graph_prune.add_argument(
+        "--leaves-only",
+        action="store_true",
+        help="prune the graph to leaf nodes (those that use nothing); "
         "composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
@@ -3247,7 +3283,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--format",
         choices=NOTIFY_FORMATS,
         default="slack",
-        help="webhook payload format (default: slack)",
+        help=(
+            "webhook payload format (default: slack); "
+            "'markdown' is a local preview body printed to stdout, not sent"
+        ),
     )
     p_notify.add_argument(
         "--url",
@@ -3425,6 +3464,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="render the trust audit as a Markdown table (no colour)",
     )
+    p_staleness_format.add_argument(
+        "--csv",
+        action="store_true",
+        help=(
+            "emit one CSV row per flagged trusted node "
+            "(columns: node_id, severity, cause_count, first_cause)"
+        ),
+    )
     p_staleness.add_argument(
         "--top",
         type=_positive_int,
@@ -3598,6 +3645,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "(an integer from 0 to 100; a cross-project coverage floor); projects "
             "with undefined coverage (no formal targets, or load errors) are "
             "excluded from failures; composes with --fail-on-problem"
+        ),
+    )
+    p_portfolio.add_argument(
+        "--sort",
+        choices=PORTFOLIO_SORT_KEYS,
+        default=None,
+        help=(
+            "order the listed projects by KEY: 'name' ascending, or 'coverage', "
+            "'nodes', 'problems' descending (highest first); applies to text, "
+            "JSON, CSV, and Markdown output (default: discovery order)"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)

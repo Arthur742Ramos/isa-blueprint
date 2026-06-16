@@ -31,6 +31,8 @@ payloads, is not part of the frozen v1.0 contract surface and may grow.
 """
 from __future__ import annotations
 
+import csv
+import io
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -490,3 +492,36 @@ def render_staleness_markdown(
         lines.append(f"... and {hidden_nodes} more stale node(s)")
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+STALENESS_CSV_COLUMNS = ("node_id", "severity", "cause_count", "first_cause")
+
+
+def _csv_cause(cause: StaleCause) -> str:
+    """Render a single cause as a plain phrase for a CSV cell."""
+
+    if cause.reason == "cycle":
+        return "participates in a dependency cycle"
+    if cause.reason == "missing":
+        return f"missing {cause.dep_id}"
+    return f"{cause.dep_id} ({cause.reason}, {cause.formal_status}, d{cause.distance})"
+
+
+def render_staleness_csv(
+    report: StalenessReport, *, top: int = 10, max_causes: int = 5
+) -> str:
+    """Render the staleness scan as CSV, one row per flagged trusted node.
+
+    Columns: node id, severity bucket (problem/incomplete/outdated), the total
+    number of causes, and the strongest (first) cause. Honours ``--top`` (rows)
+    and ``--max-causes`` (the first cause is taken from the truncated list).
+    """
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(STALENESS_CSV_COLUMNS)
+    for item in report.stale_nodes[:top]:
+        causes = item.causes[:max_causes]
+        first_cause = _csv_cause(causes[0]) if causes else ""
+        writer.writerow([item.node_id, item.severity, item.cause_count, first_cause])
+    return buffer.getvalue()
