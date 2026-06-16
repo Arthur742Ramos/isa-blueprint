@@ -789,10 +789,14 @@ number of downstream nodes blocked and then by node id.
 ```text
 isabelle-blueprint critical-path [project_dir]
                                  [--json]
+                                 [--markdown]
+                                 [--mermaid]
+                                 [--csv]
                                  [--top N]
                                  [--goal NODE]
                                  [--min-leverage N]
                                  [--fail-on-cycle]
+                                 [--write]
 ```
 
 Prints a longest-pole analysis of the remaining (incomplete) proof work without
