@@ -252,7 +252,7 @@ The `status` is one of `no_history`, `no_targets`, `complete`,
 ### `portfolio`
 
 ```text
-isabelle-blueprint portfolio [root_dir] [--json] [--fail-on-problem]
+isabelle-blueprint portfolio [root_dir] [--json | --csv | --markdown] [--fail-on-problem] [--min-coverage PCT]
 ```
 
 Scans `root_dir` (default `.`) for every IsabelleBlueprint project and rolls them
@@ -270,8 +270,21 @@ aggregate counts rather than aborting the whole roll-up. `coverage_percent` is
 
 - `--json` emits the machine-readable roll-up (`schema_version`, `root`, `totals`,
   and a `projects` list).
+- `--csv` emits one CSV row per project (a header followed by name, path, counts,
+  and status).
+- `--markdown` emits the roll-up as Markdown (a heading, a totals line, and a
+  project table).
 - `--fail-on-problem` exits non-zero (`5`) when any project has problems, has a
   dependency cycle, or fails to load.
+- `--min-coverage PCT` is a cross-project coverage floor (an integer from `0` to
+  `100`): it exits non-zero (`5`) when any project's `coverage_percent` is below
+  `PCT`. Projects with undefined coverage (`coverage_percent` is `null` — no
+  formal targets, or a load error) are excluded from failures. In text mode the
+  offending projects are named on stderr; in `--json` mode an additive
+  `coverage_gate` object is added alongside the existing keys with shape
+  `{min_coverage, failing_projects, ok}` (`failing_projects` is the list of
+  offending project ids, `ok` is `true` when none fail). The object is present
+  only when `--min-coverage` is supplied. Composes with `--fail-on-problem`.
 
 ### `assign`
 

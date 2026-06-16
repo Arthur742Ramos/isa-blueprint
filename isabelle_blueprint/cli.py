@@ -3389,12 +3389,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_portfolio.add_argument(
         "--min-coverage",
-        type=int,
+        type=_score_arg,
         metavar="PCT",
         default=None,
         help=(
             "exit non-zero (5) when any project's proved-coverage is below PCT "
-            "(a cross-project coverage floor); composes with --fail-on-problem"
+            "(an integer from 0 to 100; a cross-project coverage floor); projects "
+            "with undefined coverage (no formal targets, or load errors) are "
+            "excluded from failures; composes with --fail-on-problem"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)

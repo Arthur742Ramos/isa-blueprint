@@ -503,3 +503,14 @@ def test_coverage_gate_failures_ignores_undefined_coverage(tmp_path: Path) -> No
     report = build_portfolio(tmp_path)
 
     assert coverage_gate_failures(report, 100) == []
+
+
+@pytest.mark.parametrize("value", ["150", "-1", "101"])
+def test_cli_portfolio_min_coverage_out_of_range_rejected(
+    tmp_path: Path, value: str
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--min-coverage", value])
+
+    # argparse rejects an invalid --min-coverage as a usage error (exit 2).
+    assert excinfo.value.code == 2
