@@ -11,6 +11,7 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.report.levels import (
     LEVELS_SCHEMA_VERSION,
     build_levels_report,
+    render_levels_mermaid,
     render_levels_report,
 )
 from isabelle_blueprint.schemas import available_schemas, read_schema
@@ -96,6 +97,19 @@ def test_render_text_mentions_levels_and_summary() -> None:
     assert "3 level(s)" in text
 
 
+def test_render_mermaid_has_flowchart_subgraphs_and_edges() -> None:
+    chain = _chain()
+    text = render_levels_mermaid(build_levels_report(chain), chain)
+
+    assert text.startswith("flowchart BT")
+    assert 'subgraph level0["Level 0"]' in text
+    assert 'subgraph level2["Level 2"]' in text
+    # Node ids are escaped via the shared helper (a leaf node id appears).
+    assert "n_a[" in text
+    # Edge follows uses from dependency up to dependent (a -> b).
+    assert "n_a --> n_b" in text
+
+
 _BODY = """# levels-test
 
 ::: definition {#a}
@@ -148,6 +162,26 @@ def test_cli_text(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "3 level(s)" in out
     assert "Level 0" in out
+
+
+def test_cli_mermaid(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["levels", str(tmp_path), "--mermaid"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    assert 'subgraph level0["Level 0"]' in out
+    assert "n_a[" in out
+    assert "n_a --> n_b" in out
+
+
+def test_cli_mermaid_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(["levels", str(tmp_path), "--mermaid", "--json"])
 
 
 def test_cli_json_conforms_to_schema(tmp_path: Path, capsys) -> None:
