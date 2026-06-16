@@ -968,6 +968,54 @@ with fewer than two tags contribute no pairs.
 
 ---
 
+## `critical-path --json`
+
+Written to stdout by `critical-path --json`. Validated by the packaged
+`critical-path.schema.json`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "remaining_count": 3,
+  "goal_count": 1,
+  "longest": {
+    "goal_id": "top",
+    "title": "Top",
+    "formal_status": "missing",
+    "depth": 3,
+    "path": ["base", "mid", "top"]
+  },
+  "goals": [
+    {
+      "goal_id": "top",
+      "title": "Top",
+      "formal_status": "missing",
+      "depth": 3,
+      "path": ["base", "mid", "top"]
+    }
+  ],
+  "bottlenecks": [
+    { "node_id": "base", "title": "Base", "formal_status": "missing", "leverage": 2 }
+  ],
+  "cycles": [],
+  "missing_dependencies": [],
+  "inconsistent": []
+}
+```
+
+`remaining_count` counts incomplete nodes; `goal_count` counts terminal
+remaining goals. `longest` is the deepest goal chain (or `null` when every
+remaining node is tangled in a cycle). Each `goals` item is a goal chain with
+its `depth` and ordered `path`. `bottlenecks` ranks incomplete nodes by
+`leverage` (transitive incomplete-dependent count), filtered by `--min-leverage`
+and capped by `--top`. `cycles` lists detected dependency cycles (each a list of
+node ids, excluded from ranking); `missing_dependencies` lists nodes whose
+`uses` reference unknown ids; `inconsistent` lists complete nodes that still
+depend on incomplete work.
+
+---
+
 ## Compatibility rules
 
 For the v1.x line:

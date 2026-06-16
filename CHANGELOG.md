@@ -423,6 +423,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **Packaged JSON Schema for the `critical-path` command.** Its versioned
+  `--json` payload shipped without a published schema, unlike `path`/`tags`/
+  `scorecard`/`orphans`. It is now a registered packaged schema
+  (`isabelle-blueprint schema critical-path`, included in `schema --out` and
+  over MCP), and a contract test asserts the command's JSON conforms to it.
+  Output is unchanged.
+- **`status --oneline`** prints a single compact health summary line (project
+  name, coverage percent, ready-task count, problem count, cycle status (yes/no),
+  and a bracketed health label) for shell prompts, CI logs, and grepping across
+  projects. Mutually exclusive with `--json` and `--markdown`; default multi-line
+  text output and all filter flags are unchanged.
+- **`fact-coverage --csv` and `--markdown`** add output formats to the
+  per-theory roll-up: `--csv` emits one row per theory
+  (`theory,node_count,proved_count,found_count,problem_count,coverage_percent`,
+  blank coverage cell when undefined, `lineterminator='\n'`), and `--markdown`
+  renders the table as a Markdown document (escaping `|` in theory cells).
+  Mutually exclusive with `--json`; default text output is unchanged.
 - **`levels --mermaid`** emits a Mermaid `flowchart BT` of the topological
   layering: one `subgraph` per level (level 0/foundations at the bottom), nodes
   labelled by id, and one edge per cross-level `uses` (dependency up to
@@ -460,6 +477,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
   clearly if `PATH` is missing or unreadable; composes with the gates and
   `--markdown`. Without `--since`, output is byte-for-byte unchanged.
+- **`graph --incomplete-only`** prunes every emitted format to nodes whose
+  formal status is not `found`/`proved` (the remaining work) plus the edges
+  among them, giving a "what is left to do" view. Mutually exclusive with
+  `--roots-only`/`--leaves-only`; composes with `--focus`/`--depth`/`--format`.
+  Without it the graph is unchanged.
 
 ### Fixed
 
