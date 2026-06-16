@@ -251,19 +251,28 @@ def sort_portfolio_report(report: PortfolioReport, sort_by: str) -> PortfolioRep
 
     ``name`` sorts ascending (case-insensitive); ``coverage``, ``nodes`` and
     ``problems`` sort descending (highest first). Projects whose chosen metric is
-    undefined (load errors) sort last. The original report-discovery order is the
-    tie-breaker, so the sort is stable. Totals are unaffected.
+    None (load error or undefined, e.g. no formal targets) sort last. The original
+    report-discovery order is the tie-breaker, so the sort is stable. Totals are
+    unaffected. An unknown ``sort_by`` raises ``ValueError``.
     """
     projects = list(report.projects)
     if sort_by == "name":
         projects.sort(key=lambda p: p.name.casefold())
     else:
-        attr = {"coverage": "coverage_percent", "nodes": "node_count"}.get(
-            sort_by, "problem_count"
-        )
-        projects.sort(
-            key=lambda p: (getattr(p, attr) is None, -(getattr(p, attr) or 0))
-        )
+        attrs = {
+            "coverage": "coverage_percent",
+            "nodes": "node_count",
+            "problems": "problem_count",
+        }
+        if sort_by not in attrs:
+            raise ValueError(f"unknown sort key: {sort_by!r}")
+        attr = attrs[sort_by]
+
+        def metric_key(project: PortfolioProject) -> tuple[bool, int]:
+            value = getattr(project, attr)
+            return (value is None, -(value or 0))
+
+        projects.sort(key=metric_key)
     return PortfolioReport(
         schema_version=report.schema_version,
         root=report.root,
