@@ -8,6 +8,7 @@ from isabelle_blueprint.graph.dependency_graph import (
     build_graph,
     dependency_levels,
     focus_subproject,
+    incomplete_subproject,
     leaves_subproject,
     neighbourhood,
     roots_subproject,
@@ -23,6 +24,7 @@ from isabelle_blueprint.graph.graphviz_render import (
 )
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import FormalStatus
 
 
 def _project(*pairs):
@@ -599,6 +601,128 @@ def test_cli_graph_roots_only_and_leaves_only_are_mutually_exclusive(tmp_path, c
     with pytest.raises(SystemExit) as excinfo:
         cli_main(
             ["graph", str(tmp_path), "--format", "json", "--roots-only", "--leaves-only"]
+        )
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "not allowed with" in err
+
+
+def _project_with_formal(*triples):
+    nodes = []
+    for nid, deps, formal in triples:
+        nodes.append(
+            BlueprintNode(
+                id=nid,
+                kind=NodeKind.LEMMA,
+                title=nid.upper(),
+                uses=list(deps),
+                isabelle=IsabelleRef(fact=f"Demo.{nid}"),
+                status=NodeStatus(formal=formal),
+            )
+        )
+    return BlueprintProject.from_nodes("p", nodes)
+
+
+def test_incomplete_subproject_keeps_only_unfinished_nodes():
+    # proved/found are complete; missing/named/not_found/tainted are remaining work.
+    project = _project_with_formal(
+        ("done", [], FormalStatus.PROVED),
+        ("exists", [], FormalStatus.FOUND),
+        ("todo", ["done"], FormalStatus.MISSING),
+        ("named", [], FormalStatus.NAMED),
+    )
+    incomplete = incomplete_subproject(project)
+    assert {n.id for n in incomplete.nodes} == {"todo", "named"}
+    assert incomplete.name == "p"
+
+
+def test_incomplete_subproject_drops_dangling_edges_to_complete_nodes():
+    # 'todo' uses a proved node; the edge to the pruned complete node is dropped.
+    project = _project_with_formal(
+        ("done", [], FormalStatus.PROVED),
+        ("todo", ["done"], FormalStatus.MISSING),
+    )
+    incomplete = incomplete_subproject(project)
+    assert {n.id for n in incomplete.nodes} == {"todo"}
+    assert build_graph(incomplete).edges == {"todo": []}
+
+
+def _write_mixed_formal_project(tmp_path):
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "graph-incomplete"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        """# graph-incomplete
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A statement.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: missing
+uses: a
+
+B statement.
+:::
+""",
+        encoding="utf-8",
+    )
+
+
+def test_cli_graph_incomplete_only_json_excludes_proved_node(tmp_path, capsys):
+    import json
+
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_mixed_formal_project(tmp_path)
+    rc = cli_main(["graph", str(tmp_path), "--format", "json", "--incomplete-only"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"b"}  # a is proved (complete); b is missing (remaining work)
+
+
+def test_cli_graph_without_incomplete_only_is_unchanged(tmp_path, capsys):
+    import json
+
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_mixed_formal_project(tmp_path)
+    rc = cli_main(["graph", str(tmp_path), "--format", "json"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"a", "b"}
+
+
+def test_cli_graph_incomplete_only_and_roots_only_are_mutually_exclusive(
+    tmp_path, capsys
+):
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_mixed_formal_project(tmp_path)
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(
+            [
+                "graph",
+                str(tmp_path),
+                "--format",
+                "json",
+                "--incomplete-only",
+                "--roots-only",
+            ]
         )
     assert excinfo.value.code == 2
     err = capsys.readouterr().err

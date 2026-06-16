@@ -250,6 +250,20 @@ def test_cli_json_shape(tmp_path: Path, capsys) -> None:
     }
 
 
+def test_cli_json_validates_against_packaged_schema(tmp_path: Path, capsys) -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    from isabelle_blueprint.schemas import read_schema
+
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    schema = json.loads(read_schema("critical-path"))
+    jsonschema.Draft202012Validator(schema).validate(data)
+
+
 def test_cli_top_limits_bottlenecks(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 

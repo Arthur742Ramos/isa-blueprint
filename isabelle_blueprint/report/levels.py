@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 
 LEVELS_SCHEMA_VERSION = 1
 
@@ -137,4 +138,34 @@ def render_levels_report(report: LevelsReport) -> str:
         lines.append(
             f"{len(report.cyclic_nodes)} node(s) in dependency cycle(s): {cyclic}."
         )
+    return "\n".join(lines) + "\n"
+
+
+def render_levels_mermaid(report: LevelsReport, project: BlueprintProject) -> str:
+    """Render the topological levels as a Mermaid ``flowchart``.
+
+    Each level becomes a ``subgraph`` whose nodes are labelled by id. The chart
+    flows bottom-to-top so level 0 (the foundations/leaves) sits at the bottom,
+    and every ``uses`` relationship between placed nodes is emitted as an edge
+    from the dependency up to the dependent. Cyclic nodes (which never receive a
+    level) are omitted from the diagram.
+    """
+
+    placed = {node_id for level in report.levels for node_id in level.node_ids}
+    lines = ["flowchart BT"]
+    for level in report.levels:
+        lines.append(f'  subgraph level{level.index}["Level {level.index}"]')
+        for node_id in level.node_ids:
+            lines.append(
+                f'    {mermaid_node_id(node_id)}["{mermaid_label(node_id)}"]'
+            )
+        lines.append("  end")
+    graph = build_graph(project)
+    for level in report.levels:
+        for node_id in level.node_ids:
+            for dep_id in graph.edges.get(node_id, []):
+                if dep_id in placed:
+                    lines.append(
+                        f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(node_id)}"
+                    )
     return "\n".join(lines) + "\n"

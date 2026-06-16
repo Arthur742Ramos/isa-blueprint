@@ -506,6 +506,11 @@ roadmap `status` (or `missing` for an undefined dependency), nullable
 `missing_dependency`, `incomplete_dependency`, `problem_dependency`,
 `stale_dependency`, or `cycle_dependency`.
 
+With `roadmap --json --assignees`, each item additionally carries an `owner`
+key: the owner string from the `assign`/`blame` assignments store, or `null`
+when the node is unassigned. Without `--assignees` the `owner` key is omitted
+entirely (output is unchanged).
+
 `diff` contains:
 
 | Key | Type | Notes |
@@ -944,6 +949,49 @@ Readers should ignore unknown keys.
 
 ---
 
+## `kinds --json`
+
+Written to stdout by `kinds --json`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "total_nodes": 3,
+  "kind_count": 2,
+  "kinds": [
+    {
+      "kind": "lemma",
+      "node_count": 2,
+      "formal_target_count": 2,
+      "proved_count": 1,
+      "found_count": 1,
+      "problem_count": 0,
+      "coverage_percent": 50
+    },
+    {
+      "kind": "theorem",
+      "node_count": 1,
+      "formal_target_count": 1,
+      "proved_count": 1,
+      "found_count": 0,
+      "problem_count": 0,
+      "coverage_percent": 100
+    }
+  ]
+}
+```
+
+`kinds` lists each node `kind` present in the project, ranked by descending
+`node_count` (ties broken alphabetically). `formal_target_count` counts nodes whose
+formal status is not `missing`; `coverage_percent` is the truncated proved share
+of that target count (a non-zero sub-1% ratio is clamped to 1), or `null` when
+the kind has no formal targets. Each node carries exactly one kind, so the
+per-kind `node_count` values sum to `total_nodes`. Schema:
+[`kinds.schema.json`](../isabelle_blueprint/schemas/kinds.schema.json).
+
+---
+
 ## `tag-cooccurrence --json`
 
 Written to stdout by `tag-cooccurrence --json`.
@@ -968,6 +1016,10 @@ with fewer than two tags contribute no pairs.
 
 ---
 
+## `critical-path --json`
+
+Written to stdout by `critical-path --json`. Validated by the packaged
+`critical-path.schema.json`.
 ## `depends --json`
 
 Written to stdout by `depends NODE --json` and validated by the packaged
@@ -979,15 +1031,41 @@ nodes that immediately `use` it.
 {
   "schema_version": 1,
   "project": "demo",
+  "remaining_count": 3,
+  "goal_count": 1,
+  "longest": {
+    "goal_id": "top",
+    "title": "Top",
+    "formal_status": "missing",
+    "depth": 3,
+    "path": ["base", "mid", "top"]
+  },
+  "goals": [
+    {
+    }
+  ],
+  "bottlenecks": [
+    { "node_id": "base", "title": "Base", "formal_status": "missing", "leverage": 2 }
+  "cycles": [],
+  "missing_dependencies": [],
+  "inconsistent": []
+```
+
+`remaining_count` counts incomplete nodes; `goal_count` counts terminal
+remaining goals. `longest` is the deepest goal chain (or `null` when every
+remaining node is tangled in a cycle). Each `goals` item is a goal chain with
+its `depth` and ordered `path`. `bottlenecks` ranks incomplete nodes by
+`leverage` (transitive incomplete-dependent count), filtered by `--min-leverage`
+and capped by `--top`. `cycles` lists detected dependency cycles (each a list of
+node ids, excluded from ranking); `missing_dependencies` lists nodes whose
+`uses` reference unknown ids; `inconsistent` lists complete nodes that still
+depend on incomplete work.
   "node": "mid",
   "depends_on": [
     { "id": "base", "kind": "definition", "formal_status": "missing" }
-  ],
   "depended_on_by": [
     { "id": "top", "kind": "theorem", "formal_status": "missing" }
   ]
-}
-```
 
 | Key | Type | Notes |
 | --- | --- | --- |
