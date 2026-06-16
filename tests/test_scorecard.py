@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint import console
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
@@ -656,3 +658,288 @@ def test_cli_min_component_absent_unchanged(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     assert "component_gates" not in json.loads(capsys.readouterr().out)
+
+
+# --- --since trend delta -----------------------------------------------------
+
+_BODY_BASELINE = """# card-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: named
+
+A base, not yet proved.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: named
+uses: a
+
+B, not yet proved -> coverage 0/2 = 0%.
+
+Sketch.
+:::
+"""
+
+_BODY_IMPROVED = """# card-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A base, now proved.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: proved
+uses: a
+
+B, now proved -> coverage 2/2 = 100%.
+
+Sketch.
+:::
+"""
+
+
+def _save_baseline(tmp_path: Path, capsys) -> Path:
+    """Run ``scorecard --json`` and persist the payload as a baseline file."""
+
+    assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(capsys.readouterr().out, encoding="utf-8")
+    return baseline
+
+
+def test_cli_since_reports_positive_delta(tmp_path: Path, capsys) -> None:
+    # Save a weak baseline, then improve the project: the delta is positive.
+    _write_project(tmp_path, _BODY_BASELINE)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Overall:" in out
+    assert "+" in out and "since baseline" in out
+    # The headline carries a positive signed delta.
+    overall_line = next(line for line in out.splitlines() if line.startswith("Overall:"))
+    assert "[+" in overall_line
+
+
+def test_cli_since_json_delta_shape_and_sign(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_BASELINE)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    delta = data["delta"]
+    assert set(delta.keys()) == {"baseline_score", "score_change", "component_changes"}
+    # The project strictly improved: overall delta and coverage change are > 0.
+    assert delta["baseline_score"] is not None
+    assert data["score"] is not None
+    assert delta["score_change"] == data["score"] - delta["baseline_score"]
+    assert delta["score_change"] > 0
+    assert delta["component_changes"]["coverage"] == 100  # 0% -> 100%
+    assert delta["component_changes"]["coverage"] > 0
+
+
+def test_cli_since_json_negative_delta(tmp_path: Path, capsys) -> None:
+    # Save a strong baseline, then regress: the delta is negative.
+    _write_project(tmp_path, _BODY_IMPROVED)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_BASELINE)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline), "--json"])
+
+    assert rc == 0
+    delta = json.loads(capsys.readouterr().out)["delta"]
+    assert delta["score_change"] < 0
+    assert delta["component_changes"]["coverage"] == -100  # 100% -> 0%
+
+
+def test_cli_since_conforms_to_schema(tmp_path: Path, capsys) -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    from isabelle_blueprint.schemas import read_schema
+
+    _write_project(tmp_path, _BODY_BASELINE)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    assert cli_main(["scorecard", str(tmp_path), "--since", str(baseline), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "delta" in data
+    jsonschema.Draft202012Validator(json.loads(read_schema("scorecard"))).validate(data)
+
+
+def test_cli_without_since_has_no_delta(tmp_path: Path, capsys) -> None:
+    # The delta is strictly opt-in: no --since means no 'delta' key and the text
+    # carries no 'since baseline' suffix.
+    _write_project(tmp_path, _BODY)
+
+    assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
+    assert "delta" not in json.loads(capsys.readouterr().out)
+
+    assert cli_main(["scorecard", str(tmp_path)]) == 0
+    assert "since baseline" not in capsys.readouterr().out
+
+
+def test_cli_since_missing_file_errors(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(tmp_path / "nope.json")])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "scorecard baseline not found" in err
+
+
+def test_cli_since_invalid_json_errors(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(bad)])
+
+    assert rc == 1
+    assert "not valid JSON" in capsys.readouterr().err
+
+
+def test_cli_since_composes_with_gate(tmp_path: Path, capsys) -> None:
+    # --since composes with --min-grade: the gate still controls the exit code,
+    # and the delta object is present alongside the gate.
+    _write_project(tmp_path, _BODY_BASELINE)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--since", str(baseline), "--min-grade", "A+", "--json"]
+    )
+
+    assert rc == 5  # _BODY_IMPROVED still cannot reach A+
+    data = json.loads(capsys.readouterr().out)
+    assert data["gate"]["meets_min_grade"] is False
+    assert data["delta"]["score_change"] > 0
+
+
+def test_cli_since_markdown_records_delta(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_BASELINE)
+    baseline = _save_baseline(tmp_path, capsys)
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--since", str(baseline), "--markdown"]
+    )
+
+    assert rc == 0
+    text = (tmp_path / "build" / "scorecard.md").read_text(encoding="utf-8")
+    assert "since baseline" in text
+    assert "[+" in text
+
+
+def test_since_baseline_directory_lookup(tmp_path: Path, capsys) -> None:
+    # A directory path resolves to scorecard.json inside it (mirrors roadmap).
+    _write_project(tmp_path, _BODY_BASELINE)
+    assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
+    out_dir = tmp_path / "snap"
+    out_dir.mkdir()
+    (out_dir / "scorecard.json").write_text(capsys.readouterr().out, encoding="utf-8")
+
+    _write_project(tmp_path, _BODY_IMPROVED)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(out_dir), "--json"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["delta"]["score_change"] > 0
+
+
+def _corrupt_baseline(tmp_path: Path, capsys, mutate) -> Path:
+    """Save a real baseline, mutate its parsed payload, and rewrite it."""
+
+    assert cli_main(["scorecard", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    mutate(payload)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+    return baseline
+
+
+def test_cli_since_null_grade_errors(tmp_path: Path, capsys) -> None:
+    # A baseline whose 'grade' is null must fail fast rather than coerce to "None".
+    _write_project(tmp_path, _BODY)
+
+    def _null_grade(payload: dict) -> None:
+        payload["grade"] = None
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _null_grade)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "'grade' must be a string" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_component_missing_score_errors(tmp_path: Path, capsys) -> None:
+    # A component without a 'score' key is a malformed baseline; expect a clear error.
+    _write_project(tmp_path, _BODY)
+
+    def _drop_score(payload: dict) -> None:
+        del payload["components"][0]["score"]
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _drop_score)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "weight" in err or "score" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_component_score_out_of_range_errors(tmp_path: Path, capsys) -> None:
+    # Component scores are ratios in [0, 1]; an out-of-range value is rejected.
+    _write_project(tmp_path, _BODY)
+
+    def _out_of_range(payload: dict) -> None:
+        payload["components"][0]["score"] = 1.5
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _out_of_range)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "out of range" in err
+    assert str(baseline) in err
+
+
+def test_cli_since_schema_mismatch_names_path(tmp_path: Path, capsys) -> None:
+    # The schema_version-mismatch error includes the baseline file path.
+    _write_project(tmp_path, _BODY)
+
+    def _bump_version(payload: dict) -> None:
+        payload["schema_version"] = SCORECARD_SCHEMA_VERSION + 1
+
+    baseline = _corrupt_baseline(tmp_path, capsys, _bump_version)
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline)])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "schema_version" in err
+    assert str(baseline) in err
+

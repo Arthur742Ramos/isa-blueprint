@@ -14,6 +14,11 @@ from isabelle_blueprint.config import DEFAULT_CONFIG_NAME, BlueprintConfig, load
 from isabelle_blueprint.errors import BlueprintError, ParseError, ValidationError
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
 
+#: External-tool checks that ``doctor --require`` can gate on. Each entry is the
+#: name of a check emitted by :func:`run_doctor`; a tool counts as available when
+#: its check reports ``ok``.
+REQUIREMENT_TOOLS: tuple[str, ...] = ("graphviz", "isabelle")
+
 
 @dataclass(frozen=True)
 class DoctorCheck:
@@ -51,6 +56,33 @@ class DoctorReport:
             "has_warnings": self.has_warnings,
             "checks": [asdict(check) for check in self.checks],
         }
+
+    def tool_available(self, tool: str) -> bool:
+        """Return whether ``tool``'s diagnostic check reported ``ok``."""
+
+        return any(check.name == tool and check.status == "ok" for check in self.checks)
+
+    def requirements(self, required: list[str]) -> list[dict[str, object]]:
+        """Build the additive ``requirements`` payload for ``--require`` gating.
+
+        One entry per requirement-eligible tool, marking whether it is available
+        and whether it was demanded via ``--require``.
+        """
+
+        wanted = set(required)
+        return [
+            {
+                "tool": tool,
+                "available": self.tool_available(tool),
+                "required": tool in wanted,
+            }
+            for tool in REQUIREMENT_TOOLS
+        ]
+
+    def missing_requirements(self, required: list[str]) -> list[str]:
+        """Return required tools that are not available, in request order."""
+
+        return [tool for tool in required if not self.tool_available(tool)]
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)

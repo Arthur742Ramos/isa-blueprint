@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/levels.schema.json",
+  "title": "IsabelleBlueprint dependency levels report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "level_count",
+    "max_width",
+    "levels",
+    "cyclic_nodes"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "level_count": { "type": "integer", "minimum": 0 },
+    "max_width": { "type": "integer", "minimum": 0 },
+    "levels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "node_ids", "count"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "node_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "count": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "cyclic_nodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

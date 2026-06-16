@@ -50,6 +50,86 @@ def test_doctor_json_output(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert '"checks"' in out
     assert '"project_dir"' in out
+    # Without --require the additive requirements array is absent.
+    assert '"requirements"' not in out
+
+
+def test_doctor_require_present_tool_exits_zero(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    # Make Graphviz `dot` deterministically present, Isabelle absent.
+    monkeypatch.setattr(
+        doctor_module.shutil,
+        "which",
+        lambda exe: "/usr/bin/dot" if exe == "dot" else None,
+    )
+
+    rc = cli_main([
+        "doctor",
+        str(tmp_path),
+        "--isabelle",
+        "__isabelle_absent__",
+        "--require",
+        "graphviz",
+    ])
+
+    assert rc == 0
+
+
+def test_doctor_require_absent_tool_exits_five(tmp_path: Path, capsys, monkeypatch) -> None:
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    # Force every tool off PATH so the isabelle check is deterministically not ok
+    # (no dependency on whether a real `isabelle` happens to be installed).
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: None)
+    rc = cli_main([
+        "doctor",
+        str(tmp_path),
+        "--isabelle",
+        "__isabelle_absent__",
+        "--require",
+        "isabelle",
+    ])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert "required tool unavailable: isabelle" in out
+
+
+def test_doctor_require_json_reports_requirements(tmp_path: Path, capsys, monkeypatch) -> None:
+    import json
+
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    monkeypatch.setattr(
+        doctor_module.shutil,
+        "which",
+        lambda exe: "/usr/bin/dot" if exe == "dot" else None,
+    )
+
+    rc = cli_main([
+        "doctor",
+        str(tmp_path),
+        "--isabelle",
+        "__isabelle_absent__",
+        "--require",
+        "graphviz",
+        "--require",
+        "isabelle",
+        "--json",
+    ])
+
+    assert rc == 5
+    payload = json.loads(capsys.readouterr().out)
+    reqs = {entry["tool"]: entry for entry in payload["requirements"]}
+    assert reqs["graphviz"] == {"tool": "graphviz", "available": True, "required": True}
+    assert reqs["isabelle"] == {"tool": "isabelle", "available": False, "required": True}
+
+
+def test_doctor_require_rejects_unknown_tool(tmp_path: Path) -> None:
+    import pytest
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["doctor", str(tmp_path), "--require", "rustc"])
+    # argparse rejects invalid choices with exit code 2 at parse time.
+    assert excinfo.value.code == 2
 
 
 def _config(tmp_path: Path, **kwargs) -> BlueprintConfig:

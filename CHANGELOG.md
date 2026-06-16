@@ -361,6 +361,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`lint` `tag-case-collision` rule** flags tags that differ only by case
+  across the blueprint (e.g. `Algebra` and `algebra`), which fragment the tag
+  rollup, as an `info`-severity finding listing the colliding spellings with an
+  example node for each; also surfaced in SARIF output.
+- **`critical-path --min-leverage N`** filters the bottleneck/leverage ranking to
+  nodes that unblock at least `N` incomplete descendants (leverage ≥ `N`),
+  focusing attention on the highest-impact work. Applies to the text, JSON,
+  Markdown, CSV, and Mermaid outputs; `N` must be a non-negative integer and the
+  default `0` shows the full ranking unchanged.
+- **`effort --nodes`** lists each node with its `effort` weight, formal status,
+  and whether it counts toward proved effort, so you can see where the remaining
+  effort sits. It composes with every output format (a per-node table beneath
+  the summary in text/Markdown, per-node CSV rows with `--csv`, and an additive
+  `nodes` array `{id, effort, formal_status, proved}` under `--json`); without
+  the flag output is unchanged.
+- **`tag-cooccurrence` command** ranks unordered tag pairs by how many nodes
+  carry both tags (descending shared count), surfacing tag clusters and
+  redundancy. Nodes with fewer than two tags contribute no pairs. `--min N`
+  filters out pairs shared by fewer than `N` nodes (default `1`); `--json`
+  emits `{project, min_shared, pair_count, pairs:[{tags, shared_count,
+  node_ids}]}` backed by a packaged schema. Always exits 0.
+- **`fact-coverage` command** groups nodes by the theory of their Isabelle fact
+  (`Theory.fact` -> `Theory`) and reports per-theory node count, proved/found/
+  problem counts, and proved-coverage%. Nodes with no fact fall under
+  `(no fact)`. Text is a per-theory table; `--json` emits
+  `{project, theories: [...]}` validated by the packaged `fact-coverage` schema.
+- **`rename --dry-run` impact preview** adds a per-file edit count (the node
+  definition plus each `uses` reference) and a `total_edits` rollup. `--json`
+  gains additive `total_edits` and `files: [{path, edit_count}]` keys; text
+  output adds a separate `Edits per file:` block and a `total edits:` line,
+  leaving the existing `source:` lines unchanged. `total_edits` sums the
+  per-source edits plus one per rekeyed store, so store rekeys appear only in
+  the rollup, never in the per-file counts. The rename behaviour and re-parse
+  safety check are unchanged.
+- **`portfolio --details`** lists each project's specific problem node ids
+  (`broken`/`not_found`/`tainted`/`failed_check`) and cycle flag: `--json` gains
+  an additive `problem_nodes` array of `{id, formal_status}` per project,
+  `--csv`/`--markdown` gain a trailing `problem_nodes` column, and text mode
+  appends a per-project `Problem details:` block. Default output is unchanged.
+- **`lint` `duplicate-fact` rule** flags (as a `warning`) when two or more nodes
+  reference the same fully-qualified Isabelle fact (`isabelle: Theory.fact`),
+  naming the fact and the colliding node ids. Case-sensitive; nodes with no fact
+  are ignored. Also surfaced in SARIF output.
+- **`levels` command** arranges the dependency DAG into topological levels
+  (level 0 = leaves with no dependencies; each later level depends only on
+  earlier ones), reporting per-level node ids/counts plus a summary of the DAG
+  depth and widest level. Cycle participants are reported separately rather than
+  crashing. `--json` emits a schema-versioned payload (`schema_version`,
+  `project`, `level_count`, `max_width`, `levels`, `cyclic_nodes`) with a
+  packaged `levels` JSON Schema.
+- **`doctor --require TOOL`** (repeatable; choices `graphviz`, `isabelle`) turns
+  doctor into a CI precondition gate: it exits `5` when any required tool is
+  unavailable. In `--json` mode it adds an additive `requirements` array of
+  `{tool, available, required}` entries. Without `--require`, doctor stays
+  informational and its behaviour/exit are unchanged.
 - **`orphans` command** finds nodes unreachable from any project goal (a goal
   being a root result that depends on at least one sub-result). It catches whole
   disconnected subgraphs — more than `lint`'s zero-degree `isolated-node` rule —
@@ -392,6 +447,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call relies on — gained a dedicated behavioural test suite that drives real
   short-lived subprocesses through the happy path, stdin-EOF, non-UTF-8 decode,
   `timeout` tree-kill, and `max_output_bytes` flood-cap paths.
+- **`scorecard --since PATH`** compares against a previously-saved scorecard
+  JSON (a file or a directory containing `scorecard.json`, as produced by
+  `scorecard --json`) and reports the trend: a signed `[+N since baseline]`
+  suffix on the overall line plus each changed component's percentage-point
+  delta in text/Markdown, and an additive `delta` object
+  (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
+  clearly if `PATH` is missing or unreadable; composes with the gates and
+  `--markdown`. Without `--since`, output is byte-for-byte unchanged.
 
 ### Fixed
 
