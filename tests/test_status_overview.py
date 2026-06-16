@@ -13,6 +13,7 @@ from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.status_overview import (
     build_status_overview,
     render_status_markdown,
+    render_status_oneline,
     render_status_overview,
 )
 
@@ -127,6 +128,47 @@ def test_cli_status_human_output(tmp_path: Path, capsys) -> None:
     assert "Coverage:" in out
     assert "Next task: task-b" in out
     assert "Top ready tasks:" not in out
+
+
+def test_render_status_oneline_is_single_summary_line() -> None:
+    project = BlueprintProject.from_nodes(
+        "oneline-test",
+        [
+            _node("a", FormalStatus.PROVED, fact="Demo.a"),
+            _node("b", FormalStatus.NAMED, fact="Demo.b", uses=["a"]),
+            _node("c", FormalStatus.NAMED, fact="Demo.c", uses=["b"]),
+        ],
+    )
+
+    line = render_status_oneline(build_status_overview(project, generate_tasks(project)))
+
+    assert line.endswith("\n")
+    assert line.count("\n") == 1
+    assert line.startswith("oneline-test: ")
+    assert "33% proved" in line
+    assert "[health: ready]" in line
+
+
+def test_cli_status_oneline_output(tmp_path: Path, capsys) -> None:
+    _write_status_project(tmp_path)
+
+    rc = cli_main(["status", str(tmp_path), "--oneline"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1
+    line = out.rstrip("\n")
+    assert "\n" not in line
+    assert line.startswith("CLI status: ")
+    assert "%" in line
+    assert "[health: ready]" in line
+
+
+def test_cli_status_oneline_rejects_json(tmp_path: Path) -> None:
+    _write_status_project(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli_main(["status", str(tmp_path), "--oneline", "--json"])
 
 
 def test_cli_status_top_tasks_json_output(tmp_path: Path, capsys) -> None:

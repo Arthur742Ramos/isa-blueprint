@@ -716,6 +716,7 @@ polling every `--interval` seconds (default `1.0`). Stop with Ctrl-C. A
 
 ```text
 isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
+                          [--markdown] [--oneline]
                           [--kind KIND]
                           [--priority high|medium|low]
                           [--difficulty low|medium|high]
@@ -751,6 +752,12 @@ tasks emit a short note to stderr listing how many ready tasks were excluded.
 statuses. Repeat the flag to select multiple statuses (the `problem` alias
 expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
+
+`--oneline` prints a single compact health summary line (project name, coverage
+percent, ready-task count, problem count, cycle count, and the bracketed health
+label) for shell prompts, CI logs, and grepping across projects. Mutually
+exclusive with `--json` and `--markdown`; default multi-line text output and all
+filter flags are unchanged.
 
 `--watch` re-renders the overview whenever the configuration or blueprint
 sources change, polling every `--interval` seconds (default `1.0`). Stop with
