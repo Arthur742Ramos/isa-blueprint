@@ -252,7 +252,7 @@ The `status` is one of `no_history`, `no_targets`, `complete`,
 ### `portfolio`
 
 ```text
-isabelle-blueprint portfolio [root_dir] [--json | --csv | --markdown] [--fail-on-problem] [--min-coverage PCT]
+isabelle-blueprint portfolio [root_dir] [--json | --csv | --markdown] [--fail-on-problem] [--min-coverage PCT] [--details]
 ```
 
 Scans `root_dir` (default `.`) for every IsabelleBlueprint project and rolls them
@@ -285,6 +285,15 @@ aggregate counts rather than aborting the whole roll-up. `coverage_percent` is
   `{min_coverage, failing_projects, ok}` (`failing_projects` is the list of
   offending project ids, `ok` is `true` when none fail). The object is present
   only when `--min-coverage` is supplied. Composes with `--fail-on-problem`.
+- `--details` lists each project's specific problem node ids (the
+  `broken`/`not_found`/`tainted`/`failed_check` nodes) and cycle flag, so a
+  monorepo maintainer sees *which* nodes are wrong, not just *that* a project is.
+  In `--json` each project gains an additive `problem_nodes` array of
+  `{id, formal_status}`; in `--csv`/`--markdown` a trailing `problem_nodes`
+  column carries a semicolon-joined `id (status)` list; in text mode a
+  per-project `Problem details:` block is appended beneath the table. Without
+  `--details` the output is byte-identical to before. Composes with every other
+  flag.
 
 ### `assign`
 

@@ -24,8 +24,13 @@ from typing import Any
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME
 from isabelle_blueprint.errors import BlueprintError
+from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.project_io import load_project_with_check
-from isabelle_blueprint.report.metrics import build_status_metrics, coverage_percent
+from isabelle_blueprint.report.metrics import (
+    PROBLEM_FORMAL_STATUSES,
+    build_status_metrics,
+    coverage_percent,
+)
 from isabelle_blueprint.report.status_overview import build_status_overview
 
 PORTFOLIO_SCHEMA_VERSION = 1
@@ -39,6 +44,17 @@ _SKIP_DIRS = {
     "site",
     "venv",
 }
+
+
+@dataclass(frozen=True)
+class ProblemNode:
+    """A single node that is actively wrong (broken/not_found/tainted/failed_check)."""
+
+    id: str
+    formal_status: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "formal_status": self.formal_status}
 
 
 @dataclass(frozen=True)
@@ -58,10 +74,11 @@ class PortfolioProject:
     has_cycles: bool | None = None
     coverage_percent: int | None = None
     ready_task_count: int | None = None
+    problem_nodes: tuple[ProblemNode, ...] = ()
     error: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
+    def to_dict(self, *, details: bool = False) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "path": self.path,
@@ -77,6 +94,9 @@ class PortfolioProject:
             "ready_task_count": self.ready_task_count,
             "error": self.error,
         }
+        if details:
+            payload["problem_nodes"] = [node.to_dict() for node in self.problem_nodes]
+        return payload
 
 
 @dataclass(frozen=True)
@@ -171,6 +191,20 @@ def discover_project_roots(root: Path) -> list[Path]:
     return sorted(unique, key=lambda path: _relative_path(root, path))
 
 
+def _collect_problem_nodes(project: BlueprintProject) -> tuple[ProblemNode, ...]:
+    """Return the ids/statuses of nodes that are actively wrong, in source order.
+
+    "Actively wrong" mirrors ``problem_count``: a node whose formal status is one
+    of ``broken``/``not_found``/``tainted``/``failed_check``. ``stale`` is
+    excluded (dependencies changed, the proof itself did not fail).
+    """
+    return tuple(
+        ProblemNode(id=node.id, formal_status=node.status.formal.value)
+        for node in project.nodes
+        if node.status.formal.value in PROBLEM_FORMAL_STATUSES
+    )
+
+
 def _build_project(project_root: Path, relative: str) -> PortfolioProject:
     try:
         _config, project = load_project_with_check(project_root)
@@ -198,6 +232,7 @@ def _build_project(project_root: Path, relative: str) -> PortfolioProject:
         has_cycles=metrics.has_cycles,
         coverage_percent=metrics.coverage_percent,
         ready_task_count=overview.ready_task_count,
+        problem_nodes=_collect_problem_nodes(project),
         error=None,
     )
 
@@ -296,13 +331,18 @@ def coverage_gate_failures(report: PortfolioReport, min_coverage: int) -> list[s
     ]
 
 
-def portfolio_payload(report: PortfolioReport) -> dict[str, Any]:
-    """Render ``report`` as a JSON-friendly dict."""
+def portfolio_payload(report: PortfolioReport, *, details: bool = False) -> dict[str, Any]:
+    """Render ``report`` as a JSON-friendly dict.
+
+    When ``details`` is set, each project gains an additive ``problem_nodes``
+    array (``{id, formal_status}`` per actively-wrong node); the rest of the
+    payload is unchanged.
+    """
     return {
         "schema_version": report.schema_version,
         "root": report.root,
         "totals": report.totals.to_dict(),
-        "projects": [p.to_dict() for p in report.projects],
+        "projects": [p.to_dict(details=details) for p in report.projects],
     }
 
 
@@ -310,8 +350,14 @@ def _coverage_text(coverage: int | None) -> str:
     return "n/a" if coverage is None else f"{coverage}%"
 
 
-def render_portfolio_report(report: PortfolioReport) -> str:
-    """Render ``report`` as concise human-readable text (trailing newline)."""
+def render_portfolio_report(report: PortfolioReport, *, details: bool = False) -> str:
+    """Render ``report`` as concise human-readable text (trailing newline).
+
+    When ``details`` is set, a short per-project ``Problem details:`` block is
+    appended beneath the project table, naming each project's actively-wrong
+    node ids (and flagging dependency cycles). Without it the output is
+    unchanged.
+    """
     totals = report.totals
     if totals.project_count == 0:
         return (
@@ -347,7 +393,35 @@ def render_portfolio_report(report: PortfolioReport) -> str:
             f"proved={project.proved_count}/{project.formal_target_count} "
             f"problems={project.problem_count} ready={project.ready_task_count}"
         )
+    if details:
+        lines.extend(_problem_detail_lines(report))
     return "\n".join(lines) + "\n"
+
+
+def _problem_detail_lines(report: PortfolioReport) -> list[str]:
+    """Per-project problem-node breakdown for ``--details`` text output."""
+    detail: list[str] = []
+    flagged = [
+        project
+        for project in report.projects
+        if project.error is None and (project.problem_nodes or project.has_cycles)
+    ]
+    detail.append("  Problem details:")
+    if not flagged:
+        detail.append("    (none)")
+        return detail
+    for project in flagged:
+        parts: list[str] = []
+        if project.problem_nodes:
+            parts.append(
+                ", ".join(
+                    f"{node.id} ({node.formal_status})" for node in project.problem_nodes
+                )
+            )
+        if project.has_cycles:
+            parts.append("has cycles")
+        detail.append(f"    {project.path}: " + "; ".join(parts))
+    return detail
 
 
 _CSV_COLUMNS = (
@@ -383,7 +457,14 @@ _MARKDOWN_HEADERS = (
 )
 
 
-def render_portfolio_markdown(report: PortfolioReport) -> str:
+def _problem_nodes_cell(project: PortfolioProject) -> str:
+    """Semicolon-joined ``id (status)`` list of a project's problem nodes."""
+    return "; ".join(
+        f"{node.id} ({node.formal_status})" for node in project.problem_nodes
+    )
+
+
+def render_portfolio_markdown(report: PortfolioReport, *, details: bool = False) -> str:
     """Render ``report`` as a Markdown document (trailing newline).
 
     A level-2 heading, a one-line totals summary, and a table with one row per
@@ -391,6 +472,9 @@ def render_portfolio_markdown(report: PortfolioReport) -> str:
     health/status. Errored projects use ``error`` as their status and leave
     numeric cells blank. User-controlled text (project names) is escaped so a
     stray ``|`` or newline cannot break the table.
+
+    When ``details`` is set, an extra trailing ``Problem nodes`` column lists
+    each project's actively-wrong node ids; without it the table is unchanged.
     """
     totals = report.totals
     lines = ["## Portfolio"]
@@ -413,8 +497,9 @@ def render_portfolio_markdown(report: PortfolioReport) -> str:
         + (f"; failed to load {totals.error_count}" if totals.error_count else "")
     )
     lines.append("")
-    lines.append("| " + " | ".join(_MARKDOWN_HEADERS) + " |")
-    lines.append("| " + " | ".join("---" for _ in _MARKDOWN_HEADERS) + " |")
+    headers = _MARKDOWN_HEADERS + (("Problem nodes",) if details else ())
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
     for project in report.projects:
         if project.error is not None:
             cells = [_md_cell(project.name), "", "", "", "", "", "error"]
@@ -428,33 +513,41 @@ def render_portfolio_markdown(report: PortfolioReport) -> str:
                 "" if project.has_cycles is None else ("yes" if project.has_cycles else "no"),
                 project.health or "",
             ]
+        if details:
+            cells.append(_md_cell(_problem_nodes_cell(project)))
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
 
 
-def render_portfolio_csv(report: PortfolioReport) -> str:
+def render_portfolio_csv(report: PortfolioReport, *, details: bool = False) -> str:
     """Render ``report`` as CSV: a header row plus one row per project.
 
     Columns: project name, relative path, node count, coverage percent, proved
     count, problem count, a cycles flag, and health/status. Errored projects use
     ``error`` as their status and leave numeric cells blank. Uses ``\\r\\n`` line
     terminators per the :mod:`csv` module default.
+
+    When ``details`` is set, an extra trailing ``problem_nodes`` column carries a
+    semicolon-joined ``id (status)`` list of each project's actively-wrong nodes;
+    without it the columns are unchanged.
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(_CSV_COLUMNS)
+    columns = _CSV_COLUMNS + (("problem_nodes",) if details else ())
+    writer.writerow(columns)
     for project in report.projects:
         status = "error" if project.error is not None else (project.health or "")
-        writer.writerow(
-            [
-                project.name,
-                project.path,
-                "" if project.node_count is None else project.node_count,
-                "" if project.coverage_percent is None else project.coverage_percent,
-                "" if project.proved_count is None else project.proved_count,
-                "" if project.problem_count is None else project.problem_count,
-                "" if project.has_cycles is None else project.has_cycles,
-                status,
-            ]
-        )
+        row = [
+            project.name,
+            project.path,
+            "" if project.node_count is None else project.node_count,
+            "" if project.coverage_percent is None else project.coverage_percent,
+            "" if project.proved_count is None else project.proved_count,
+            "" if project.problem_count is None else project.problem_count,
+            "" if project.has_cycles is None else project.has_cycles,
+            status,
+        ]
+        if details:
+            row.append(_problem_nodes_cell(project))
+        writer.writerow(row)
     return buffer.getvalue()

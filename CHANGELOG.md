@@ -395,6 +395,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-source edits plus one per rekeyed store, so store rekeys appear only in
   the rollup, never in the per-file counts. The rename behaviour and re-parse
   safety check are unchanged.
+- **`portfolio --details`** lists each project's specific problem node ids
+  (`broken`/`not_found`/`tainted`/`failed_check`) and cycle flag: `--json` gains
+  an additive `problem_nodes` array of `{id, formal_status}` per project,
+  `--csv`/`--markdown` gain a trailing `problem_nodes` column, and text mode
+  appends a per-project `Problem details:` block. Default output is unchanged.
 
 ### Changed
 
