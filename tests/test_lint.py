@@ -407,3 +407,84 @@ def test_lint_tag_case_collision_in_sarif_rules(tmp_path: Path, capsys) -> None:
 
 
 
+def test_lint_flags_duplicate_fact(tmp_path: Path, capsys) -> None:
+    body = """# dup-fact
+
+::: lemma {#a}
+title: A
+isabelle: Demo.shared
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.shared
+status: stub
+uses: a
+
+Another statement.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    dup = [f for f in data["findings"] if f["code"] == "duplicate-fact"]
+    assert {f["node_id"] for f in dup} == {"a", "b"}
+    assert all(f["severity"] == "warning" for f in dup)
+    assert all("Demo.shared" in f["message"] for f in dup)
+    assert any("'b'" in f["message"] for f in dup if f["node_id"] == "a")
+    assert any("'a'" in f["message"] for f in dup if f["node_id"] == "b")
+
+
+def test_lint_clean_project_has_no_duplicate_fact(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _CLEAN)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "duplicate-fact" not in codes
+
+
+def test_lint_duplicate_fact_is_case_sensitive(tmp_path: Path, capsys) -> None:
+    body = """# case
+
+::: lemma {#a}
+title: A
+isabelle: Demo.Fact
+status: stub
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.fact
+status: stub
+uses: a
+
+Another statement.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "duplicate-fact" not in codes

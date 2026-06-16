@@ -400,6 +400,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an additive `problem_nodes` array of `{id, formal_status}` per project,
   `--csv`/`--markdown` gain a trailing `problem_nodes` column, and text mode
   appends a per-project `Problem details:` block. Default output is unchanged.
+- **`lint` `duplicate-fact` rule** flags (as a `warning`) when two or more nodes
+  reference the same fully-qualified Isabelle fact (`isabelle: Theory.fact`),
+  naming the fact and the colliding node ids. Case-sensitive; nodes with no fact
+  are ignored. Also surfaced in SARIF output.
 
 ### Changed
 
