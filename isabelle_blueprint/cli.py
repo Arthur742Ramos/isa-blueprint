@@ -198,6 +198,7 @@ from isabelle_blueprint.report.github_actions import (
 )
 from isabelle_blueprint.report.history import (
     render_trend_csv,
+    render_trend_markdown,
     render_trend_summary,
     summarize_trends,
 )
@@ -1380,6 +1381,8 @@ def cmd_history(args: argparse.Namespace) -> int:
         print(json.dumps(summary.to_dict(), indent=2))
     elif args.csv:
         print(render_trend_csv(summary), end="")
+    elif args.markdown:
+        print(render_trend_markdown(summary), end="")
     else:
         print(render_trend_summary(summary), end="")
     return 0
@@ -3289,6 +3292,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_history_format.add_argument(
         "--csv", action="store_true", help="emit the trend snapshots as CSV"
+    )
+    p_history_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the trend snapshots as a Markdown table",
     )
     p_history.add_argument(
         "--limit",

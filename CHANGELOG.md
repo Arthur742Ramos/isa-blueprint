@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`history --markdown`** renders the trend snapshots as a Markdown table (one
+  row per snapshot: timestamp plus the coverage / count metrics), respecting
+  `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
+  unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
