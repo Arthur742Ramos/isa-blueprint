@@ -435,6 +435,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call relies on — gained a dedicated behavioural test suite that drives real
   short-lived subprocesses through the happy path, stdin-EOF, non-UTF-8 decode,
   `timeout` tree-kill, and `max_output_bytes` flood-cap paths.
+- **`scorecard --since PATH`** compares against a previously-saved scorecard
+  JSON (a file or a directory containing `scorecard.json`, as produced by
+  `scorecard --json`) and reports the trend: a signed `[+N since baseline]`
+  suffix on the overall line plus each changed component's percentage-point
+  delta in text/Markdown, and an additive `delta` object
+  (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
+  clearly if `PATH` is missing or unreadable; composes with the gates and
+  `--markdown`. Without `--since`, output is byte-for-byte unchanged.
 
 ### Fixed
 
