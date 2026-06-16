@@ -9,7 +9,10 @@ from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.critical_path import build_critical_path
+from isabelle_blueprint.report.critical_path import (
+    build_critical_path,
+    render_critical_path_mermaid,
+)
 
 
 def _node(
@@ -393,3 +396,84 @@ Sketch.
     # Strict failure messages go to stderr so the rendered report stays parseable on stdout.
     assert "critical-path:" in captured.err
     assert "critical-path:" not in captured.out
+
+
+def test_cli_mermaid_output(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--mermaid"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    # The goal-chain node ids appear as Mermaid nodes and an edge along the chain.
+    assert 'n_a["a"]' in out
+    assert 'n_b["b"]' in out
+    assert "n_a --> n_b" in out
+    # The leverage node (a unblocks b) is highlighted as a bottleneck.
+    assert "style n_a" in out
+
+
+def test_cli_mermaid_honours_goal(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--mermaid", "--goal", "b"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    assert "n_a --> n_b" in out
+
+
+def test_cli_mermaid_rejects_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--mermaid", "--json"])
+
+
+def test_cli_mermaid_rejects_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--mermaid", "--markdown"])
+
+
+def test_mermaid_invalid_goal_carries_distinct_message() -> None:
+    # An unknown/invalid goal must render a message distinct from the
+    # all-complete and cycle-tangled cases, mirroring the text renderer.
+    project = _project(
+        _node("a"),
+        _node("b", uses=["a"]),
+    )
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview, goal="does-not-exist")
+
+    assert mermaid.startswith("flowchart")
+    assert "is not a remaining goal" in mermaid
+    assert "no remaining critical path" not in mermaid
+
+
+def test_mermaid_all_complete_message() -> None:
+    project = _project(_node("a", formal=FormalStatus.PROVED))
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview)
+
+    assert "All formal targets are complete" in mermaid
+    assert "is not a remaining goal" not in mermaid
+
+
+def test_mermaid_cycle_tangled_message() -> None:
+    project = _project(
+        _node("a", uses=["b"]),
+        _node("b", uses=["a"]),
+    )
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview)
+
+    assert "tangled in cycles" in mermaid
+    assert "is not a remaining goal" not in mermaid
+

@@ -24,6 +24,7 @@ from isabelle_blueprint.agents.blame import (
     blame_payload,
     build_blame,
     render_blame,
+    render_blame_markdown,
     render_blame_table,
 )
 from isabelle_blueprint.agents.context import (
@@ -176,6 +177,7 @@ from isabelle_blueprint.report.critical_path import (
     critical_path_payload,
     critical_path_strict_failures,
     render_critical_path,
+    render_critical_path_mermaid,
     write_critical_path,
 )
 from isabelle_blueprint.report.diff import (
@@ -198,6 +200,7 @@ from isabelle_blueprint.report.github_actions import (
 )
 from isabelle_blueprint.report.history import (
     render_trend_csv,
+    render_trend_markdown,
     render_trend_summary,
     summarize_trends,
 )
@@ -210,10 +213,16 @@ from isabelle_blueprint.report.impact import (
     render_impact_dot,
     render_impact_mermaid,
     render_impact_overview,
+    render_impact_overview_csv,
     render_impact_report,
+    render_impact_report_csv,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
-from isabelle_blueprint.report.lint import build_lint_report, render_lint_report
+from isabelle_blueprint.report.lint import (
+    build_lint_report,
+    render_lint_markdown,
+    render_lint_report,
+)
 from isabelle_blueprint.report.markdown_report import write_markdown_report
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
@@ -233,6 +242,7 @@ from isabelle_blueprint.report.path import (
 )
 from isabelle_blueprint.report.path import (
     build_path_report,
+    render_path_markdown,
     render_path_report,
 )
 from isabelle_blueprint.report.portfolio import (
@@ -918,6 +928,8 @@ def cmd_path(args: argparse.Namespace) -> int:
         ) from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
     return 0
@@ -955,6 +967,8 @@ def cmd_lint(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
     elif fmt == "sarif":
         print(render_sarif(report, project), end="")
+    elif fmt == "markdown":
+        print(render_lint_markdown(report), end="")
     else:
         print(render_lint_report(report), end="")
     if args.strict and not report.ok:
@@ -1102,6 +1116,8 @@ def cmd_blame(args: argparse.Namespace) -> int:
         print(json.dumps(blame_payload(blames), indent=2))
     elif args.table:
         print(render_blame_table(blames), end="")
+    elif args.markdown:
+        print(render_blame_markdown(blames), end="")
     else:
         print(render_blame(blames), end="")
     return 0
@@ -1115,6 +1131,8 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    elif getattr(args, "mermaid", False):
+        print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
@@ -1158,6 +1176,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
             print(render_impact_dot(project, node), end="")
         elif fmt == "mermaid":
             print(render_impact_mermaid(project, node), end="")
+        elif fmt == "csv":
+            print(render_impact_report_csv(report), end="")
         elif fmt == "json":
             print(json.dumps(impact_report_payload(report), indent=2))
         else:
@@ -1166,6 +1186,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
     overview = build_impact_overview(project)
     if fmt == "json":
         print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
+    elif fmt == "csv":
+        print(render_impact_overview_csv(overview, top=args.top), end="")
     else:
         print(render_impact_overview(overview, top=args.top), end="")
     return 0
@@ -1381,6 +1403,8 @@ def cmd_history(args: argparse.Namespace) -> int:
         print(json.dumps(summary.to_dict(), indent=2))
     elif args.csv:
         print(render_trend_csv(summary), end="")
+    elif args.markdown:
+        print(render_trend_markdown(summary), end="")
     else:
         print(render_trend_summary(summary), end="")
     return 0
@@ -2918,7 +2942,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_path.add_argument("source", help="source node id")
     p_path.add_argument("target", help="target node id")
     p_path.add_argument("project_dir", nargs="?", default=".")
-    p_path.add_argument("--json", action="store_true", help="emit the path report as JSON")
+    p_path_format = p_path.add_mutually_exclusive_group()
+    p_path_format.add_argument(
+        "--json", action="store_true", help="emit the path report as JSON"
+    )
+    p_path_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the path report as a Markdown document",
+    )
     p_path.add_argument(
         "--all",
         action="store_true",
@@ -2936,9 +2968,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_lint.add_argument(
         "--format",
-        choices=("text", "json", "sarif"),
+        choices=("text", "json", "sarif", "markdown"),
         default=None,
-        help="output format: text (default), json, or sarif (SARIF 2.1.0 for code scanning)",
+        help=(
+            "output format: text (default), json, sarif (SARIF 2.1.0 for code "
+            "scanning), or markdown"
+        ),
     )
     p_lint.add_argument(
         "--strict",
@@ -3130,6 +3165,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="compact one-row-per-node table instead of the default detailed view",
     )
+    p_blame_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render provenance as a Markdown table",
+    )
     p_blame.set_defaults(func=cmd_blame)
 
     p_critical = sub.add_parser(
@@ -3143,6 +3183,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="print the report as plain Markdown (no colour) to stdout",
+    )
+    p_critical_fmt.add_argument(
+        "--mermaid",
+        action="store_true",
+        help="emit the critical chain as a Mermaid flowchart (bottlenecks highlighted)",
     )
     p_critical.add_argument(
         "--top",
@@ -3184,13 +3229,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_impact.add_argument(
         "--format",
-        choices=("text", "json", "dot", "mermaid"),
+        choices=("text", "json", "dot", "mermaid", "csv"),
         default=None,
         help=(
             "output format (default: text); `dot` emits a Graphviz subgraph of the "
             "node's blast radius and requires --node. `mermaid` emits the same blast "
-            "radius as a Mermaid flowchart and likewise requires --node. `--json` is "
-            "an alias for `--format json`."
+            "radius as a Mermaid flowchart and likewise requires --node. `csv` emits "
+            "one row per node ranked by blast radius, or per dependent when --node is "
+            "given. `--json` is an alias for `--format json`."
         ),
     )
     p_impact.add_argument(
@@ -3310,6 +3356,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_history_format.add_argument(
         "--csv", action="store_true", help="emit the trend snapshots as CSV"
+    )
+    p_history_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the trend snapshots as a Markdown table",
     )
     p_history.add_argument(
         "--limit",
