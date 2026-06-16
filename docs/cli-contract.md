@@ -853,6 +853,7 @@ goal lists by id, and rankings by descending blast radius then id.
 ```text
 isabelle-blueprint agent-context [project_dir]
                                   [--json]
+                                  [--markdown]
                                   [--write]
                                   [--max-tasks N]
                                   [--kind KIND]
@@ -869,6 +870,10 @@ default and prints a Markdown brief to stdout.
 
 - `--json` emits the payload documented by the packaged `agent-context` JSON
   Schema. It does not write files unless `--write` is also supplied.
+- `--markdown` prints the same Markdown handoff that `--write` records in
+  `build/agent-context.md` to stdout. It is mutually exclusive with `--json`; the
+  flag itself writes no files, but `--write` may still be passed to also emit
+  artifacts, and the ready-task filters compose with it.
 - `--write` refreshes `build/project.json`, `build/tasks.json`,
   `build/tasks.md`, `build/prompts/<task-id>.md`, `build/roadmap.json`,
   `build/roadmap.md`, `build/agent-context.json`, and

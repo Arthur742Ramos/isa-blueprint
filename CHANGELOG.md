@@ -314,8 +314,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gate.
 - **`agent-context --markdown`** prints the agent-context Markdown handoff (the
   same content `render_agent_context` / `--write` produces in `agent-context.md`)
-  to stdout without writing any files. Mutually exclusive with `--json`; the
-  existing filter flags compose with it and default behaviour is unchanged.
+  to stdout; the flag itself writes no files, but `--write` may still be passed
+  to also emit artifacts. Mutually exclusive with `--json`; the existing filter
+  flags compose with it and default behaviour is unchanged.
 
 ### Changed
 

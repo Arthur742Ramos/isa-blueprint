@@ -4043,7 +4043,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_agent_context_format.add_argument(
         "--markdown",
         action="store_true",
-        help="print the agent-context Markdown handoff to stdout without writing files",
+        help=(
+            "print the agent-context Markdown handoff to stdout; "
+            "combine with --write to also write artifacts"
+        ),
     )
     p_agent_context.add_argument(
         "--write",
