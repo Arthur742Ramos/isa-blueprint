@@ -110,6 +110,7 @@ def build_lint_report(project: BlueprintProject) -> LintReport:
     """
     findings: list[LintFinding] = []
     findings.extend(_structural_findings(project))
+    findings.extend(_self_dependency_findings(project))
     findings.extend(_quality_findings(project))
     findings.extend(_duplicate_title_findings(project))
     findings.extend(_singleton_tag_findings(project))
@@ -153,6 +154,22 @@ def _structural_findings(project: BlueprintProject) -> list[LintFinding]:
                 message="dependency cycle: " + " -> ".join(cycle),
             )
         )
+    return findings
+
+
+def _self_dependency_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag any node whose ``uses`` list references its own id."""
+    findings: list[LintFinding] = []
+    for node in project.nodes:
+        if node.id in node.uses:
+            findings.append(
+                LintFinding(
+                    code="self-dependency",
+                    severity=SEVERITY_ERROR,
+                    node_id=node.id,
+                    message=f"node {node.id!r} depends on itself",
+                )
+            )
     return findings
 
 
