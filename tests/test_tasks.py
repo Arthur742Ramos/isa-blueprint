@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from isabelle_blueprint.agents.memory import node_input_hash, record_memory_attempt
@@ -233,7 +234,11 @@ def test_cli_tasks_filters_task_artifacts_but_keeps_full_prompt_set(tmp_path: Pa
 
 def test_cli_tasks_summary_prints_table_and_writes_no_files(tmp_path: Path, capsys):
     """--summary prints a compact ready-task table and writes nothing."""
-    example = Path("examples/agent-workflow").resolve()
+    src = Path("examples/agent-workflow").resolve()
+    example = tmp_path / "agent-workflow"
+    shutil.copytree(src, example)
+    # A leftover build/ from a prior local run must not mask the assertion below.
+    shutil.rmtree(example / "build", ignore_errors=True)
 
     rc = cli_main(["tasks", str(example), "--summary"])
 
@@ -252,9 +257,8 @@ def test_cli_tasks_summary_prints_table_and_writes_no_files(tmp_path: Path, caps
     ]
     # At least one ready task row appears.
     assert any(line.startswith("task-") for line in lines[1:])
-    # No artifacts are written under build/ for the bundled example.
-    assert not (example / "build" / "tasks.json").exists()
-    assert not (example / "build" / "prompts").exists()
+    # No artifacts are written under build/ for the example project.
+    assert not (example / "build").exists()
 
 
 def test_cli_tasks_summary_composes_with_kind_filter(tmp_path: Path, capsys):
@@ -268,6 +272,19 @@ def test_cli_tasks_summary_composes_with_kind_filter(tmp_path: Path, capsys):
     out = captured.out
     assert "task-helper" in out
     assert "task-main" not in out
+    assert not (tmp_path / "build").exists()
+
+
+def test_cli_tasks_summary_rejects_side_effect_flags(tmp_path: Path, capsys):
+    """--summary errors when combined with write/side-effect flags."""
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["tasks", str(tmp_path), "--summary", "--tracker-export", "jira"])
+
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "--summary" in captured.err
+    assert "--tracker-export" in captured.err
     assert not (tmp_path / "build").exists()
 
 

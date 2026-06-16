@@ -427,6 +427,7 @@ isabelle-blueprint tasks [project_dir]
                          [--last-outcome OUTCOME]
                          [--exclude-node NODE_OR_TASK]
                          [--tracker-export jira|linear]
+                         [--summary]
                          [--watch] [--interval SECONDS]
 ```
 
@@ -472,6 +473,13 @@ Ctrl-C.
 the ready tasks to `build/tasks-<tracker>.csv`, ready to import into Jira or
 Linear. Difficulty maps to story points / estimate. The CSV honours the same
 ready-task filters as the other task artefacts.
+
+`--summary` prints a compact aligned table of the ready tasks
+(columns: task id, node id, kind, priority, difficulty, blocked-by count) to
+stdout and writes no files. It honours the same ready-task filters and cannot be
+combined with the write/side-effect flags
+(`--github-issues`/`--github-sync`/`--github-sync-confirm`/`--github-sync-pull`/`--tracker-export`),
+which error out rather than being silently ignored.
 
 ### `next`
 

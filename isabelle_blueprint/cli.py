@@ -1803,6 +1803,19 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
     filters = _ready_task_filters_from_args(args)
     ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
     if getattr(args, "summary", False):
+        side_effect_flags = (
+            ("--github-issues", args.github_issues),
+            ("--github-sync", args.github_sync),
+            ("--github-sync-confirm", args.github_sync_confirm),
+            ("--github-sync-pull", args.github_sync_pull),
+            ("--tracker-export", getattr(args, "tracker_export", None)),
+        )
+        conflicting = [name for name, value in side_effect_flags if value]
+        if conflicting:
+            raise BlueprintError(
+                "--summary prints to stdout and writes no files; it cannot be combined with "
+                + "/".join(conflicting)
+            )
         print(render_tasks_summary(ready_tasks), end="")
         if filters.active and not ready_tasks:
             print(_no_ready_task_message(len(all_ready_tasks), filters), file=sys.stderr)
