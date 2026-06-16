@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (heading, a summary count line, and a table of findings: code, severity, node,
   message, with `|` escaped in cells). Existing text/json/sarif output and the
   `--strict` exit behaviour are unchanged.
+- **`gate --markdown`** renders the pass/fail gate result as a Markdown report
+  (a heading, an overall PASS/FAIL line, and a table of each check with name,
+  ok, and detail). Mutually exclusive with `--json`; the exit code and existing
+  `--min-coverage`/`--min-grade`/`--fail-on` behaviour are unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
