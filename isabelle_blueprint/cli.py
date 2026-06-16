@@ -296,6 +296,7 @@ from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
     render_tag_report,
+    render_tags_csv,
     render_tags_markdown,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
@@ -892,6 +893,14 @@ def cmd_tags(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
     elif getattr(args, "markdown", False):
         print(render_tags_markdown(report), end="")
+        if gate is not None and not gate.ok:
+            print(
+                f"fail-under {fail_under}% policy triggered: "
+                f"{', '.join(gate.failing_tags)} below threshold.",
+                file=sys.stderr,
+            )
+    elif getattr(args, "csv", False):
+        print(render_tags_csv(report), end="")
         if gate is not None and not gate.ok:
             print(
                 f"fail-under {fail_under}% policy triggered: "
@@ -2915,6 +2924,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="emit the tag roll-up as a Markdown table",
+    )
+    p_tags_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the tag roll-up as CSV (one row per tag plus an untagged row)",
     )
     p_tags.add_argument(
         "--tag",

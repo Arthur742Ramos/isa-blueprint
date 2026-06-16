@@ -288,6 +288,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode. Projects with undefined coverage (no formal targets, or load errors) are
   excluded from failures. Composes with `--fail-on-problem`; absent the flag,
   behaviour is unchanged.
+- **`tags --csv`** emits one CSV row per tag (columns: `tag`, `nodes`,
+  `formal_targets`, `proved`, `found`, `problems`, `proved_coverage_percent`)
+  plus a header and a trailing `(untagged)` count row to stdout. Mutually
+  exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
+  gate.
 
 ### Changed
 

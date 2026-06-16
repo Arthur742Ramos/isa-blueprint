@@ -15,6 +15,8 @@ formal targets). No Isabelle invocation is required.
 """
 from __future__ import annotations
 
+import csv
+import io
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -252,6 +254,46 @@ def render_tags_markdown(report: TagReport) -> str:
         lines.append("_(no tagged nodes)_")
     lines.extend(["", f"Untagged nodes: {report.untagged_count}"])
     return "\n".join(lines) + "\n"
+
+
+TAGS_CSV_COLUMNS = (
+    "tag",
+    "nodes",
+    "formal_targets",
+    "proved",
+    "found",
+    "problems",
+    "proved_coverage_percent",
+)
+
+
+def render_tags_csv(report: TagReport) -> str:
+    """Render the roll-up as CSV: a header plus one row per tag.
+
+    Columns: tag, nodes, formal_targets, proved, found, problems, and
+    proved_coverage_percent (blank when the tag has no formal targets). A final
+    ``(untagged)`` row carries the project-wide untagged node count in the
+    ``nodes`` column; its target/coverage columns are left blank.
+    """
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(TAGS_CSV_COLUMNS)
+    for stat in report.tags:
+        coverage = "" if stat.coverage_percent is None else stat.coverage_percent
+        writer.writerow(
+            [
+                stat.tag,
+                stat.node_count,
+                stat.formal_target_count,
+                stat.proved_count,
+                stat.found_count,
+                stat.problem_count,
+                coverage,
+            ]
+        )
+    writer.writerow(["(untagged)", report.untagged_count, "", "", "", "", ""])
+    return buffer.getvalue()
 
 
 def _coverage(proved: int, targets: int) -> int | None:
