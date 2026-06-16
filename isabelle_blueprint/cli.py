@@ -819,8 +819,6 @@ def cmd_graph(args: argparse.Namespace) -> int:
             raise BlueprintError(
                 f"unknown node {focus!r}; known node ids: {known}"
             ) from None
-    if getattr(args, "roots_only", False) and getattr(args, "leaves_only", False):
-        raise BlueprintError("--roots-only and --leaves-only are mutually exclusive")
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
     if getattr(args, "leaves_only", False):

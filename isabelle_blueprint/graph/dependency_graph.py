@@ -75,7 +75,7 @@ def roots_subproject(project: BlueprintProject) -> BlueprintProject:
 def leaves_subproject(project: BlueprintProject) -> BlueprintProject:
     """Return a pruned copy of ``project`` limited to its LEAF nodes.
 
-    A leaf is a node that does not ``uses`` anything (no outgoing dependency
+    A leaf is a node that does not ``use`` anything (no outgoing dependency
     edge); these are the foundational axioms/definitions the blueprint builds
     on. Because leaves have no outgoing edges they cannot depend on one another,
     so the pruned graph has no edges between them: when :func:`build_graph`
