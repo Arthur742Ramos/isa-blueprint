@@ -302,6 +302,7 @@ from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     diff_roadmaps,
     load_roadmap_payload,
+    overlay_owners,
     render_roadmap,
     render_roadmap_csv,
     render_roadmap_markdown,
@@ -2271,6 +2272,12 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     if args.write:
         output_dir = Path(args.out).resolve() if args.out else config.build_dir
         written = write_roadmap(roadmap, output_dir)
+    if args.assignees:
+        owners = {
+            node_id: assignment.owner
+            for node_id, assignment in load_assignments(config.assignments_path).nodes.items()
+        }
+        roadmap = overlay_owners(roadmap, owners)
     if args.mermaid:
         print(render_roadmap_mermaid(roadmap, filters=filters), end="")
         stream = sys.stderr
@@ -4497,6 +4504,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--write",
         action="store_true",
         help="write build/roadmap.json and build/roadmap.md artifacts",
+    )
+    p_roadmap.add_argument(
+        "--assignees",
+        action="store_true",
+        help="overlay per-node owner assignments (from the assign store) on each item",
     )
     p_roadmap.add_argument(
         "--out",

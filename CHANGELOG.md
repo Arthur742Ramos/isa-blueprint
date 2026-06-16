@@ -503,6 +503,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   descending node count. The by-kind sibling of `tags`. `--json` emits the
   structured rollup against a packaged `kinds.schema.json`.
 
+- **`roadmap --assignees`** overlays per-node owner assignments (from the
+  `assign`/`blame` store) onto the staged plan: text gains an `owner`
+  annotation, Markdown gains a trailing `owner` column, and `--json` gains an
+  additive `owner` field per item (`null` for unassigned nodes). Written
+  artifacts are unaffected; without the flag, output is unchanged.
+
 ### Fixed
 
 - **`graph --format svg` can no longer hang** on a wedged or pathological

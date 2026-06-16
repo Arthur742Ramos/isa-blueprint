@@ -5,6 +5,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
@@ -387,6 +389,96 @@ def test_cli_roadmap_write_ignores_filters_for_canonical_artifacts(
     assert data["summary"]["node_count"] == 3
     items = [item for stage in data["stages"] for item in stage["items"]]
     assert {item["node_id"] for item in items} == {"a", "b", "c"}
+
+
+def test_cli_roadmap_assignees_text_shows_owner_and_unassigned(
+    tmp_path: Path, capsys
+) -> None:
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path), "--assignees"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "owner `alice`" in out
+    # `a`/`c` have no assignment and are surfaced as unassigned.
+    assert "owner `(unassigned)`" in out
+
+
+def test_cli_roadmap_without_assignees_omits_owner(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "owner" not in out
+
+
+def test_cli_roadmap_assignees_json_adds_owner_field(tmp_path: Path, capsys) -> None:
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path), "--json", "--assignees"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert _item(data, "b")["owner"] == "alice"
+    # Unassigned nodes carry an explicit null owner.
+    assert _item(data, "a")["owner"] is None
+
+
+def test_cli_roadmap_json_without_assignees_omits_owner_key(
+    tmp_path: Path, capsys
+) -> None:
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "owner" not in _item(data, "b")
+
+
+def test_cli_roadmap_assignees_json_validates_against_schema(
+    tmp_path: Path, capsys
+) -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    from isabelle_blueprint.schemas import read_schema
+
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path), "--json", "--assignees"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    schema = json.loads(read_schema("roadmap"))
+    jsonschema.Draft202012Validator(schema).validate(data)
+
+
+def test_cli_roadmap_assignees_markdown_adds_owner_column(
+    tmp_path: Path, capsys
+) -> None:
+    _write_roadmap_project(tmp_path)
+    assert cli_main(["assign", "b", "--project-dir", str(tmp_path), "--owner", "alice"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main(["roadmap", str(tmp_path), "--markdown", "--assignees"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "| id | kind | formal status | agent status | blocker count | owner |" in out
+    assert "| alice |" in out
+    assert "| (unassigned) |" in out
 
 
 def _write_roadmap_project(tmp_path: Path) -> None:

@@ -5,8 +5,8 @@ import csv
 import io
 import json
 from collections import Counter
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from isabelle_blueprint.agents.tasks import AgentTask
@@ -89,9 +89,11 @@ class RoadmapItem:
     difficulty: str | None = None
     suggested_order: int | None = None
     uses: tuple[str, ...] = ()
+    owner: str | None = None
+    owner_shown: bool = False
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "node_id": self.node_id,
             "title": self.title,
             "kind": self.kind,
@@ -107,6 +109,9 @@ class RoadmapItem:
             "difficulty": self.difficulty,
             "suggested_order": self.suggested_order,
         }
+        if self.owner_shown:
+            data["owner"] = self.owner
+        return data
 
 
 @dataclass(frozen=True)
@@ -284,6 +289,47 @@ def build_roadmap(project: BlueprintProject, ready_tasks: Sequence[AgentTask]) -
     )
 
 
+ROADMAP_UNASSIGNED = "(unassigned)"
+
+
+def overlay_owners(
+    roadmap: RoadmapOverview, owners: Mapping[str, str]
+) -> RoadmapOverview:
+    """Return a roadmap whose items carry OWNER assignments for display.
+
+    ``owners`` maps node id to owner name (typically the ``assign``/``blame``
+    assignments store). Every item gains ``owner_shown=True`` so renderers and
+    the JSON payload include the additive owner annotation; nodes with no
+    assignment get ``owner=None`` (shown as ``(unassigned)`` in text/markdown
+    and ``null`` in JSON). Without this overlay items are unchanged.
+    """
+
+    stages = [
+        RoadmapStage(
+            index=stage.index,
+            items=[
+                replace(
+                    item,
+                    owner=(owners.get(item.node_id) or None),
+                    owner_shown=True,
+                )
+                for item in stage.items
+            ],
+        )
+        for stage in roadmap.stages
+    ]
+    return RoadmapOverview(
+        schema_version=roadmap.schema_version,
+        project=roadmap.project,
+        summary=roadmap.summary,
+        metrics=roadmap.metrics,
+        suggested_next_task=roadmap.suggested_next_task,
+        suggested_path=roadmap.suggested_path,
+        cycles=roadmap.cycles,
+        stages=stages,
+    )
+
+
 def roadmap_payload(
     roadmap: RoadmapOverview,
     *,
@@ -390,6 +436,8 @@ def render_roadmap(
                 details.append(task_detail)
             if item.target_fact:
                 details.append(f"fact `{item.target_fact}`")
+            if item.owner_shown:
+                details.append(f"owner `{item.owner or ROADMAP_UNASSIGNED}`")
             if item.blocked_by:
                 blockers = ", ".join(
                     f"`{blocker.id}` ({blocker.status})" for blocker in item.blocked_by
@@ -510,8 +558,10 @@ def render_roadmap_markdown(
     if not rendered.stages:
         lines.extend(["_(no matching roadmap items)_", ""])
         return "\n".join(lines)
-    header = "| " + " | ".join(ROADMAP_MARKDOWN_COLUMNS) + " |"
-    separator = "| " + " | ".join("---" for _ in ROADMAP_MARKDOWN_COLUMNS) + " |"
+    show_owner = any(item.owner_shown for stage in rendered.stages for item in stage.items)
+    columns = (*ROADMAP_MARKDOWN_COLUMNS, "owner") if show_owner else ROADMAP_MARKDOWN_COLUMNS
+    header = "| " + " | ".join(columns) + " |"
+    separator = "| " + " | ".join("---" for _ in columns) + " |"
     for stage in rendered.stages:
         lines.extend([f"## Stage {stage.index}", ""])
         if not stage.items:
@@ -526,6 +576,8 @@ def render_roadmap_markdown(
                 _md_cell(item.agent_status),
                 str(len(item.blocked_by)),
             ]
+            if show_owner:
+                cells.append(_md_cell(item.owner or ROADMAP_UNASSIGNED))
             lines.append("| " + " | ".join(cells) + " |")
         lines.append("")
     return "\n".join(lines)
