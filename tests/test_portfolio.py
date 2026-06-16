@@ -17,6 +17,7 @@ from isabelle_blueprint.report.portfolio import (
     render_portfolio_csv,
     render_portfolio_markdown,
     render_portfolio_report,
+    sort_portfolio_report,
 )
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
@@ -514,3 +515,154 @@ def test_cli_portfolio_min_coverage_out_of_range_rejected(
 
     # argparse rejects an invalid --min-coverage as a usage error (exit 2).
     assert excinfo.value.code == 2
+
+
+def _write_sort_tree(tmp_path: Path) -> None:
+    # gamma: highest coverage; beta: middle; alpha: lowest. Discovery order is
+    # alpha, beta, gamma (sorted by relative path).
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a1", formal="named"), _node_md("a2", formal="named")),
+    )
+    _write_project(
+        tmp_path / "beta",
+        name="beta",
+        body=_nodes(_node_md("b1", formal="proved"), _node_md("b2", formal="named")),
+    )
+    _write_project(
+        tmp_path / "gamma",
+        name="gamma",
+        body=_nodes(_node_md("g1", formal="proved"), _node_md("g2", formal="proved")),
+    )
+
+
+def test_cli_portfolio_sort_coverage_descending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_sort_tree(tmp_path)
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--json", "--sort", "coverage"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["gamma", "beta", "alpha"]
+    coverages = [p["coverage_percent"] for p in payload["projects"]]
+    assert coverages == sorted(coverages, reverse=True)
+
+
+def test_cli_portfolio_sort_name_ascending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_project(tmp_path / "zeta", name="zeta", body=_node_md("z"))
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a"))
+    _write_project(tmp_path / "mu", name="mu", body=_node_md("m"))
+
+    exit_code = cli_main(["portfolio", str(tmp_path), "--json", "--sort", "name"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    payload = json.loads(out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["alpha", "mu", "zeta"]
+
+
+def test_cli_portfolio_sort_default_is_byte_unchanged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_sort_tree(tmp_path)
+
+    assert cli_main(["portfolio", str(tmp_path), "--json"]) == 0
+    baseline = capsys.readouterr().out
+    assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "name"]) == 0
+    capsys.readouterr()
+    # Re-run without --sort: identical to the original output.
+    assert cli_main(["portfolio", str(tmp_path), "--json"]) == 0
+    assert capsys.readouterr().out == baseline
+
+
+def test_cli_portfolio_sort_rejects_unknown_key(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["portfolio", str(tmp_path), "--sort", "bogus"])
+
+    assert excinfo.value.code == 2
+
+
+def test_cli_portfolio_sort_nodes_descending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # alpha: 2 nodes, beta: 3 nodes, gamma: 1 node. Discovery order is
+    # alpha, beta, gamma; --sort nodes must reorder by node count, highest first.
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a1"), _node_md("a2")),
+    )
+    _write_project(
+        tmp_path / "beta",
+        name="beta",
+        body=_nodes(_node_md("b1"), _node_md("b2"), _node_md("b3")),
+    )
+    _write_project(tmp_path / "gamma", name="gamma", body=_node_md("g1"))
+
+    assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "nodes"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["beta", "alpha", "gamma"]
+    counts = [p["node_count"] for p in payload["projects"]]
+    assert counts == sorted(counts, reverse=True)
+
+
+def test_cli_portfolio_sort_problems_descending(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # alpha: 0 problems, beta: 2 problems, gamma: 1 problem. Discovery order is
+    # alpha, beta, gamma; --sort problems lists the most-troubled project first.
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a1", formal="proved"))
+    _write_project(
+        tmp_path / "beta",
+        name="beta",
+        body=_nodes(_node_md("b1", formal="broken"), _node_md("b2", formal="broken")),
+    )
+    _write_project(tmp_path / "gamma", name="gamma", body=_node_md("g1", formal="broken"))
+
+    assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "problems"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names == ["beta", "gamma", "alpha"]
+    counts = [p["problem_count"] for p in payload["projects"]]
+    assert counts == sorted(counts, reverse=True)
+
+
+def test_cli_portfolio_sort_undefined_metric_sorts_last(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An errored project (config marker, no blueprint.md) has a None metric and
+    # must sort after every loadable project regardless of the metric chosen.
+    _write_project(
+        tmp_path / "alpha",
+        name="alpha",
+        body=_nodes(_node_md("a1", formal="proved"), _node_md("a2", formal="proved")),
+    )
+    bad_dir = tmp_path / "zbad"
+    bad_dir.mkdir(parents=True, exist_ok=True)
+    (bad_dir / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "zbad"\n', encoding="utf-8"
+    )
+
+    assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "coverage"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    names = [p["name"] for p in payload["projects"]]
+    assert names[-1] == "zbad"
+    assert payload["projects"][-1]["error"] is not None
+
+
+def test_sort_portfolio_report_unknown_key_raises_value_error(tmp_path: Path) -> None:
+    # Misuse outside the CLI must fail loudly rather than silently mis-ordering.
+    _write_project(tmp_path / "alpha", name="alpha", body=_node_md("a1"))
+    report = build_portfolio(tmp_path)
+
+    with pytest.raises(ValueError, match="unknown sort key"):
+        sort_portfolio_report(report, "bogus")

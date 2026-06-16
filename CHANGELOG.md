@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`portfolio --sort {name,coverage,nodes,problems}`** orders the listed
+  projects (`name` ascending; `coverage`/`nodes`/`problems` descending) across
+  text/JSON/CSV/Markdown output; default discovery order is unchanged.
 - **`lint` `self-dependency` rule** flags any node whose `uses` list contains
   its own id (a node depending on itself) as an `error`-severity finding, naming
   the offending node id; also surfaced in SARIF output.
@@ -315,6 +318,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`graph --leaves-only`** prunes the emitted graph (every format) to leaf
+  nodes — those that use nothing (the foundational axioms/definitions).
+  Composes with `--focus`/`--depth`/`--format`; mutually exclusive with
+  `--roots-only`; default graph output is unchanged.
 
 ### Changed
 
