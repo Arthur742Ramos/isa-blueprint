@@ -11,6 +11,7 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_csv,
     render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
@@ -411,4 +412,48 @@ def test_cli_staleness_fail_on_outdated_composes_with_problem(
     assert rc == 5
     err = capsys.readouterr().err
     assert "broken/missing" in err
+
+
+def test_render_csv_lists_flagged_node() -> None:
+    report = build_staleness_report(
+        _project(
+            _node("a", formal=FormalStatus.BROKEN),
+            _node("b", uses=["a"], formal=FormalStatus.PROVED),
+        )
+    )
+    csv_text = render_staleness_csv(report)
+    assert "\r" not in csv_text
+    lines = csv_text.splitlines()
+    assert lines[0] == "node_id,severity,cause_count,first_cause"
+    b_row = next(line for line in lines if line.startswith("b,"))
+    assert "problem" in b_row
+
+
+def test_cli_staleness_csv(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+    rc = cli_main(["staleness", str(tmp_path), "--csv"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "\r" not in out
+    lines = out.splitlines()
+    assert lines[0] == "node_id,severity,cause_count,first_cause"
+    b_row = next(line for line in lines if line.startswith("b,"))
+    assert "problem" in b_row
+
+
+def test_cli_staleness_csv_composes_with_fail_on_problem(
+    tmp_path: Path, capsys
+) -> None:
+    _write_project(tmp_path, _BODY)
+    rc = cli_main(["staleness", str(tmp_path), "--csv", "--fail-on-problem"])
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "node_id,severity,cause_count,first_cause" in captured.out
+    assert "broken/missing" in captured.err
+
+
+def test_cli_staleness_csv_rejects_json(tmp_path: Path) -> None:
+    _write_project(tmp_path, _BODY)
+    with pytest.raises(SystemExit):
+        cli_main(["staleness", str(tmp_path), "--csv", "--json"])
 
