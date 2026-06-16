@@ -176,6 +176,7 @@ from isabelle_blueprint.report.critical_path import (
     critical_path_payload,
     critical_path_strict_failures,
     render_critical_path,
+    render_critical_path_mermaid,
     write_critical_path,
 )
 from isabelle_blueprint.report.diff import (
@@ -1114,6 +1115,8 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     goal = getattr(args, "goal", None)
     if args.json:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
+    elif getattr(args, "mermaid", False):
+        print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
@@ -3122,6 +3125,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="print the report as plain Markdown (no colour) to stdout",
+    )
+    p_critical_fmt.add_argument(
+        "--mermaid",
+        action="store_true",
+        help="emit the critical chain as a Mermaid flowchart (bottlenecks highlighted)",
     )
     p_critical.add_argument(
         "--top",

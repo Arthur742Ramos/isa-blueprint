@@ -393,3 +393,44 @@ Sketch.
     # Strict failure messages go to stderr so the rendered report stays parseable on stdout.
     assert "critical-path:" in captured.err
     assert "critical-path:" not in captured.out
+
+
+def test_cli_mermaid_output(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--mermaid"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    # The goal-chain node ids appear as Mermaid nodes and an edge along the chain.
+    assert 'n_a["a"]' in out
+    assert 'n_b["b"]' in out
+    assert "n_a --> n_b" in out
+    # The leverage node (a unblocks b) is highlighted as a bottleneck.
+    assert "style n_a" in out
+
+
+def test_cli_mermaid_honours_goal(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--mermaid", "--goal", "b"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("flowchart")
+    assert "n_a --> n_b" in out
+
+
+def test_cli_mermaid_rejects_json(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--mermaid", "--json"])
+
+
+def test_cli_mermaid_rejects_markdown(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    with pytest.raises(SystemExit):
+        cli_main(["critical-path", str(tmp_path), "--mermaid", "--markdown"])

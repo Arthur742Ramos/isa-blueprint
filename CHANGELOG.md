@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`critical-path --mermaid`** emits a Mermaid `flowchart` of the longest
+  remaining incomplete dependency chain (or a single goal's chain via `--goal`),
+  with high-leverage bottleneck nodes highlighted. Mutually exclusive with
+  `--json` and `--markdown`.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.

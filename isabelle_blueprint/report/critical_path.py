@@ -363,6 +363,62 @@ def render_critical_path(
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
+def render_critical_path_mermaid(
+    overview: CriticalPathOverview,
+    *,
+    top: int = 5,
+    goal: str | None = None,
+) -> str:
+    """Render the critical (longest incomplete) chain as a Mermaid ``flowchart``.
+
+    The chain shown is the project-wide critical path, or - when ``goal`` is
+    given - that goal's own longest incomplete chain. Nodes are labelled by id,
+    edges follow the chain in dependency order, and any node that is also a
+    top-``top`` bottleneck (a high-leverage node that unblocks the most
+    downstream work) is highlighted so the leverage points stand out.
+    """
+
+    if goal is not None:
+        goal_chain = goal_chain_for(overview, goal)
+        path = list(goal_chain.path) if goal_chain is not None else []
+    elif overview.longest is not None:
+        path = list(overview.longest.path)
+    else:
+        path = []
+
+    bottleneck_ids = {b.node_id for b in overview.bottlenecks[:top]}
+
+    lines = ["flowchart TB"]
+    if not path:
+        lines.append('  empty["(no remaining critical path)"]')
+        return "\n".join(lines) + "\n"
+    for node_id in path:
+        lines.append(f'  {_mermaid_node_id(node_id)}["{_mermaid_text(node_id)}"]')
+    for src, dst in zip(path, path[1:], strict=False):
+        lines.append(f"  {_mermaid_node_id(src)} --> {_mermaid_node_id(dst)}")
+    for node_id in path:
+        if node_id in bottleneck_ids:
+            lines.append(
+                f"  style {_mermaid_node_id(node_id)} "
+                "fill:#fde047,stroke:#1f2937,color:#111827"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _mermaid_node_id(node_id: str) -> str:
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
+    return f"n_{safe}"
+
+
+def _mermaid_text(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', "&quot;")
+        .replace("|", "&#124;")
+        .replace("\n", "<br/>")
+    )
+
+
 def write_critical_path(
     overview: CriticalPathOverview,
     build_dir: Path,
