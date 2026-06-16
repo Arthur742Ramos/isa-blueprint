@@ -132,8 +132,10 @@ def test_notify_markdown_preview(tmp_path: Path, capsys) -> None:
     assert rc == 0
     captured = capsys.readouterr()
     out = captured.out
-    # Heading carries the project name; body shows the coverage figure.
-    assert out.startswith("# IsabelleBlueprint status - notify-test")
+    # Heading carries the project name AND the coverage figure (advertised format).
+    first_line = out.splitlines()[0]
+    assert first_line.startswith("# IsabelleBlueprint status - notify-test")
+    assert "Coverage: 100%" in first_line
     assert "Coverage: 100%" in out
     # Preview goes to stdout and is not valid JSON (it is Markdown text).
     with pytest.raises(json.JSONDecodeError):

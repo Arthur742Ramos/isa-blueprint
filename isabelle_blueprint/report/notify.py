@@ -128,7 +128,13 @@ def render_markdown(content: NotificationContent) -> str:
     aggregate metric lines as the webhook formats (including the optional
     burndown ETA line, when present).
     """
-    body = [f"# {content.title}", "", content.summary]
+    coverage_line = next(
+        (line for line in content.lines if line.startswith("Coverage:")), None
+    )
+    heading = f"# {content.title}"
+    if coverage_line is not None:
+        heading = f"{heading} ({coverage_line})"
+    body = [heading, "", content.summary]
     if content.lines:
         body.append("")
         body.extend(f"- {line}" for line in content.lines)
