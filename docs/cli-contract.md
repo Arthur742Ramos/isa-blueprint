@@ -822,6 +822,22 @@ All ordering is deterministic: dependency and dependent iteration is sorted by
 id, goals are ordered by descending depth then id, and bottlenecks by descending
 leverage then id.
 
+### `levels`
+
+```text
+isabelle-blueprint levels [project_dir] [--json]
+```
+
+Arranges the dependency DAG into topological **levels**: level 0 holds the
+leaves (nodes with no dependencies) and each subsequent level holds nodes whose
+dependencies all live in strictly earlier levels. The text form prints one
+section per level (its index, node count, and node ids) plus a summary line
+giving the total level count (the DAG depth) and the widest level. Nodes that
+participate in a dependency cycle cannot be placed and are reported separately,
+never crashing. `--json` emits a schema-versioned payload (`schema_version`,
+`project`, `level_count`, `max_width`, `levels` of `{index, node_ids, count}`,
+and `cyclic_nodes`); see `schema levels`.
+
 ### `impact`
 
 ```text
@@ -1057,7 +1073,8 @@ isabelle-blueprint schema [name] [--out DIR]
 Prints a packaged JSON Schema, lists schema names when `name` is omitted, or
 writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
-`plugin-annotations`, `agent-memory`, `path`, `scorecard`, and `tags`.
+`plugin-annotations`, `agent-memory`, `path`, `scorecard`, `tags`, and
+`levels`.
 
 ### `stats`
 

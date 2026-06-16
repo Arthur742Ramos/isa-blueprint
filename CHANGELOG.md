@@ -361,6 +361,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`levels` command** arranges the dependency DAG into topological levels
+  (level 0 = leaves with no dependencies; each later level depends only on
+  earlier ones), reporting per-level node ids/counts plus a summary of the DAG
+  depth and widest level. Cycle participants are reported separately rather than
+  crashing. `--json` emits a schema-versioned payload (`schema_version`,
+  `project`, `level_count`, `max_width`, `levels`, `cyclic_nodes`) with a
+  packaged `levels` JSON Schema.
 
 ### Changed
 
