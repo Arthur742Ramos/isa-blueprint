@@ -16,6 +16,8 @@ orphans). No Isabelle invocation is required.
 """
 from __future__ import annotations
 
+import csv
+import io
 from collections import deque
 from dataclasses import dataclass
 
@@ -112,14 +114,12 @@ def build_orphan_report(project: BlueprintProject) -> OrphanReport:
     )
 
 
-def render_orphan_report(report: OrphanReport) -> str:
-    """Render the orphan report as compact Markdown for the terminal."""
+def _render_orphan_table(report: OrphanReport) -> str:
+    """Render the heading, summary and Markdown table for a non-empty report.
 
-    if not report.orphans:
-        return (
-            f"{report.project}: No orphan nodes "
-            "(every node is reachable from a project goal).\n"
-        )
+    Shared by :func:`render_orphan_report` and :func:`render_orphans_markdown`
+    so the two only differ in how they handle the clean/empty case.
+    """
 
     lines = [f"# {report.project} orphans", ""]
     lines.append(
@@ -142,7 +142,57 @@ def render_orphan_report(report: OrphanReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_orphan_report(report: OrphanReport) -> str:
+    """Render the orphan report as compact Markdown for the terminal."""
+
+    if not report.orphans:
+        return (
+            f"{report.project}: No orphan nodes "
+            "(every node is reachable from a project goal).\n"
+        )
+
+    return _render_orphan_table(report)
+
+
 def _escape_cell(text: str) -> str:
     """Neutralise Markdown table delimiters in a user-controlled cell."""
 
     return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_orphans_markdown(report: OrphanReport) -> str:
+    """Render the orphan list as a standalone Markdown document.
+
+    Columns: id, kind, formal status, isolated. Id cells are escaped so a
+    ``|`` in a node id cannot break the table. The clean case renders a single
+    note line under the heading with no table.
+    """
+
+    if report.orphans:
+        return _render_orphan_table(report)
+    return f"# {report.project} orphans\n\n_(no orphan nodes)_\n"
+
+
+ORPHANS_CSV_COLUMNS = ("id", "kind", "formal_status", "isolated")
+
+
+def render_orphans_csv(report: OrphanReport) -> str:
+    """Render the orphan list as CSV: a header plus one row per orphan.
+
+    Columns: id, kind, formal_status, isolated. The clean case emits just the
+    header row.
+    """
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(ORPHANS_CSV_COLUMNS)
+    for orphan in report.orphans:
+        writer.writerow(
+            [
+                orphan.id,
+                orphan.kind,
+                orphan.formal_status,
+                "true" if orphan.isolated else "false",
+            ]
+        )
+    return buffer.getvalue()

@@ -916,7 +916,7 @@ goal lists by id, and rankings by descending blast radius then id.
 
 ```text
 isabelle-blueprint orphans [project_dir]
-                           [--json]
+                           [--json | --markdown | --csv]
                            [--fail-on-orphan]
 ```
 
@@ -935,8 +935,15 @@ analysis walks the `uses`-dependency graph; any node it never reaches is an
   status, isolated) plus a summary count; a clean project prints a single line.
 - `--json` emits `{schema_version, project, orphan_count, orphans:[{id, kind,
   formal_status, isolated}]}` (validated by the packaged `orphans.schema.json`).
-- `--fail-on-orphan` exits 5 when any orphan exists (a CI gate); a project with
-  no orphans exits 0.
+- `--markdown` renders a standalone Markdown document: an `# <project> orphans`
+  heading, a summary count line, then the orphans table (node, kind, formal
+  status, isolated); a clean project prints the heading plus `_(no orphan
+  nodes)_` instead of the summary and table.
+- `--csv` emits one row per orphan (`id,kind,formal_status,isolated`) with a
+  header row (`lineterminator='\n'`); a clean project emits just the header.
+- `--json`, `--markdown`, and `--csv` are mutually exclusive.
+- `--fail-on-orphan` exits 5 when any orphan exists (a CI gate), composing with
+  every output format; a project with no orphans exits 0.
 
 Orphans are listed by id for deterministic output.
 

@@ -450,6 +450,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ascending; `nodes`/`coverage` descending, with targetless tags last under
   `coverage`) across text/JSON/CSV/Markdown output. Composes with
   `--tag`/`--fail-under`; default most-used-first ordering is unchanged.
+- **`orphans --markdown` / `orphans --csv`** render the orphan list as a
+  Markdown table or CSV (`id,kind,formal_status,isolated`), mutually exclusive
+  with `--json`. Both compose with `--fail-on-orphan` (the exit-5 gate still
+  applies); a clean project stays tidy in each format and default text output is
+  unchanged.
 
 ### Changed
 

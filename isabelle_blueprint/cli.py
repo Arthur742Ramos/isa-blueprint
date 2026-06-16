@@ -265,6 +265,8 @@ from isabelle_blueprint.report.notify import (
 from isabelle_blueprint.report.orphans import (
     build_orphan_report,
     render_orphan_report,
+    render_orphans_csv,
+    render_orphans_markdown,
 )
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
@@ -1108,6 +1110,22 @@ def cmd_orphans(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_orphans_markdown(report), end="")
+        if exit_code == 5:
+            print(
+                f"fail-on-orphan policy triggered: {report.orphan_count} "
+                "orphan node(s) unreachable from any goal.",
+                file=sys.stderr,
+            )
+    elif getattr(args, "csv", False):
+        print(render_orphans_csv(report), end="")
+        if exit_code == 5:
+            print(
+                f"fail-on-orphan policy triggered: {report.orphan_count} "
+                "orphan node(s) unreachable from any goal.",
+                file=sys.stderr,
+            )
     else:
         print(render_orphan_report(report), end="")
         if exit_code == 5:
@@ -3373,8 +3391,19 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="find nodes unreachable from any project goal (dead planning weight)",
     )
     p_orphans.add_argument("project_dir", nargs="?", default=".")
-    p_orphans.add_argument(
+    p_orphans_format = p_orphans.add_mutually_exclusive_group()
+    p_orphans_format.add_argument(
         "--json", action="store_true", help="emit the orphan report as JSON"
+    )
+    p_orphans_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the orphan list as a Markdown table",
+    )
+    p_orphans_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the orphan list as CSV (one row per orphan)",
     )
     p_orphans.add_argument(
         "--fail-on-orphan",
