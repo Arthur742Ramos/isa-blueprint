@@ -168,6 +168,9 @@ def test_render_clean_project() -> None:
     rendered = render_orphan_report(build_orphan_report(project))
 
     assert "No orphan nodes" in rendered
+    # Clean output is a single concise line: no Markdown heading.
+    assert "# " not in rendered
+    assert rendered.count("\n") == 1
 
 
 # ---- end-to-end CLI --------------------------------------------------------

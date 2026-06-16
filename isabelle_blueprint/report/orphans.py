@@ -1,6 +1,6 @@
 """Unreachable-node analysis: nodes disconnected from the project goals.
 
-``orphans`` answers "which nodes is no top-level goal building towards?". The
+``orphans`` finds the nodes that no top-level goal is building towards. The
 *goals* of a blueprint are its root results - nodes that nothing else ``uses``
 (no incoming dependency edge) and that themselves ``use`` at least one
 sub-result. Starting from those goals, the analysis walks the uses-dependency
@@ -115,11 +115,13 @@ def build_orphan_report(project: BlueprintProject) -> OrphanReport:
 def render_orphan_report(report: OrphanReport) -> str:
     """Render the orphan report as compact Markdown for the terminal."""
 
-    lines = [f"# {report.project} orphans", ""]
     if not report.orphans:
-        lines.append("No orphan nodes: every node is reachable from a project goal.")
-        return "\n".join(lines) + "\n"
+        return (
+            f"{report.project}: No orphan nodes "
+            "(every node is reachable from a project goal).\n"
+        )
 
+    lines = [f"# {report.project} orphans", ""]
     lines.append(
         f"{report.orphan_count} orphan node(s) unreachable from any goal "
         f"({report.isolated_count} fully isolated)."
