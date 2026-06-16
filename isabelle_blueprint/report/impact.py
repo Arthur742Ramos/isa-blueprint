@@ -427,6 +427,65 @@ def render_impact_mermaid(project: BlueprintProject, node_id: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_impact_report_csv(report: ImpactReport) -> str:
+    """Return the single-node blast radius as CSV (one row per dependent).
+
+    Columns: ``dependent_id``, ``distance``. Rows follow the same ordering as
+    the Markdown/JSON report (shortest distance first, then node id).
+    """
+
+    import csv
+    import io
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["dependent_id", "distance"])
+    for item in report.blast_radius:
+        writer.writerow([item.node_id, item.distance])
+    return out.getvalue()
+
+
+def render_impact_overview_csv(
+    project: BlueprintProject, overview: ImpactOverview, *, top: int | None = None
+) -> str:
+    """Return the project-wide blast-radius ranking as CSV (one row per node).
+
+    Columns: ``node_id``, ``direct_dependents``, ``blast_radius``,
+    ``affected_goals``. Rows follow the same ranking order as the JSON/Markdown
+    overview (largest blast radius first, ties broken by node id).
+    """
+
+    import csv
+    import io
+
+    graph = build_graph(project)
+    rankings = overview.rankings if top is None else overview.rankings[:top]
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["node_id", "direct_dependents", "blast_radius", "affected_goals"])
+    for rank in rankings:
+        distances = _blast_radius(graph, rank.node_id)
+        affected_goals = sum(
+            1
+            for dep_id in distances
+            if not [
+                child
+                for child in graph.reverse_edges.get(dep_id, [])
+                if child != dep_id
+            ]
+        )
+        writer.writerow(
+            [
+                rank.node_id,
+                rank.direct_dependent_count,
+                rank.blast_radius_count,
+                affected_goals,
+            ]
+        )
+    return out.getvalue()
+
+
 def render_impact_overview(overview: ImpactOverview, *, top: int = 10) -> str:
     """Render the project-wide blast-radius ranking as compact Markdown."""
 

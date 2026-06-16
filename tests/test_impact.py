@@ -374,3 +374,32 @@ def test_dot_escapes_node_id_with_quote_and_backslash() -> None:
     assert f'digraph "impact_{escaped}"' in dot
 
 
+def test_cli_csv_overview_ranks_nodes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--format", "csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    rows = out.splitlines()
+    assert rows[0] == "node_id,direct_dependents,blast_radius,affected_goals"
+    # `a` ranks first (one dependent `b`, which is also a terminal goal); `b` has
+    # no dependents.
+    assert rows[1] == "a,1,1,1"
+    assert rows[2] == "b,0,0,0"
+
+
+def test_cli_csv_single_node_lists_dependents(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["impact", str(tmp_path), "--node", "a", "--format", "csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    rows = out.splitlines()
+    assert rows[0] == "dependent_id,distance"
+    assert rows[1] == "b,1"
+    assert len(rows) == 2
+
+
+

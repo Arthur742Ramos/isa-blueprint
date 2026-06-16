@@ -210,7 +210,9 @@ from isabelle_blueprint.report.impact import (
     render_impact_dot,
     render_impact_mermaid,
     render_impact_overview,
+    render_impact_overview_csv,
     render_impact_report,
+    render_impact_report_csv,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
 from isabelle_blueprint.report.lint import build_lint_report, render_lint_report
@@ -1157,6 +1159,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
             print(render_impact_dot(project, node), end="")
         elif fmt == "mermaid":
             print(render_impact_mermaid(project, node), end="")
+        elif fmt == "csv":
+            print(render_impact_report_csv(report), end="")
         elif fmt == "json":
             print(json.dumps(impact_report_payload(report), indent=2))
         else:
@@ -1165,6 +1169,8 @@ def cmd_impact(args: argparse.Namespace) -> int:
     overview = build_impact_overview(project)
     if fmt == "json":
         print(json.dumps(impact_overview_payload(overview, top=args.top), indent=2))
+    elif fmt == "csv":
+        print(render_impact_overview_csv(project, overview, top=args.top), end="")
     else:
         print(render_impact_overview(overview, top=args.top), end="")
     return 0
@@ -3163,13 +3169,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_impact.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_impact.add_argument(
         "--format",
-        choices=("text", "json", "dot", "mermaid"),
+        choices=("text", "json", "dot", "mermaid", "csv"),
         default=None,
         help=(
             "output format (default: text); `dot` emits a Graphviz subgraph of the "
             "node's blast radius and requires --node. `mermaid` emits the same blast "
-            "radius as a Mermaid flowchart and likewise requires --node. `--json` is "
-            "an alias for `--format json`."
+            "radius as a Mermaid flowchart and likewise requires --node. `csv` emits "
+            "one row per node ranked by blast radius, or per dependent when --node is "
+            "given. `--json` is an alias for `--format json`."
         ),
     )
     p_impact.add_argument(
