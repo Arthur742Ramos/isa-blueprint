@@ -312,6 +312,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`lint` adds a `singleton-tag` rule** (INFO) flagging any tag used by exactly
+  one node across the blueprint (likely a typo or orphaned category); the message
+  names the tag and the single node carrying it. Purely additive: it never fires
+  for tags shared by two or more nodes.
 
 ### Changed
 
