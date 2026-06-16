@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`history --markdown`** renders the trend snapshots as a Markdown table (one
+  row per snapshot: timestamp plus the coverage / count metrics), respecting
+  `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
+  unchanged.
 - **`blame --markdown`** renders per-node provenance (node, source location,
   last git author/commit, agent memory note) as a Markdown table, for all nodes
   or a single `--node-id`. Mutually exclusive with `--json` and `--table`;
