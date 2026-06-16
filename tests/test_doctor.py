@@ -75,9 +75,11 @@ def test_doctor_require_present_tool_exits_zero(tmp_path: Path, monkeypatch) -> 
     assert rc == 0
 
 
-def test_doctor_require_absent_tool_exits_five(tmp_path: Path, capsys) -> None:
+def test_doctor_require_absent_tool_exits_five(tmp_path: Path, capsys, monkeypatch) -> None:
     (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
-    # `__isabelle_absent__` is never on PATH, so the isabelle check is not ok.
+    # Force every tool off PATH so the isabelle check is deterministically not ok
+    # (no dependency on whether a real `isabelle` happens to be installed).
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: None)
     rc = cli_main([
         "doctor",
         str(tmp_path),

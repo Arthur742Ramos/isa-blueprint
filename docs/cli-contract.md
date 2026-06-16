@@ -940,7 +940,7 @@ isabelle-blueprint doctor [project_dir]
                           [--json]
                           [--output PATH]
                           [--strict]
-                          [--require TOOL ...]
+                          [--require TOOL [--require TOOL ...]]
 ```
 
 Diagnoses local setup: Python/package version, config loading, blueprint
