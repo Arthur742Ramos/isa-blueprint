@@ -1335,8 +1335,8 @@ def cmd_staleness(args: argparse.Namespace) -> int:
         tripped = True
     if args.fail_on_outdated and report.outdated_count > 0:
         print(
-            f"{report.outdated_count} trusted node(s) are outdated (verified before "
-            "a dependency moved)",
+            f"{report.outdated_count} trusted node(s) are outdated (rest on a "
+            "dependency that is stale or was re-checked more recently than the node)",
             file=sys.stderr,
         )
         tripped = True
@@ -3246,7 +3246,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_staleness.add_argument(
         "--fail-on-outdated",
         action="store_true",
-        help="exit non-zero (5) when any trusted node is outdated (verified before a dep moved)",
+        help=(
+            "exit non-zero (5) when any trusted node is outdated (rests on a "
+            "dependency that is stale or was re-checked more recently than the node)"
+        ),
     )
     p_staleness.set_defaults(func=cmd_staleness)
 
