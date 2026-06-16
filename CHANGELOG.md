@@ -312,6 +312,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a header and a trailing `(untagged)` count row to stdout. Mutually
   exclusive with `--json`/`--markdown`; honours `--tag` and the `--fail-under`
   gate.
+- **`graph --leaves-only`** prunes the emitted graph (every format) to leaf
+  nodes — those that `uses` nothing (the foundational axioms/definitions).
+  Composes with `--focus`/`--depth`/`--format`; mutually exclusive with
+  `--roots-only`; default graph output is unchanged.
 
 ### Changed
 
