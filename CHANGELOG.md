@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`status --markdown`** renders the health overview as Markdown: a heading
+  with the project name and health label, a metrics table
+  (coverage/proved/problems/stale/ready-tasks/cycle-status), and a short
+  next-task line. Mutually exclusive with `--json`; the existing filter and
+  `--fail-on` flags keep working and default text output is unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.

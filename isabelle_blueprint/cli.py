@@ -280,7 +280,11 @@ from isabelle_blueprint.report.stats import (
     render_stats_markdown,
     render_stats_report,
 )
-from isabelle_blueprint.report.status_overview import build_status_overview, render_status_overview
+from isabelle_blueprint.report.status_overview import (
+    build_status_overview,
+    render_status_markdown,
+    render_status_overview,
+)
 from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
@@ -1833,6 +1837,13 @@ def _run_status_once(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
+    elif getattr(args, "markdown", False):
+        was_enabled = console.is_enabled()
+        console.set_enabled(False)
+        try:
+            print(render_status_markdown(overview), end="")
+        finally:
+            console.set_enabled(was_enabled)
     else:
         print(render_status_overview(overview), end="")
     if filters.active and not selected_ready_tasks and all_ready_tasks:
@@ -3733,7 +3744,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     p_status = sub.add_parser("status", help="print a concise project health summary")
     p_status.add_argument("project_dir", nargs="?", default=".")
-    p_status.add_argument("--json", action="store_true", help="emit machine-readable status JSON")
+    p_status_format = p_status.add_mutually_exclusive_group()
+    p_status_format.add_argument(
+        "--json", action="store_true", help="emit machine-readable status JSON"
+    )
+    p_status_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the health overview as a Markdown table (mutually exclusive with --json)",
+    )
     p_status.add_argument(
         "--top-tasks",
         type=_positive_int,
