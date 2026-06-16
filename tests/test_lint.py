@@ -157,6 +157,85 @@ Because a holds.
     assert any("'a'" in f["message"] for f in dup if f["node_id"] == "b")
 
 
+def test_lint_flags_singleton_tag(tmp_path: Path, capsys) -> None:
+    body = """# tags
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+tags: shared, lonely
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+tags: shared
+
+Another statement.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    singletons = [f for f in data["findings"] if f["code"] == "singleton-tag"]
+    # 'lonely' is used by exactly one node; 'shared' by two -> only 'lonely' fires.
+    assert len(singletons) == 1
+    finding = singletons[0]
+    assert finding["severity"] == "info"
+    assert finding["node_id"] == "a"
+    assert "lonely" in finding["message"]
+    assert "'a'" in finding["message"]
+    assert "shared" not in finding["message"]
+
+
+def test_lint_no_singleton_tag_when_tag_shared(tmp_path: Path, capsys) -> None:
+    body = """# tags
+
+::: lemma {#a}
+title: A
+isabelle: Demo.a
+status: stub
+tags: core
+
+A statement.
+
+Sketch.
+:::
+
+::: theorem {#b}
+title: B
+isabelle: Demo.b
+status: stub
+uses: a
+tags: core
+
+Another statement.
+
+Because a holds.
+:::
+"""
+    _write_project(tmp_path, body)
+
+    rc = cli_main(["lint", str(tmp_path), "--json"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    codes = {f["code"] for f in data["findings"]}
+    assert "singleton-tag" not in codes
+
+
 def test_lint_markdown_renders_findings_table(tmp_path: Path, capsys) -> None:
     body = """# broken
 

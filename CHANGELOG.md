@@ -331,6 +331,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lines, and the optional burndown ETA) to stdout as a local preview. It is
   never POSTed: combining it with `--send` errors that markdown is preview-only.
   Existing webhook formats and `--send` behaviour are unchanged.
+- **`lint` adds a `singleton-tag` rule** (INFO) flagging any tag used by exactly
+  one node across the blueprint (likely a typo or orphaned category); the message
+  names the tag and the single node carrying it. Purely additive: it never fires
+  for tags shared by two or more nodes.
 
 ### Changed
 
