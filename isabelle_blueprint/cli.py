@@ -231,6 +231,10 @@ from isabelle_blueprint.report.impact import (
     render_impact_report_csv,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
+from isabelle_blueprint.report.levels import (
+    build_levels_report,
+    render_levels_report,
+)
 from isabelle_blueprint.report.lint import (
     build_lint_report,
     render_lint_markdown,
@@ -1059,6 +1063,18 @@ def cmd_path(args: argparse.Namespace) -> int:
         print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
+    return 0
+
+
+def cmd_levels(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_levels_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_levels_report(report), end="")
     return 0
 
 
@@ -3254,6 +3270,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_levels = sub.add_parser(
+        "levels",
+        help="arrange the dependency DAG into topological levels",
+    )
+    p_levels.add_argument("project_dir", nargs="?", default=".")
+    p_levels.add_argument(
+        "--json", action="store_true", help="emit the level layering as JSON"
+    )
+    p_levels.set_defaults(func=cmd_levels)
 
     p_fact_coverage = sub.add_parser(
         "fact-coverage",
