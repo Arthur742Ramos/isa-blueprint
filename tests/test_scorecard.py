@@ -176,6 +176,72 @@ Sketch.
 """
 
 
+_BODY_COV = """# card-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A base.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: named
+uses: a
+
+B depends on a, but is not proved -> coverage 1/2 = 50%.
+
+Sketch.
+:::
+"""
+
+
+_BODY_COV_NEAR = """# card-test
+
+::: definition {#a}
+title: A
+isabelle: Demo.a
+status:
+  formal: proved
+
+A base.
+
+Sketch.
+:::
+
+::: lemma {#b}
+title: B
+isabelle: Demo.b
+status:
+  formal: proved
+uses: a
+
+B is proved.
+
+Sketch.
+:::
+
+::: lemma {#c}
+title: C
+isabelle: Demo.c
+status:
+  formal: named
+uses: a
+
+C is not proved -> coverage 2/3 = 66.67% (rounds to 67).
+
+Sketch.
+:::
+"""
+
+
 def test_cli_text(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
@@ -466,3 +532,127 @@ def test_cli_markdown_no_ansi_when_colour_forced_on(tmp_path: Path, capsys) -> N
     assert "\x1b" in capsys.readouterr().out
     text = (tmp_path / "build" / "scorecard.md").read_text(encoding="utf-8")
     assert "\x1b" not in text
+
+
+def test_cli_min_component_below_threshold_fails(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_COV)
+
+    # _BODY_COV has 1 proved of 2 targets -> coverage 50%, below 80.
+    rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=80"])
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "min-component policy triggered: coverage" in err
+
+
+def test_cli_min_component_raw_below_rounded_threshold_fails(
+    tmp_path: Path, capsys
+) -> None:
+    # Coverage is 2/3 = 66.67%, which ROUNDS to 67 for display. A gate at =67
+    # must still trip on the raw ratio (66.67 < 67); a rounded comparison would
+    # wrongly pass it.
+    _write_project(tmp_path, _BODY_COV_NEAR)
+
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-component", "coverage=67", "--json"]
+    )
+
+    assert rc == 5
+    gate = json.loads(capsys.readouterr().out)["component_gates"][0]
+    assert gate["score"] == 67  # rounded display value
+    assert gate["meets"] is False  # but the raw ratio fails the gate
+
+
+def test_cli_min_component_met_passes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_COV)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=50"])
+
+    assert rc == 0
+    assert "policy triggered" not in capsys.readouterr().err
+
+
+def test_cli_min_component_json_gates(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_COV)
+
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"]
+    )
+
+    assert rc == 5
+    gates = json.loads(capsys.readouterr().out)["component_gates"]
+    assert gates == [
+        {"component": "coverage", "threshold": 80, "score": 50, "meets": False}
+    ]
+
+
+def test_cli_min_component_repeatable_and_composes(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY_COV)
+
+    rc = cli_main(
+        [
+            "scorecard",
+            str(tmp_path),
+            "--min-component",
+            "coverage=0",
+            "--min-component",
+            "coverage=80",
+            "--min-grade",
+            "F",
+            "--json",
+        ]
+    )
+
+    assert rc == 5
+    data = json.loads(capsys.readouterr().out)
+    gates = data["component_gates"]
+    assert gates[0]["meets"] is True
+    assert gates[1]["meets"] is False
+    # Composes with the existing grade gate object.
+    assert data["gate"]["meets_min_grade"] is True
+
+
+def test_cli_min_component_undefined_score_never_fails(tmp_path: Path, capsys) -> None:
+    # An empty project has no defined component scores, so the gate is inert.
+    _write_project(tmp_path, "# empty project\n", name="empty")
+
+    rc = cli_main(
+        ["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"]
+    )
+
+    assert rc == 0
+    gate = json.loads(capsys.readouterr().out)["component_gates"][0]
+    assert gate["score"] is None
+    assert gate["meets"] is None
+
+
+def test_cli_min_component_unknown_name_is_usage_error(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        rc = cli_main(["scorecard", str(tmp_path), "--min-component", "bogus=50"])
+    except SystemExit as exc:  # argparse raises SystemExit(2) on bad value
+        rc = exc.code
+    assert rc == 2
+    assert "invalid component" in capsys.readouterr().err
+
+
+def test_cli_min_component_out_of_range_is_usage_error(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=150"])
+    except SystemExit as exc:
+        rc = exc.code
+    assert rc == 2
+    assert "invalid percentage" in capsys.readouterr().err
+
+
+def test_cli_min_component_absent_unchanged(tmp_path: Path, capsys) -> None:
+    # No --min-component: no component_gates key, exit unchanged.
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["scorecard", str(tmp_path), "--json"])
+
+    assert rc == 0
+    assert "component_gates" not in json.loads(capsys.readouterr().out)

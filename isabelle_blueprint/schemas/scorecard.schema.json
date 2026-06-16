@@ -41,6 +41,21 @@
         "meets_min_score": { "type": ["boolean", "null"] }
       },
       "additionalProperties": false
+    },
+    "component_gates": {
+      "type": "array",
+      "description": "Present whenever one or more --min-component NAME=PCT gates are supplied (regardless of whether they pass or fail): one entry per gate. 'score' is the component's percentage (0-100) or null when the component has no defined score; 'meets' is null in that case and never fails the gate.",
+      "items": {
+        "type": "object",
+        "required": ["component", "threshold", "score", "meets"],
+        "properties": {
+          "component": { "type": "string" },
+          "threshold": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+          "meets": { "type": ["boolean", "null"] }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": true

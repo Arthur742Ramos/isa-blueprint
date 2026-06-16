@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recently than the node). It composes with `--fail-on-problem` (either gate can
   trip), prints a stderr note with the outdated node count in text mode, and
   leaves behaviour unchanged when absent.
+- **`scorecard --min-component NAME=PCT`** is a repeatable CI gate that exits `5`
+  when the named component score (coverage/integrity/structure/freshness/
+  documentation/readiness) is below `PCT` percent; it composes with
+  `--min-grade`/`--min-score` and adds an additive `component_gates` array to
+  `--json`. A component with no defined score never fails the gate.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
