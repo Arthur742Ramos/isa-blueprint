@@ -264,6 +264,7 @@ from isabelle_blueprint.report.roadmap import (
 from isabelle_blueprint.report.sarif import render_sarif
 from isabelle_blueprint.report.scorecard import (
     ALL_GRADES,
+    SCORE_COMPONENTS,
     build_scorecard,
     grade_threshold,
     render_scorecard,
@@ -414,6 +415,35 @@ def _score_arg(value: str) -> int:
             f"invalid score {value!r}; choose an integer from 0 to 100"
         )
     return score
+
+
+def _min_component_arg(value: str) -> tuple[str, int]:
+    """argparse ``type`` parsing a ``NAME=PCT`` per-component scorecard gate.
+
+    ``NAME`` must be one of the known scorecard components and ``PCT`` an integer
+    percentage in ``[0, 100]``. Returns the ``(name, pct)`` pair.
+    """
+    name, sep, pct_text = value.partition("=")
+    name = name.strip().lower()
+    if not sep:
+        raise argparse.ArgumentTypeError(
+            f"invalid component gate {value!r}; expected NAME=PCT"
+        )
+    if name not in SCORE_COMPONENTS:
+        raise argparse.ArgumentTypeError(
+            f"invalid component {name!r}; choose one of {', '.join(SCORE_COMPONENTS)}"
+        )
+    try:
+        pct = int(pct_text)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            f"invalid percentage {pct_text!r}; choose an integer from 0 to 100"
+        ) from err
+    if not 0 <= pct <= 100:
+        raise argparse.ArgumentTypeError(
+            f"invalid percentage {pct_text!r}; choose an integer from 0 to 100"
+        )
+    return name, pct
 
 
 def _label_arg(value: str) -> tuple[str, str]:
@@ -824,10 +854,36 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         gate["min_score"] = min_score
         gate["meets_min_score"] = meets_score
 
+    min_components: list[tuple[str, int]] = getattr(args, "min_component", []) or []
+    component_gates: list[dict[str, object]] = []
+    failed_components: list[tuple[str, int, int]] = []
+    if min_components:
+        scores_by_name = {c.name: c.score for c in card.components}
+        for name, threshold in min_components:
+            raw = scores_by_name.get(name)
+            pct = None if raw is None else round(raw * 100)
+            if pct is None:
+                meets_component: bool | None = None  # undefined; never fails
+            else:
+                meets_component = pct >= threshold
+                if not meets_component:
+                    exit_code = 5
+                    failed_components.append((name, threshold, pct))
+            component_gates.append(
+                {
+                    "component": name,
+                    "threshold": threshold,
+                    "score": pct,
+                    "meets": meets_component,
+                }
+            )
+
     if args.json:
         payload = card.to_dict()
         if gate:
             payload["gate"] = gate
+        if component_gates:
+            payload["component_gates"] = component_gates
         print(json.dumps(payload, indent=2))
     else:
         print(render_scorecard(card), end="")
@@ -857,6 +913,12 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
                     f"is below {min_score}.",
                     file=sys.stderr,
                 )
+        for name, threshold, pct in failed_components:
+            print(
+                f"min-component policy triggered: {name} {pct}% "
+                f"is below {threshold}%.",
+                file=sys.stderr,
+            )
     return exit_code
 
 
@@ -2853,6 +2915,20 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "exit non-zero (5) if the overall score is below N (an integer 0-100). "
             "Composes with --min-grade (fails if either threshold is unmet). An "
             "ungradeable (empty) project never fails the gate."
+        ),
+    )
+    p_scorecard.add_argument(
+        "--min-component",
+        action="append",
+        type=_min_component_arg,
+        default=[],
+        metavar="NAME=PCT",
+        help=(
+            "exit non-zero (5) if the named component score is below PCT percent "
+            f"(NAME one of {', '.join(SCORE_COMPONENTS)}; PCT an integer 0-100). "
+            "Repeatable; composes with --min-grade/--min-score (fails if any "
+            "threshold is unmet). A component with no defined score never fails "
+            "the gate."
         ),
     )
     p_scorecard.set_defaults(func=cmd_scorecard)

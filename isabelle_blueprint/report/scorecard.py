@@ -73,6 +73,10 @@ _COMPONENT_LABELS: dict[str, str] = {
     "readiness": "Readiness",
 }
 
+# Every recognised component name, in their canonical reporting order. Useful as
+# a CLI ``choices``/validation list for per-component gates.
+SCORE_COMPONENTS: tuple[str, ...] = tuple(_COMPONENT_LABELS)
+
 # Letter-grade cutoffs (inclusive lower bound), highest first.
 _GRADE_BANDS: tuple[tuple[int, str], ...] = (
     (97, "A+"),
