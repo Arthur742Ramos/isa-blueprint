@@ -1147,7 +1147,7 @@ writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 ### `fact-coverage`
 
 ```text
-isabelle-blueprint fact-coverage [project_dir] [--json]
+isabelle-blueprint fact-coverage [project_dir] [--json | --csv | --markdown]
 ```
 
 Groups nodes by the **theory** of their Isabelle fact - the `Theory` part of a
@@ -1160,7 +1160,12 @@ per-theory Markdown table; `--json` emits
 `{project, theories: [{theory, node_count, proved_count, found_count,
 problem_count, coverage_percent}]}` plus
 `schema_version`/`total_nodes`/`theory_count`,
-validated by the packaged `fact-coverage` schema.
+validated by the packaged `fact-coverage` schema. `--csv` emits one row per
+theory under the header `theory,node_count,proved_count,found_count,
+problem_count,coverage_percent` (blank coverage cell when the theory has no
+formal targets; `lineterminator='\n'`); `--markdown` renders the per-theory
+table as a Markdown document. `--json`/`--csv`/`--markdown` are mutually
+exclusive.
 `levels`.
 
 ### `stats`

@@ -434,6 +434,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a bracketed health label) for shell prompts, CI logs, and grepping across
   projects. Mutually exclusive with `--json` and `--markdown`; default multi-line
   text output and all filter flags are unchanged.
+- **`fact-coverage --csv` and `--markdown`** add output formats to the
+  per-theory roll-up: `--csv` emits one row per theory
+  (`theory,node_count,proved_count,found_count,problem_count,coverage_percent`,
+  blank coverage cell when undefined, `lineterminator='\n'`), and `--markdown`
+  renders the table as a Markdown document (escaping `|` in theory cells).
+  Mutually exclusive with `--json`; default text output is unchanged.
 
 ### Changed
 
