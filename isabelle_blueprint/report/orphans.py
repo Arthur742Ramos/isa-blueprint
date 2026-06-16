@@ -16,6 +16,8 @@ orphans). No Isabelle invocation is required.
 """
 from __future__ import annotations
 
+import csv
+import io
 from collections import deque
 from dataclasses import dataclass
 
@@ -146,3 +148,60 @@ def _escape_cell(text: str) -> str:
     """Neutralise Markdown table delimiters in a user-controlled cell."""
 
     return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
+
+
+def render_orphans_markdown(report: OrphanReport) -> str:
+    """Render the orphan list as a standalone Markdown document.
+
+    Columns: id, kind, formal status, isolated. Id cells are escaped so a
+    ``|`` in a node id cannot break the table. The clean case renders a single
+    note line with no table.
+    """
+
+    lines = [f"# {report.project} orphans", ""]
+    if report.orphans:
+        lines.append(
+            f"{report.orphan_count} orphan node(s) unreachable from any goal "
+            f"({report.isolated_count} fully isolated)."
+        )
+        lines.extend(
+            [
+                "",
+                "| Node | Kind | Formal status | Isolated |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for orphan in report.orphans:
+            isolated = "yes" if orphan.isolated else "no"
+            lines.append(
+                f"| {_escape_cell(orphan.id)} | {orphan.kind} | "
+                f"{orphan.formal_status} | {isolated} |"
+            )
+    else:
+        lines.append("_(no orphan nodes)_")
+    return "\n".join(lines) + "\n"
+
+
+ORPHANS_CSV_COLUMNS = ("id", "kind", "formal_status", "isolated")
+
+
+def render_orphans_csv(report: OrphanReport) -> str:
+    """Render the orphan list as CSV: a header plus one row per orphan.
+
+    Columns: id, kind, formal_status, isolated. The clean case emits just the
+    header row.
+    """
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(ORPHANS_CSV_COLUMNS)
+    for orphan in report.orphans:
+        writer.writerow(
+            [
+                orphan.id,
+                orphan.kind,
+                orphan.formal_status,
+                "true" if orphan.isolated else "false",
+            ]
+        )
+    return buffer.getvalue()

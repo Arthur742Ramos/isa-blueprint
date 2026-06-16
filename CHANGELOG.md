@@ -423,6 +423,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **`orphans --markdown` / `orphans --csv`** render the orphan list as a
+  Markdown table or CSV (`id,kind,formal_status,isolated`), mutually exclusive
+  with `--json`. Both compose with `--fail-on-orphan` (the exit-5 gate still
+  applies); a clean project stays tidy in each format and default text output is
+  unchanged.
 
 ### Changed
 
