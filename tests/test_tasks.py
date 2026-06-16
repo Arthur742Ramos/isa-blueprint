@@ -231,6 +231,46 @@ def test_cli_tasks_filters_task_artifacts_but_keeps_full_prompt_set(tmp_path: Pa
     assert (tmp_path / "build" / "prompts" / "task-main.md").exists()
 
 
+def test_cli_tasks_summary_prints_table_and_writes_no_files(tmp_path: Path, capsys):
+    """--summary prints a compact ready-task table and writes nothing."""
+    example = Path("examples/agent-workflow").resolve()
+
+    rc = cli_main(["tasks", str(example), "--summary"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    lines = captured.out.splitlines()
+    # Header row with the documented columns.
+    assert lines[0].split() == [
+        "TASK",
+        "NODE",
+        "KIND",
+        "PRIORITY",
+        "DIFFICULTY",
+        "BLOCKED_BY",
+    ]
+    # At least one ready task row appears.
+    assert any(line.startswith("task-") for line in lines[1:])
+    # No artifacts are written under build/ for the bundled example.
+    assert not (example / "build" / "tasks.json").exists()
+    assert not (example / "build" / "prompts").exists()
+
+
+def test_cli_tasks_summary_composes_with_kind_filter(tmp_path: Path, capsys):
+    """--summary respects selection filters and never writes files."""
+    _write_next_project(tmp_path, _next_project())
+
+    rc = cli_main(["tasks", str(tmp_path), "--summary", "--kind", "lemma"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    out = captured.out
+    assert "task-helper" in out
+    assert "task-main" not in out
+    assert not (tmp_path / "build").exists()
+
+
 def test_cli_tasks_filter_no_match_writes_truthful_empty_index(tmp_path: Path, capsys):
     _write_next_project(tmp_path, _next_project())
 
