@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 IMPACT_SCHEMA_VERSION = 1
@@ -387,24 +388,6 @@ def render_impact_dot(project: BlueprintProject, node_id: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _impact_mermaid_id(node_id: str) -> str:
-    """Return a Mermaid-safe identifier for ``node_id`` (injective escaping)."""
-
-    safe = "".join(
-        ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id
-    )
-    return f"n_{safe}"
-
-
-def _impact_mermaid_label(text: str) -> str:
-    return (
-        text.replace("\\", "\\\\")
-        .replace('"', "&quot;")
-        .replace("|", "&#124;")
-        .replace("\n", "<br/>")
-    )
-
-
 def render_impact_mermaid(project: BlueprintProject, node_id: str) -> str:
     """Return a Mermaid ``flowchart`` of ``node_id`` and its blast radius.
 
@@ -425,17 +408,17 @@ def render_impact_mermaid(project: BlueprintProject, node_id: str) -> str:
     lines = ["flowchart BT"]
     for member in members:
         node = by_id[member]
-        safe = _impact_mermaid_id(member)
-        label = _impact_mermaid_label(f"{node.id}\n{node.title}")
+        safe = mermaid_node_id(member)
+        label = mermaid_label(f"{node.id}\n{node.title}")
         lines.append(f'  {safe}["{label}"]')
     for src in members:
         for dep in graph.edges.get(src, []):
             if dep in member_set:
                 lines.append(
-                    f"  {_impact_mermaid_id(src)} --> {_impact_mermaid_id(dep)}"
+                    f"  {mermaid_node_id(src)} --> {mermaid_node_id(dep)}"
                 )
     lines.append(
-        f"  style {_impact_mermaid_id(node_id)} "
+        f"  style {mermaid_node_id(node_id)} "
         "fill:#fde047,stroke:#1f2937,color:#111827"
     )
     return "\n".join(lines) + "\n"

@@ -81,6 +81,7 @@ from isabelle_blueprint.agents.tasks import (
     generate_tasks,
     render_sledgehammer_appendix,
     render_task_prompt,
+    render_tasks_summary,
     write_tasks,
 )
 from isabelle_blueprint.agents.tracker_export import (
@@ -107,6 +108,7 @@ from isabelle_blueprint.graph.dependency_graph import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    leaves_subproject,
     roots_subproject,
 )
 from isabelle_blueprint.graph.graphviz_render import write_graph_artifacts
@@ -176,7 +178,9 @@ from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
     critical_path_strict_failures,
+    goal_chain_for,
     render_critical_path,
+    render_critical_path_csv,
     render_critical_path_mermaid,
     write_critical_path,
 )
@@ -235,11 +239,15 @@ from isabelle_blueprint.report.metrics import (
     output_values,
 )
 from isabelle_blueprint.report.notify import (
-    SUPPORTED_FORMATS as NOTIFY_FORMATS,
+    FORMAT_CHOICES as NOTIFY_FORMATS,
+)
+from isabelle_blueprint.report.notify import (
+    MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
 )
 from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
+    render_markdown,
     render_payload,
 )
 from isabelle_blueprint.report.path import (
@@ -251,12 +259,14 @@ from isabelle_blueprint.report.path import (
     render_path_report,
 )
 from isabelle_blueprint.report.portfolio import (
+    PORTFOLIO_SORT_KEYS,
     build_portfolio,
     coverage_gate_failures,
     portfolio_payload,
     render_portfolio_csv,
     render_portfolio_markdown,
     render_portfolio_report,
+    sort_portfolio_report,
 )
 from isabelle_blueprint.report.pr_comment import (
     post_or_update_pr_comment,
@@ -272,6 +282,7 @@ from isabelle_blueprint.report.roadmap import (
     load_roadmap_payload,
     render_roadmap,
     render_roadmap_csv,
+    render_roadmap_markdown,
     render_roadmap_mermaid,
     roadmap_payload,
     roadmap_strict_failures,
@@ -288,6 +299,7 @@ from isabelle_blueprint.report.scorecard import (
 )
 from isabelle_blueprint.report.staleness import (
     build_staleness_report,
+    render_staleness_csv,
     render_staleness_markdown,
     render_staleness_report,
     staleness_payload,
@@ -821,6 +833,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
             ) from None
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
+    if getattr(args, "leaves_only", False):
+        project = leaves_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -1162,6 +1176,18 @@ def cmd_notify(args: argparse.Namespace) -> int:
         entries = load_trends(config.trends_path)
         eta_days = build_burndown_report(entries).eta_days
     content = build_notification(project, metrics, eta_days=eta_days)
+
+    if args.format == NOTIFY_MARKDOWN_FORMAT:
+        if args.send:
+            print(
+                "error: --format markdown is preview-only and cannot be sent; "
+                "drop --send (or choose a webhook format)",
+                file=sys.stderr,
+            )
+            return 1
+        print(render_markdown(content), end="")
+        return 0
+
     payload = render_payload(content, args.format)
 
     if not args.send:
@@ -1220,6 +1246,14 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
         print(json.dumps(critical_path_payload(overview, top=args.top), indent=2))
     elif getattr(args, "mermaid", False):
         print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
+    elif getattr(args, "csv", False):
+        if goal is not None and goal_chain_for(overview, goal) is None:
+            print(
+                f"critical-path: {goal!r} is not a remaining goal "
+                "(it is complete, unknown, has incomplete dependents, or is in a cycle).",
+                file=sys.stderr,
+            )
+        print(render_critical_path_csv(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
 
@@ -1233,7 +1267,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
-        stream = sys.stderr if args.json else sys.stdout
+        stream = sys.stderr if (args.json or getattr(args, "csv", False)) else sys.stdout
         written = write_critical_path(overview, config.build_dir, top=args.top, goal=goal)
         for name, path in written.items():
             print(f"critical-path {name} -> {path}", file=stream)
@@ -1430,6 +1464,11 @@ def cmd_staleness(args: argparse.Namespace) -> int:
             render_staleness_markdown(report, top=args.top, max_causes=args.max_causes),
             end="",
         )
+    elif args.csv:
+        print(
+            render_staleness_csv(report, top=args.top, max_causes=args.max_causes),
+            end="",
+        )
     else:
         print(
             render_staleness_report(report, top=args.top, max_causes=args.max_causes),
@@ -1534,6 +1573,8 @@ def cmd_burndown(args: argparse.Namespace) -> int:
 def cmd_portfolio(args: argparse.Namespace) -> int:
     root = Path(args.root_dir).resolve()
     report = build_portfolio(root)
+    if args.sort is not None:
+        report = sort_portfolio_report(report, args.sort)
     coverage_failures: list[str] = []
     if args.min_coverage is not None:
         coverage_failures = coverage_gate_failures(report, args.min_coverage)
@@ -1804,6 +1845,24 @@ def _run_tasks_once(args: argparse.Namespace) -> int:
     all_ready_tasks = generate_tasks(project, fact_suggestions=fact_suggestions, memory=memory)
     filters = _ready_task_filters_from_args(args)
     ready_tasks = _filter_ready_tasks(all_ready_tasks, filters)
+    if getattr(args, "summary", False):
+        side_effect_flags = (
+            ("--github-issues", args.github_issues),
+            ("--github-sync", args.github_sync),
+            ("--github-sync-confirm", args.github_sync_confirm),
+            ("--github-sync-pull", args.github_sync_pull),
+            ("--tracker-export", getattr(args, "tracker_export", None)),
+        )
+        conflicting = [name for name, value in side_effect_flags if value]
+        if conflicting:
+            raise BlueprintError(
+                "--summary prints to stdout and writes no files; it cannot be combined with "
+                + "/".join(conflicting)
+            )
+        print(render_tasks_summary(ready_tasks), end="")
+        if filters.active and not ready_tasks:
+            print(_no_ready_task_message(len(all_ready_tasks), filters), file=sys.stderr)
+        return 0
     payload_metadata = (
         _selection_metadata(
             filters,
@@ -1994,7 +2053,7 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     if args.mermaid and args.json:
         # Frozen pre-existing wording; do not change.
         raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
-    output_flags = [name for name in ("mermaid", "json", "csv") if getattr(args, name)]
+    output_flags = [name for name in ("mermaid", "json", "csv", "markdown") if getattr(args, name)]
     if len(output_flags) > 1:
         raise BlueprintError(
             "roadmap --mermaid, --json, and --csv are mutually exclusive"
@@ -2022,6 +2081,9 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
         stream = sys.stderr
     elif args.csv:
         print(render_roadmap_csv(roadmap, filters=filters), end="")
+        stream = sys.stderr
+    elif args.markdown:
+        print(render_roadmap_markdown(roadmap, filters=filters))
         stream = sys.stderr
     elif args.json:
         print(json.dumps(roadmap_payload(roadmap, filters=filters, diff=diff), indent=2))
@@ -2957,10 +3019,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         metavar="N",
         help="with --focus, include nodes within N dependency hops (default: unlimited)",
     )
-    p_graph.add_argument(
+    p_graph_prune = p_graph.add_mutually_exclusive_group()
+    p_graph_prune.add_argument(
         "--roots-only",
         action="store_true",
         help="prune the graph to root nodes (those nothing else uses); "
+        "composes with --focus/--depth",
+    )
+    p_graph_prune.add_argument(
+        "--leaves-only",
+        action="store_true",
+        help="prune the graph to leaf nodes (those that use nothing); "
         "composes with --focus/--depth",
     )
     p_graph.set_defaults(func=cmd_graph)
@@ -3245,7 +3314,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--format",
         choices=NOTIFY_FORMATS,
         default="slack",
-        help="webhook payload format (default: slack)",
+        help=(
+            "webhook payload format (default: slack); "
+            "'markdown' is a local preview body printed to stdout, not sent"
+        ),
     )
     p_notify.add_argument(
         "--url",
@@ -3322,6 +3394,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--mermaid",
         action="store_true",
         help="emit the critical chain as a Mermaid flowchart (bottlenecks highlighted)",
+    )
+    p_critical_fmt.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the bottleneck/leverage ranking as CSV "
+        "(node_id, kind, leverage, on_critical_path)",
     )
     p_critical.add_argument(
         "--top",
@@ -3416,6 +3494,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="render the trust audit as a Markdown table (no colour)",
+    )
+    p_staleness_format.add_argument(
+        "--csv",
+        action="store_true",
+        help=(
+            "emit one CSV row per flagged trusted node "
+            "(columns: node_id, severity, cause_count, first_cause)"
+        ),
     )
     p_staleness.add_argument(
         "--top",
@@ -3590,6 +3676,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "(an integer from 0 to 100; a cross-project coverage floor); projects "
             "with undefined coverage (no formal targets, or load errors) are "
             "excluded from failures; composes with --fail-on-problem"
+        ),
+    )
+    p_portfolio.add_argument(
+        "--sort",
+        choices=PORTFOLIO_SORT_KEYS,
+        default=None,
+        help=(
+            "order the listed projects by KEY: 'name' ascending, or 'coverage', "
+            "'nodes', 'problems' descending (highest first); applies to text, "
+            "JSON, CSV, and Markdown output (default: discovery order)"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)
@@ -3769,6 +3865,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="TRACKER",
         help="also write build/tasks-<tracker>.csv for import into jira or linear",
+    )
+    p_tasks.add_argument(
+        "--summary",
+        action="store_true",
+        help="print a compact table of ready tasks to stdout and write no files",
     )
     _add_ready_task_filter_arguments(p_tasks)
     _add_watch_arguments(p_tasks, action="task generation")
@@ -4000,6 +4101,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_roadmap.add_argument(
+        "--markdown",
+        action="store_true",
+        help=(
+            "emit the staged plan as Markdown, one table per stage "
+            "(mutually exclusive with --json/--mermaid/--csv)"
+        ),
+    )
+    p_roadmap.add_argument(
         "--strict",
         action="store_true",
         help="exit 9 when cycles, problem nodes, stale nodes, or missing dependencies exist",
@@ -4044,8 +4153,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit an AI-agent handoff bundle with status, roadmap, tasks, and commands",
     )
     p_agent_context.add_argument("project_dir", nargs="?", default=".")
-    p_agent_context.add_argument(
+    p_agent_context_format = p_agent_context.add_mutually_exclusive_group()
+    p_agent_context_format.add_argument(
         "--json", action="store_true", help="emit machine-readable context JSON"
+    )
+    p_agent_context_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help=(
+            "print the agent-context Markdown handoff to stdout; "
+            "combine with --write to also write artifacts"
+        ),
     )
     p_agent_context.add_argument(
         "--write",

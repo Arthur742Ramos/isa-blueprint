@@ -427,6 +427,7 @@ isabelle-blueprint tasks [project_dir]
                          [--last-outcome OUTCOME]
                          [--exclude-node NODE_OR_TASK]
                          [--tracker-export jira|linear]
+                         [--summary]
                          [--watch] [--interval SECONDS]
 ```
 
@@ -472,6 +473,13 @@ Ctrl-C.
 the ready tasks to `build/tasks-<tracker>.csv`, ready to import into Jira or
 Linear. Difficulty maps to story points / estimate. The CSV honours the same
 ready-task filters as the other task artefacts.
+
+`--summary` prints a compact aligned table of the ready tasks
+(columns: task id, node id, kind, priority, difficulty, blocked-by count) to
+stdout and writes no files. It honours the same ready-task filters and cannot be
+combined with the write/side-effect flags
+(`--github-issues`/`--github-sync`/`--github-sync-confirm`/`--github-sync-pull`/`--tracker-export`),
+which error out rather than being silently ignored.
 
 ### `next`
 
@@ -853,6 +861,7 @@ goal lists by id, and rankings by descending blast radius then id.
 ```text
 isabelle-blueprint agent-context [project_dir]
                                   [--json]
+                                  [--markdown]
                                   [--write]
                                   [--max-tasks N]
                                   [--kind KIND]
@@ -869,6 +878,10 @@ default and prints a Markdown brief to stdout.
 
 - `--json` emits the payload documented by the packaged `agent-context` JSON
   Schema. It does not write files unless `--write` is also supplied.
+- `--markdown` prints the same Markdown handoff that `--write` records in
+  `build/agent-context.md` to stdout. It is mutually exclusive with `--json`; the
+  flag itself writes no files, but `--write` may still be passed to also emit
+  artifacts, and the ready-task filters compose with it.
 - `--write` refreshes `build/project.json`, `build/tasks.json`,
   `build/tasks.md`, `build/prompts/<task-id>.md`, `build/roadmap.json`,
   `build/roadmap.md`, `build/agent-context.json`, and

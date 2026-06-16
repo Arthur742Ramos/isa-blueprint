@@ -20,12 +20,15 @@ def mermaid_node_id(node_id: str) -> str:
     return f"n_{safe}"
 
 
-def mermaid_label(text: str) -> str:
-    """Escape ``text`` for use inside a quoted Mermaid node label."""
+def mermaid_label(text: str, *, escape_pipe: bool = True) -> str:
+    """Escape ``text`` for use inside a quoted Mermaid node label.
 
-    return (
-        text.replace("\\", "\\\\")
-        .replace('"', "&quot;")
-        .replace("|", "&#124;")
-        .replace("\n", "<br/>")
-    )
+    ``escape_pipe`` controls whether a literal ``|`` is escaped to ``&#124;``.
+    It defaults to ``True``; callers that historically left pipes untouched can
+    pass ``escape_pipe=False`` to preserve their exact output.
+    """
+
+    escaped = text.replace("\\", "\\\\").replace('"', "&quot;")
+    if escape_pipe:
+        escaped = escaped.replace("|", "&#124;")
+    return escaped.replace("\n", "<br/>")

@@ -15,6 +15,7 @@ from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_le
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
     StatusMetrics,
@@ -424,14 +425,17 @@ def render_roadmap_mermaid(
     for stage in rendered.stages:
         lines.append(f"  subgraph stage{stage.index}[\"Stage {stage.index}\"]")
         for item in stage.items:
-            lines.append(f'    {_mermaid_node_id(item.node_id)}["{_mermaid_text(item.node_id)}"]')
+            lines.append(
+                f'    {mermaid_node_id(item.node_id)}'
+                f'["{mermaid_label(item.node_id, escape_pipe=False)}"]'
+            )
         lines.append("  end")
     for stage in rendered.stages:
         for item in stage.items:
             for dep_id in item.uses:
                 if dep_id in visible_ids:
                     lines.append(
-                        f"  {_mermaid_node_id(dep_id)} --> {_mermaid_node_id(item.node_id)}"
+                        f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(item.node_id)}"
                     )
     return "\n".join(lines) + "\n"
 
@@ -478,15 +482,57 @@ def render_roadmap_csv(
     return buffer.getvalue()
 
 
-def _mermaid_node_id(node_id: str) -> str:
-    safe = "".join(ch if (ch.isascii() and ch.isalnum()) else f"_{ord(ch)}_" for ch in node_id)
-    return f"n_{safe}"
+ROADMAP_MARKDOWN_COLUMNS = (
+    "id",
+    "kind",
+    "formal status",
+    "agent status",
+    "blocker count",
+)
 
 
-def _mermaid_text(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
+def render_roadmap_markdown(
+    roadmap: RoadmapOverview,
+    *,
+    filters: RoadmapFilters | None = None,
+) -> str:
+    """Render the staged roadmap as Markdown: one section per stage.
+
+    Each stage becomes a ``## Stage N`` heading followed by a table of that
+    stage's nodes (id, kind, formal status, agent status, blocker count).
+    Honours the same ``--status``/``--stage``/``--kind`` filters as the other
+    roadmap renderings; ``|`` in cells is escaped.
+    """
+
+    filters = filters or RoadmapFilters()
+    rendered = filter_roadmap(roadmap, filters) if filters.active else roadmap
+    lines = [f"# {_md_cell(roadmap.project)} roadmap", ""]
+    if not rendered.stages:
+        lines.extend(["_(no matching roadmap items)_", ""])
+        return "\n".join(lines)
+    header = "| " + " | ".join(ROADMAP_MARKDOWN_COLUMNS) + " |"
+    separator = "| " + " | ".join("---" for _ in ROADMAP_MARKDOWN_COLUMNS) + " |"
+    for stage in rendered.stages:
+        lines.extend([f"## Stage {stage.index}", ""])
+        if not stage.items:
+            lines.extend(["_(no nodes)_", ""])
+            continue
+        lines.extend([header, separator])
+        for item in stage.items:
+            cells = [
+                _md_cell(item.node_id),
+                _md_cell(item.kind),
+                _md_cell(item.formal_status),
+                _md_cell(item.agent_status),
+                str(len(item.blocked_by)),
+            ]
+            lines.append("| " + " | ".join(cells) + " |")
+        lines.append("")
+    return "\n".join(lines)
 
 
+def _md_cell(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br/>")
 def write_roadmap(
     roadmap: RoadmapOverview,
     build_dir: Path,

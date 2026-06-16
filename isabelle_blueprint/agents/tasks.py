@@ -249,6 +249,46 @@ def _render_tasks_index(tasks: list[AgentTask], *, empty_message: str | None = N
     return "\n".join(lines) + "\n"
 
 
+def render_tasks_summary(tasks: list[AgentTask]) -> str:
+    """Render ``tasks`` as a compact aligned table (trailing newline).
+
+    Columns: task id, node id, kind, priority, difficulty, and the number of
+    dependencies the task is blocked by. Intended for a quick at-a-glance view
+    of the ready queue without writing any files.
+    """
+    if not tasks:
+        return "No ready tasks.\n"
+    headers = ("TASK", "NODE", "KIND", "PRIORITY", "DIFFICULTY", "BLOCKED_BY")
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for task in tasks:
+        priority = task.metadata.priority if task.metadata is not None else "-"
+        difficulty = task.metadata.difficulty if task.metadata is not None else "-"
+        rows.append(
+            (
+                task.id,
+                task.node_id,
+                task.kind,
+                priority,
+                difficulty,
+                str(len(task.dependencies)),
+            )
+        )
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    def _fmt(cols: tuple[str, str, str, str, str, str]) -> str:
+        return "  ".join(
+            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i]
+            for i in range(len(cols))
+        ).rstrip()
+
+    lines = [_fmt(headers)]
+    lines.extend(_fmt(row) for row in rows)
+    return "\n".join(lines) + "\n"
+
+
 def render_task_prompt(task: AgentTask) -> str:
     """Render the Markdown prompt for a ready proof task."""
 

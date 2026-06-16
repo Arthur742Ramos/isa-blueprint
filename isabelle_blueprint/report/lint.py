@@ -110,8 +110,10 @@ def build_lint_report(project: BlueprintProject) -> LintReport:
     """
     findings: list[LintFinding] = []
     findings.extend(_structural_findings(project))
+    findings.extend(_self_dependency_findings(project))
     findings.extend(_quality_findings(project))
     findings.extend(_duplicate_title_findings(project))
+    findings.extend(_singleton_tag_findings(project))
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f.severity, 99), f.node_id or "", f.code))
     return LintReport(project=project.name, findings=findings)
@@ -152,6 +154,22 @@ def _structural_findings(project: BlueprintProject) -> list[LintFinding]:
                 message="dependency cycle: " + " -> ".join(cycle),
             )
         )
+    return findings
+
+
+def _self_dependency_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag any node whose ``uses`` list references its own id."""
+    findings: list[LintFinding] = []
+    for node in project.nodes:
+        if node.id in node.uses:
+            findings.append(
+                LintFinding(
+                    code="self-dependency",
+                    severity=SEVERITY_ERROR,
+                    node_id=node.id,
+                    message=f"node {node.id!r} depends on itself",
+                )
+            )
     return findings
 
 
@@ -258,6 +276,30 @@ def _duplicate_title_findings(project: BlueprintProject) -> list[LintFinding]:
                     message=f"title duplicates node(s) {others}",
                 )
             )
+    return findings
+
+
+def _singleton_tag_findings(project: BlueprintProject) -> list[LintFinding]:
+    """Flag tags carried by exactly one node (likely typos or orphan categories)."""
+    users: dict[str, list[str]] = {}
+    for node in project.nodes:
+        for tag in dict.fromkeys(node.tags):
+            users.setdefault(tag, []).append(node.id)
+
+    findings: list[LintFinding] = []
+    for tag in sorted(users):
+        ids = users[tag]
+        if len(ids) != 1:
+            continue
+        node_id = ids[0]
+        findings.append(
+            LintFinding(
+                code="singleton-tag",
+                severity=SEVERITY_INFO,
+                node_id=node_id,
+                message=f"tag {tag!r} is used by only one node {node_id!r}",
+            )
+        )
     return findings
 
 

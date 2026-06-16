@@ -124,6 +124,59 @@ def test_notify_send_success(tmp_path: Path, capsys, monkeypatch) -> None:
     assert "HTTP 204" in capsys.readouterr().out
 
 
+def test_notify_markdown_preview(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["notify", str(tmp_path), "--no-burndown", "--format", "markdown"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    out = captured.out
+    # Heading carries the project name AND the coverage figure (advertised format).
+    first_line = out.splitlines()[0]
+    assert first_line.startswith("# IsabelleBlueprint status - notify-test")
+    assert "Coverage: 100%" in first_line
+    assert "Coverage: 100%" in out
+    # Preview goes to stdout and is not valid JSON (it is Markdown text).
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(out)
+    # No dry-run webhook hint for the local preview format.
+    assert "dry-run" not in captured.err
+
+
+def test_notify_markdown_send_is_rejected(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(
+        [
+            "notify",
+            str(tmp_path),
+            "--no-burndown",
+            "--format",
+            "markdown",
+            "--send",
+            "--url",
+            "https://example.test/hook",
+        ]
+    )
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "preview-only" in err
+
+
+def test_render_markdown_body() -> None:
+    content = notify_mod.NotificationContent(
+        title="T", summary="S", lines=["one", "two"]
+    )
+    body = notify_mod.render_markdown(content)
+    assert body.startswith("# T\n")
+    assert "S" in body
+    assert "- one" in body
+    assert "- two" in body
+    assert body.endswith("\n")
+
+
 def test_render_payload_formats() -> None:
     content = notify_mod.NotificationContent(
         title="T", summary="S", lines=["one", "two"]
