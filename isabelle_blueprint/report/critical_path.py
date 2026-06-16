@@ -80,7 +80,6 @@ class Bottleneck:
             "title": self.title,
             "formal_status": self.formal_status,
             "leverage": self.leverage,
-            "kind": self.kind,
         }
 
 
@@ -443,11 +442,22 @@ def render_critical_path_csv(
     chain used is the project-wide critical path, or - when ``goal`` is given -
     that goal's own longest incomplete chain. ``top`` limits the rows the same
     way the JSON/Markdown renderings do.
+
+    When ``goal`` is given but is not a remaining goal, no data rows are
+    emitted (only the header) - mirroring the text and Mermaid renderers, which
+    refuse to chart an invalid goal. The CLI surfaces the reason on stderr.
     """
 
     if goal is not None:
         goal_chain = goal_chain_for(overview, goal)
-        critical_ids = set(goal_chain.path) if goal_chain is not None else set()
+        if goal_chain is None:
+            # Invalid goal: emit only the header so consumers get an explicit
+            # empty result instead of a full ranking with on_critical_path=false.
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, lineterminator="\n")
+            writer.writerow(CRITICAL_PATH_CSV_COLUMNS)
+            return buffer.getvalue()
+        critical_ids = set(goal_chain.path)
     elif overview.longest is not None:
         critical_ids = set(overview.longest.path)
     else:

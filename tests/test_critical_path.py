@@ -501,6 +501,39 @@ def test_cli_csv_honours_goal(tmp_path: Path, capsys) -> None:
     assert "a,definition,1,true" in out.splitlines()
 
 
+def test_cli_csv_invalid_goal_warns_and_emits_header_only(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    # ``a`` is not a remaining goal (it has an incomplete dependent ``b``).
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--goal", "a"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    # stdout carries only the header - no misleading on_critical_path rows.
+    lines = captured.out.splitlines()
+    assert lines == ["node_id,kind,leverage,on_critical_path"]
+    # The invalid-goal reason is surfaced on stderr, matching the other renderers.
+    assert "is not a remaining goal" in captured.err
+    assert "'a'" in captured.err
+
+
+def test_cli_csv_write_stdout_is_pure_csv(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["critical-path", str(tmp_path), "--csv", "--write"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    # Every stdout line is CSV; the write-location notices go to stderr only.
+    out_lines = captured.out.splitlines()
+    assert out_lines[0] == "node_id,kind,leverage,on_critical_path"
+    assert all("critical-path " not in line for line in out_lines)
+    assert "-> " not in captured.out
+    # The notices are routed to stderr (treated like --json).
+    assert "critical-path json ->" in captured.err
+    assert "critical-path md ->" in captured.err
+
+
 def test_mermaid_invalid_goal_carries_distinct_message() -> None:
     # An unknown/invalid goal must render a message distinct from the
     # all-complete and cycle-tangled cases, mirroring the text renderer.

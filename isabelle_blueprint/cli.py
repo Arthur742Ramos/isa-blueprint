@@ -176,6 +176,7 @@ from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
     critical_path_strict_failures,
+    goal_chain_for,
     render_critical_path,
     render_critical_path_csv,
     render_critical_path_mermaid,
@@ -1219,6 +1220,12 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     elif getattr(args, "mermaid", False):
         print(render_critical_path_mermaid(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "csv", False):
+        if goal is not None and goal_chain_for(overview, goal) is None:
+            print(
+                f"critical-path: {goal!r} is not a remaining goal "
+                "(it is complete, unknown, has incomplete dependents, or is in a cycle).",
+                file=sys.stderr,
+            )
         print(render_critical_path_csv(overview, top=args.top, goal=goal), end="")
     elif getattr(args, "markdown", False):
         from isabelle_blueprint import console
@@ -1233,7 +1240,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
     else:
         print(render_critical_path(overview, top=args.top, goal=goal), end="")
     if getattr(args, "write", False):
-        stream = sys.stderr if args.json else sys.stdout
+        stream = sys.stderr if (args.json or getattr(args, "csv", False)) else sys.stdout
         written = write_critical_path(overview, config.build_dir, top=args.top, goal=goal)
         for name, path in written.items():
             print(f"critical-path {name} -> {path}", file=stream)
