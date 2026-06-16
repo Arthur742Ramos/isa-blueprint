@@ -240,3 +240,73 @@ def test_history_csv_and_json_mutually_exclusive(tmp_path: Path) -> None:
     _write_project(tmp_path)
     with pytest.raises(SystemExit):
         cli_main(["history", str(tmp_path), "--csv", "--json"])
+
+
+def test_history_markdown_header_and_rows(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    _write_trends(
+        tmp_path,
+        [
+            {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "coverage_percent": 10.0,
+                "proved_count": 1,
+                "found_count": 0,
+                "problem_count": 0,
+                "stale_count": 0,
+                "formal_target_count": 10,
+                "node_count": 10,
+            },
+            {
+                "timestamp": "2024-01-02T00:00:00Z",
+                "coverage_percent": 20.0,
+                "proved_count": 2,
+                "found_count": 0,
+                "problem_count": 0,
+                "stale_count": 0,
+                "formal_target_count": 10,
+                "node_count": 10,
+            },
+        ],
+    )
+
+    rc = cli_main(["history", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == (
+        "| timestamp | coverage_percent | proved_count | found_count "
+        "| problem_count | stale_count | formal_target_count | node_count |"
+    )
+    assert lines[1] == "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    # Header + separator + one row per snapshot.
+    assert len(lines) == 4
+    assert lines[2].startswith("| 2024-01-01T00:00:00Z | 10.0 | 1 |")
+    assert lines[3].startswith("| 2024-01-02T00:00:00Z | 20.0 | 2 |")
+
+
+def test_history_markdown_respects_limit(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    _write_trends(
+        tmp_path,
+        [
+            {"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i}
+            for i in range(1, 4)
+        ],
+    )
+
+    rc = cli_main(["history", str(tmp_path), "--markdown", "--limit", "1"])
+
+    assert rc == 0
+    lines = capsys.readouterr().out.splitlines()
+    # Header + separator + the single most-recent snapshot.
+    assert len(lines) == 3
+    assert lines[2].startswith("| 2024-01-03T00:00:00Z |")
+
+
+def test_history_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    import pytest
+
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["history", str(tmp_path), "--markdown", "--json"])
