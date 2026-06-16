@@ -181,3 +181,48 @@ def test_blame_table_single_node(tmp_path: Path, capsys) -> None:
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].split() == ["NODE", "SOURCE", "GIT", "AGENT"]
     assert [line.split()[0] for line in lines[1:]] == ["b"]
+
+
+def test_blame_markdown_lists_every_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--markdown"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == "| Node | Source | Git | Agent memory |"
+    assert lines[1] == "| --- | --- | --- | --- |"
+    # One data row per node, leading with the node id cell.
+    assert lines[2].startswith("| a |")
+    assert lines[3].startswith("| b |")
+    assert "(no commit history)" in out
+
+
+def test_blame_markdown_single_node(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["blame", str(tmp_path), "--node-id", "b", "--markdown"])
+
+    assert rc == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "| Node | Source | Git | Agent memory |"
+    assert [line.split("|")[1].strip() for line in lines[2:]] == ["b"]
+
+
+def test_blame_markdown_and_json_are_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["blame", str(tmp_path), "--markdown", "--json"])
+
+    assert exc.value.code == 2
+
+
+def test_blame_markdown_and_table_are_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["blame", str(tmp_path), "--markdown", "--table"])
+
+    assert exc.value.code == 2

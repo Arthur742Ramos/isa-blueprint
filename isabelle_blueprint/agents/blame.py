@@ -255,6 +255,57 @@ def render_blame_table(blames: list[NodeBlame]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _md_cell(text: str) -> str:
+    """Escape a value for safe inclusion in a Markdown table cell.
+
+    A literal ``|`` would otherwise start a new column and a newline would
+    terminate the row, so both are neutralised.
+    """
+    return (
+        text.replace("\r\n", " ")
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .replace("|", r"\|")
+    )
+
+
+def render_blame_markdown(blames: list[NodeBlame]) -> str:
+    """Render ``blames`` as a Markdown table (trailing newline)."""
+    header = (
+        "| Node | Source | Git | Agent memory |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+    if not blames:
+        return header
+    lines: list[str] = []
+    for blame in blames:
+        location = blame.source_file or "(no source)"
+        if blame.source_line is not None:
+            location = f"{location}:{blame.source_line}"
+        if blame.git is not None:
+            git_cell = (
+                f"{blame.git.commit} {blame.git.author} "
+                f"{blame.git.date} - {blame.git.subject}"
+            )
+        else:
+            git_cell = "(no commit history)"
+        if blame.memory is not None:
+            actor = blame.memory.last_actor or "?"
+            outcome = blame.memory.last_outcome or "?"
+            stamp = blame.memory.last_timestamp or "?"
+            agent_cell = (
+                f"{blame.memory.attempts} attempt(s); "
+                f"last {outcome} by {actor} at {stamp}"
+            )
+        else:
+            agent_cell = "(no recorded attempts)"
+        lines.append(
+            f"| {_md_cell(blame.node_id)} | {_md_cell(location)} | "
+            f"{_md_cell(git_cell)} | {_md_cell(agent_cell)} |"
+        )
+    return header + "\n".join(lines) + "\n"
+
+
 def blame_payload(blames: list[NodeBlame]) -> dict[str, object]:
     """Render ``blames`` as a JSON-serialisable payload."""
     return {"nodes": [blame.to_dict() for blame in blames]}

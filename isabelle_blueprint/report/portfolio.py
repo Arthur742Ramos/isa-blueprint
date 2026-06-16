@@ -243,6 +243,21 @@ def build_portfolio(root: Path) -> PortfolioReport:
     )
 
 
+def coverage_gate_failures(report: PortfolioReport, min_coverage: int) -> list[str]:
+    """Return the ids of projects whose proved-coverage is below ``min_coverage``.
+
+    Projects with undefined coverage (no formal targets, or a load error) have
+    no measurable coverage and are therefore never counted as failures. Results
+    follow the report's project order.
+    """
+    return [
+        project.id
+        for project in report.projects
+        if project.coverage_percent is not None
+        and project.coverage_percent < min_coverage
+    ]
+
+
 def portfolio_payload(report: PortfolioReport) -> dict[str, Any]:
     """Render ``report`` as a JSON-friendly dict."""
     return {
