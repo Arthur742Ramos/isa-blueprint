@@ -170,6 +170,10 @@ renders `build/graph.svg` if Graphviz `dot` is on `PATH`.
 - `--format` (default `all`) selects which artifacts to emit. `mermaid` writes
   `build/graph.mmd`; `dot`/`json`/`svg` emit just that artifact; `all`
   preserves the historical behaviour and also includes the Mermaid output.
+- `--incomplete-only` prunes every emitted format to nodes whose formal status
+  is not `found`/`proved` (the remaining work) plus the edges among them. It is
+  mutually exclusive with `--roots-only`/`--leaves-only` and composes with
+  `--focus`/`--depth`.
 
 ### `lint`
 
@@ -179,10 +183,13 @@ isabelle-blueprint lint [project_dir] [--json] [--format text|json|sarif]
 ```
 
 Runs structural and quality checks over the blueprint and prints findings with
-a severity (`error`/`warning`/`info`). Codes include `duplicate-id`,
-`missing-dependency`, `cycle`, `broken-formal-status`, `stale-formal-status`,
-`empty-statement`, `missing-informal-proof`, `no-isabelle-fact`, and
-`isolated-node`.
+a severity (`error`/`warning`/`info`). The full set of codes is `duplicate-id`,
+`missing-dependency`, `cycle`, `self-dependency`, `broken-formal-status`,
+`stale-formal-status`, `empty-statement`, `missing-informal-proof`,
+`no-isabelle-fact`, `isolated-node`, `duplicate-title`, `duplicate-fact`,
+`singleton-tag`, `tag-case-collision`, and `missing-effort` (an unproved
+top-level theorem/proposition/corollary goal that carries no `effort:`
+estimate).
 
 - `--format` selects the output: `text` (default), `json`, or `sarif` (a
   SARIF 2.1.0 document suitable for GitHub code scanning).
@@ -716,6 +723,7 @@ polling every `--interval` seconds (default `1.0`). Stop with Ctrl-C. A
 
 ```text
 isabelle-blueprint status [project_dir] [--json] [--top-tasks N]
+                          [--markdown] [--oneline]
                           [--kind KIND]
                           [--priority high|medium|low]
                           [--difficulty low|medium|high]
@@ -752,6 +760,12 @@ statuses. Repeat the flag to select multiple statuses (the `problem` alias
 expands to all problem statuses). The gate is
 evaluated against the full project, independent of the ready-task filters.
 
+`--oneline` prints a single compact health summary line (project name, coverage
+percent, ready-task count, problem count, cycle status (yes/no), and the bracketed
+health label) for shell prompts, CI logs, and grepping across projects. Mutually
+exclusive with `--json` and `--markdown`; default multi-line text output and all
+filter flags are unchanged.
+
 `--watch` re-renders the overview whenever the configuration or blueprint
 sources change, polling every `--interval` seconds (default `1.0`). Stop with
 Ctrl-C.
@@ -767,6 +781,7 @@ isabelle-blueprint roadmap [project_dir]
                            [--kind KIND]
                            [--since PATH]
                            [--write]
+                           [--assignees]
                            [--out DIR]
 ```
 
@@ -792,6 +807,11 @@ details, and surfaces dependency cycles instead of hiding them.
 - `--write` writes `roadmap.json` and `roadmap.md` under the configured
   `build_dir`. Written artifacts are always the unfiltered current roadmap so
   downstream consumers can keep treating `build/roadmap.json` as canonical.
+- `--assignees` overlays per-node owner assignments (from the `assign`/`blame`
+  store) onto each item: text gains an `owner` annotation, Markdown gains a
+  trailing `owner` column, and JSON gains an additive `owner` field per item
+  (`null` for unassigned nodes). Written artifacts are unaffected. Without the
+  flag, output is unchanged.
 - `--out DIR` changes the directory used by `--write`.
 
 `suggested_next_task` follows the same stable task ordering as `tasks`: priority
@@ -852,7 +872,7 @@ leverage then id.
 ### `levels`
 
 ```text
-isabelle-blueprint levels [project_dir] [--json]
+isabelle-blueprint levels [project_dir] [--json | --mermaid]
 ```
 
 Arranges the dependency DAG into topological **levels**: level 0 holds the
@@ -863,7 +883,9 @@ giving the total level count (the DAG depth) and the widest level. Nodes that
 participate in a dependency cycle cannot be placed and are reported separately,
 never crashing. `--json` emits a schema-versioned payload (`schema_version`,
 `project`, `level_count`, `max_width`, `levels` of `{index, node_ids, count}`,
-and `cyclic_nodes`); see `schema levels`.
+and `cyclic_nodes`); see `schema levels`. `--mermaid` emits a Mermaid
+`flowchart BT` with one `subgraph` per level (level 0 at the bottom) and one
+edge per cross-level `uses`; it is mutually exclusive with `--json`.
 
 ### `impact`
 
@@ -903,7 +925,7 @@ goal lists by id, and rankings by descending blast radius then id.
 
 ```text
 isabelle-blueprint orphans [project_dir]
-                           [--json]
+                           [--json | --markdown | --csv]
                            [--fail-on-orphan]
 ```
 
@@ -922,10 +944,42 @@ analysis walks the `uses`-dependency graph; any node it never reaches is an
   status, isolated) plus a summary count; a clean project prints a single line.
 - `--json` emits `{schema_version, project, orphan_count, orphans:[{id, kind,
   formal_status, isolated}]}` (validated by the packaged `orphans.schema.json`).
-- `--fail-on-orphan` exits 5 when any orphan exists (a CI gate); a project with
-  no orphans exits 0.
+- `--markdown` renders a standalone Markdown document: an `# <project> orphans`
+  heading, a summary count line, then the orphans table (node, kind, formal
+  status, isolated); a clean project prints the heading plus `_(no orphan
+  nodes)_` instead of the summary and table.
+- `--csv` emits one row per orphan (`id,kind,formal_status,isolated`) with a
+  header row (`lineterminator='\n'`); a clean project emits just the header.
+- `--json`, `--markdown`, and `--csv` are mutually exclusive.
+- `--fail-on-orphan` exits 5 when any orphan exists (a CI gate), composing with
+  every output format; a project with no orphans exits 0.
 
 Orphans are listed by id for deterministic output.
+
+### `depends`
+
+```text
+isabelle-blueprint depends NODE [project_dir] [--json]
+```
+
+Lists a single node's **direct** (one-hop) neighbourhood: the nodes it
+immediately `uses` (its dependencies) and the nodes that immediately `use` it
+(its dependents). It is the focused complement to `impact` (transitive
+downstream blast radius) and `path` (a chain between two nodes): `depends` stops
+at the immediate neighbours.
+
+- Default text output prints two short sections, `Depends on:` and `Depended on
+  by:`, each listing every neighbour's id, kind, and formal status (or `(none)`
+  when empty).
+- `--json` emits `{schema_version, project, node, depends_on:[{id, kind,
+  formal_status}], depended_on_by:[{id, kind, formal_status}]}` (validated by the
+  packaged `depends.schema.json`).
+- An unknown `NODE` is a fatal error (exit 1) that lists the known node ids, like
+  `path`/`explain`.
+
+Only real nodes appear; a `uses` entry that does not resolve to a known node is
+a missing-dependency edge (surfaced by `lint`) and is omitted. Both lists are
+sorted by id for deterministic output.
 
 ### `agent-context`
 
@@ -1140,7 +1194,7 @@ writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 ### `fact-coverage`
 
 ```text
-isabelle-blueprint fact-coverage [project_dir] [--json]
+isabelle-blueprint fact-coverage [project_dir] [--json | --csv | --markdown]
 ```
 
 Groups nodes by the **theory** of their Isabelle fact - the `Theory` part of a
@@ -1153,7 +1207,12 @@ per-theory Markdown table; `--json` emits
 `{project, theories: [{theory, node_count, proved_count, found_count,
 problem_count, coverage_percent}]}` plus
 `schema_version`/`total_nodes`/`theory_count`,
-validated by the packaged `fact-coverage` schema.
+validated by the packaged `fact-coverage` schema. `--csv` emits one row per
+theory under the header `theory,node_count,proved_count,found_count,
+problem_count,coverage_percent` (blank coverage cell when the theory has no
+formal targets; `lineterminator='\n'`); `--markdown` renders the per-theory
+table as a Markdown document. `--json`/`--csv`/`--markdown` are mutually
+exclusive.
 `levels`.
 
 ### `stats`
@@ -1297,12 +1356,26 @@ remaining effort sits. It composes with the other output formats: a per-node
 table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
 additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
 Without `--nodes` the output is unchanged.
+### `kinds`
+
+```text
+isabelle-blueprint kinds [project_dir] [--json]
+```
+
+Rolls up node counts and formal-coverage by node `kind`
+(definition/lemma/theorem/proposition/corollary/construction/remark/example/note/other).
+Each node carries exactly one kind, so the per-kind node counts sum to the
+project total; only kinds actually present produce a row. For each kind it
+reports the node count, formal targets (nodes whose formal status is not
+`missing`), proved/found/problem counts, and a proved-coverage percentage
+(`n/a` when the kind has no formal targets). Rows are ordered by descending node
+count, ties broken alphabetically by kind. Text output is a Markdown table;
+`--json` emits the structured report (`schema_version`, `project`,
+`total_nodes`, `kind_count`, and `kinds`). Always exits 0.
 
 ### `proof-debt`
 
-```text
 isabelle-blueprint proof-debt [project_dir] [--json] [--fail-over N]
-```
 
 Computes a single **proof debt** figure: the effort-weighted total of remaining
 proof work. Every formal-target node that is not yet `proved` contributes its

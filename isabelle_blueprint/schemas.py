@@ -25,6 +25,9 @@ SCHEMA_NAMES = (
     "fact-coverage",
     "tag-cooccurrence",
     "proof-debt",
+    "depends",
+    "kinds",
+    "critical-path",
 )
 
 

@@ -1,5 +1,5 @@
 """Command-line interface for IsabelleBlueprint."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import json
@@ -58,23 +58,11 @@ from isabelle_blueprint.agents.selection import (
     READY_TASK_LAST_OUTCOMES,
     READY_TASK_MEMORY_STATES,
     READY_TASK_PRIORITIES,
-)
-from isabelle_blueprint.agents.selection import (
     filter_ready_tasks as _filter_ready_tasks,
-)
-from isabelle_blueprint.agents.selection import (
     no_ready_task_message as _no_ready_task_message,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_from_args as _ready_task_filters_from_args,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_to_argv as _ready_task_filters_to_argv,
-)
-from isabelle_blueprint.agents.selection import (
     select_ready_task as _select_ready_task,
-)
-from isabelle_blueprint.agents.selection import (
     selection_metadata as _selection_metadata,
 )
 from isabelle_blueprint.agents.tasks import (
@@ -86,8 +74,6 @@ from isabelle_blueprint.agents.tasks import (
 )
 from isabelle_blueprint.agents.tracker_export import (
     SUPPORTED_TRACKERS as TRACKER_EXPORTS,
-)
-from isabelle_blueprint.agents.tracker_export import (
     render_tracker_csv,
 )
 from isabelle_blueprint.completion import (
@@ -105,9 +91,8 @@ from isabelle_blueprint.explain import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
-)
-from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
+    incomplete_subproject,
     leaves_subproject,
     roots_subproject,
 )
@@ -184,6 +169,11 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path_mermaid,
     write_critical_path,
 )
+from isabelle_blueprint.report.depends import (
+    UnknownNodeError as DependsUnknownNodeError,
+    build_depends_report,
+    render_depends_report,
+)
 from isabelle_blueprint.report.diff import (
     build_diff,
     load_baseline,
@@ -199,6 +189,8 @@ from isabelle_blueprint.report.effort import (
 )
 from isabelle_blueprint.report.fact_coverage import (
     build_fact_coverage_report,
+    render_fact_coverage_csv,
+    render_fact_coverage_markdown,
     render_fact_coverage_report,
 )
 from isabelle_blueprint.report.gate import (
@@ -231,8 +223,13 @@ from isabelle_blueprint.report.impact import (
     render_impact_report_csv,
 )
 from isabelle_blueprint.report.json_report import write_project_report, write_summary_json
+from isabelle_blueprint.report.kinds import (
+    build_kind_report,
+    render_kind_report,
+)
 from isabelle_blueprint.report.levels import (
     build_levels_report,
+    render_levels_mermaid,
     render_levels_report,
 )
 from isabelle_blueprint.report.lint import (
@@ -248,11 +245,7 @@ from isabelle_blueprint.report.metrics import (
 )
 from isabelle_blueprint.report.notify import (
     FORMAT_CHOICES as NOTIFY_FORMATS,
-)
-from isabelle_blueprint.report.notify import (
     MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
-)
-from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
     render_markdown,
@@ -261,11 +254,11 @@ from isabelle_blueprint.report.notify import (
 from isabelle_blueprint.report.orphans import (
     build_orphan_report,
     render_orphan_report,
+    render_orphans_csv,
+    render_orphans_markdown,
 )
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
-)
-from isabelle_blueprint.report.path import (
     build_path_report,
     render_path_markdown,
     render_path_report,
@@ -297,6 +290,7 @@ from isabelle_blueprint.report.roadmap import (
     build_roadmap,
     diff_roadmaps,
     load_roadmap_payload,
+    overlay_owners,
     render_roadmap,
     render_roadmap_csv,
     render_roadmap_markdown,
@@ -331,6 +325,7 @@ from isabelle_blueprint.report.stats import (
 from isabelle_blueprint.report.status_overview import (
     build_status_overview,
     render_status_markdown,
+    render_status_oneline,
     render_status_overview,
 )
 from isabelle_blueprint.report.tag_cooccurrence import (
@@ -338,11 +333,13 @@ from isabelle_blueprint.report.tag_cooccurrence import (
     render_tag_cooccurrence_report,
 )
 from isabelle_blueprint.report.tags import (
+    TAG_SORT_KEYS,
     build_tag_gate,
     build_tag_report,
     render_tag_report,
     render_tags_csv,
     render_tags_markdown,
+    sort_tag_report,
 )
 from isabelle_blueprint.report.trends import append_trend_entry, load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema, write_schemas
@@ -868,6 +865,8 @@ def cmd_graph(args: argparse.Namespace) -> int:
         project = roots_subproject(project)
     if getattr(args, "leaves_only", False):
         project = leaves_subproject(project)
+    if getattr(args, "incomplete_only", False):
+        project = incomplete_subproject(project)
     fmt = getattr(args, "format", "all")
     formats = ("dot", "json", "svg", "mermaid", "graphml") if fmt == "all" else (fmt,)
     written = write_graph_artifacts(project, config.build_dir, formats=formats)
@@ -1010,6 +1009,10 @@ def cmd_tags(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     report = build_tag_report(project, only=args.tag or None)
 
+    sort_key = getattr(args, "sort", None)
+    if sort_key is not None:
+        report = sort_tag_report(report, sort_key)
+
     exit_code = 0
     gate = None
     fail_under = getattr(args, "fail_under", None)
@@ -1050,6 +1053,18 @@ def cmd_tags(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def cmd_kinds(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_kind_report(project)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_kind_report(report), end="")
+    return 0
+
+
 def cmd_tag_cooccurrence(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -1088,6 +1103,25 @@ def cmd_path(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_depends(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        report = build_depends_report(project, args.node)
+    except DependsUnknownNodeError as exc:
+        unknown = exc.args[0] if exc.args else "?"
+        known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+        raise BlueprintError(
+            f"unknown node {unknown!r}; known node ids: {known}"
+        ) from None
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_depends_report(report), end="")
+    return 0
+
+
 def cmd_orphans(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
@@ -1100,6 +1134,22 @@ def cmd_orphans(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_orphans_markdown(report), end="")
+        if exit_code == 5:
+            print(
+                f"fail-on-orphan policy triggered: {report.orphan_count} "
+                "orphan node(s) unreachable from any goal.",
+                file=sys.stderr,
+            )
+    elif getattr(args, "csv", False):
+        print(render_orphans_csv(report), end="")
+        if exit_code == 5:
+            print(
+                f"fail-on-orphan policy triggered: {report.orphan_count} "
+                "orphan node(s) unreachable from any goal.",
+                file=sys.stderr,
+            )
     else:
         print(render_orphan_report(report), end="")
         if exit_code == 5:
@@ -1118,6 +1168,8 @@ def cmd_levels(args: argparse.Namespace) -> int:
     report = build_levels_report(project)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "mermaid", False):
+        print(render_levels_mermaid(report, project), end="")
     else:
         print(render_levels_report(report), end="")
     return 0
@@ -1131,6 +1183,10 @@ def cmd_fact_coverage(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif args.csv:
+        print(render_fact_coverage_csv(report), end="")
+    elif args.markdown:
+        print(render_fact_coverage_markdown(report), end="")
     else:
         print(render_fact_coverage_report(report), end="")
     return 0
@@ -2201,6 +2257,8 @@ def _run_status_once(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
+    elif getattr(args, "oneline", False):
+        print(render_status_oneline(overview), end="")
     elif getattr(args, "markdown", False):
         was_enabled = console.is_enabled()
         console.set_enabled(False)
@@ -2245,6 +2303,12 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
     if args.write:
         output_dir = Path(args.out).resolve() if args.out else config.build_dir
         written = write_roadmap(roadmap, output_dir)
+    if args.assignees:
+        owners = {
+            node_id: assignment.owner
+            for node_id, assignment in load_assignments(config.assignments_path).nodes.items()
+        }
+        roadmap = overlay_owners(roadmap, owners)
     if args.mermaid:
         print(render_roadmap_mermaid(roadmap, filters=filters), end="")
         stream = sys.stderr
@@ -3210,6 +3274,12 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="prune the graph to leaf nodes (those that use nothing); "
         "composes with --focus/--depth",
     )
+    p_graph_prune.add_argument(
+        "--incomplete-only",
+        action="store_true",
+        help="prune the graph to nodes whose formal status is neither "
+        "'found' nor 'proved' (the remaining work); composes with --focus/--depth",
+    )
     p_graph.set_defaults(func=cmd_graph)
 
     p_scorecard = sub.add_parser(
@@ -3277,6 +3347,16 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_scorecard.set_defaults(func=cmd_scorecard)
 
+    p_kinds = sub.add_parser(
+        "kinds",
+        help="roll up node counts and coverage per blueprint node kind",
+    )
+    p_kinds.add_argument("project_dir", nargs="?", default=".")
+    p_kinds.add_argument(
+        "--json", action="store_true", help="emit the kind roll-up as JSON"
+    )
+    p_kinds.set_defaults(func=cmd_kinds)
+
     p_tags = sub.add_parser(
         "tags",
         help="roll up node counts and coverage per blueprint tag",
@@ -3311,6 +3391,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "exit non-zero (5) if any gated tag's proved-coverage is below PCT "
             "(an integer 0-100). Honours --tag; tags with no formal targets never "
             "fail the gate."
+        ),
+    )
+    p_tags.add_argument(
+        "--sort",
+        choices=TAG_SORT_KEYS,
+        metavar="{name,nodes,coverage}",
+        help=(
+            "order the listed tags: 'name' ascending, 'nodes'/'coverage' "
+            "descending. Default keeps the most-used-first ordering."
         ),
     )
     p_tags.set_defaults(func=cmd_tags)
@@ -3361,13 +3450,35 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_path.set_defaults(func=cmd_path)
 
+    p_depends = sub.add_parser(
+        "depends",
+        help="list a node's direct dependencies and direct dependents",
+    )
+    p_depends.add_argument("node", help="node id to inspect")
+    p_depends.add_argument("project_dir", nargs="?", default=".")
+    p_depends.add_argument(
+        "--json", action="store_true", help="emit the neighbourhood report as JSON"
+    )
+    p_depends.set_defaults(func=cmd_depends)
+
     p_orphans = sub.add_parser(
         "orphans",
         help="find nodes unreachable from any project goal (dead planning weight)",
     )
     p_orphans.add_argument("project_dir", nargs="?", default=".")
-    p_orphans.add_argument(
+    p_orphans_format = p_orphans.add_mutually_exclusive_group()
+    p_orphans_format.add_argument(
         "--json", action="store_true", help="emit the orphan report as JSON"
+    )
+    p_orphans_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the orphan list as a Markdown table",
+    )
+    p_orphans_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the orphan list as CSV (one row per orphan)",
     )
     p_orphans.add_argument(
         "--fail-on-orphan",
@@ -3381,8 +3492,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="arrange the dependency DAG into topological levels",
     )
     p_levels.add_argument("project_dir", nargs="?", default=".")
-    p_levels.add_argument(
+    p_levels_format = p_levels.add_mutually_exclusive_group()
+    p_levels_format.add_argument(
         "--json", action="store_true", help="emit the level layering as JSON"
+    )
+    p_levels_format.add_argument(
+        "--mermaid",
+        action="store_true",
+        help="emit the levels as a Mermaid flowchart (one subgraph per level)",
     )
     p_levels.set_defaults(func=cmd_levels)
 
@@ -3391,10 +3508,21 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="roll up node counts and coverage per Isabelle theory",
     )
     p_fact_coverage.add_argument("project_dir", nargs="?", default=".")
-    p_fact_coverage.add_argument(
+    p_fact_coverage_format = p_fact_coverage.add_mutually_exclusive_group()
+    p_fact_coverage_format.add_argument(
         "--json",
         action="store_true",
         help="emit the per-theory fact-coverage roll-up as JSON",
+    )
+    p_fact_coverage_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as CSV (one row per theory)",
+    )
+    p_fact_coverage_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as a Markdown document",
     )
     p_fact_coverage.set_defaults(func=cmd_fact_coverage)
 
@@ -4359,6 +4487,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="store_true",
         help="render the health overview as a Markdown table (mutually exclusive with --json)",
     )
+    p_status_format.add_argument(
+        "--oneline",
+        action="store_true",
+        help="print a single compact health summary line (excludes --json/--markdown)",
+    )
     p_status.add_argument(
         "--top-tasks",
         type=_positive_int,
@@ -4430,6 +4563,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--write",
         action="store_true",
         help="write build/roadmap.json and build/roadmap.md artifacts",
+    )
+    p_roadmap.add_argument(
+        "--assignees",
+        action="store_true",
+        help="overlay per-node owner assignments (from the assign store) on each item",
     )
     p_roadmap.add_argument(
         "--out",

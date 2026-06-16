@@ -423,6 +423,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **Packaged JSON Schema for the `critical-path` command.** Its versioned
+  `--json` payload shipped without a published schema, unlike `path`/`tags`/
+  `scorecard`/`orphans`. It is now a registered packaged schema
+  (`isabelle-blueprint schema critical-path`, included in `schema --out` and
+  over MCP), and a contract test asserts the command's JSON conforms to it.
+  Output is unchanged.
+- **`status --oneline`** prints a single compact health summary line (project
+  name, coverage percent, ready-task count, problem count, cycle status (yes/no),
+  and a bracketed health label) for shell prompts, CI logs, and grepping across
+  projects. Mutually exclusive with `--json` and `--markdown`; default multi-line
+  text output and all filter flags are unchanged.
+- **`fact-coverage --csv` and `--markdown`** add output formats to the
+  per-theory roll-up: `--csv` emits one row per theory
+  (`theory,node_count,proved_count,found_count,problem_count,coverage_percent`,
+  blank coverage cell when undefined, `lineterminator='\n'`), and `--markdown`
+  renders the table as a Markdown document (escaping `|` in theory cells).
+  Mutually exclusive with `--json`; default text output is unchanged.
+- **`levels --mermaid`** emits a Mermaid `flowchart BT` of the topological
+  layering: one `subgraph` per level (level 0/foundations at the bottom), nodes
+  labelled by id, and one edge per cross-level `uses` (dependency up to
+  dependent). Cycle participants are omitted. Mutually exclusive with `--json`;
+  default text output is unchanged.
+
+- **`tags --sort {name,nodes,coverage}`** orders the listed tags (`name`
+  ascending; `nodes`/`coverage` descending, with targetless tags last under
+  `coverage`) across text/JSON/CSV/Markdown output. Composes with
+  `--tag`/`--fail-under`; default most-used-first ordering is unchanged.
+- **`orphans --markdown` / `orphans --csv`** render the orphan list as a
+  Markdown table or CSV (`id,kind,formal_status,isolated`), mutually exclusive
+  with `--json`. Both compose with `--fail-on-orphan` (the exit-5 gate still
+  applies); a clean project stays tidy in each format and default text output is
+  unchanged.
+- **`lint` `missing-effort` rule** flags unproved top-level goals (a
+  theorem/proposition/corollary that nothing else `uses`) carrying no `effort:`
+  estimate as an `info`-severity finding naming the node, highlighting the
+  high-value remaining goals where an estimate most helps planning; also
+  surfaced in SARIF output.
+- **`depends NODE` command** lists a single node's direct (one-hop)
+  neighbourhood: the nodes it immediately `uses` and the nodes that immediately
+  `use` it, each with id, kind, and formal status. Text prints `Depends on:` and
+  `Depended on by:` sections; `--json` emits `{schema_version, project, node,
+  depends_on:[{id, kind, formal_status}], depended_on_by:[...]}` (packaged
+  `depends.schema.json`). An unknown node id errors (exit 1) listing the known
+  ids.
 - **`proof-debt` command** scores remaining proof work as one effort-weighted
   debt figure: the summed `effort` (default `1`) of every formal-target node not
   yet `proved`, attributed to status buckets (`named`, `found`, `problem`, plus
@@ -462,6 +506,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
   clearly if `PATH` is missing or unreadable; composes with the gates and
   `--markdown`. Without `--since`, output is byte-for-byte unchanged.
+- **`graph --incomplete-only`** prunes every emitted format to nodes whose
+  formal status is not `found`/`proved` (the remaining work) plus the edges
+  among them, giving a "what is left to do" view. Mutually exclusive with
+  `--roots-only`/`--leaves-only`; composes with `--focus`/`--depth`/`--format`.
+  Without it the graph is unchanged.
+- **`kinds` command** rolls up nodes by their `kind`
+  (definition/lemma/theorem/…): per-kind node count, formal targets,
+  proved/found/problem counts, and proved-coverage percentage, ranked by
+  descending node count. The by-kind sibling of `tags`. `--json` emits the
+  structured rollup against a packaged `kinds.schema.json`.
+
+- **`roadmap --assignees`** overlays per-node owner assignments (from the
+  `assign`/`blame` store) onto the staged plan: text gains an `owner`
+  annotation, Markdown gains a trailing `owner` column, and `--json` gains an
+  additive `owner` field per item (`null` for unassigned nodes). Written
+  artifacts are unaffected; without the flag, output is unchanged.
 
 ### Fixed
 
