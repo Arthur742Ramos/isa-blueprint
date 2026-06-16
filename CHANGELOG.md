@@ -456,6 +456,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clearly if `PATH` is missing or unreadable; composes with the gates and
   `--markdown`. Without `--since`, output is byte-for-byte unchanged.
 
+- **`roadmap --assignees`** overlays per-node owner assignments (from the
+  `assign`/`blame` store) onto the staged plan: text gains an `owner`
+  annotation, Markdown gains a trailing `owner` column, and `--json` gains an
+  additive `owner` field per item (`null` for unassigned nodes). Written
+  artifacts are unaffected; without the flag, output is unchanged.
+
 ### Fixed
 
 - **`graph --format svg` can no longer hang** on a wedged or pathological

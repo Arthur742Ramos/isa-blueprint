@@ -506,6 +506,11 @@ roadmap `status` (or `missing` for an undefined dependency), nullable
 `missing_dependency`, `incomplete_dependency`, `problem_dependency`,
 `stale_dependency`, or `cycle_dependency`.
 
+With `roadmap --json --assignees`, each item additionally carries an `owner`
+key: the owner string from the `assign`/`blame` assignments store, or `null`
+when the node is unassigned. Without `--assignees` the `owner` key is omitted
+entirely (output is unchanged).
+
 `diff` contains:
 
 | Key | Type | Notes |

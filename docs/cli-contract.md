@@ -767,6 +767,7 @@ isabelle-blueprint roadmap [project_dir]
                            [--kind KIND]
                            [--since PATH]
                            [--write]
+                           [--assignees]
                            [--out DIR]
 ```
 
@@ -792,6 +793,11 @@ details, and surfaces dependency cycles instead of hiding them.
 - `--write` writes `roadmap.json` and `roadmap.md` under the configured
   `build_dir`. Written artifacts are always the unfiltered current roadmap so
   downstream consumers can keep treating `build/roadmap.json` as canonical.
+- `--assignees` overlays per-node owner assignments (from the `assign`/`blame`
+  store) onto each item: text gains an `owner` annotation, Markdown gains a
+  trailing `owner` column, and JSON gains an additive `owner` field per item
+  (`null` for unassigned nodes). Written artifacts are unaffected. Without the
+  flag, output is unchanged.
 - `--out DIR` changes the directory used by `--write`.
 
 `suggested_next_task` follows the same stable task ordering as `tasks`: priority
