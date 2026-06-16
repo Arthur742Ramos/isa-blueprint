@@ -1020,6 +1020,12 @@ with fewer than two tags contribute no pairs.
 
 Written to stdout by `critical-path --json`. Validated by the packaged
 `critical-path.schema.json`.
+## `depends --json`
+
+Written to stdout by `depends NODE --json` and validated by the packaged
+`depends.schema.json` (see `schema depends`). It reports a single node's
+**direct** (one-hop) neighbourhood: the nodes it immediately `uses` and the
+nodes that immediately `use` it.
 
 ```json
 {
@@ -1036,20 +1042,13 @@ Written to stdout by `critical-path --json`. Validated by the packaged
   },
   "goals": [
     {
-      "goal_id": "top",
-      "title": "Top",
-      "formal_status": "missing",
-      "depth": 3,
-      "path": ["base", "mid", "top"]
     }
   ],
   "bottlenecks": [
     { "node_id": "base", "title": "Base", "formal_status": "missing", "leverage": 2 }
-  ],
   "cycles": [],
   "missing_dependencies": [],
   "inconsistent": []
-}
 ```
 
 `remaining_count` counts incomplete nodes; `goal_count` counts terminal
@@ -1061,6 +1060,23 @@ and capped by `--top`. `cycles` lists detected dependency cycles (each a list of
 node ids, excluded from ranking); `missing_dependencies` lists nodes whose
 `uses` reference unknown ids; `inconsistent` lists complete nodes that still
 depend on incomplete work.
+  "node": "mid",
+  "depends_on": [
+    { "id": "base", "kind": "definition", "formal_status": "missing" }
+  "depended_on_by": [
+    { "id": "top", "kind": "theorem", "formal_status": "missing" }
+  ]
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `schema_version` | integer | Always `1` for the v1 depends shape. |
+| `project` | string | Project name from `[project].name`. |
+| `node` | string | The inspected node id. |
+| `depends_on` | array | Direct dependencies (ids in the node's `uses`), each `{id, kind, formal_status}`; sorted by id. |
+| `depended_on_by` | array | Direct dependents (nodes whose `uses` names the node), each `{id, kind, formal_status}`; sorted by id. |
+
+Only real nodes appear; unresolved `uses` entries (missing-dependency edges) are
+omitted. An unknown node id is a fatal error (exit 1).
 
 ---
 

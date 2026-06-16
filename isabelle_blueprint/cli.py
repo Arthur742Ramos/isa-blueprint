@@ -1,5 +1,5 @@
 """Command-line interface for IsabelleBlueprint."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import json
@@ -58,23 +58,11 @@ from isabelle_blueprint.agents.selection import (
     READY_TASK_LAST_OUTCOMES,
     READY_TASK_MEMORY_STATES,
     READY_TASK_PRIORITIES,
-)
-from isabelle_blueprint.agents.selection import (
     filter_ready_tasks as _filter_ready_tasks,
-)
-from isabelle_blueprint.agents.selection import (
     no_ready_task_message as _no_ready_task_message,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_from_args as _ready_task_filters_from_args,
-)
-from isabelle_blueprint.agents.selection import (
     ready_task_filters_to_argv as _ready_task_filters_to_argv,
-)
-from isabelle_blueprint.agents.selection import (
     select_ready_task as _select_ready_task,
-)
-from isabelle_blueprint.agents.selection import (
     selection_metadata as _selection_metadata,
 )
 from isabelle_blueprint.agents.tasks import (
@@ -86,8 +74,6 @@ from isabelle_blueprint.agents.tasks import (
 )
 from isabelle_blueprint.agents.tracker_export import (
     SUPPORTED_TRACKERS as TRACKER_EXPORTS,
-)
-from isabelle_blueprint.agents.tracker_export import (
     render_tracker_csv,
 )
 from isabelle_blueprint.completion import (
@@ -105,8 +91,6 @@ from isabelle_blueprint.explain import (
 )
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
-)
-from isabelle_blueprint.graph.dependency_graph import (
     focus_subproject,
     incomplete_subproject,
     leaves_subproject,
@@ -185,6 +169,11 @@ from isabelle_blueprint.report.critical_path import (
     render_critical_path_mermaid,
     write_critical_path,
 )
+from isabelle_blueprint.report.depends import (
+    UnknownNodeError as DependsUnknownNodeError,
+    build_depends_report,
+    render_depends_report,
+)
 from isabelle_blueprint.report.diff import (
     build_diff,
     load_baseline,
@@ -256,11 +245,7 @@ from isabelle_blueprint.report.metrics import (
 )
 from isabelle_blueprint.report.notify import (
     FORMAT_CHOICES as NOTIFY_FORMATS,
-)
-from isabelle_blueprint.report.notify import (
     MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
-)
-from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
     render_markdown,
@@ -274,8 +259,6 @@ from isabelle_blueprint.report.orphans import (
 )
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
-)
-from isabelle_blueprint.report.path import (
     build_path_report,
     render_path_markdown,
     render_path_report,
@@ -1112,6 +1095,25 @@ def cmd_path(args: argparse.Namespace) -> int:
         print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
+    return 0
+
+
+def cmd_depends(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        report = build_depends_report(project, args.node)
+    except DependsUnknownNodeError as exc:
+        unknown = exc.args[0] if exc.args else "?"
+        known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
+        raise BlueprintError(
+            f"unknown node {unknown!r}; known node ids: {known}"
+        ) from None
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_depends_report(report), end="")
     return 0
 
 
@@ -3418,6 +3420,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_depends = sub.add_parser(
+        "depends",
+        help="list a node's direct dependencies and direct dependents",
+    )
+    p_depends.add_argument("node", help="node id to inspect")
+    p_depends.add_argument("project_dir", nargs="?", default=".")
+    p_depends.add_argument(
+        "--json", action="store_true", help="emit the neighbourhood report as JSON"
+    )
+    p_depends.set_defaults(func=cmd_depends)
 
     p_orphans = sub.add_parser(
         "orphans",

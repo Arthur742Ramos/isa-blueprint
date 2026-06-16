@@ -460,6 +460,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   estimate as an `info`-severity finding naming the node, highlighting the
   high-value remaining goals where an estimate most helps planning; also
   surfaced in SARIF output.
+- **`depends NODE` command** lists a single node's direct (one-hop)
+  neighbourhood: the nodes it immediately `uses` and the nodes that immediately
+  `use` it, each with id, kind, and formal status. Text prints `Depends on:` and
+  `Depended on by:` sections; `--json` emits `{schema_version, project, node,
+  depends_on:[{id, kind, formal_status}], depended_on_by:[...]}` (packaged
+  `depends.schema.json`). An unknown node id errors (exit 1) listing the known
+  ids.
 
 ### Changed
 
