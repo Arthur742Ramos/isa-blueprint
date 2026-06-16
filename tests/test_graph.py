@@ -8,6 +8,7 @@ from isabelle_blueprint.graph.dependency_graph import (
     build_graph,
     dependency_levels,
     focus_subproject,
+    leaves_subproject,
     neighbourhood,
     roots_subproject,
 )
@@ -557,3 +558,49 @@ def test_cli_graph_without_roots_only_is_unchanged(tmp_path, capsys):
     data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
     node_ids = {n["id"] for n in data["nodes"]}
     assert node_ids == {"a", "b"}
+
+
+def test_leaves_subproject_keeps_only_nodes_with_no_outgoing_edges():
+    # a uses nothing, b uses a, c uses b, d uses a. Leaves = nodes that use
+    # nothing = just a.
+    project = _project(("a", []), ("b", ["a"]), ("c", ["b"]), ("d", ["a"]))
+    leaves = leaves_subproject(project)
+    assert {n.id for n in leaves.nodes} == {"a"}
+    assert leaves.name == "p"
+
+
+def test_leaves_subproject_drops_dangling_edges_to_pruned_nodes():
+    # Two independent leaves; the node depending on them is pruned.
+    project = _project(("l1", []), ("l2", []), ("top", ["l1", "l2"]))
+    leaves = leaves_subproject(project)
+    assert {n.id for n in leaves.nodes} == {"l1", "l2"}
+    assert build_graph(leaves).edges == {"l1": [], "l2": []}
+
+
+def test_cli_graph_leaves_only_json_excludes_non_leaf(tmp_path, capsys):
+    import json
+
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_chain_project(tmp_path)
+    rc = cli_main(["graph", str(tmp_path), "--format", "json", "--leaves-only"])
+
+    assert rc == 0
+    capsys.readouterr()
+    data = json.loads((tmp_path / "build" / "graph.json").read_text(encoding="utf-8"))
+    node_ids = {n["id"] for n in data["nodes"]}
+    assert node_ids == {"a"}  # b uses a, so b is not a leaf and is excluded
+
+
+def test_cli_graph_roots_only_and_leaves_only_are_mutually_exclusive(tmp_path, capsys):
+    from isabelle_blueprint.cli import main as cli_main
+
+    _write_chain_project(tmp_path)
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(
+            ["graph", str(tmp_path), "--format", "json", "--roots-only", "--leaves-only"]
+        )
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "not allowed with" in err
+
