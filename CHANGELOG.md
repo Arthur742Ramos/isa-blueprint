@@ -423,6 +423,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **`levels --mermaid`** emits a Mermaid `flowchart BT` of the topological
+  layering: one `subgraph` per level (level 0/foundations at the bottom), nodes
+  labelled by id, and one edge per cross-level `uses` (dependency up to
+  dependent). Cycle participants are omitted. Mutually exclusive with `--json`;
+  default text output is unchanged.
 
 ### Changed
 
