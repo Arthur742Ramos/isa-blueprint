@@ -361,6 +361,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`critical-path --min-leverage N`** filters the bottleneck/leverage ranking to
+  nodes that unblock at least `N` incomplete descendants (leverage ≥ `N`),
+  focusing attention on the highest-impact work. Applies to the text, JSON,
+  Markdown, CSV, and Mermaid outputs; `N` must be a non-negative integer and the
+  default `0` shows the full ranking unchanged.
 
 ### Changed
 

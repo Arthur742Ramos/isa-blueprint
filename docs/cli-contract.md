@@ -791,6 +791,7 @@ isabelle-blueprint critical-path [project_dir]
                                  [--json]
                                  [--top N]
                                  [--goal NODE]
+                                 [--min-leverage N]
                                  [--fail-on-cycle]
 ```
 
@@ -808,6 +809,11 @@ other incomplete node depends on (terminal remaining work).
   shown (default 5; must be a positive integer).
 - `--goal NODE` focuses the terminal view on a single goal's chain. It does not
   affect `--json` output.
+- `--min-leverage N` filters the bottleneck/leverage ranking to nodes that
+  unblock at least `N` incomplete descendants (leverage ≥ `N`), focusing on the
+  highest-impact work. `N` must be a non-negative integer; the default `0`
+  applies no filter. The filter applies to the text, JSON, Markdown, CSV, and
+  Mermaid (bottleneck-highlight) outputs.
 - Dependency cycles are excluded from depth/path/leverage ranking and reported in
   a separate `cycles` section. References to unknown dependency ids
   (`missing_dependencies`) and complete nodes that still depend on incomplete
