@@ -148,6 +148,51 @@ def render_path_report(report: PathReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_path_markdown(report: PathReport) -> str:
+    """Render the path report as a standalone Markdown document.
+
+    The heading names both endpoints, a direction line states which node
+    depends on which (``depends-on`` / ``depended-on-by``), and the chain is an
+    ordered list. With ``--all`` every shortest path becomes its own list.
+    """
+
+    src = f"`{report.source}`"
+    tgt = f"`{report.target}`"
+    lines = [f"# Dependency path: {src} -> {tgt}", ""]
+
+    if not report.found:
+        lines.append(f"{src} and {tgt} are not connected by dependencies.")
+        return "\n".join(lines) + "\n"
+
+    if report.direction == DIRECTION_SELF:
+        lines.append(f"{src} is the same node (0 step(s)).")
+        return "\n".join(lines) + "\n"
+
+    if report.direction == DIRECTION_DEPENDS_ON:
+        lines.append(f"**Direction:** {src} depends on {tgt} (`{DIRECTION_DEPENDS_ON}`).")
+    else:
+        lines.append(
+            f"**Direction:** {tgt} depends on {src} (`{DIRECTION_DEPENDED_ON_BY}`)."
+        )
+    lines.append("")
+
+    paths = report.paths or [report.path]
+    if len(paths) > 1:
+        lines.append(f"{len(paths)} shortest path(s), {report.length} step(s) each.")
+        lines.append("")
+        for index, chain in enumerate(paths, start=1):
+            lines.append(f"## Path {index}")
+            lines.append("")
+            lines.extend(f"{step}. `{node_id}`" for step, node_id in enumerate(chain, 1))
+            lines.append("")
+    else:
+        lines.append(f"{report.length} step(s).")
+        lines.append("")
+        lines.extend(f"{step}. `{node_id}`" for step, node_id in enumerate(report.path, 1))
+        lines.append("")
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
 def _resolve_paths(
     edges: dict[str, list[str]], start: str, goal: str, *, all_paths: bool
 ) -> list[list[str]]:

@@ -233,6 +233,7 @@ from isabelle_blueprint.report.path import (
 )
 from isabelle_blueprint.report.path import (
     build_path_report,
+    render_path_markdown,
     render_path_report,
 )
 from isabelle_blueprint.report.portfolio import (
@@ -917,6 +918,8 @@ def cmd_path(args: argparse.Namespace) -> int:
         ) from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
+    elif getattr(args, "markdown", False):
+        print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
     return 0
@@ -2897,7 +2900,15 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_path.add_argument("source", help="source node id")
     p_path.add_argument("target", help="target node id")
     p_path.add_argument("project_dir", nargs="?", default=".")
-    p_path.add_argument("--json", action="store_true", help="emit the path report as JSON")
+    p_path_format = p_path.add_mutually_exclusive_group()
+    p_path_format.add_argument(
+        "--json", action="store_true", help="emit the path report as JSON"
+    )
+    p_path_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the path report as a Markdown document",
+    )
     p_path.add_argument(
         "--all",
         action="store_true",
