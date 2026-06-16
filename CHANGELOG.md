@@ -423,6 +423,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
   (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
   exists.
+- **`proof-debt` command** scores remaining proof work as one effort-weighted
+  debt figure: the summed `effort` (default `1`) of every formal-target node not
+  yet `proved`, attributed to status buckets (`named`, `found`, `problem`, plus
+  an informational `missing` excluded from the total). `--json` emits
+  `{schema_version, project, total_debt, remaining_node_count, buckets, default_effort_used}`
+  (packaged `proof-debt.schema.json`); `--fail-over N` exits 5 when total debt
+  exceeds the ceiling `N`.
 
 ### Changed
 

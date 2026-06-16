@@ -1297,6 +1297,35 @@ remaining effort sits. It composes with the other output formats: a per-node
 table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
 additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
 Without `--nodes` the output is unchanged.
+
+### `proof-debt`
+
+```text
+isabelle-blueprint proof-debt [project_dir] [--json] [--fail-over N]
+```
+
+Computes a single **proof debt** figure: the effort-weighted total of remaining
+proof work. Every formal-target node that is not yet `proved` contributes its
+`effort` weight (defaulting to `1` when no `effort` is set); `missing` (blueprint
+-only) and `proved` nodes contribute nothing. The figure is attributed to status
+buckets so a reviewer can see *where* the debt sits: `named` (assigned but
+unchecked), `found` (exists/stale but not trusted-proved), `problem` (not found,
+broken, tainted), and `missing` (informational; not counted in the total). The
+`named`/`found`/`problem` buckets partition the remaining targets, so their
+debts sum to `total_debt`.
+
+The text form prints the headline debt, the remaining-node count, and a
+per-bucket table. `--json` emits a schema-versioned payload (`schema_version`,
+`project`, `total_debt`, `remaining_node_count`, `buckets` of
+`{named, found, problem, missing}`, `default_effort_used`); see `schema
+proof-debt`. `--fail-over N` turns the figure into a CI ceiling: the command
+exits 5 when `total_debt` exceeds `N` (the ceiling is inclusive, so debt equal
+to `N` passes) and adds an additive `gate` object (`{fail_over, total_debt,
+exceeds}`) to the JSON. Without `--fail-over` the command always exits 0. This
+differs from `effort` (which splits proved/remaining effort and gates on a
+coverage *percentage*) by reporting one debt number with status attribution and
+an absolute debt ceiling.
+
 ### `tag-cooccurrence`
 
 ```text

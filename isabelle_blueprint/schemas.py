@@ -24,6 +24,7 @@ SCHEMA_NAMES = (
     "levels",
     "fact-coverage",
     "tag-cooccurrence",
+    "proof-debt",
 )
 
 
