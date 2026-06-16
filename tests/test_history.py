@@ -310,3 +310,11 @@ def test_history_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
     _write_project(tmp_path)
     with pytest.raises(SystemExit):
         cli_main(["history", str(tmp_path), "--markdown", "--json"])
+
+
+def test_history_markdown_and_csv_mutually_exclusive(tmp_path: Path) -> None:
+    import pytest
+
+    _write_project(tmp_path)
+    with pytest.raises(SystemExit):
+        cli_main(["history", str(tmp_path), "--markdown", "--csv"])
