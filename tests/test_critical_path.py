@@ -9,7 +9,10 @@ from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.critical_path import build_critical_path
+from isabelle_blueprint.report.critical_path import (
+    build_critical_path,
+    render_critical_path_mermaid,
+)
 
 
 def _node(
@@ -434,3 +437,43 @@ def test_cli_mermaid_rejects_markdown(tmp_path: Path, capsys) -> None:
 
     with pytest.raises(SystemExit):
         cli_main(["critical-path", str(tmp_path), "--mermaid", "--markdown"])
+
+
+def test_mermaid_invalid_goal_carries_distinct_message() -> None:
+    # An unknown/invalid goal must render a message distinct from the
+    # all-complete and cycle-tangled cases, mirroring the text renderer.
+    project = _project(
+        _node("a"),
+        _node("b", uses=["a"]),
+    )
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview, goal="does-not-exist")
+
+    assert mermaid.startswith("flowchart")
+    assert "is not a remaining goal" in mermaid
+    assert "no remaining critical path" not in mermaid
+
+
+def test_mermaid_all_complete_message() -> None:
+    project = _project(_node("a", formal=FormalStatus.PROVED))
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview)
+
+    assert "All formal targets are complete" in mermaid
+    assert "is not a remaining goal" not in mermaid
+
+
+def test_mermaid_cycle_tangled_message() -> None:
+    project = _project(
+        _node("a", uses=["b"]),
+        _node("b", uses=["a"]),
+    )
+    overview = build_critical_path(project)
+
+    mermaid = render_critical_path_mermaid(overview)
+
+    assert "tangled in cycles" in mermaid
+    assert "is not a remaining goal" not in mermaid
+
