@@ -344,6 +344,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to stdout; the flag itself writes no files, but `--write` may still be passed
   to also emit artifacts. Mutually exclusive with `--json`; the existing filter
   flags compose with it and default behaviour is unchanged.
+- **`roadmap --markdown`** renders the staged plan as Markdown: a heading and one
+  `## Stage N` section per stage with a table of that stage's nodes (id, kind,
+  formal status, agent status, blocker count, with `|` escaped in cells).
+  Respects the `--status`/`--stage`/`--kind` filters and joins the existing
+  `--json`/`--mermaid`/`--csv` mutually-exclusive group; default text output is
+  unchanged.
 
 ### Changed
 
