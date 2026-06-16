@@ -429,6 +429,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`isabelle-blueprint schema critical-path`, included in `schema --out` and
   over MCP), and a contract test asserts the command's JSON conforms to it.
   Output is unchanged.
+- **`status --oneline`** prints a single compact health summary line (project
+  name, coverage percent, ready-task count, problem count, cycle status (yes/no),
+  and a bracketed health label) for shell prompts, CI logs, and grepping across
+  projects. Mutually exclusive with `--json` and `--markdown`; default multi-line
+  text output and all filter flags are unchanged.
 
 ### Changed
 
