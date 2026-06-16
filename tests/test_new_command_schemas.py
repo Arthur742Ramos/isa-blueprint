@@ -19,7 +19,7 @@ from isabelle_blueprint.schemas import available_schemas, read_schema
 pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
 
-_NEW_SCHEMAS = ["path", "scorecard", "tags", "fact-coverage", "tag-cooccurrence"]
+_NEW_SCHEMAS = ["path", "scorecard", "tags", "orphans", "fact-coverage", "tag-cooccurrence"]
 
 _BLUEPRINT = """# contracts
 
@@ -117,6 +117,42 @@ def test_tags_json_conforms(tmp_path: Path, capsys) -> None:
     # The blueprint declares tagged nodes, so the TagStat item shape is exercised.
     assert data["tag_count"] >= 1
     _validate(data, "tags")
+
+
+_ORPHAN_BLUEPRINT = _BLUEPRINT + """
+::: lemma {#orbit_a}
+title: Orbit A
+isabelle: Demo.orbit_a
+uses:
+  - orbit_b
+status: stub
+:::
+Orbit A.
+:::
+
+::: lemma {#orbit_b}
+title: Orbit B
+isabelle: Demo.orbit_b
+uses:
+  - orbit_a
+status: stub
+:::
+Orbit B.
+:::
+"""
+
+
+def test_orphans_json_conforms(tmp_path: Path, capsys) -> None:
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "contracts"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(_ORPHAN_BLUEPRINT, encoding="utf-8")
+    # `orbit_a`/`orbit_b` form a cycle no goal reaches, so the orphan item shape
+    # is exercised against the published schema.
+    assert cli_main(["orphans", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["orphan_count"] >= 1
+    _validate(data, "orphans")
 
 
 def test_fact_coverage_json_conforms(tmp_path: Path, capsys) -> None:

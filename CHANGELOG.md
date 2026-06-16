@@ -416,6 +416,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unavailable. In `--json` mode it adds an additive `requirements` array of
   `{tool, available, required}` entries. Without `--require`, doctor stays
   informational and its behaviour/exit are unchanged.
+- **`orphans` command** finds nodes unreachable from any project goal (a goal
+  being a root result that depends on at least one sub-result). It catches whole
+  disconnected subgraphs — more than `lint`'s zero-degree `isolated-node` rule —
+  and flags fully-isolated nodes as a subset. `--json` emits
+  `{schema_version, project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
+  (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
+  exists.
 
 ### Changed
 

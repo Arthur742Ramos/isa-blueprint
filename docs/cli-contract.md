@@ -899,6 +899,34 @@ Distances are shortest-hop (BFS) and traversal is cycle-safe. All ordering is
 deterministic: blast-radius entries by ascending distance then id, dependent and
 goal lists by id, and rankings by descending blast radius then id.
 
+### `orphans`
+
+```text
+isabelle-blueprint orphans [project_dir]
+                           [--json]
+                           [--fail-on-orphan]
+```
+
+Finds nodes *disconnected from the project goals* without modifying the project.
+A *goal* is a root result — a node nothing else `uses` (no incoming dependency
+edge) that itself `uses` at least one sub-result. Starting from the goals, the
+analysis walks the `uses`-dependency graph; any node it never reaches is an
+**orphan** (dead planning weight or a forgotten sub-result).
+
+- This catches more than `lint`'s `isolated-node` rule, which only flags a
+  single zero-degree node: `orphans` also surfaces whole disconnected
+  *subgraphs* whose members all have edges yet none is reachable from a goal.
+- A node with neither dependencies nor dependents is reported as `isolated` (a
+  subset of the orphans).
+- Default text output lists the orphans as a Markdown table (node, kind, formal
+  status, isolated) plus a summary count; a clean project prints a single line.
+- `--json` emits `{schema_version, project, orphan_count, orphans:[{id, kind,
+  formal_status, isolated}]}` (validated by the packaged `orphans.schema.json`).
+- `--fail-on-orphan` exits 5 when any orphan exists (a CI gate); a project with
+  no orphans exits 0.
+
+Orphans are listed by id for deterministic output.
+
 ### `agent-context`
 
 ```text

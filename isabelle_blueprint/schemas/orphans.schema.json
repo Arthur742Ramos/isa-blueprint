@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/orphans.schema.json",
+  "title": "IsabelleBlueprint orphan node report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "orphan_count",
+    "orphans"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "orphan_count": { "type": "integer", "minimum": 0 },
+    "orphans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "formal_status", "isolated"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "formal_status": { "type": "string" },
+          "isolated": { "type": "boolean" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

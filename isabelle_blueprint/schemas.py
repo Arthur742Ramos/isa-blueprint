@@ -20,6 +20,7 @@ SCHEMA_NAMES = (
     "path",
     "scorecard",
     "tags",
+    "orphans",
     "levels",
     "fact-coverage",
     "tag-cooccurrence",

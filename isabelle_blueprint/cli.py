@@ -258,6 +258,10 @@ from isabelle_blueprint.report.notify import (
     render_markdown,
     render_payload,
 )
+from isabelle_blueprint.report.orphans import (
+    build_orphan_report,
+    render_orphan_report,
+)
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
 )
@@ -1077,6 +1081,29 @@ def cmd_path(args: argparse.Namespace) -> int:
     else:
         print(render_path_report(report), end="")
     return 0
+
+
+def cmd_orphans(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_orphan_report(project)
+
+    exit_code = 0
+    if getattr(args, "fail_on_orphan", False) and report.orphan_count:
+        exit_code = 5
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_orphan_report(report), end="")
+        if exit_code == 5:
+            print(
+                f"fail-on-orphan policy triggered: {report.orphan_count} "
+                "orphan node(s) unreachable from any goal.",
+                file=sys.stderr,
+            )
+    return exit_code
 
 
 def cmd_levels(args: argparse.Namespace) -> int:
@@ -3304,6 +3331,21 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_orphans = sub.add_parser(
+        "orphans",
+        help="find nodes unreachable from any project goal (dead planning weight)",
+    )
+    p_orphans.add_argument("project_dir", nargs="?", default=".")
+    p_orphans.add_argument(
+        "--json", action="store_true", help="emit the orphan report as JSON"
+    )
+    p_orphans.add_argument(
+        "--fail-on-orphan",
+        action="store_true",
+        help="exit non-zero (5) if any orphan node exists (CI gate)",
+    )
+    p_orphans.set_defaults(func=cmd_orphans)
 
     p_levels = sub.add_parser(
         "levels",
