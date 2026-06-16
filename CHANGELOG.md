@@ -455,6 +455,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
   clearly if `PATH` is missing or unreadable; composes with the gates and
   `--markdown`. Without `--since`, output is byte-for-byte unchanged.
+- **`kinds` command** rolls up nodes by their `kind`
+  (definition/lemma/theorem/…): per-kind node count, formal targets,
+  proved/found/problem counts, and proved-coverage percentage, ranked by
+  descending node count. The by-kind sibling of `tags`. `--json` emits the
+  structured rollup against a packaged `kinds.schema.json`.
 
 ### Fixed
 

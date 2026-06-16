@@ -944,6 +944,40 @@ Readers should ignore unknown keys.
 
 ---
 
+## `kinds --json`
+
+Written to stdout by `kinds --json`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "total_nodes": 3,
+  "kind_count": 2,
+  "kinds": [
+    {
+      "kind": "lemma",
+      "node_count": 2,
+      "formal_targets": 2,
+      "proved_count": 1,
+      "found_count": 1,
+      "problem_count": 0,
+      "coverage_percent": 50
+    }
+  ]
+}
+```
+
+`kinds` lists each node `kind` present in the project, ranked by descending
+`node_count` (ties broken alphabetically). `formal_targets` counts nodes whose
+formal status is not `missing`; `coverage_percent` is the truncated proved share
+of that target count (a non-zero sub-1% ratio is clamped to 1), or `null` when
+the kind has no formal targets. Each node carries exactly one kind, so the
+per-kind `node_count` values sum to `total_nodes`. Schema:
+[`kinds.schema.json`](../isabelle_blueprint/schemas/kinds.schema.json).
+
+---
+
 ## `tag-cooccurrence --json`
 
 Written to stdout by `tag-cooccurrence --json`.

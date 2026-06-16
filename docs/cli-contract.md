@@ -1297,6 +1297,23 @@ remaining effort sits. It composes with the other output formats: a per-node
 table beneath the summary (text/Markdown), per-node CSV rows (`--csv`), and an
 additive `nodes` array (`{id, effort, formal_status, proved}`) under `--json`.
 Without `--nodes` the output is unchanged.
+### `kinds`
+
+```text
+isabelle-blueprint kinds [project_dir] [--json]
+```
+
+Rolls up node counts and formal-coverage by node `kind`
+(definition/lemma/theorem/proposition/corollary/construction/remark/example/note/other).
+Each node carries exactly one kind, so the per-kind node counts sum to the
+project total; only kinds actually present produce a row. For each kind it
+reports the node count, formal targets (nodes whose formal status is not
+`missing`), proved/found/problem counts, and a proved-coverage percentage
+(`n/a` when the kind has no formal targets). Rows are ordered by descending node
+count, ties broken alphabetically by kind. Text output is a Markdown table;
+`--json` emits the structured report (`schema_version`, `project`,
+`total_nodes`, `kind_count`, and `kinds`). Always exits 0.
+
 ### `tag-cooccurrence`
 
 ```text
