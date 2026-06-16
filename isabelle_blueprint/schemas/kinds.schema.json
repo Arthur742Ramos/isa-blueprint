@@ -22,7 +22,7 @@
         "required": [
           "kind",
           "node_count",
-          "formal_targets",
+          "formal_target_count",
           "proved_count",
           "found_count",
           "problem_count",
@@ -31,7 +31,7 @@
         "properties": {
           "kind": { "type": "string" },
           "node_count": { "type": "integer", "minimum": 0 },
-          "formal_targets": { "type": "integer", "minimum": 0 },
+          "formal_target_count": { "type": "integer", "minimum": 0 },
           "proved_count": { "type": "integer", "minimum": 0 },
           "found_count": { "type": "integer", "minimum": 0 },
           "problem_count": { "type": "integer", "minimum": 0 },

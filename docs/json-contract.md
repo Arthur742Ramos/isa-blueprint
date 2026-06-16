@@ -958,18 +958,27 @@ Written to stdout by `kinds --json`.
     {
       "kind": "lemma",
       "node_count": 2,
-      "formal_targets": 2,
+      "formal_target_count": 2,
       "proved_count": 1,
       "found_count": 1,
       "problem_count": 0,
       "coverage_percent": 50
+    },
+    {
+      "kind": "theorem",
+      "node_count": 1,
+      "formal_target_count": 1,
+      "proved_count": 1,
+      "found_count": 0,
+      "problem_count": 0,
+      "coverage_percent": 100
     }
   ]
 }
 ```
 
 `kinds` lists each node `kind` present in the project, ranked by descending
-`node_count` (ties broken alphabetically). `formal_targets` counts nodes whose
+`node_count` (ties broken alphabetically). `formal_target_count` counts nodes whose
 formal status is not `missing`; `coverage_percent` is the truncated proved share
 of that target count (a non-zero sub-1% ratio is clamped to 1), or `null` when
 the kind has no formal targets. Each node carries exactly one kind, so the

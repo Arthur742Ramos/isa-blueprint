@@ -64,7 +64,7 @@ def test_per_kind_target_and_coverage_counts() -> None:
     lemma = _stat(build_kind_report(project), "lemma")
 
     assert lemma.node_count == 4
-    assert lemma.formal_targets == 3  # missing is not a target
+    assert lemma.formal_target_count == 3  # missing is not a target
     assert lemma.proved_count == 1
     assert lemma.found_count == 1
     assert lemma.problem_count == 1  # broken

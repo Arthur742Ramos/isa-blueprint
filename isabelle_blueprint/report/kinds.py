@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
+from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES, coverage_percent
 
 KINDS_SCHEMA_VERSION = 1
 
@@ -30,7 +30,7 @@ class KindStat:
 
     kind: str
     node_count: int
-    formal_targets: int
+    formal_target_count: int
     proved_count: int
     found_count: int
     problem_count: int
@@ -40,7 +40,7 @@ class KindStat:
         return {
             "kind": self.kind,
             "node_count": self.node_count,
-            "formal_targets": self.formal_targets,
+            "formal_target_count": self.formal_target_count,
             "proved_count": self.proved_count,
             "found_count": self.found_count,
             "problem_count": self.problem_count,
@@ -103,11 +103,11 @@ def build_kind_report(project: BlueprintProject) -> KindReport:
         KindStat(
             kind=kind,
             node_count=bucket.nodes,
-            formal_targets=bucket.targets,
+            formal_target_count=bucket.targets,
             proved_count=bucket.proved,
             found_count=bucket.found,
             problem_count=bucket.problems,
-            coverage_percent=_coverage(bucket.proved, bucket.targets),
+            coverage_percent=coverage_percent(bucket.proved, bucket.targets),
         )
         for kind, bucket in buckets.items()
     )
@@ -143,18 +143,7 @@ def render_kind_report(report: KindReport) -> str:
     for stat in report.kinds:
         coverage = "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
         lines.append(
-            f"| {stat.kind} | {stat.node_count} | {stat.formal_targets} | "
+            f"| {stat.kind} | {stat.node_count} | {stat.formal_target_count} | "
             f"{stat.proved_count} | {stat.found_count} | {stat.problem_count} | {coverage} |"
         )
     return "\n".join(lines) + "\n"
-
-
-def _coverage(proved: int, targets: int) -> int | None:
-    if targets == 0:
-        return None
-    # Truncate (not round) so 100 means genuinely all proved; clamp a non-zero
-    # but sub-1% ratio up to 1. Mirrors report.metrics.build_status_metrics.
-    percent = proved * 100 // targets
-    if percent == 0 and proved > 0:
-        percent = 1
-    return percent
