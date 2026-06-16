@@ -1026,6 +1026,9 @@ Written to stdout by `depends NODE --json` and validated by the packaged
 `depends.schema.json` (see `schema depends`). It reports a single node's
 **direct** (one-hop) neighbourhood: the nodes it immediately `uses` and the
 nodes that immediately `use` it.
+## `proof-debt --json`
+
+Written to stdout by `proof-debt --json`.
 
 ```json
 {
@@ -1077,6 +1080,24 @@ depend on incomplete work.
 
 Only real nodes appear; unresolved `uses` entries (missing-dependency edges) are
 omitted. An unknown node id is a fatal error (exit 1).
+  "total_debt": 6,
+  "remaining_node_count": 3,
+  "buckets": { "named": 3, "found": 2, "problem": 1, "missing": 0 },
+  "default_effort_used": true
+
+`total_debt` is the effort-weighted remaining proof work: the sum of the
+`effort` weight (defaulting to `1`) of every formal-target node not yet
+`proved`. `buckets` attributes that debt to status buckets — `named`, `found`
+(includes `stale`), and `problem` (not found / broken / tainted) partition the
+remaining targets and sum to `total_debt`, while `missing` reports
+blueprint-only nodes that have no formal target and is therefore *excluded* from
+the total. `remaining_node_count` counts the non-`missing` remaining nodes;
+`default_effort_used` is `true` when any counted node fell back to the default
+weight. With `--fail-over N` an additive `gate` object
+`{ "fail_over": N, "total_debt": …, "exceeds": <bool> }` is appended, and the
+command exits 5 when `exceeds` is `true` (debt strictly greater than `N`).
+
+See the packaged schema via `schema proof-debt`.
 
 ---
 

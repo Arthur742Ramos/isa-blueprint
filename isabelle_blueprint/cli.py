@@ -278,6 +278,11 @@ from isabelle_blueprint.report.pr_comment import (
     write_pr_comment_preview,
 )
 from isabelle_blueprint.report.prometheus import render_prometheus
+from isabelle_blueprint.report.proof_debt import (
+    build_proof_debt_gate,
+    build_proof_debt_report,
+    render_proof_debt_report,
+)
 from isabelle_blueprint.report.roadmap import (
     COMPLETE_FORMAL_STATUSES,
     ROADMAP_STATUSES,
@@ -1310,6 +1315,30 @@ def cmd_effort(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     if gate is not None and not gate["meets"]:
+        return 5
+    return 0
+
+
+def cmd_proof_debt(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_proof_debt_report(project)
+    fail_over = getattr(args, "fail_over", None)
+    gate = None if fail_over is None else build_proof_debt_gate(report, fail_over)
+    if args.json:
+        payload = report.to_dict()
+        if gate is not None:
+            payload["gate"] = gate
+        print(json.dumps(payload, indent=2))
+    else:
+        print(render_proof_debt_report(report), end="")
+        if gate is not None and gate["exceeds"]:
+            print(
+                f"proof debt {report.total_debt} exceeds ceiling {fail_over}",
+                file=sys.stderr,
+            )
+    if gate is not None and gate["exceeds"]:
         return 5
     return 0
 
@@ -3640,6 +3669,23 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_effort.set_defaults(func=cmd_effort)
+
+    p_proof_debt = sub.add_parser(
+        "proof-debt",
+        help="score remaining proof work as one effort-weighted debt figure",
+    )
+    p_proof_debt.add_argument("project_dir", nargs="?", default=".")
+    p_proof_debt.add_argument(
+        "--json", action="store_true", help="emit the proof-debt report as JSON"
+    )
+    p_proof_debt.add_argument(
+        "--fail-over",
+        type=_non_negative_int,
+        default=None,
+        metavar="N",
+        help="fail (exit 5) when total proof debt exceeds N (a CI debt ceiling)",
+    )
+    p_proof_debt.set_defaults(func=cmd_proof_debt)
 
     p_hooks = sub.add_parser(
         "hooks",

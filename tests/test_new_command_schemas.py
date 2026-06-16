@@ -26,6 +26,7 @@ _NEW_SCHEMAS = [
     "orphans",
     "fact-coverage",
     "tag-cooccurrence",
+    "proof-debt",
     "depends",
     "kinds",
     "critical-path",
@@ -181,6 +182,25 @@ def test_tag_cooccurrence_json_conforms(tmp_path: Path, capsys) -> None:
     # `mid` carries both `core` and `alg`, so the pair item shape is exercised.
     assert data["pair_count"] >= 1
     _validate(data, "tag-cooccurrence")
+
+
+def test_proof_debt_json_conforms(tmp_path: Path, capsys) -> None:
+    # A node with an assigned-but-unchecked Isabelle fact is a formal target
+    # that is not yet proved, so it accrues debt and exercises the bucket shape.
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "contracts"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        "# contracts\n\n"
+        "::: lemma {#a}\ntitle: A\nisabelle: Demo.a\neffort: 2\n"
+        "status:\n  formal: named\n\nA.\n:::\n",
+        encoding="utf-8",
+    )
+    assert cli_main(["proof-debt", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["total_debt"] >= 1
+    assert set(data["buckets"]) >= {"named", "found", "problem", "missing"}
+    _validate(data, "proof-debt")
 
 
 def test_depends_json_conforms(tmp_path: Path, capsys) -> None:
