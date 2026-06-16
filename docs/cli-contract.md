@@ -1069,6 +1069,25 @@ writes one/all schemas to `DIR`. Available names are `project`, `graph`,
 `tasks`, `summary`, `status`, `roadmap`, `agent-context`, `config`,
 `plugin-annotations`, `agent-memory`, `path`, `scorecard`, `tags`, and
 `tag-cooccurrence`.
+`fact-coverage`.
+
+### `fact-coverage`
+
+```text
+isabelle-blueprint fact-coverage [project_dir] [--json]
+```
+
+Groups nodes by the **theory** of their Isabelle fact - the `Theory` part of a
+`Theory.fact` qualified name (`node.isabelle.theory`) - and reports, per theory:
+node count, how many nodes are `proved`/`found`/`problem`, and a proved-coverage
+percentage over the theory's formal targets (nodes whose formal status is not
+`missing`). Nodes with no Isabelle fact are grouped under `(no fact)`. Theories
+are ordered most-used-first, ties broken alphabetically. The text form is a
+per-theory Markdown table; `--json` emits
+`{project, theories: [{theory, node_count, proved_count, found_count,
+problem_count, coverage_percent}]}` plus
+`schema_version`/`total_nodes`/`theory_count`,
+validated by the packaged `fact-coverage` schema.
 
 ### `stats`
 

@@ -197,6 +197,10 @@ from isabelle_blueprint.report.effort import (
     render_effort_markdown,
     render_effort_report,
 )
+from isabelle_blueprint.report.fact_coverage import (
+    build_fact_coverage_report,
+    render_fact_coverage_report,
+)
 from isabelle_blueprint.report.gate import (
     build_gate_report,
     render_gate_markdown,
@@ -1055,6 +1059,19 @@ def cmd_path(args: argparse.Namespace) -> int:
         print(render_path_markdown(report), end="")
     else:
         print(render_path_report(report), end="")
+    return 0
+
+
+def cmd_fact_coverage(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    report = build_fact_coverage_report(project)
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_fact_coverage_report(report), end="")
     return 0
 
 
@@ -3232,6 +3249,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="enumerate all shortest paths of equal minimal length",
     )
     p_path.set_defaults(func=cmd_path)
+
+    p_fact_coverage = sub.add_parser(
+        "fact-coverage",
+        help="roll up node counts and coverage per Isabelle theory",
+    )
+    p_fact_coverage.add_argument("project_dir", nargs="?", default=".")
+    p_fact_coverage.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the per-theory fact-coverage roll-up as JSON",
+    )
+    p_fact_coverage.set_defaults(func=cmd_fact_coverage)
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
