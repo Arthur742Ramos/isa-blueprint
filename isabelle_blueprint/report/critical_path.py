@@ -36,6 +36,7 @@ from pathlib import Path
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 CRITICAL_PATH_SCHEMA_VERSION = 1
@@ -361,6 +362,62 @@ def render_critical_path(
     _append_cycles(lines, overview, console)
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def render_critical_path_mermaid(
+    overview: CriticalPathOverview,
+    *,
+    top: int = 5,
+    goal: str | None = None,
+) -> str:
+    """Render the critical (longest incomplete) chain as a Mermaid ``flowchart``.
+
+    The chain shown is the project-wide critical path, or - when ``goal`` is
+    given - that goal's own longest incomplete chain. Nodes are labelled by id,
+    edges follow the chain in dependency order, and any node that is also a
+    top-``top`` bottleneck (a high-leverage node that unblocks the most
+    downstream work) is highlighted so the leverage points stand out.
+    """
+
+    if goal is not None:
+        goal_chain = goal_chain_for(overview, goal)
+        if goal_chain is None:
+            # Mirror the text renderer: distinguish an unknown/invalid goal from
+            # the all-complete and cycle-tangled cases handled below.
+            return _mermaid_message(
+                f"`{goal}` is not a remaining goal "
+                "(it is complete, unknown, has incomplete dependents, or is in a cycle)."
+            )
+        path = list(goal_chain.path)
+    elif overview.remaining_count == 0:
+        return _mermaid_message("All formal targets are complete - no remaining work.")
+    elif overview.longest is not None:
+        path = list(overview.longest.path)
+    else:
+        return _mermaid_message(
+            "No critical path: remaining work is tangled in cycles."
+        )
+
+    bottleneck_ids = {b.node_id for b in overview.bottlenecks[:top]}
+
+    lines = ["flowchart TB"]
+    if not path:
+        return _mermaid_message("(no remaining critical path)")
+    for node_id in path:
+        lines.append(f'  {mermaid_node_id(node_id)}["{mermaid_label(node_id)}"]')
+    for src, dst in zip(path, path[1:], strict=False):
+        lines.append(f"  {mermaid_node_id(src)} --> {mermaid_node_id(dst)}")
+    for node_id in path:
+        if node_id in bottleneck_ids:
+            lines.append(
+                f"  style {mermaid_node_id(node_id)} "
+                "fill:#fde047,stroke:#1f2937,color:#111827"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _mermaid_message(message: str) -> str:
+    return 'flowchart TB\n  empty["' + mermaid_label(message) + '"]\n'
 
 
 def write_critical_path(
