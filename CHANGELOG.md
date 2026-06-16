@@ -361,6 +361,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`lint` `tag-case-collision` rule** flags tags that differ only by case
+  across the blueprint (e.g. `Algebra` and `algebra`), which fragment the tag
+  rollup, as an `info`-severity finding listing the colliding spellings with an
+  example node for each; also surfaced in SARIF output.
 
 ### Changed
 
