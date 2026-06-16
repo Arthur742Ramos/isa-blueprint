@@ -1579,7 +1579,7 @@ def cmd_portfolio(args: argparse.Namespace) -> int:
     if args.min_coverage is not None:
         coverage_failures = coverage_gate_failures(report, args.min_coverage)
     if args.json:
-        payload = portfolio_payload(report)
+        payload = portfolio_payload(report, details=args.details)
         if args.min_coverage is not None:
             payload["coverage_gate"] = {
                 "min_coverage": args.min_coverage,
@@ -1588,11 +1588,11 @@ def cmd_portfolio(args: argparse.Namespace) -> int:
             }
         print(json.dumps(payload, indent=2))
     elif args.csv:
-        print(render_portfolio_csv(report), end="")
+        print(render_portfolio_csv(report, details=args.details), end="")
     elif args.markdown:
-        print(render_portfolio_markdown(report), end="")
+        print(render_portfolio_markdown(report, details=args.details), end="")
     else:
-        print(render_portfolio_report(report), end="")
+        print(render_portfolio_report(report, details=args.details), end="")
     exit_code = 0
     if args.fail_on_problem and (
         report.totals.projects_with_problems
@@ -3686,6 +3686,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
             "order the listed projects by KEY: 'name' ascending, or 'coverage', "
             "'nodes', 'problems' descending (highest first); applies to text, "
             "JSON, CSV, and Markdown output (default: discovery order)"
+        ),
+    )
+    p_portfolio.add_argument(
+        "--details",
+        action="store_true",
+        help=(
+            "list each project's specific problem node ids (broken/not_found/"
+            "tainted/failed_check) and cycle flag; in --json adds an additive "
+            "'problem_nodes' array per project, in --csv/--markdown adds a "
+            "trailing 'problem_nodes' column, in text appends a per-project "
+            "problem breakdown (default: rollup only)"
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)

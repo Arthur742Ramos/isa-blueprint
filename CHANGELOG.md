@@ -361,6 +361,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`portfolio --details`** lists each project's specific problem node ids
+  (`broken`/`not_found`/`tainted`/`failed_check`) and cycle flag: `--json` gains
+  an additive `problem_nodes` array of `{id, formal_status}` per project,
+  `--csv`/`--markdown` gain a trailing `problem_nodes` column, and text mode
+  appends a per-project `Problem details:` block. Default output is unchanged.
 
 ### Changed
 
