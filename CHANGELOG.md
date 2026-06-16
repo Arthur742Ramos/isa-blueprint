@@ -361,6 +361,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`fact-coverage` command** groups nodes by the theory of their Isabelle fact
+  (`Theory.fact` -> `Theory`) and reports per-theory node count, proved/found/
+  problem counts, and proved-coverage%. Nodes with no fact fall under
+  `(no fact)`. Text is a per-theory table; `--json` emits
+  `{project, theories: [...]}` validated by the packaged `fact-coverage` schema.
 
 ### Changed
 
