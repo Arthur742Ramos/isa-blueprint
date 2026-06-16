@@ -30,7 +30,8 @@ FACT_COVERAGE_SCHEMA_VERSION = 1
 # Label for nodes carrying no Isabelle theory (no fact, or an unqualified fact).
 NO_FACT_LABEL = "(no fact)"
 
-# Column order shared by the CSV and Markdown per-theory roll-ups.
+# Column order for the CSV per-theory roll-up. The Markdown table uses its own
+# title-case display headers, so this constant is CSV-only.
 FACT_COVERAGE_CSV_COLUMNS = (
     "theory",
     "node_count",
@@ -203,34 +204,13 @@ def render_fact_coverage_csv(report: FactCoverageReport) -> str:
 
 
 def render_fact_coverage_markdown(report: FactCoverageReport) -> str:
-    """Render the per-theory roll-up as a Markdown document with a table."""
+    """Render the per-theory roll-up as a Markdown document with a table.
 
-    lines = [
-        f"# {report.project} fact coverage",
-        "",
-        (
-            f"{report.total_nodes} node(s) across {len(report.theories)} "
-            "theory(s)."
-        ),
-        "",
-    ]
-    if not report.theories:
-        lines.append("_(no nodes)_")
-        return "\n".join(lines) + "\n"
+    Identical to :func:`render_fact_coverage_report`; delegates so the table
+    format has a single source of truth.
+    """
 
-    lines.extend(
-        [
-            "| Theory | Nodes | Proved | Found | Problems | Coverage |",
-            "| --- | --- | --- | --- | --- | --- |",
-        ]
-    )
-    for stat in report.theories:
-        coverage = "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
-        lines.append(
-            f"| {_escape_cell(stat.theory)} | {stat.node_count} | "
-            f"{stat.proved_count} | {stat.found_count} | {stat.problem_count} | {coverage} |"
-        )
-    return "\n".join(lines) + "\n"
+    return render_fact_coverage_report(report)
 
 
 def _coverage(proved: int, targets: int) -> int | None:
