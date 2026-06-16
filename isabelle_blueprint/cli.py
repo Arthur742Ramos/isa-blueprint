@@ -24,6 +24,7 @@ from isabelle_blueprint.agents.blame import (
     blame_payload,
     build_blame,
     render_blame,
+    render_blame_markdown,
     render_blame_table,
 )
 from isabelle_blueprint.agents.context import (
@@ -1102,6 +1103,8 @@ def cmd_blame(args: argparse.Namespace) -> int:
         print(json.dumps(blame_payload(blames), indent=2))
     elif args.table:
         print(render_blame_table(blames), end="")
+    elif args.markdown:
+        print(render_blame_markdown(blames), end="")
     else:
         print(render_blame(blames), end="")
     return 0
@@ -3111,6 +3114,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--table",
         action="store_true",
         help="compact one-row-per-node table instead of the default detailed view",
+    )
+    p_blame_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render provenance as a Markdown table",
     )
     p_blame.set_defaults(func=cmd_blame)
 

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   row per snapshot: timestamp plus the coverage / count metrics), respecting
   `--limit`. Mutually exclusive with `--json` and `--csv`; default text output is
   unchanged.
+- **`blame --markdown`** renders per-node provenance (node, source location,
+  last git author/commit, agent memory note) as a Markdown table, for all nodes
+  or a single `--node-id`. Mutually exclusive with `--json` and `--table`;
+  default text output is unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
