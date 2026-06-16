@@ -455,6 +455,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`baseline_score`, `score_change`, `component_changes`) in `--json`. Errors
   clearly if `PATH` is missing or unreadable; composes with the gates and
   `--markdown`. Without `--since`, output is byte-for-byte unchanged.
+- **`graph --incomplete-only`** prunes every emitted format to nodes whose
+  formal status is not `found`/`proved` (the remaining work) plus the edges
+  among them, giving a "what is left to do" view. Mutually exclusive with
+  `--roots-only`/`--leaves-only`; composes with `--focus`/`--depth`/`--format`.
+  Without it the graph is unchanged.
 
 ### Fixed
 

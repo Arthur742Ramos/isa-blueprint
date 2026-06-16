@@ -170,6 +170,10 @@ renders `build/graph.svg` if Graphviz `dot` is on `PATH`.
 - `--format` (default `all`) selects which artifacts to emit. `mermaid` writes
   `build/graph.mmd`; `dot`/`json`/`svg` emit just that artifact; `all`
   preserves the historical behaviour and also includes the Mermaid output.
+- `--incomplete-only` prunes every emitted format to nodes whose formal status
+  is not `found`/`proved` (the remaining work) plus the edges among them. It is
+  mutually exclusive with `--roots-only`/`--leaves-only` and composes with
+  `--focus`/`--depth`.
 
 ### `lint`
 
