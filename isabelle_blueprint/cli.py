@@ -235,11 +235,15 @@ from isabelle_blueprint.report.metrics import (
     output_values,
 )
 from isabelle_blueprint.report.notify import (
-    SUPPORTED_FORMATS as NOTIFY_FORMATS,
+    FORMAT_CHOICES as NOTIFY_FORMATS,
+)
+from isabelle_blueprint.report.notify import (
+    MARKDOWN_FORMAT as NOTIFY_MARKDOWN_FORMAT,
 )
 from isabelle_blueprint.report.notify import (
     build_notification,
     post_notification,
+    render_markdown,
     render_payload,
 )
 from isabelle_blueprint.report.path import (
@@ -1165,6 +1169,18 @@ def cmd_notify(args: argparse.Namespace) -> int:
         entries = load_trends(config.trends_path)
         eta_days = build_burndown_report(entries).eta_days
     content = build_notification(project, metrics, eta_days=eta_days)
+
+    if args.format == NOTIFY_MARKDOWN_FORMAT:
+        if args.send:
+            print(
+                "error: --format markdown is preview-only and cannot be sent; "
+                "drop --send (or choose a webhook format)",
+                file=sys.stderr,
+            )
+            return 1
+        print(render_markdown(content), end="")
+        return 0
+
     payload = render_payload(content, args.format)
 
     if not args.send:
@@ -3257,7 +3273,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--format",
         choices=NOTIFY_FORMATS,
         default="slack",
-        help="webhook payload format (default: slack)",
+        help=(
+            "webhook payload format (default: slack); "
+            "'markdown' is a local preview body printed to stdout, not sent"
+        ),
     )
     p_notify.add_argument(
         "--url",

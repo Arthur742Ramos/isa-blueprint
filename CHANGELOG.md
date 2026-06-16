@@ -326,6 +326,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `node_id`, `severity`, `cause_count`, `first_cause`) plus a header to stdout.
   Mutually exclusive with `--json`/`--markdown`; honours `--top`/`--max-causes`
   and composes with the `--fail-on-problem`/`--fail-on-outdated` gates.
+- **`notify --format markdown`** prints a plain Markdown notification body
+  (heading with project name + coverage, a one-line status summary, the metric
+  lines, and the optional burndown ETA) to stdout as a local preview. It is
+  never POSTed: combining it with `--send` errors that markdown is preview-only.
+  Existing webhook formats and `--send` behaviour are unchanged.
 
 ### Changed
 
