@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`lint --format markdown`** renders the lint findings as a Markdown document
+  (heading, a summary count line, and a table of findings: code, severity, node,
+  message, with `|` escaped in cells). Existing text/json/sarif output and the
+  `--strict` exit behaviour are unchanged.
 - **`impact --format mermaid`** emits a Mermaid `flowchart` of a node's
   downstream blast radius (requires `--node`), mirroring `--format dot` with the
   focus node highlighted for zero-dependency inline rendering on GitHub/GitLab.
