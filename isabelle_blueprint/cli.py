@@ -1128,21 +1128,32 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(project, include_by_tag=args.by_tag)
+    report = build_effort_report(
+        project, include_by_tag=args.by_tag, include_nodes=args.nodes
+    )
     fail_under = getattr(args, "fail_under", None)
     gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
-        payload = report.to_dict(include_by_tag=args.by_tag)
+        payload = report.to_dict(include_by_tag=args.by_tag, include_nodes=args.nodes)
         if gate is not None:
             payload["gate"] = gate
         print(json.dumps(payload, indent=2))
     else:
         if args.markdown:
-            print(render_effort_markdown(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_markdown(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         elif args.csv:
-            print(render_effort_csv(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_csv(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         else:
-            print(render_effort_report(report, by_tag=args.by_tag), end="")
+            print(
+                render_effort_report(report, by_tag=args.by_tag, nodes=args.nodes),
+                end="",
+            )
         if gate is not None and not gate["meets"]:
             actual = (
                 "undefined"
@@ -3310,6 +3321,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--by-tag",
         action="store_true",
         help="additionally group effort-weighted progress per tag",
+    )
+    p_effort.add_argument(
+        "--nodes",
+        action="store_true",
+        help="additionally list each node with its effort and contribution",
     )
     p_effort.add_argument(
         "--fail-under",

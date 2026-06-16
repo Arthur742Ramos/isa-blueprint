@@ -370,6 +370,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   focusing attention on the highest-impact work. Applies to the text, JSON,
   Markdown, CSV, and Mermaid outputs; `N` must be a non-negative integer and the
   default `0` shows the full ranking unchanged.
+- **`effort --nodes`** lists each node with its `effort` weight, formal status,
+  and whether it counts toward proved effort, so you can see where the remaining
+  effort sits. It composes with every output format (a per-node table beneath
+  the summary in text/Markdown, per-node CSV rows with `--csv`, and an additive
+  `nodes` array `{id, effort, formal_status, proved}` under `--json`); without
+  the flag output is unchanged.
 
 ### Changed
 

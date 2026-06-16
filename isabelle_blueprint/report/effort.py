@@ -56,6 +56,30 @@ class TagEffort:
 
 
 @dataclass(frozen=True)
+class NodeEffort:
+    """Per-node effort contribution, shown by ``effort --nodes``.
+
+    ``effort`` is the weight actually used in the aggregate (the explicit
+    ``effort:`` value, or :data:`DEFAULT_EFFORT` when none was set).
+    ``formal_status`` is the node's formal-status string and ``proved`` records
+    whether the node counts toward proved effort (formal status ``proved``).
+    """
+
+    id: str
+    effort: int
+    formal_status: str
+    proved: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "effort": self.effort,
+            "formal_status": self.formal_status,
+            "proved": self.proved,
+        }
+
+
+@dataclass(frozen=True)
 class EffortReport:
     """Effort-weighted aggregate derived from a :class:`BlueprintProject`.
 
@@ -73,8 +97,11 @@ class EffortReport:
     remaining_effort: int
     coverage_percent: int | None
     by_tag: tuple[TagEffort, ...] = field(default_factory=tuple)
+    nodes: tuple[NodeEffort, ...] = field(default_factory=tuple)
 
-    def to_dict(self, *, include_by_tag: bool = False) -> dict[str, object]:
+    def to_dict(
+        self, *, include_by_tag: bool = False, include_nodes: bool = False
+    ) -> dict[str, object]:
         result: dict[str, object] = {
             "node_count": self.node_count,
             "explicit_effort_count": self.explicit_effort_count,
@@ -88,6 +115,8 @@ class EffortReport:
         }
         if include_by_tag:
             result["by_tag"] = [t.to_dict() for t in self.by_tag]
+        if include_nodes:
+            result["nodes"] = [n.to_dict() for n in self.nodes]
         return result
 
 
@@ -96,12 +125,17 @@ def _weight(node: BlueprintNode) -> int:
 
 
 def build_effort_report(
-    project: BlueprintProject, *, include_by_tag: bool = False
+    project: BlueprintProject,
+    *,
+    include_by_tag: bool = False,
+    include_nodes: bool = False,
 ) -> EffortReport:
     """Compute effort-weighted progress for ``project``.
 
     The per-tag breakdown is only computed when ``include_by_tag`` is set; by
     default ``by_tag`` stays an empty tuple so the common path does no extra work.
+    Likewise the per-node breakdown is only computed when ``include_nodes`` is
+    set, leaving ``nodes`` empty otherwise.
     """
     node_count = len(project.nodes)
     explicit = 0
@@ -134,7 +168,28 @@ def build_effort_report(
         remaining_effort=formal_target - proved,
         coverage_percent=coverage,
         by_tag=_build_by_tag(project) if include_by_tag else (),
+        nodes=_build_nodes(project) if include_nodes else (),
     )
+
+
+def _build_nodes(project: BlueprintProject) -> tuple[NodeEffort, ...]:
+    """List each node's effort contribution in project order.
+
+    ``effort`` is the weight used in the aggregate (explicit value or
+    :data:`DEFAULT_EFFORT`); ``proved`` records whether the node's formal status
+    is ``proved`` and thus counts toward proved effort.
+    """
+    out: list[NodeEffort] = []
+    for node in project.nodes:
+        out.append(
+            NodeEffort(
+                id=node.id,
+                effort=_weight(node),
+                formal_status=node.status.formal.value,
+                proved=node.status.formal == FormalStatus.PROVED,
+            )
+        )
+    return tuple(out)
 
 
 def _build_by_tag(project: BlueprintProject) -> tuple[TagEffort, ...]:
@@ -197,11 +252,14 @@ def build_effort_gate(report: EffortReport, fail_under: float) -> dict[str, obje
     }
 
 
-def render_effort_report(report: EffortReport, *, by_tag: bool = False) -> str:
+def render_effort_report(
+    report: EffortReport, *, by_tag: bool = False, nodes: bool = False
+) -> str:
     """Render ``report`` as a short Markdown summary.
 
     When ``by_tag`` is set, a per-tag effort table is appended beneath the
-    summary (one row per tag plus an untagged bucket).
+    summary (one row per tag plus an untagged bucket). When ``nodes`` is set, a
+    per-node effort table is appended (one row per node).
     """
     coverage = "n/a" if report.coverage_percent is None else f"{report.coverage_percent}%"
     lines = [
@@ -231,6 +289,18 @@ def render_effort_report(report: EffortReport, *, by_tag: bool = False) -> str:
                     f"| {t.tag} | {t.node_count} | {t.total_effort} | "
                     f"{t.proved_effort} | {t.remaining_effort} | {pct} |"
                 )
+    if nodes:
+        lines += ["", "## Effort by node", ""]
+        if not report.nodes:
+            lines.append("- (no nodes)")
+        else:
+            lines.append("| Node | Effort | Formal status | Proved |")
+            lines.append("| --- | ---: | --- | --- |")
+            for n in report.nodes:
+                lines.append(
+                    f"| {_md_cell(n.id)} | {n.effort} | "
+                    f"{n.formal_status} | {'yes' if n.proved else 'no'} |"
+                )
     return "\n".join(lines) + "\n"
 
 
@@ -253,19 +323,35 @@ EFFORT_BY_TAG_CSV_COLUMNS = (
     "coverage_percent",
 )
 
+#: Column headers for the per-node CSV (``--nodes``).
+EFFORT_NODES_CSV_COLUMNS = (
+    "id",
+    "effort",
+    "formal_status",
+    "proved",
+)
 
-def render_effort_csv(report: EffortReport, *, by_tag: bool = False) -> str:
+
+def render_effort_csv(
+    report: EffortReport, *, by_tag: bool = False, nodes: bool = False
+) -> str:
     """Render ``report`` as CSV.
 
     Without ``by_tag`` a single summary row is emitted under
     :data:`EFFORT_CSV_COLUMNS`. With ``by_tag`` one row per tag (plus the
-    untagged bucket) is emitted under :data:`EFFORT_BY_TAG_CSV_COLUMNS`. A
-    ``None`` coverage is rendered as a blank cell. The writer pins
-    ``lineterminator="\\n"`` so no ``\\r`` ever appears in the output.
+    untagged bucket) is emitted under :data:`EFFORT_BY_TAG_CSV_COLUMNS`. With
+    ``nodes`` one row per node is emitted under :data:`EFFORT_NODES_CSV_COLUMNS`
+    (``nodes`` takes precedence over ``by_tag``). A ``None`` coverage is
+    rendered as a blank cell. The writer pins ``lineterminator="\\n"`` so no
+    ``\\r`` ever appears in the output.
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-    if by_tag:
+    if nodes:
+        writer.writerow(EFFORT_NODES_CSV_COLUMNS)
+        for n in report.nodes:
+            writer.writerow([n.id, n.effort, n.formal_status, str(n.proved).lower()])
+    elif by_tag:
         writer.writerow(EFFORT_BY_TAG_CSV_COLUMNS)
         for t in report.by_tag:
             pct = "" if t.percent is None else t.percent
@@ -297,12 +383,15 @@ def _md_cell(text: str) -> str:
     return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
-def render_effort_markdown(report: EffortReport, *, by_tag: bool = False) -> str:
+def render_effort_markdown(
+    report: EffortReport, *, by_tag: bool = False, nodes: bool = False
+) -> str:
     """Render ``report`` as a Markdown document with summary tables.
 
     A heading is followed by a summary table of total/proved/remaining effort and
     weighted coverage. When ``by_tag`` is set, a per-tag effort table is appended
-    beneath the summary (one row per tag plus an untagged bucket).
+    beneath the summary (one row per tag plus an untagged bucket). When ``nodes``
+    is set, a per-node effort table is appended (one row per node).
     """
     coverage = "n/a" if report.coverage_percent is None else f"{report.coverage_percent}%"
     lines = [
@@ -327,5 +416,17 @@ def render_effort_markdown(report: EffortReport, *, by_tag: bool = False) -> str
                 lines.append(
                     f"| {_md_cell(t.tag)} | {t.node_count} | {t.total_effort} | "
                     f"{t.proved_effort} | {t.remaining_effort} | {pct} |"
+                )
+    if nodes:
+        lines += ["", "## Effort by node", ""]
+        if not report.nodes:
+            lines.append("- (no nodes)")
+        else:
+            lines.append("| Node | Effort | Formal status | Proved |")
+            lines.append("| --- | ---: | --- | --- |")
+            for n in report.nodes:
+                lines.append(
+                    f"| {_md_cell(n.id)} | {n.effort} | "
+                    f"{_md_cell(n.formal_status)} | {'yes' if n.proved else 'no'} |"
                 )
     return "\n".join(lines) + "\n"
