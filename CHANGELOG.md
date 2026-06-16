@@ -361,6 +361,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`rename --dry-run` impact preview** now reports a per-file edit count (node
+  definition, each `uses` reference, label/store rekeys) and a `total_edits`
+  rollup. `--json` gains `total_edits` and a `files: [{path, edit_count}]` array;
+  text output annotates each source line with its edit count. The actual rename
+  behaviour and its re-parse safety check are unchanged.
 
 ### Changed
 

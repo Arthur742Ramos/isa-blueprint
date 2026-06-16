@@ -46,6 +46,17 @@ class StoreRekey:
 
 
 @dataclass
+class FileEdit:
+    """Per-file count of id edits that a rename would apply."""
+
+    path: str
+    edit_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {"path": self.path, "edit_count": self.edit_count}
+
+
+@dataclass
 class RenameResult:
     """Outcome of a (possibly dry-run) rename."""
 
@@ -55,6 +66,14 @@ class RenameResult:
     changed_files: list[str] = field(default_factory=list)
     store_rekeys: list[StoreRekey] = field(default_factory=list)
     uses_updated: int = 0
+    file_edits: list[FileEdit] = field(default_factory=list)
+
+    @property
+    def total_edits(self) -> int:
+        """Total id edits across every source file plus rekeyed stores."""
+        return sum(e.edit_count for e in self.file_edits) + sum(
+            1 for s in self.store_rekeys if s.changed
+        )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -64,6 +83,8 @@ class RenameResult:
             "changed_files": list(self.changed_files),
             "uses_updated": self.uses_updated,
             "stores": [s.to_dict() for s in self.store_rekeys],
+            "total_edits": self.total_edits,
+            "files": [e.to_dict() for e in self.file_edits],
         }
 
 
@@ -95,6 +116,7 @@ def rename_node(
 
     rewritten: dict[Path, str] = {}
     changed_files: list[str] = []
+    file_edits: list[FileEdit] = []
     uses_updated = 0
     for path in paths:
         original = path.read_text(encoding="utf-8")
@@ -105,6 +127,7 @@ def rename_node(
         rewritten[path] = new_text
         if new_text != original:
             changed_files.append(str(path))
+            file_edits.append(FileEdit(path=str(path), edit_count=count))
             uses_updated += count
 
     _verify_rename(config, rewritten, paths, old_id, new_id, ids)
@@ -140,6 +163,7 @@ def rename_node(
         changed_files=changed_files,
         store_rekeys=store_rekeys,
         uses_updated=uses_updated,
+        file_edits=file_edits,
     )
 
 
