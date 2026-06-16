@@ -328,6 +328,7 @@ from isabelle_blueprint.report.stats import (
 from isabelle_blueprint.report.status_overview import (
     build_status_overview,
     render_status_markdown,
+    render_status_oneline,
     render_status_overview,
 )
 from isabelle_blueprint.report.tag_cooccurrence import (
@@ -2178,6 +2179,8 @@ def _run_status_once(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(overview.to_dict(), indent=2))
+    elif getattr(args, "oneline", False):
+        print(render_status_oneline(overview), end="")
     elif getattr(args, "markdown", False):
         was_enabled = console.is_enabled()
         console.set_enabled(False)
@@ -4329,6 +4332,11 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown",
         action="store_true",
         help="render the health overview as a Markdown table (mutually exclusive with --json)",
+    )
+    p_status_format.add_argument(
+        "--oneline",
+        action="store_true",
+        help="print a single compact health summary line (excludes --json/--markdown)",
     )
     p_status.add_argument(
         "--top-tasks",
