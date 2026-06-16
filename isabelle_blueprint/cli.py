@@ -3418,7 +3418,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_staleness_format.add_argument(
         "--csv",
         action="store_true",
-        help="emit one CSV row per flagged trusted node (node, severity, causes)",
+        help=(
+            "emit one CSV row per flagged trusted node "
+            "(columns: node_id, severity, cause_count, first_cause)"
+        ),
     )
     p_staleness.add_argument(
         "--top",
