@@ -361,6 +361,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remaining_effort`, `coverage_percent`) with `--by-tag`. Mutually exclusive
   with `--json`/`--markdown`; composes with `--by-tag` and the `--fail-under`
   gate.
+- **`orphans` command** finds nodes unreachable from any project goal (a goal
+  being a root result that depends on at least one sub-result). It catches whole
+  disconnected subgraphs — more than `lint`'s zero-degree `isolated-node` rule —
+  and flags fully-isolated nodes as a subset. `--json` emits
+  `{project, orphan_count, orphans:[{id, kind, formal_status, isolated}]}`
+  (packaged `orphans.schema.json`); `--fail-on-orphan` exits 5 when any orphan
+  exists.
 
 ### Changed
 
