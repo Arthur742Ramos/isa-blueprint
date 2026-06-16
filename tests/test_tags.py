@@ -12,6 +12,7 @@ from isabelle_blueprint.report.tags import (
     build_tag_gate,
     build_tag_report,
     render_tag_report,
+    render_tags_csv,
     render_tags_markdown,
 )
 
@@ -476,3 +477,101 @@ def test_cli_markdown_and_json_mutually_exclusive(tmp_path: Path) -> None:
         assert exc.code == 2
     else:  # pragma: no cover - argparse should reject the combination
         raise AssertionError("expected --markdown/--json to be mutually exclusive")
+
+
+def test_render_tags_csv_header_and_rows() -> None:
+    project = _project(
+        _node("a", tags=["core"], formal=FormalStatus.PROVED),
+        _node("b", tags=["core"], formal=FormalStatus.MISSING),
+        _node("c"),
+    )
+    report = build_tag_report(project)
+
+    import csv
+    import io
+
+    rows = list(csv.reader(io.StringIO(render_tags_csv(report))))
+
+    assert rows[0] == [
+        "tag",
+        "nodes",
+        "formal_targets",
+        "proved",
+        "found",
+        "problems",
+        "proved_coverage_percent",
+    ]
+    core = next(r for r in rows if r[0] == "core")
+    assert core == ["core", "2", "1", "1", "0", "0", "100"]
+    untagged = next(r for r in rows if r[0] == "(untagged)")
+    assert untagged == ["(untagged)", "1", "", "", "", "", ""]
+
+
+def test_render_tags_csv_blank_coverage_without_targets() -> None:
+    project = _project(_node("a", tags=["doc"], formal=FormalStatus.MISSING))
+
+    import csv
+    import io
+
+    rows = list(csv.reader(io.StringIO(render_tags_csv(build_tag_report(project)))))
+    doc = next(r for r in rows if r[0] == "doc")
+    assert doc[-1] == ""  # blank when no formal targets
+
+
+def test_cli_csv(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--csv"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert (
+        "tag,nodes,formal_targets,proved,found,problems,proved_coverage_percent"
+        in out
+    )
+    assert "core,2," in out
+    assert "(untagged),1," in out
+
+
+def test_cli_csv_composes_with_tag_filter(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--csv", "--tag", "core"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "core,2," in out
+    assert "alg," not in out
+
+
+def test_cli_csv_fail_under_gate_exits_5(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--csv", "--fail-under", "80"])
+
+    assert rc == 5
+    captured = capsys.readouterr()
+    assert "proved_coverage_percent" in captured.out
+    assert "fail-under 80% policy triggered" in captured.err
+
+
+def test_cli_csv_fail_under_passes_exit_0(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path, _GATE_BODY)
+
+    rc = cli_main(["tags", str(tmp_path), "--csv", "--fail-under", "50"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "proved_coverage_percent" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_csv_and_json_mutually_exclusive(tmp_path: Path) -> None:
+    _write_project(tmp_path, _BODY)
+
+    try:
+        cli_main(["tags", str(tmp_path), "--csv", "--json"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:  # pragma: no cover - argparse should reject the combination
+        raise AssertionError("expected --csv/--json to be mutually exclusive")
