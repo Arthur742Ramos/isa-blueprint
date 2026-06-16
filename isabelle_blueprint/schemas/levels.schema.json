@@ -8,7 +8,8 @@
     "project",
     "level_count",
     "max_width",
-    "levels"
+    "levels",
+    "cyclic_nodes"
   ],
   "properties": {
     "schema_version": { "type": "integer", "minimum": 1 },
