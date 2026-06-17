@@ -1373,6 +1373,29 @@ count, ties broken alphabetically by kind. Text output is a Markdown table;
 `--json` emits the structured report (`schema_version`, `project`,
 `total_nodes`, `kind_count`, and `kinds`). Always exits 0.
 
+### `matrix`
+
+```text
+isabelle-blueprint matrix [project_dir] [--rows DIM] [--cols DIM] [--json | --csv]
+```
+
+Cross-tabulates node counts across two categorical dimensions. `--rows` and
+`--cols` each select one of `formal`, `blueprint`, `agent`, or `kind` (default
+`--rows formal --cols kind`) and must differ; requesting the same dimension for
+both exits 1 with an error. Every node falls in exactly one cell, so the cell
+counts sum to the project node total; row and column totals are the marginals.
+Only labels present on some node produce a row or column, and present labels are
+ordered by their enum declaration order (e.g. `missing -> named -> ... -> proved`
+for `formal`). Text output is a Markdown table with a trailing `Total` row and
+column; `--csv` emits the same grid as CSV (header is the row-axis name, the
+column labels, then `total`; a final `total` row holds the marginals); `--json`
+emits the structured report (`schema_version`, `project`, `rows_dimension`,
+`cols_dimension`, `row_labels`, `col_labels`, `cells`, `row_totals`,
+`col_totals`, `total`); see `schema matrix`. `--json` and `--csv` are mutually
+exclusive. Always exits 0 (apart from the same-dimension validation error). This
+extends the single-dimension roll-ups (`kinds`, `tags`) to a two-dimensional
+view. No Isabelle invocation is performed.
+
 ### `proof-debt`
 
 isabelle-blueprint proof-debt [project_dir] [--json] [--fail-over N]

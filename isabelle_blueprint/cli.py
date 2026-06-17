@@ -227,6 +227,12 @@ from isabelle_blueprint.report.kinds import (
     build_kind_report,
     render_kind_report,
 )
+from isabelle_blueprint.report.matrix import (
+    AXIS_NAMES,
+    build_matrix_report,
+    render_matrix_csv,
+    render_matrix_report,
+)
 from isabelle_blueprint.report.levels import (
     build_levels_report,
     render_levels_mermaid,
@@ -1062,6 +1068,23 @@ def cmd_kinds(args: argparse.Namespace) -> int:
         print(json.dumps(report.to_dict(), indent=2))
     else:
         print(render_kind_report(report), end="")
+    return 0
+
+
+def cmd_matrix(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    try:
+        report = build_matrix_report(project, args.rows, args.cols)
+    except ValueError as exc:
+        raise BlueprintError(str(exc)) from None
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    elif args.csv:
+        print(render_matrix_csv(report), end="")
+    else:
+        print(render_matrix_report(report), end="")
     return 0
 
 
@@ -3356,6 +3379,34 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--json", action="store_true", help="emit the kind roll-up as JSON"
     )
     p_kinds.set_defaults(func=cmd_kinds)
+
+    p_matrix = sub.add_parser(
+        "matrix",
+        help="cross-tabulate node counts across two status/kind dimensions",
+    )
+    p_matrix.add_argument("project_dir", nargs="?", default=".")
+    p_matrix.add_argument(
+        "--rows",
+        choices=AXIS_NAMES,
+        default="formal",
+        help="dimension for the matrix rows (default: formal)",
+    )
+    p_matrix.add_argument(
+        "--cols",
+        choices=AXIS_NAMES,
+        default="kind",
+        help="dimension for the matrix columns (default: kind)",
+    )
+    p_matrix_format = p_matrix.add_mutually_exclusive_group()
+    p_matrix_format.add_argument(
+        "--json", action="store_true", help="emit the matrix as JSON"
+    )
+    p_matrix_format.add_argument(
+        "--csv",
+        action="store_true",
+        help="emit the matrix as CSV (one row per row-label plus totals)",
+    )
+    p_matrix.set_defaults(func=cmd_matrix)
 
     p_tags = sub.add_parser(
         "tags",

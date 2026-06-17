@@ -30,6 +30,7 @@ _NEW_SCHEMAS = [
     "depends",
     "kinds",
     "critical-path",
+    "matrix",
 ]
 
 _BLUEPRINT = """# contracts
@@ -220,6 +221,17 @@ def test_kinds_json_conforms(tmp_path: Path, capsys) -> None:
     # The blueprint mixes definition/lemma/theorem, so the KindStat shape is exercised.
     assert data["kind_count"] >= 1
     _validate(data, "kinds")
+
+
+def test_matrix_json_conforms(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+    assert cli_main(["matrix", str(tmp_path), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # The blueprint mixes definition/lemma/theorem across formal states, so the
+    # cell/marginal shapes are exercised against the published schema.
+    assert data["total"] == 3
+    assert data["cells"]
+    _validate(data, "matrix")
 
 
 def test_critical_path_json_conforms(tmp_path: Path, capsys) -> None:

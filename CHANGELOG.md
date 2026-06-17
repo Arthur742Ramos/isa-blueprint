@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`matrix`** cross-tabulates node counts across two categorical dimensions
+  (`--rows`/`--cols`, each one of `formal`/`blueprint`/`agent`/`kind`; default
+  `formal` x `kind`). Every node falls in exactly one cell, so the cell counts
+  and the row/column marginals each sum to the project node total; only labels
+  present on some node produce a row or column, ordered by enum declaration
+  order. Renders as a Markdown table (with `Total` row/column), `--csv` (the
+  same grid plus a `total` row/column), or `--json` (packaged
+  `matrix.schema.json` v1). `--rows`/`--cols` must differ; `--json`/`--csv` are
+  mutually exclusive. Read-only; no Isabelle invocation.
 - **`portfolio --sort {name,coverage,nodes,problems}`** orders the listed
   projects (`name` ascending; `coverage`/`nodes`/`problems` descending) across
   text/JSON/CSV/Markdown output; default discovery order is unchanged.
