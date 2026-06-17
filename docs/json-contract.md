@@ -1022,8 +1022,9 @@ Written to stdout by `matrix --json`.
 `col_labels`, ordered by enum declaration order. `cells` is the dense grid: one
 entry for every `(row_label, col_label)` pair, including zero counts.
 `row_totals` and `col_totals` are the marginals keyed by label, and `total` is
-the project node count, so `sum(cells.count) == sum(row_totals) ==
-sum(col_totals) == total`. Schema:
+the project node count, so `sum(c.count for c in cells)`,
+`sum(row_totals.values())`, and `sum(col_totals.values())` all equal `total`.
+Schema:
 [`matrix.schema.json`](../isabelle_blueprint/schemas/matrix.schema.json).
 
 ---
