@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP report-tool parity.** The MCP server now exposes the eight schema-backed
+  report commands that previously had no MCP surface, each mirroring its
+  `--json` CLI output: `kinds`, `proof_debt`, `fact_coverage`, `levels`,
+  `orphans`, `tag_cooccurrence` (with `min_shared`), `matrix` (with
+  `rows`/`cols` axes), and `depends` (with `node`). Matching read-only
+  `blueprint://` resources are registered for the no-argument reports plus
+  `critical-path` (default-project and `projects/{project}/...` scoped
+  variants). `depends` reports an unknown node id with the known ids, and
+  `matrix` surfaces an invalid/duplicate axis as a clean error. All read-only;
+  no Isabelle invocation.
+
 ## [1.13.0] - 2026-06-17
 
 ### Added
