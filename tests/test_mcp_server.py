@@ -50,6 +50,16 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     assert {"critical_path", "impact", "stats"} <= read_only_names
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
     assert {"scorecard", "tags", "path", "graph"} <= read_only_names
+    assert {
+        "kinds",
+        "proof_debt",
+        "fact_coverage",
+        "levels",
+        "orphans",
+        "tag_cooccurrence",
+        "matrix",
+        "depends",
+    } <= read_only_names
     assert "portfolio" in read_only_names
     assert "agent_run_plan" in read_only_names
     assert "record_attempt" not in read_only_names
@@ -96,6 +106,86 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"
     assert stats["total_attempts"] == 0
+
+
+def test_mcp_report_tools_expose_cli_payloads(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    kinds = _direct_tool_result(server, "kinds", {})
+    assert kinds["schema_version"] >= 1
+    assert kinds["project"] == "mcp-test"
+    assert {stat["kind"] for stat in kinds["kinds"]} == {"definition", "theorem"}
+
+    proof_debt = _direct_tool_result(server, "proof_debt", {})
+    assert proof_debt["schema_version"] >= 1
+    # `main` is a named-but-unproved formal target, so it carries debt.
+    assert proof_debt["total_debt"] >= 1
+    assert set(proof_debt["buckets"]) >= {"named", "found", "problem", "missing"}
+
+    fact_coverage = _direct_tool_result(server, "fact_coverage", {})
+    assert fact_coverage["schema_version"] >= 1
+    assert fact_coverage["theory_count"] >= 1
+
+    levels = _direct_tool_result(server, "levels", {})
+    assert levels["schema_version"] >= 1
+
+    orphans = _direct_tool_result(server, "orphans", {})
+    assert orphans["schema_version"] >= 1
+    # base -> main is a connected chain reachable from the goal, so no orphans.
+    assert orphans["orphan_count"] == 0
+
+    cooccurrence = _direct_tool_result(server, "tag_cooccurrence", {})
+    assert cooccurrence["schema_version"] >= 1
+
+    depends = _direct_tool_result(server, "depends", {"node": "base"})
+    assert depends["node"] == "base"
+    assert [dep["id"] for dep in depends["depended_on_by"]] == ["main"]
+    assert depends["depends_on"] == []
+
+
+def test_mcp_matrix_tool_and_axis_validation(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    matrix = _direct_tool_result(server, "matrix", {"rows": "formal", "cols": "kind"})
+    assert matrix["schema_version"] >= 1
+    assert matrix["rows_dimension"] == "formal"
+    assert matrix["cols_dimension"] == "kind"
+    assert matrix["total"] == 2
+
+    # Same dimension on both axes must surface as a clean BlueprintError.
+    with pytest.raises((BlueprintError, ToolError), match="differ"):
+        _direct_tool_result(server, "matrix", {"rows": "kind", "cols": "kind"})
+
+
+def test_mcp_depends_unknown_node_lists_known_ids(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError)) as excinfo:
+        _direct_tool_result(server, "depends", {"node": "ghost"})
+    message = str(excinfo.value)
+    assert "unknown node 'ghost'" in message
+    assert "base" in message and "main" in message
+
+
+def test_mcp_report_resources_emit_json(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    for uri, key in (
+        ("blueprint://kinds", "kinds"),
+        ("blueprint://proof-debt", "buckets"),
+        ("blueprint://fact-coverage", "theory_count"),
+        ("blueprint://levels", "schema_version"),
+        ("blueprint://orphans", "orphan_count"),
+        ("blueprint://tag-cooccurrence", "schema_version"),
+        ("blueprint://critical-path", "project"),
+    ):
+        contents = list(asyncio.run(server.read_resource(AnyUrl(uri))))
+        payload = json.loads(contents[0].content)
+        assert key in payload
 
 
 def test_mcp_agent_run_plan_is_read_only(tmp_path: Path) -> None:

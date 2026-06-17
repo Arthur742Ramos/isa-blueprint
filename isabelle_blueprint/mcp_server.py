@@ -80,6 +80,13 @@ from isabelle_blueprint.report.critical_path import (
     build_critical_path,
     critical_path_payload,
 )
+from isabelle_blueprint.report.depends import (
+    UnknownNodeError as DependsUnknownNodeError,
+)
+from isabelle_blueprint.report.depends import (
+    build_depends_report,
+)
+from isabelle_blueprint.report.fact_coverage import build_fact_coverage_report
 from isabelle_blueprint.report.history import summarize_trends
 from isabelle_blueprint.report.impact import (
     UnknownNodeError,
@@ -88,7 +95,11 @@ from isabelle_blueprint.report.impact import (
     impact_overview_payload,
     impact_report_payload,
 )
+from isabelle_blueprint.report.kinds import build_kind_report
+from isabelle_blueprint.report.levels import build_levels_report
 from isabelle_blueprint.report.lint import build_lint_report
+from isabelle_blueprint.report.matrix import build_matrix_report
+from isabelle_blueprint.report.orphans import build_orphan_report
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
 )
@@ -96,6 +107,7 @@ from isabelle_blueprint.report.path import (
     build_path_report,
 )
 from isabelle_blueprint.report.portfolio import build_portfolio, portfolio_payload
+from isabelle_blueprint.report.proof_debt import build_proof_debt_report
 from isabelle_blueprint.report.roadmap import (
     ROADMAP_STATUSES,
     RoadmapFilters,
@@ -106,6 +118,7 @@ from isabelle_blueprint.report.scorecard import build_scorecard
 from isabelle_blueprint.report.staleness import build_staleness_report, staleness_payload
 from isabelle_blueprint.report.stats import build_stats_report
 from isabelle_blueprint.report.status_overview import build_status_overview
+from isabelle_blueprint.report.tag_cooccurrence import build_tag_cooccurrence_report
 from isabelle_blueprint.report.tags import build_tag_report
 from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
@@ -604,6 +617,123 @@ def build_server(
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return build_tag_report(parsed).to_dict()
 
+    @server.tool(name="kinds")
+    def kinds(project: str | None = None) -> dict[str, object]:
+        """Return the per-kind coverage roll-up (mirrors ``kinds --json``).
+
+        Groups nodes by their declared ``kind`` (definition/lemma/theorem/...)
+        and reports, per kind, the node count, formal targets, proved/found/
+        problem counts, and a per-kind coverage percentage. Computed without
+        invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_kind_report(parsed).to_dict()
+
+    @server.tool(name="proof_debt")
+    def proof_debt(project: str | None = None) -> dict[str, object]:
+        """Return the effort-weighted remaining proof work (mirrors ``proof-debt --json``).
+
+        Sums the ``effort`` weight of every formal-target node that is not yet
+        proved into a single debt figure, attributed to status buckets (named/
+        found/problem, plus an informational missing). Computed without invoking
+        Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_proof_debt_report(parsed).to_dict()
+
+    @server.tool(name="fact_coverage")
+    def fact_coverage(project: str | None = None) -> dict[str, object]:
+        """Return per-theory Isabelle fact coverage (mirrors ``fact-coverage --json``).
+
+        Reports, per referenced theory, how many of the project's formal-target
+        facts resolve to known facts versus remain unresolved. Computed without
+        invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_fact_coverage_report(parsed).to_dict()
+
+    @server.tool(name="levels")
+    def levels(project: str | None = None) -> dict[str, object]:
+        """Return the dependency-depth layering (mirrors ``levels --json``).
+
+        Groups nodes into topological levels by how deep they sit in the
+        ``uses`` dependency graph, so bottom-up proof work can be sequenced.
+        Computed without invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_levels_report(parsed).to_dict()
+
+    @server.tool(name="orphans")
+    def orphans(project: str | None = None) -> dict[str, object]:
+        """Return nodes unreachable from any project goal (mirrors ``orphans --json``).
+
+        Walks the ``uses`` graph from the root goals and lists every node it
+        never reaches (dead planning weight), flagging fully isolated nodes.
+        Computed without invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_orphan_report(parsed).to_dict()
+
+    @server.tool(name="tag_cooccurrence")
+    def tag_cooccurrence(
+        min_shared: int | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return ranked co-occurring tag pairs (mirrors ``tag-cooccurrence --json``).
+
+        Reports tag pairs that share at least ``min_shared`` nodes (default 1),
+        ranked by shared-node count, with a sample of the shared nodes. Computed
+        without invoking Isabelle.
+        """
+
+        shared = _positive_or_none(min_shared, label="min_shared")
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return build_tag_cooccurrence_report(parsed, min_shared=shared or 1).to_dict()
+
+    @server.tool(name="matrix")
+    def matrix(
+        rows: str = "formal",
+        cols: str = "kind",
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return a 2D node-count cross-tabulation (mirrors ``matrix --json``).
+
+        Cross-tabulates node counts across two categorical dimensions, each one
+        of ``formal``/``blueprint``/``agent``/``kind`` (default ``formal`` rows x
+        ``kind`` cols). The two dimensions must differ. Computed without invoking
+        Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        try:
+            return build_matrix_report(parsed, rows, cols).to_dict()
+        except ValueError as exc:
+            raise BlueprintError(str(exc)) from None
+
+    @server.tool(name="depends")
+    def depends(node: str, project: str | None = None) -> dict[str, object]:
+        """Return a node's direct dependency neighbourhood (mirrors ``depends --json``).
+
+        Reports the nodes ``node`` directly ``uses`` (its dependencies) and the
+        nodes that directly ``use`` it (its dependents), each with id, kind, and
+        formal status. Computed without invoking Isabelle.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        try:
+            return build_depends_report(parsed, node).to_dict()
+        except DependsUnknownNodeError as exc:
+            unknown = exc.args[0] if exc.args else "?"
+            known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
+            raise BlueprintError(
+                f"unknown node {unknown!r}; known node ids: {known}"
+            ) from None
+
     @server.tool(name="path")
     def path_tool(
         source: str,
@@ -768,6 +898,55 @@ def build_server(
         _config, parsed = load_project_with_check(catalog.resolve(None).root)
         return _json_resource(staleness_payload(build_staleness_report(parsed)))
 
+    @server.resource("blueprint://critical-path", mime_type="application/json")
+    def critical_path_resource() -> str:
+        """Longest remaining incomplete dependency chain for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(critical_path_payload(build_critical_path(parsed)))
+
+    @server.resource("blueprint://kinds", mime_type="application/json")
+    def kinds_resource() -> str:
+        """Per-kind coverage roll-up for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_kind_report(parsed).to_dict())
+
+    @server.resource("blueprint://proof-debt", mime_type="application/json")
+    def proof_debt_resource() -> str:
+        """Effort-weighted remaining proof work for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_proof_debt_report(parsed).to_dict())
+
+    @server.resource("blueprint://fact-coverage", mime_type="application/json")
+    def fact_coverage_resource() -> str:
+        """Per-theory Isabelle fact coverage for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_fact_coverage_report(parsed).to_dict())
+
+    @server.resource("blueprint://levels", mime_type="application/json")
+    def levels_resource() -> str:
+        """Dependency-depth layering for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_levels_report(parsed).to_dict())
+
+    @server.resource("blueprint://orphans", mime_type="application/json")
+    def orphans_resource() -> str:
+        """Nodes unreachable from any goal for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_orphan_report(parsed).to_dict())
+
+    @server.resource("blueprint://tag-cooccurrence", mime_type="application/json")
+    def tag_cooccurrence_resource() -> str:
+        """Ranked co-occurring tag pairs for the default project."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(None).root)
+        return _json_resource(build_tag_cooccurrence_report(parsed).to_dict())
+
     @server.resource("blueprint://assignments", mime_type="application/json")
     def assignments_resource() -> str:
         """Recorded node ownership for the default project."""
@@ -862,6 +1041,69 @@ def build_server(
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(staleness_payload(build_staleness_report(parsed)))
+
+    @server.resource(
+        "blueprint://projects/{project}/critical-path", mime_type="application/json"
+    )
+    def project_scoped_critical_path_resource(project: str) -> str:
+        """Longest remaining incomplete dependency chain for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(critical_path_payload(build_critical_path(parsed)))
+
+    @server.resource(
+        "blueprint://projects/{project}/kinds", mime_type="application/json"
+    )
+    def project_scoped_kinds_resource(project: str) -> str:
+        """Per-kind coverage roll-up for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_kind_report(parsed).to_dict())
+
+    @server.resource(
+        "blueprint://projects/{project}/proof-debt", mime_type="application/json"
+    )
+    def project_scoped_proof_debt_resource(project: str) -> str:
+        """Effort-weighted remaining proof work for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_proof_debt_report(parsed).to_dict())
+
+    @server.resource(
+        "blueprint://projects/{project}/fact-coverage", mime_type="application/json"
+    )
+    def project_scoped_fact_coverage_resource(project: str) -> str:
+        """Per-theory Isabelle fact coverage for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_fact_coverage_report(parsed).to_dict())
+
+    @server.resource(
+        "blueprint://projects/{project}/levels", mime_type="application/json"
+    )
+    def project_scoped_levels_resource(project: str) -> str:
+        """Dependency-depth layering for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_levels_report(parsed).to_dict())
+
+    @server.resource(
+        "blueprint://projects/{project}/orphans", mime_type="application/json"
+    )
+    def project_scoped_orphans_resource(project: str) -> str:
+        """Nodes unreachable from any goal for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_orphan_report(parsed).to_dict())
+
+    @server.resource(
+        "blueprint://projects/{project}/tag-cooccurrence", mime_type="application/json"
+    )
+    def project_scoped_tag_cooccurrence_resource(project: str) -> str:
+        """Ranked co-occurring tag pairs for a selected project id."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        return _json_resource(build_tag_cooccurrence_report(parsed).to_dict())
 
     @server.resource(
         "blueprint://projects/{project}/assignments", mime_type="application/json"

@@ -116,6 +116,14 @@ Read tools are always registered:
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
 | `graph` | Dependency graph as `json`, `dot`, `mermaid`, `graphml`, or `d2` without writing files. |
+| `kinds` | Per-kind coverage roll-up (mirrors `kinds --json`): node counts, formal targets, proved/found/problem, and per-kind coverage. |
+| `proof_debt` | Effort-weighted remaining proof work (mirrors `proof-debt --json`): one debt figure attributed to status buckets (named/found/problem, plus informational missing). |
+| `fact_coverage` | Per-theory Isabelle fact coverage (mirrors `fact-coverage --json`): how many formal targets resolve to known facts per theory. |
+| `levels` | Dependency-depth layering (mirrors `levels --json`): nodes grouped into topological levels for bottom-up sequencing. |
+| `orphans` | Nodes unreachable from any project goal (mirrors `orphans --json`), flagging fully isolated nodes. |
+| `tag_cooccurrence` | Ranked co-occurring tag pairs (mirrors `tag-cooccurrence --json`); supports `min_shared` (default 1). |
+| `matrix` | 2D node-count cross-tabulation (mirrors `matrix --json`); `rows`/`cols` each one of `formal`/`blueprint`/`agent`/`kind` (default `formal` x `kind`) and must differ. |
+| `depends` | A node's direct dependency neighbourhood (mirrors `depends --json`): the nodes it directly `uses` and the nodes that directly use it; requires `node`. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
 | `preview_rename_node` | Dry-run node rename preview; never writes files. |
@@ -153,6 +161,13 @@ apply.
 | `blueprint://fact-suggestions` | Fuzzy fact-name suggestions for the default project. |
 | `blueprint://theory-index` | Source-only `.thy` index for the default project. |
 | `blueprint://staleness` | Trusted-node staleness audit for the default project. |
+| `blueprint://critical-path` | Longest remaining incomplete dependency chain for the default project. |
+| `blueprint://kinds` | Per-kind coverage roll-up for the default project. |
+| `blueprint://proof-debt` | Effort-weighted remaining proof work for the default project. |
+| `blueprint://fact-coverage` | Per-theory Isabelle fact coverage for the default project. |
+| `blueprint://levels` | Dependency-depth layering for the default project. |
+| `blueprint://orphans` | Nodes unreachable from any goal for the default project. |
+| `blueprint://tag-cooccurrence` | Ranked co-occurring tag pairs for the default project. |
 | `blueprint://assignments` | Recorded per-node ownership for the default project. |
 | `blueprint://burndown` | Velocity / ETA-to-full-coverage forecast for the default project. |
 | `blueprint://portfolio` | Workspace-wide roll-up across every discovered project (no project-scoped variant). |
@@ -165,6 +180,13 @@ apply.
 | `blueprint://projects/{project}/fact-suggestions` | Selected-project fuzzy fact-name suggestions. |
 | `blueprint://projects/{project}/theory-index` | Selected-project source-only `.thy` index. |
 | `blueprint://projects/{project}/staleness` | Selected-project trusted-node staleness audit. |
+| `blueprint://projects/{project}/critical-path` | Selected-project longest remaining incomplete dependency chain. |
+| `blueprint://projects/{project}/kinds` | Selected-project per-kind coverage roll-up. |
+| `blueprint://projects/{project}/proof-debt` | Selected-project effort-weighted remaining proof work. |
+| `blueprint://projects/{project}/fact-coverage` | Selected-project per-theory Isabelle fact coverage. |
+| `blueprint://projects/{project}/levels` | Selected-project dependency-depth layering. |
+| `blueprint://projects/{project}/orphans` | Selected-project nodes unreachable from any goal. |
+| `blueprint://projects/{project}/tag-cooccurrence` | Selected-project ranked co-occurring tag pairs. |
 | `blueprint://projects/{project}/assignments` | Selected-project recorded per-node ownership. |
 | `blueprint://projects/{project}/burndown` | Selected-project velocity / ETA forecast. |
 | `blueprint://schemas/{name}` | Packaged JSON Schema text. |
