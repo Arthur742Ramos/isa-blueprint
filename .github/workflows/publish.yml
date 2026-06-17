@@ -73,7 +73,7 @@ jobs:
               raise SystemExit("_FALLBACK_VERSION assignment was not found")
 
           if actual != expected:
-              raise SystemExit(f"isabelle_blueprint._FALLBACK_VERSION {actual} does not match pyproject.toml version {expected}")
+              raise SystemExit(f"isabelle_blueprint._FALLBACK_VERSION = {actual!r} does not match pyproject.toml version {expected!r}")
           PY
           }
 
