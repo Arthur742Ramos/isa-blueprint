@@ -28,6 +28,7 @@ SCHEMA_NAMES = (
     "depends",
     "kinds",
     "critical-path",
+    "matrix",
 )
 
 

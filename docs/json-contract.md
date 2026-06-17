@@ -992,6 +992,42 @@ per-kind `node_count` values sum to `total_nodes`. Schema:
 
 ---
 
+## `matrix --json`
+
+Written to stdout by `matrix --json`.
+
+```json
+{
+  "schema_version": 1,
+  "project": "demo",
+  "rows_dimension": "formal",
+  "cols_dimension": "kind",
+  "row_labels": ["named", "proved"],
+  "col_labels": ["lemma", "theorem"],
+  "cells": [
+    { "row": "named", "col": "lemma", "count": 1 },
+    { "row": "named", "col": "theorem", "count": 0 },
+    { "row": "proved", "col": "lemma", "count": 1 },
+    { "row": "proved", "col": "theorem", "count": 1 }
+  ],
+  "row_totals": { "named": 1, "proved": 2 },
+  "col_totals": { "lemma": 2, "theorem": 1 },
+  "total": 3
+}
+```
+
+`matrix` cross-tabulates node counts across the two dimensions named by
+`rows_dimension` and `cols_dimension` (each one of `formal`, `blueprint`,
+`agent`, `kind`). Only labels present on some node appear in `row_labels` /
+`col_labels`, ordered by enum declaration order. `cells` is the dense grid: one
+entry for every `(row_label, col_label)` pair, including zero counts.
+`row_totals` and `col_totals` are the marginals keyed by label, and `total` is
+the project node count, so `sum(cells.count) == sum(row_totals) ==
+sum(col_totals) == total`. Schema:
+[`matrix.schema.json`](../isabelle_blueprint/schemas/matrix.schema.json).
+
+---
+
 ## `tag-cooccurrence --json`
 
 Written to stdout by `tag-cooccurrence --json`.
