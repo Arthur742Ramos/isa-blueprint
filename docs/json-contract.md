@@ -676,7 +676,7 @@ discover them one by one.
 ```json
 {
   "schema_version": 1,
-  "tool_version": "1.13.0",
+  "tool_version": "1.14.0",
   "generated_at": "2026-06-01T12:00:00Z",
   "project": {
     "name": "Group theory demo",
