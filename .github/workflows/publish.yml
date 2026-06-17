@@ -52,6 +52,9 @@ jobs:
           import pathlib
           import sys
 
+          # ``__version__`` is resolved at runtime from installed distribution
+          # metadata; the source-tree literal lives in ``_FALLBACK_VERSION`` and
+          # is what must track ``pyproject.toml`` (see tests/test_packaging.py).
           expected = sys.argv[1]
           module = ast.parse(pathlib.Path("isabelle_blueprint/__init__.py").read_text(encoding="utf-8"))
           actual = None
@@ -59,18 +62,18 @@ jobs:
           for node in module.body:
               if not isinstance(node, ast.Assign):
                   continue
-              if not any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets):
+              if not any(isinstance(target, ast.Name) and target.id == "_FALLBACK_VERSION" for target in node.targets):
                   continue
               if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
-                  raise SystemExit("__version__ must be assigned a string literal")
+                  raise SystemExit("_FALLBACK_VERSION must be assigned a string literal")
               actual = node.value.value
               break
 
           if actual is None:
-              raise SystemExit("__version__ assignment was not found")
+              raise SystemExit("_FALLBACK_VERSION assignment was not found")
 
           if actual != expected:
-              raise SystemExit(f"isabelle_blueprint.__version__ {actual} does not match pyproject.toml version {expected}")
+              raise SystemExit(f"isabelle_blueprint._FALLBACK_VERSION = {actual!r} does not match pyproject.toml version {expected!r}")
           PY
           }
 
