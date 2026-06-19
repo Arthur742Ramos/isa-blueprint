@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Real Sledgehammer runs from `attempt`.** A new `--sledgehammer-run` flag on
+  `isabelle-blueprint attempt` actually invokes Isabelle's Sledgehammer on the
+  selected node (in addition to the existing static `--sledgehammer` prompt
+  appendix). The proof obligation comes from a new optional `goal:` field on a
+  node (an Isabelle proposition parsed with `Syntax.read_prop`), or, when no
+  `goal` is set, from re-proving the node's named `isabelle:` fact. The result
+  is printed as a one-line summary (`sledgehammer: found  by simp`), included as
+  a `sledgehammer` object under `--json`, and recorded to agent memory with
+  `tool="sledgehammer"`. A companion `--sledgehammer-timeout` controls the
+  Sledgehammer budget (default: `--timeout`). The command always exits `0`, and
+  skips gracefully when no `isabelle` binary is available.
+- **Optional `goal:` node field.** Markdown (`goal: <prop>`) and LaTeX
+  (`\goal{<prop>}`) blueprints may now attach a formal Isabelle proposition to a
+  node. It is serialized in `project.json` and is additive/optional, so existing
+  blueprints are unaffected.
+
 ## [1.15.0] - 2026-06-19
 
 ### Security

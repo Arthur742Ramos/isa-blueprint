@@ -189,29 +189,6 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
     ]
 
 
-def generate_check_root(
-    session_name: str,
-    *,
-    wrapper_name: str = "Blueprint_Check_Wrapper",
-    theory_name: str = "Blueprint_Check",
-    session_deps: list[str] | None = None,
-) -> str:
-    """Return the contents of a ROOT file that wraps the user's session.
-
-    The wrapper session inherits from ``session_name`` and adds the auto-generated
-    ``Blueprint_Check`` theory. Writing this file alongside ``Blueprint_Check.thy``
-    in the build directory lets ``isabelle build -d <build_dir>`` resolve the
-    theory without modifying the user's own ROOT file.
-    """
-    deps = sorted({dep for dep in session_deps or [] if dep and dep != session_name})
-    lines = [f"session {_root_string(wrapper_name)} = {_root_string(session_name)} +"]
-    if deps:
-        lines.append("  sessions")
-        lines.extend(f"    {_root_string(dep)}" for dep in deps)
-    lines.extend(["  theories", f"    {theory_name}"])
-    return "\n".join(lines) + "\n"
-
-
 def _ml_string(text: str) -> str:
     escaped = (
         text.replace("\\", "\\\\")
@@ -228,3 +205,189 @@ def _root_string(text: str) -> str:
 
 def _comment_escape(text: str) -> str:
     return text.replace("*)", "* )")
+
+
+# ---------------------------------------------------------------------------
+# Wrapper-session ROOT generation (shared by the checker and sledgehammer-run).
+# ---------------------------------------------------------------------------
+
+
+def generate_check_root(
+    session_name: str,
+    *,
+    wrapper_name: str = "Blueprint_Check_Wrapper",
+    theory_name: str = "Blueprint_Check",
+    session_deps: list[str] | None = None,
+) -> str:
+    """Return the contents of a ROOT file that wraps the user's session.
+
+    The wrapper session inherits from ``session_name`` and adds an auto-generated
+    theory (``Blueprint_Check`` by default, or ``Blueprint_Sledgehammer`` for the
+    sledgehammer-run flow). Writing this file alongside the generated ``.thy`` in
+    the build directory lets ``isabelle build -d <build_dir>`` resolve the theory
+    without modifying the user's own ROOT file.
+    """
+    deps = sorted({dep for dep in session_deps or [] if dep and dep != session_name})
+    lines = [f"session {_root_string(wrapper_name)} = {_root_string(session_name)} +"]
+    if deps:
+        lines.append("  sessions")
+        lines.extend(f"    {_root_string(dep)}" for dep in deps)
+    lines.extend(["  theories", f"    {theory_name}"])
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Sledgehammer-run theory generation.
+# ---------------------------------------------------------------------------
+
+
+def _thy_inner_string(text: str) -> str:
+    """Escape *text* for embedding inside an ML/inner-syntax double-quoted string.
+
+    Only backslash and double-quote are escaped: the goal is written verbatim as
+    ``Syntax.read_prop ctxt "<goal>"`` so Isabelle symbols such as ``\\<forall>``
+    must survive (backslash doubling yields a single backslash back in the ML
+    string), and an embedded ``"`` must not terminate the literal early.
+    """
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def sledgehammer_imports(
+    project: BlueprintProject,
+    *,
+    node_id: str,
+    default_import_session: str | None = None,
+) -> list[str]:
+    """Return the sorted import list for the one-node sledgehammer wrapper.
+
+    Always includes ``Main``. Adds the target node's own theory (when it has a
+    resolvable Isabelle reference) plus the theories of its declared dependency
+    nodes, so the sledgehammer context can see the relevant definitions/lemmas.
+    """
+    by_id = project.by_id()
+    node = by_id.get(node_id)
+    imports: set[str] = {"Main"}
+    if node is None:
+        return sorted(imports)
+    relevant = [node]
+    for dep_id in node.uses:
+        dep = by_id.get(dep_id)
+        if dep is not None:
+            relevant.append(dep)
+    for n in relevant:
+        ref = _resolve(n)
+        if ref is not None:
+            imports.add(_import_name(ref, default_import_session=default_import_session))
+    return sorted(imports)
+
+
+def generate_sledgehammer_theory(
+    project: BlueprintProject,
+    *,
+    node_id: str,
+    result_file: str,
+    timeout: float,
+    theory_name: str = "Blueprint_Sledgehammer",
+    provers: str = "e z3",
+    default_import_session: str | None = None,
+    nonce: str | None = None,
+) -> str | None:
+    """Return the source of a wrapper theory that runs sledgehammer on one node.
+
+    The goal source is chosen per the node:
+
+    * if the node carries an explicit ``goal`` proposition, it is parsed with
+      ``Syntax.read_prop`` in the wrapper context, and
+    * otherwise the node's named Isabelle ``fact`` is re-proved: its statement is
+      recovered via ``Thm.prop_of (Proof_Context.get_thm ctxt "<fact>")``.
+
+    Returns ``None`` when the node has neither a ``goal`` nor a resolvable fact
+    (there is nothing to attempt, so no theory should be built).
+    """
+    node = project.by_id().get(node_id)
+    if node is None:
+        return None
+
+    goal = (node.goal or "").strip()
+    ref = _resolve(node)
+    if goal:
+        goal_source = f'Syntax.read_prop ctxt "{_thy_inner_string(goal)}"'
+    elif ref is not None:
+        goal_source = f'Thm.prop_of (Proof_Context.get_thm ctxt {_ml_string(ref.fact)})'
+    else:
+        return None
+
+    imports = sledgehammer_imports(
+        project, node_id=node_id, default_import_session=default_import_session
+    )
+    timeout_secs = max(1, int(round(timeout)))
+
+    lines: list[str] = []
+    lines.append(f"theory {theory_name}")
+    lines.append("  imports")
+    for imp in imports:
+        lines.append(f'    "{imp}"')
+    lines.append("begin")
+    lines.append("")
+    lines.append("(* Auto-generated by IsabelleBlueprint. Do not edit by hand. *)")
+    lines.append(f"(* Sledgehammer target node: {_comment_escape(node_id)} *)")
+    if nonce:
+        # Force ``isabelle build`` to re-execute the ML on every run: an unchanged
+        # wrapper session is cached in the global heap and the sledgehammer ML
+        # (and thus the result file) would never run again. A fresh nonce per run
+        # perturbs the theory source so the session is always rebuilt.
+        lines.append(f"(* Run nonce: {_comment_escape(nonce)} *)")
+    lines.append("")
+    lines.extend(
+        _sledgehammer_ml_block(
+            goal_source=goal_source,
+            result_file=result_file,
+            provers=provers,
+            timeout_secs=timeout_secs,
+        )
+    )
+    lines.append("")
+    lines.append("end")
+    return "\n".join(lines) + "\n"
+
+
+def _sledgehammer_ml_block(
+    *,
+    goal_source: str,
+    result_file: str,
+    provers: str,
+    timeout_secs: int,
+) -> list[str]:
+    """Render the ML block that runs sledgehammer and writes a result TSV.
+
+    Batch ``isabelle build`` suppresses sledgehammer/``writeln`` stdout, so the
+    outcome is written to *result_file* and read back by the Python engine -- the
+    same pattern the proof-status checker uses.
+    """
+    result_path = _ml_string(result_file)
+    return [
+        "ML \\<open>",
+        "let",
+        "  fun strip s = XML.content_of (YXML.parse_body s)",
+        "  fun hammer ctxt goal =",
+        "    let",
+        "      val thy = Proof_Context.theory_of ctxt",
+        "      val state = Proof.theorem NONE (K I) [[(goal, [])]] ctxt",
+        "      val params = Sledgehammer_Commands.default_params thy",
+        f'        [("provers", {_ml_string(provers)}), '
+        f'("timeout", {_ml_string(str(timeout_secs))})]',
+        "      val (ok, (outcome, proof)) =",
+        "        Sledgehammer.run_sledgehammer params Sledgehammer_Prover.Normal NONE 1",
+        "          Sledgehammer_Fact.no_fact_override state",
+        '    in (if ok then "SOME" else "NONE") ^ "\\t" ^',
+        '       Sledgehammer.short_string_of_sledgehammer_outcome outcome ^ "\\t" ^ '
+        "strip proof end",
+        "  val ctxt = @{context}",
+        f"  val goal = {goal_source}",
+        "  val result = hammer ctxt goal",
+        "in",
+        f'  File.write (Path.explode {result_path}) (result ^ "\\n")',
+        "end",
+        "\\<close>",
+    ]
+

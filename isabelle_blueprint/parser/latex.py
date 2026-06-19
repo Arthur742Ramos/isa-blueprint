@@ -53,6 +53,7 @@ _LEAN_RE = re.compile(r"\\lean\{(?P<value>[^{}]+)\}")
 _ISABELLE_RE = re.compile(r"\\isabelle\{(?P<value>[^{}]+)\}")
 _ISABELLE_THEORY_RE = re.compile(r"\\isabelletheory\{(?P<value>[^{}]+)\}")
 _ISABELLE_SESSION_RE = re.compile(r"\\isabellesession\{(?P<value>[^{}]+)\}")
+_GOAL_RE = re.compile(r"\\goal\{(?P<value>[^{}]+)\}")
 _USES_RE = re.compile(r"\\uses\{(?P<value>[^{}]*)\}")
 _TAGS_RE = re.compile(r"\\tags\{(?P<value>[^{}]*)\}")
 _STATUS_RE = re.compile(r"\\status\{(?P<value>[^{}]+)\}")
@@ -62,7 +63,7 @@ _AGENT_STATUS_RE = re.compile(r"\\agentstatus\{(?P<value>[^{}]+)\}")
 _EFFORT_RE = re.compile(r"\\effort\{(?P<value>[^{}]*)\}")
 _PROOF_RE = re.compile(r"\\begin\{proof\}(?P<body>.*?)\\end\{proof\}", re.DOTALL)
 _COMMAND_LINE_RE = re.compile(
-    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|uses|tags|status|blueprintstatus|formalstatus|agentstatus|effort)\{[^{}]*\}\s*$",
+    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|goal|uses|tags|status|blueprintstatus|formalstatus|agentstatus|effort)\{[^{}]*\}\s*$",
     re.MULTILINE,
 )
 
@@ -103,6 +104,8 @@ def render_markdown_blueprint(project: BlueprintProject) -> str:
         parts.append(f"title: {node.title}")
         if node.isabelle.fact:
             parts.append(f"isabelle: {node.isabelle.fact}")
+        if node.goal:
+            parts.append(f"goal: {node.goal}")
         if node.uses:
             parts.append("uses:")
             parts.extend(f"  - {dep}" for dep in node.uses)
@@ -149,6 +152,7 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
         r"\newcommand{\isabelle}[1]{}",
         r"\newcommand{\isabelletheory}[1]{}",
         r"\newcommand{\isabellesession}[1]{}",
+        r"\newcommand{\goal}[1]{}",
         r"\newcommand{\uses}[1]{}",
         r"\newcommand{\tags}[1]{}",
         r"\newcommand{\status}[1]{}",
@@ -177,6 +181,8 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
             parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")
         if node.isabelle.session:
             parts.append(rf"\isabellesession{{{node.isabelle.session}}}")
+        if node.goal:
+            parts.append(rf"\goal{{{node.goal}}}")
         if node.uses:
             parts.append(rf"\uses{{{', '.join(node.uses)}}}")
         if node.tags:
@@ -230,6 +236,8 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
     session = _first(_ISABELLE_SESSION_RE, block.body)
     uses = _split_csv(_first(_USES_RE, block.body) or "")
     tags = _split_csv(_first(_TAGS_RE, block.body) or "")
+    goal_raw = _first(_GOAL_RE, block.body)
+    goal = goal_raw.strip() if goal_raw and goal_raw.strip() else None
     effort = _parse_latex_effort(block.body, block.source_file, block.source_line)
     proof_match = _PROOF_RE.search(block.body)
     proof = _clean_body(proof_match.group("body")) if proof_match else ""
@@ -250,6 +258,7 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
         title=block.title or _title_from_label(label),
         statement=statement,
         informal_proof=proof,
+        goal=goal,
         uses=uses,
         isabelle=IsabelleRef(
             fact=fact.strip() if fact else None,

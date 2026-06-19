@@ -118,6 +118,7 @@ from isabelle_blueprint.isabelle.fact_search import (
     search_index,
 )
 from isabelle_blueprint.isabelle.root import default_session_dir
+from isabelle_blueprint.isabelle.sledgehammer import run_sledgehammer
 from isabelle_blueprint.isabelle.source_index import (
     SourceIndex,
     build_index,
@@ -2526,6 +2527,11 @@ def cmd_attempt(args: argparse.Namespace) -> int:
     output = args.output or str(config.build_dir / "attempts" / prompt_filename(task.id))
     prompt_path = _write_next_prompt(prompt, output)
     check_payload = _run_attempt_check(args, config, project) if args.check else None
+    sledgehammer_payload = (
+        _run_attempt_sledgehammer(args, config, project, task)
+        if getattr(args, "sledgehammer_run", False)
+        else None
+    )
     memory_payload = None
     if args.record_outcome:
         summary = args.summary.strip() if args.summary else ""
@@ -2549,6 +2555,7 @@ def cmd_attempt(args: argparse.Namespace) -> int:
         "task": task.to_dict(),
         "prompt_path": str(prompt_path),
         "check": check_payload,
+        "sledgehammer": sledgehammer_payload,
         "memory": memory_payload,
         "message": f"Prepared {task.id}.",
         **_selection_metadata(
@@ -2565,6 +2572,8 @@ def cmd_attempt(args: argparse.Namespace) -> int:
             print(f"check report -> {check_payload['report_path']}")
             if check_payload["return_code"] not in (None, 0):
                 print(f"check exited with {check_payload['return_code']}", file=sys.stderr)
+        if sledgehammer_payload is not None:
+            print(sledgehammer_payload["summary_line"])
         if memory_payload is not None:
             print(f"memory recorded -> {config.agent_memory_path}")
     return 0
@@ -2598,6 +2607,66 @@ def _run_attempt_check(
         "return_code": result.return_code,
         "error": result.error,
     }
+
+
+def _run_attempt_sledgehammer(
+    args: argparse.Namespace,
+    config: BlueprintConfig,
+    project: BlueprintProject,
+    task: object,
+) -> dict[str, object]:
+    node_id = task.node_id  # type: ignore[attr-defined]
+    timeout = args.sledgehammer_timeout
+    if timeout is None:
+        timeout = args.timeout if args.timeout is not None else config.isabelle_timeout
+    result = run_sledgehammer(
+        project,
+        node_id=node_id,
+        build_dir=config.build_dir,
+        session_name=config.isabelle_session,
+        isabelle_executable=args.isabelle or config.isabelle_executable,
+        extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
+        timeout=timeout,
+        jobs=getattr(args, "jobs", None),
+    )
+
+    if result.found:
+        summary_line = f"sledgehammer: found  {result.proof_line}"
+        outcome = "succeeded"
+        mem_summary = f"sledgehammer found a proof for {node_id}"
+        details = result.proof_line or ""
+    elif result.ran:
+        summary_line = "sledgehammer: no proof found"
+        outcome = "failed"
+        mem_summary = f"sledgehammer found no proof for {node_id}"
+        details = result.error or result.outcome_tag or ""
+    else:
+        reason = "Isabelle unavailable" if not result.isabelle_available else (
+            result.error or "unavailable"
+        )
+        summary_line = f"sledgehammer: skipped ({reason})"
+        outcome = "blocked"
+        mem_summary = f"sledgehammer skipped for {node_id}: {reason}"
+        details = result.error or ""
+
+    node = project.by_id().get(node_id)
+    input_hash = node_input_hash(node) if node is not None else None
+    record_memory_attempt(
+        config.agent_memory_path,
+        node_id,
+        outcome=outcome,
+        summary=mem_summary,
+        actor=args.actor,
+        tool="sledgehammer",
+        details=details,
+        input_hash=input_hash,
+        max_attempts=args.max_attempts,
+    )
+
+    payload = result.to_dict()
+    payload["summary_line"] = summary_line
+    return payload
 
 
 def _write_next_prompt(prompt: str, output: str | None) -> Path | None:
@@ -4396,6 +4465,18 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--sledgehammer",
         action="store_true",
         help="append a Sledgehammer-first strategy block to the handoff prompt",
+    )
+    p_attempt.add_argument(
+        "--sledgehammer-run",
+        action="store_true",
+        help="actually run Isabelle's Sledgehammer on the selected node (needs isabelle)",
+    )
+    p_attempt.add_argument(
+        "--sledgehammer-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Sledgehammer time budget for --sledgehammer-run (default: --timeout)",
     )
     p_attempt.add_argument(
         "--check", action="store_true", help="run `check` after writing the handoff prompt"
