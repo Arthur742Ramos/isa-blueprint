@@ -580,6 +580,8 @@ isabelle-blueprint attempt [project_dir]
                           [--tool TEXT]
                           [--max-attempts N]
                           [--sledgehammer]
+                          [--sledgehammer-run]
+                          [--sledgehammer-timeout SECONDS]
 ```
 
 Added in v1.6. Prepares a selected ready proof task for a human or agent proof
@@ -594,14 +596,25 @@ view as `next`.
 Recording an outcome updates the selected node's memory, so a task selected via
 `--memory-state fresh` will no longer match `fresh` on the next invocation.
 
-`--json` emits `task`, `prompt_path`, `check`, `memory`, `message`, filter
-metadata, and ready-task counts. When no ready task exists, those object fields
-are `null` and the command exits 0. If filters exclude existing ready tasks,
-`message` reports that filtered state instead of implying the project is empty.
+`--json` emits `task`, `prompt_path`, `check`, `sledgehammer`, `memory`,
+`message`, filter metadata, and ready-task counts. When no ready task exists,
+those object fields are `null` and the command exits 0. If filters exclude
+existing ready tasks, `message` reports that filtered state instead of implying
+the project is empty.
 
 `--sledgehammer` (added in v1.13) appends an Isabelle `sledgehammer` guidance
 appendix and a proof skeleton (seeded with the target fact and dependency facts)
 to the generated prompt.
+
+`--sledgehammer-run` actually invokes Isabelle's Sledgehammer on the selected
+node and never raises (always exits 0). The proof obligation is the node's
+optional `goal:` proposition (parsed with `Syntax.read_prop`), or, when no
+`goal` is set, the re-proved statement of the node's named `isabelle:` fact.
+`--sledgehammer-timeout SECONDS` sets the Sledgehammer budget (default:
+`--timeout`). It prints a one-line summary (`sledgehammer: found  by simp` /
+`sledgehammer: no proof found` / `sledgehammer: skipped (...)`), adds a
+`sledgehammer` object to `--json`, and records an attempt to agent memory with
+`tool="sledgehammer"`. When no `isabelle` binary is on PATH it skips gracefully.
 
 ### `agent-run`
 

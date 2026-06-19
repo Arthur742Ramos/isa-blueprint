@@ -343,6 +343,8 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
 
     title_raw = metadata.pop("title", None)
     title = str(title_raw) if title_raw is not None else _humanize_id(str(node_id))
+    goal_raw = metadata.pop("goal", None)
+    goal = str(goal_raw).strip() if goal_raw is not None and str(goal_raw).strip() else None
     uses_raw = metadata.pop("uses", []) or []
     if isinstance(uses_raw, str):
         uses = [u.strip() for u in re.split(r"[,\s]+", uses_raw) if u.strip()]
@@ -373,6 +375,7 @@ def _block_to_node(block: _RawBlock) -> BlueprintNode:
         title=title,
         statement=statement,
         informal_proof=informal_proof,
+        goal=goal,
         uses=uses,
         isabelle=isabelle_ref,
         status=status,

@@ -62,7 +62,7 @@ _AGENT_STATUS_RE = re.compile(r"\\agentstatus\{(?P<value>[^{}]+)\}")
 _EFFORT_RE = re.compile(r"\\effort\{(?P<value>[^{}]*)\}")
 _PROOF_RE = re.compile(r"\\begin\{proof\}(?P<body>.*?)\\end\{proof\}", re.DOTALL)
 _COMMAND_LINE_RE = re.compile(
-    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|uses|tags|status|blueprintstatus|formalstatus|agentstatus|effort)\{[^{}]*\}\s*$",
+    r"^\s*\\(?:label|lean|isabelle|isabelletheory|isabellesession|goal|uses|tags|status|blueprintstatus|formalstatus|agentstatus|effort)\{[^{}]*\}\s*$",
     re.MULTILINE,
 )
 
@@ -103,6 +103,8 @@ def render_markdown_blueprint(project: BlueprintProject) -> str:
         parts.append(f"title: {node.title}")
         if node.isabelle.fact:
             parts.append(f"isabelle: {node.isabelle.fact}")
+        if node.goal:
+            parts.append(f"goal: {node.goal}")
         if node.uses:
             parts.append("uses:")
             parts.extend(f"  - {dep}" for dep in node.uses)
@@ -149,6 +151,7 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
         r"\newcommand{\isabelle}[1]{}",
         r"\newcommand{\isabelletheory}[1]{}",
         r"\newcommand{\isabellesession}[1]{}",
+        r"\newcommand{\goal}[1]{}",
         r"\newcommand{\uses}[1]{}",
         r"\newcommand{\tags}[1]{}",
         r"\newcommand{\status}[1]{}",
@@ -177,6 +180,8 @@ def render_latex_blueprint(project: BlueprintProject) -> str:
             parts.append(rf"\isabelletheory{{{node.isabelle.theory}}}")
         if node.isabelle.session:
             parts.append(rf"\isabellesession{{{node.isabelle.session}}}")
+        if node.goal:
+            parts.append(rf"\goal{{{node.goal}}}")
         if node.uses:
             parts.append(rf"\uses{{{', '.join(node.uses)}}}")
         if node.tags:
@@ -230,10 +235,18 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
     session = _first(_ISABELLE_SESSION_RE, block.body)
     uses = _split_csv(_first(_USES_RE, block.body) or "")
     tags = _split_csv(_first(_TAGS_RE, block.body) or "")
+    goal_raw, _ = _extract_braced_macro("goal", block.body)
+    goal = goal_raw.strip() if goal_raw and goal_raw.strip() else None
     effort = _parse_latex_effort(block.body, block.source_file, block.source_line)
     proof_match = _PROOF_RE.search(block.body)
     proof = _clean_body(proof_match.group("body")) if proof_match else ""
     statement_source = _PROOF_RE.sub("", block.body)
+    # The single-brace _COMMAND_LINE_RE cannot match a \goal{...} carrying inner
+    # braces, so strip the (balanced) goal macro explicitly before cleaning.
+    _, goal_span = _extract_braced_macro("goal", statement_source)
+    if goal_span is not None:
+        start, end = goal_span
+        statement_source = statement_source[:start] + statement_source[end:]
     statement = _clean_body(_COMMAND_LINE_RE.sub("", statement_source))
 
     status, explicit = _parse_latex_status(block.body)
@@ -250,6 +263,7 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
         title=block.title or _title_from_label(label),
         statement=statement,
         informal_proof=proof,
+        goal=goal,
         uses=uses,
         isabelle=IsabelleRef(
             fact=fact.strip() if fact else None,
@@ -268,6 +282,42 @@ def _block_to_node(block: _LatexBlock) -> BlueprintNode:
 def _first(pattern: re.Pattern[str], text: str) -> str | None:
     match = pattern.search(text)
     return match.group("value").strip() if match else None
+
+
+def _extract_braced_macro(macro: str, text: str) -> tuple[str | None, tuple[int, int] | None]:
+    r"""Extract the argument of ``\macro{...}`` allowing balanced inner braces.
+
+    Unlike the ``[^{}]+`` macro regexes, this tolerates nested braces (e.g. an
+    Isabelle set comprehension ``{x. P x}``) and escaped ``\{`` / ``\}`` inside
+    the argument. Returns ``(content, (start, end))`` where ``start``/``end`` span
+    the entire ``\macro{...}`` match, or ``(None, None)`` when the macro is absent
+    or its braces are unbalanced.
+    """
+    marker = "\\" + macro + "{"
+    idx = text.find(marker)
+    if idx == -1:
+        return None, None
+    i = idx + len(marker)
+    depth = 1
+    out: list[str] = []
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text) and text[i + 1] in "{}":
+            out.append(text[i : i + 2])
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+            out.append(ch)
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return "".join(out), (idx, i + 1)
+            out.append(ch)
+        else:
+            out.append(ch)
+        i += 1
+    return None, None
 
 
 def _parse_latex_effort(text: str, source: str, line: int) -> int | None:

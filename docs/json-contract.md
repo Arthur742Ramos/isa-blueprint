@@ -347,6 +347,17 @@ Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
     "next_step": "try induction",
     "input_hash": "..."
   },
+  "sledgehammer": {
+    "ran": true,
+    "isabelle_available": true,
+    "return_code": 0,
+    "found": true,
+    "proof_line": "by simp",
+    "prover": null,
+    "outcome_tag": "some",
+    "error": null,
+    "summary_line": "sledgehammer: found  by simp"
+  },
   "filters": {
     "kind": ["theorem"],
     "priority": [],
@@ -362,8 +373,9 @@ Proof-attempt handoff payload printed by `isabelle-blueprint attempt --json`.
 ```
 
 `task` uses the same shape as `build/tasks.json`; `check` is `null` unless
-`--check` was passed; `memory` is `null` unless `--record-outcome` was passed.
-`filters`, `ready_task_count`, and `filtered_ready_task_count` mirror
+`--check` was passed; `memory` is `null` unless `--record-outcome` was passed;
+`sledgehammer` is `null` unless `--sledgehammer-run` was passed. `filters`,
+`ready_task_count`, and `filtered_ready_task_count` mirror
 `next --json` and were added in v1.7. The `memory_state`, `last_outcome`, and
 `exclude_node` filter keys were added in v1.7.1. When no ready task exists, `task`,
 `prompt_path`, `check`, and `memory` are `null` and `message` explains the empty

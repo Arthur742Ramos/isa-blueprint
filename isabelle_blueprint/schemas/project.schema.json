@@ -26,6 +26,7 @@
         "title": { "type": "string" },
         "statement": { "type": "string" },
         "informal_proof": { "type": "string" },
+        "goal": { "type": ["string", "null"] },
         "uses": {
           "type": "array",
           "items": { "type": "string" }

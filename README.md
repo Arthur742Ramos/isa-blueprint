@@ -279,7 +279,7 @@ already justify.
 | `report` | `build/project.json`, `build/report.md`, `build/summary.json`, badges | README badges, CI summaries, dashboards. |
 | `status` | Terminal or JSON health overview | Fast local triage and next-task selection. |
 | `next` | Markdown, JSON, or a chosen prompt file for the next ready task | Copy-ready proof handoffs without generating the full task queue. |
-| `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note (optional `--sledgehammer` appendix) | A single proof-attempt handoff/check/record loop. |
+| `attempt` | Prompt file under `build/attempts/`, optional check report, optional memory note (optional `--sledgehammer` appendix; optional real `--sledgehammer-run`) | A single proof-attempt handoff/check/record loop. |
 | `agent-run` | Runs an external solver against the next ready task and records the outcome | Closing the select → prompt → run → record loop in one shell-free command. |
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |

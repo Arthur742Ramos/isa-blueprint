@@ -91,6 +91,7 @@ class BlueprintNode:
     title: str
     statement: str = ""
     informal_proof: str = ""
+    goal: str | None = None
     uses: list[str] = field(default_factory=list)
     isabelle: IsabelleRef = field(default_factory=IsabelleRef)
     status: NodeStatus = field(default_factory=NodeStatus)
@@ -107,6 +108,7 @@ class BlueprintNode:
             "title": self.title,
             "statement": self.statement,
             "informal_proof": self.informal_proof,
+            "goal": self.goal,
             "uses": list(self.uses),
             "isabelle": self.isabelle.to_dict(),
             "status": self.status.to_dict(),
