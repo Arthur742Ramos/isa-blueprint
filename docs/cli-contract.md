@@ -1191,6 +1191,36 @@ both file paths and `--root`, or neither, is an error. An import cycle between
 theories is reported as an error (import the files individually to bypass).
 Importing explicit file paths is unchanged.
 
+### `export-theory`
+
+```text
+isabelle-blueprint export-theory [PROJECT_DIR]
+                                      [--theory-name NAME]
+                                      [--output PATH]
+                                      [--force]
+```
+
+The reverse of `import-theory`: scaffolds a single, buildable Isabelle `.thy`
+from the blueprint plan so a human or agent can start formalizing without a
+blank page. The theory imports only `Main` (keeping the scaffold buildable
+before the real session theories exist) and lays out every node in dependency
+order — a node's `uses` dependencies always precede it (topological, leaves
+first, stable within a level by id).
+
+Each node renders a `(* ... *)` comment block (its kind, title, id, the informal
+statement, and its `uses` list by Isabelle fact name or node id) followed by a
+stub: a node carrying an explicit `goal` becomes `lemma <name>: "<goal>" sorry`
+(the lemma name is the short name from the node's Isabelle `fact`, else a
+sanitized node id; the goal is embedded with inner-syntax escaping so Isabelle
+symbols such as `\<forall>` survive), while a goalless node becomes a
+`(* TODO: formalize ... *)` comment so the file still builds.
+
+The default theory name is derived from the project name, sanitized to a valid
+Isabelle theory identifier; `--theory-name NAME` overrides it. `--output PATH`
+writes to a file (gated by `--force` when it already exists); otherwise the
+theory is written to stdout. Output is deterministic (no timestamps or nonces).
+Exit code is `0`.
+
 ### `theory-index`
 
 ```text
@@ -1562,7 +1592,8 @@ For the v1.x line:
 
 1. **Subcommand names** (`init`, `check`, `graph`, `dump`, `compat`, `web`,
    `serve`, `tasks`, `next`, `attempt`, `report`, `status`, `roadmap`,
-   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `theory-index`,
+   `comment`, `doctor`, `memory`, `explain`, `import-theory`, `export-theory`,
+   `theory-index`,
    `schema`, `new`, `fmt`,
    `stats`, `version`, `completion`)
    will not be renamed or removed.

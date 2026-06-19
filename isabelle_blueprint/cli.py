@@ -138,6 +138,7 @@ from isabelle_blueprint.isabelle.suggestions import (
     suggest_missing_facts,
     write_fact_suggestions,
 )
+from isabelle_blueprint.isabelle.theory_export import generate_theory_scaffold
 from isabelle_blueprint.isabelle.theory_import import (
     import_theory_file,
     imported_theory_review,
@@ -3199,6 +3200,23 @@ def cmd_import_theory(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export_theory(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    _try_apply_check(project, config)
+    theory = generate_theory_scaffold(project, theory_name=args.theory_name)
+    if args.output:
+        output = Path(args.output).resolve()
+        if output.exists() and not args.force:
+            raise BlueprintError(f"refusing to overwrite {output}; pass --force")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(theory, encoding="utf-8")
+        print(f"exported theory scaffold -> {output}", file=sys.stderr)
+    else:
+        sys.stdout.write(theory)
+    return 0
+
+
 def _theory_index_summary(index: SourceIndex) -> str:
     lines = [
         f"theories: {len(index.theory_order)}",
@@ -5028,6 +5046,23 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_import.add_argument("--force", action="store_true", help="overwrite --output if it exists")
     p_import.set_defaults(func=cmd_import_theory)
+
+    p_export = sub.add_parser(
+        "export-theory",
+        help="scaffold a buildable Isabelle .thy from the blueprint plan",
+    )
+    p_export.add_argument("project_dir", nargs="?", default=".")
+    p_export.add_argument(
+        "--theory-name",
+        default=None,
+        metavar="NAME",
+        help="theory identifier (default: derived from the project name)",
+    )
+    p_export.add_argument(
+        "--output", default=None, help="write the theory scaffold to this file (default: stdout)"
+    )
+    p_export.add_argument("--force", action="store_true", help="overwrite --output if it exists")
+    p_export.set_defaults(func=cmd_export_theory)
 
     p_tindex = sub.add_parser(
         "theory-index",
