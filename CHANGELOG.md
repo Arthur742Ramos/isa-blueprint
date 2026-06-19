@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`reconcile` (alias `deps-audit`) — dependency audit.** A new subcommand that
+  diffs each author-declared `uses` edge against Isabelle's *real* immediate
+  proof dependencies for PROVED-eligible nodes. It builds a generated
+  dependency-extraction wrapper theory that asks the kernel via
+  `Thm_Deps.thm_deps` for each fact's immediate named deps, maps those fact names
+  back to blueprint node ids, and reports per node `used_but_undeclared` (a
+  strong signal of a missing `uses` edge) and `declared_but_unused` (advisory —
+  kernel deduplication and library aliasing can legitimately hide a declared
+  edge). Mirrors `check`'s `--isabelle/--session/--timeout/--jobs/--json` flags.
+  The command is additive and advisory: it exits `0` on a normal run (never
+  gating on findings) and degrades to a clean no-op report when no `isabelle`
+  binary or session is available. `--json` emits a packaged schema-style dict.
 - **Real Sledgehammer runs from `attempt`.** A new `--sledgehammer-run` flag on
   `isabelle-blueprint attempt` actually invokes Isabelle's Sledgehammer on the
   selected node (in addition to the existing static `--sledgehammer` prompt

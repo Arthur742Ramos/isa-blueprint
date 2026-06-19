@@ -288,6 +288,7 @@ already justify.
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts, optional Jira/Linear CSV export | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
+| `reconcile` (`deps-audit`) | Per-node `uses`-vs-kernel dependency diff (`--json` schema dict) | Find missing `uses` edges (and advisory unused ones) against Isabelle's real proof deps. |
 | `dump` | PIDE-derived status | Deeper proof inspection from Isabelle dump output. |
 | `compat` | Isabelle/AFP diagnostics | Reproducible session and version setup. |
 | `comment` | Idempotent PR status comments | Pull-request automation. |
