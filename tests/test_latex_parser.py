@@ -230,3 +230,21 @@ def test_latex_project_can_render_back_to_latex_interchange():
     round_trip = parse_latex_text(latex, source="roundtrip.tex", project_name="roundtrip")
     assert round_trip.nodes[0].id == "cor:c"
     assert round_trip.nodes[0].status.formal == FormalStatus.FOUND
+
+
+def test_parse_latex_file_strips_leading_utf8_bom(tmp_path):
+    """A leading UTF-8 BOM must not prevent the first LaTeX environment parsing."""
+    text = textwrap.dedent(
+        r"""
+        \begin{theorem}[T]
+        \label{thm:t}
+        Text.
+        \end{theorem}
+        """
+    ).lstrip("\n")
+    path = tmp_path / "bom.tex"
+    path.write_text("\ufeff" + text, encoding="utf-8")
+
+    project = parse_blueprint_file(path)
+    assert len(project.nodes) == 1
+    assert project.nodes[0].id == "thm:t"

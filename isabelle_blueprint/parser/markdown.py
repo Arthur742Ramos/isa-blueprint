@@ -141,7 +141,10 @@ class _RawBlock:
 def parse_blueprint_file(path: Path | str, *, project_name: str | None = None) -> BlueprintProject:
     """Parse a single blueprint Markdown file."""
     p = Path(path)
-    text = p.read_text(encoding="utf-8")
+    # utf-8-sig strips a leading BOM if present; otherwise behaves like utf-8.
+    # Without this, a BOM before the first "^:::" directive defeats the anchored
+    # regex and the first node is silently dropped.
+    text = p.read_text(encoding="utf-8-sig")
     name = project_name or p.stem
     return parse_blueprint_text(text, source=str(p), project_name=name)
 
