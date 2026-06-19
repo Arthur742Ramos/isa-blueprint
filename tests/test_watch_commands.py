@@ -164,6 +164,9 @@ def test_serve_starts_server_and_shuts_down(tmp_path: Path, capsys, monkeypatch)
     # watch loop is broken on the first poll (KeyboardInterrupt), driving the
     # finally-block that shuts the server down. We assert the server is closed.
     _write_project(tmp_path)
+    # Exercise the normal serve path: clear any ambient CI marker (GitHub
+    # Actions sets CI=true) so the in-CI refusal guard does not trip here.
+    monkeypatch.delenv("CI", raising=False)
     _stop_after_first(monkeypatch)
 
     started: list[object] = []
