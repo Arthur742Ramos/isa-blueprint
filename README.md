@@ -293,6 +293,7 @@ already justify.
 | `compat` | Isabelle/AFP diagnostics | Reproducible session and version setup. |
 | `comment` | Idempotent PR status comments | Pull-request automation. |
 | `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files (`import-theory --root` imports a whole session) | Debugging and onboarding existing Isabelle projects. |
+| `export-theory` | Scaffold a buildable `.thy` (nodes in dependency order; `goal`s become `lemma ... sorry`, others `TODO`) from the plan | Starting formalization from a blueprint without a blank page. |
 | `theory-index` | Source-only call graph, theory deps, `sorry`/`oops`, and unreferenced-entry analysis (no Isabelle needed) | Offline inspection of `.thy` trees in CI or on partial checkouts. |
 | `doctor` / `schema` | Setup diagnostics and JSON Schemas | Debugging and external integrations. |
 | `lint` | Text, JSON, or SARIF 2.1.0 findings (optional in-place `--fix`) | Structural/quality gates and GitHub code scanning uploads. |
@@ -670,6 +671,19 @@ isabelle-blueprint import-theory --root . --session Demo --output blueprint.md
 
 The importer is best-effort; review generated statements, suggested
 dependencies, and proof sketches before relying on the result.
+
+The reverse direction, `export-theory`, scaffolds a buildable Isabelle `.thy`
+from the blueprint plan so a human or agent can start formalizing. Nodes are
+laid out in dependency order; a node with a `goal` becomes a `lemma ... sorry`
+stub and a goalless node becomes a `TODO` comment, so the file still builds
+(it imports only `Main`):
+
+```bash
+# print a theory scaffold to stdout
+isabelle-blueprint export-theory .
+# choose the theory name and write to a file
+isabelle-blueprint export-theory . --theory-name Demo --output Demo.thy
+```
 
 ### Source-only theory analysis (`theory-index`)
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`export-theory` — scaffold a buildable `.thy` from the plan.** The reverse of
+  `import-theory`: a new subcommand that turns the blueprint plan into a single,
+  well-formed Isabelle theory (importing only `Main`, so it builds before the
+  real session theories exist) to remove the blank-page problem when starting
+  formalization. Nodes are emitted in dependency order (topological by `uses`,
+  leaves first, stable within a level by id) so a node's dependencies always
+  precede it. Each node renders a `(* ... *)` comment block (kind, title, id,
+  informal statement, and `uses` by fact name/id) followed by a stub: a node
+  with an explicit `goal` becomes `lemma <name>: "<goal>" sorry` (lemma name from
+  the node's Isabelle `fact` short name, else a sanitized id; the goal embedded
+  with inner-syntax escaping so symbols like `\<forall>` survive), while a
+  goalless node becomes a `(* TODO: formalize ... *)` comment so the file still
+  builds. Supports `[PROJECT_DIR]`, `--theory-name NAME` (default derived from
+  the project name, sanitized to a valid theory identifier), and `--output PATH`
+  (`--force` to overwrite; stdout otherwise). Output is deterministic. Exit `0`.
+
 ## [1.16.0] - 2026-06-19
 
 ### Added
