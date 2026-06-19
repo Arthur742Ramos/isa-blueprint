@@ -15,8 +15,9 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOW_DIR = _REPO_ROOT / ".github" / "workflows"
 _DEPENDABOT = _REPO_ROOT / ".github" / "dependabot.yml"
 
-# ``owner/repo@<ref>`` with an optional ``# comment``. Local actions (``./...``)
-# and reusable workflows are intentionally excluded from the SHA requirement.
+# ``owner/repo@<ref>`` with an optional ``# comment``. Only local actions
+# (``./...``) are exempt; every other ``uses:`` reference -- including reusable
+# workflows -- must be pinned to a full commit SHA.
 _USES_RE = re.compile(
     r"^\s*-?\s*uses:\s*(?P<ref>[^\s#]+)\s*(?:#\s*(?P<comment>.+?))?\s*$"
 )
@@ -43,7 +44,7 @@ def test_workflow_dir_has_uses_references():
 def test_every_third_party_action_is_pinned_to_full_sha():
     offenders: list[str] = []
     for wf, ref, _comment in _iter_uses():
-        if ref.startswith("./") or ref.startswith("."):
+        if ref.startswith("./"):
             continue  # local action, no pin required
         if "@" not in ref:
             offenders.append(f"{wf.name}: {ref} (no version/SHA at all)")
@@ -57,7 +58,7 @@ def test_every_third_party_action_is_pinned_to_full_sha():
 def test_pinned_actions_keep_a_human_readable_version_comment():
     missing: list[str] = []
     for wf, ref, comment in _iter_uses():
-        if ref.startswith("./") or ref.startswith("."):
+        if ref.startswith("./"):
             continue
         if not comment or not comment.strip():
             missing.append(f"{wf.name}: {ref}")
