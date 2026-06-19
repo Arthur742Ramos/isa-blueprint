@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   builds. Supports `[PROJECT_DIR]`, `--theory-name NAME` (default derived from
   the project name, sanitized to a valid theory identifier), and `--output PATH`
   (`--force` to overwrite; stdout otherwise). Output is deterministic. Exit `0`.
+  Lemma names are guaranteed valid and unique: identifiers colliding with an
+  Isabelle keyword (e.g. a node id `end`) get a trailing `_`, and names that
+  sanitize to the same identifier are deduplicated with `_2`/`_3` suffixes so the
+  scaffold never emits a `Duplicate fact declaration` or a keyword parse error.
 
 ## [1.16.0] - 2026-06-19
 

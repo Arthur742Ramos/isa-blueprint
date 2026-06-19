@@ -37,18 +37,70 @@ def sanitize_theory_name(name: str) -> str:
     return cleaned
 
 
-def _lemma_name(node: BlueprintNode) -> str:
-    """Short, valid Isabelle lemma identifier for *node*.
+# Isabelle/Isar outer-syntax keywords that cannot stand alone as a fact name in
+# ``lemma <name>: ...``. Using any of these as a bare lemma name is a parse error,
+# so a sanitized name that lands on one gets a trailing underscore.
+_ISABELLE_KEYWORDS = frozenset(
+    {
+        "abbreviation", "also", "and", "apply", "assume", "assumes", "axiomatization",
+        "begin", "binder", "by", "case", "class", "consts", "constrains", "context",
+        "corollary", "datatype", "declare", "defines", "definition", "done", "end",
+        "finally", "fix", "fixes", "for", "from", "fun", "function", "have", "hence",
+        "if", "imports", "in", "includes", "inductive", "instance", "instantiation",
+        "interpretation", "is", "keywords", "lemma", "let", "locale", "method",
+        "moreover", "next", "notation", "notes", "obtain", "obtains", "oops", "open",
+        "overloaded", "pervasive", "primrec", "private", "proof", "proposition",
+        "qed", "qualified", "record", "rewrites", "schematic_goal", "show", "shows",
+        "sorry", "structure", "sublocale", "syntax", "term", "then", "theorem",
+        "theory", "thus", "translations", "type", "typedef", "ultimately",
+        "unfolding", "using", "value", "when", "where", "with",
+    }
+)
+
+
+def _base_lemma_name(node: BlueprintNode) -> str:
+    """Short, valid Isabelle lemma identifier for *node*, before deduplication.
 
     Prefers the short name from the node's Isabelle ``fact`` (the segment after
     the final ``.``); otherwise falls back to a sanitized form of the node id.
+    A name colliding with an Isabelle keyword gets a trailing underscore so it
+    parses as an ordinary fact name.
     """
     fact = node.isabelle.fact
+    candidate = ""
     if fact:
-        short = fact.rsplit(".", 1)[-1].strip()
-        if short:
-            return sanitize_theory_name(short)
-    return sanitize_theory_name(node.id)
+        candidate = fact.rsplit(".", 1)[-1].strip()
+    name = sanitize_theory_name(candidate) if candidate else sanitize_theory_name(node.id)
+    if name in _ISABELLE_KEYWORDS:
+        name = f"{name}_"
+    return name
+
+
+def _assign_lemma_names(
+    ordered_ids: list[str], by_id: dict[str, BlueprintNode]
+) -> dict[str, str]:
+    """Map node id -> unique lemma name, deterministically in *ordered_ids* order.
+
+    Two nodes whose facts (or ids) sanitize to the same identifier would emit a
+    ``Duplicate fact declaration`` and fail the build, so colliding names get a
+    ``_2``, ``_3`` ... suffix. The suffixing loop also resolves any second-order
+    collision the suffix itself introduces.
+    """
+    used: set[str] = set()
+    names: dict[str, str] = {}
+    for node_id in ordered_ids:
+        node = by_id.get(node_id)
+        if node is None:
+            continue
+        base = _base_lemma_name(node)
+        name = base
+        counter = 2
+        while name in used:
+            name = f"{base}_{counter}"
+            counter += 1
+        used.add(name)
+        names[node_id] = name
+    return names
 
 
 def _topological_node_ids(project: BlueprintProject) -> list[str]:
@@ -94,7 +146,9 @@ def _uses_label(node: BlueprintNode, by_id: dict[str, BlueprintNode]) -> list[st
     return labels
 
 
-def _render_node(node: BlueprintNode, by_id: dict[str, BlueprintNode]) -> list[str]:
+def _render_node(
+    node: BlueprintNode, by_id: dict[str, BlueprintNode], lemma_name: str
+) -> list[str]:
     """Render one node: a comment block followed by a stub lemma or a TODO."""
     title = node.title.strip() or node.id
     lines = [f"(* {node.kind.value}: {_safe_comment(title)} [{node.id}] *)"]
@@ -110,8 +164,7 @@ def _render_node(node: BlueprintNode, by_id: dict[str, BlueprintNode]) -> list[s
 
     goal = (node.goal or "").strip()
     if goal:
-        name = _lemma_name(node)
-        lines.append(f'lemma {name}: "{_thy_inner_string(goal)}"')
+        lines.append(f'lemma {lemma_name}: "{_thy_inner_string(goal)}"')
         lines.append("  sorry")
     else:
         lines.append(f"(* TODO: formalize {node.kind.value} {node.id}: {_safe_comment(title)} *)")
@@ -129,13 +182,15 @@ def generate_theory_scaffold(
     """
     name = sanitize_theory_name(theory_name) if theory_name else sanitize_theory_name(project.name)
     by_id = project.by_id()
+    ordered_ids = _topological_node_ids(project)
+    lemma_names = _assign_lemma_names(ordered_ids, by_id)
 
     lines = [f"theory {name}", "  imports Main", "begin", ""]
-    for node_id in _topological_node_ids(project):
+    for node_id in ordered_ids:
         node = by_id.get(node_id)
         if node is None:
             continue
-        lines.extend(_render_node(node, by_id))
+        lines.extend(_render_node(node, by_id, lemma_names[node_id]))
         lines.append("")
     lines.append("end")
     return "\n".join(lines) + "\n"
