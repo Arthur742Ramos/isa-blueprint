@@ -527,6 +527,23 @@ def test_node_links_use_sanitised_filename(tmp_path: Path):
     assert "../../evil.html" not in status
 
 
+def test_render_refuses_when_nodes_dir_is_symlink(tmp_path: Path):
+    # An attacker pre-creates ``nodes/`` as a symlink pointing OUTSIDE the
+    # site root. ``mkdir(exist_ok=True)`` would happily accept it and per-node
+    # writes would land in ``outside/``. The renderer must refuse.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    output_dir = tmp_path / "site"
+    output_dir.mkdir()
+    (output_dir / "nodes").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        render_site(_project(), output_dir)
+
+    # Nothing leaked into the symlink target.
+    assert list(outside.iterdir()) == []
+
+
 def test_render_autoescapes_user_supplied_values(tmp_path: Path):
     node = BlueprintNode(
         id="xss-node",

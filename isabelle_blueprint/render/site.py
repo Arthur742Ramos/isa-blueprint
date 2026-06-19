@@ -90,6 +90,10 @@ def render_site(
     node are ignored.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Resolve the true site root once. All generated files must land within
+    # this directory; a pre-existing symlink elsewhere in the tree must not be
+    # able to redirect writes outside it.
+    output_dir_resolved = output_dir.resolve()
     env = _make_env()
 
     dot_source = render_dot(project)
@@ -176,6 +180,12 @@ def render_site(
     _render_page(env, "roadmap.html.j2", output_dir / "roadmap.html", page="roadmap", **common)
 
     node_dir = output_dir / "nodes"
+    # A pre-existing ``nodes/`` symlink would let ``mkdir(exist_ok=True)``
+    # silently accept a directory outside the site root, so that per-node
+    # writes (whose containment is verified relative to ``nodes/``) still land
+    # outside ``output_dir``. Refuse rather than follow it.
+    if node_dir.is_symlink():
+        raise ValueError(f"refusing to render: {node_dir} is a symlink")
     node_dir.mkdir(parents=True, exist_ok=True)
     node_dir_resolved = node_dir.resolve()
     by_id = project.by_id()
@@ -192,9 +202,14 @@ def render_site(
         downstream = dependents_map[node.id]
         out_path = node_dir / node_filename(node.id)
         # Defence in depth: the slug+hash filename is already a single path
-        # component, but verify the resolved path cannot escape ``nodes/``.
-        if not out_path.resolve().is_relative_to(node_dir_resolved):
-            raise ValueError(f"refusing to write node page outside {node_dir}: {node.id!r}")
+        # component, but verify the resolved path stays under ``nodes/`` *and*
+        # within the true site root. The latter guards against ``nodes/`` (or
+        # any parent) being redirected outside ``output_dir`` by a symlink.
+        resolved = out_path.resolve()
+        if not resolved.is_relative_to(node_dir_resolved) or not resolved.is_relative_to(
+            output_dir_resolved
+        ):
+            raise ValueError(f"refusing to write node page outside {output_dir}: {node.id!r}")
         _render_page(
             env,
             "node.html.j2",
