@@ -129,6 +129,18 @@ def test_generate_theory_wraps_bare_pattern() -> None:
     assert 'Find_Theorems.read_query Position.none "\\"_ + 0 = _\\""' in text
 
 
+def test_generate_theory_does_not_double_isabelle_symbol_backslash() -> None:
+    """A query naming a symbolic operator (``\\<le>``) keeps a single backslash.
+
+    Doubling it would survive Isabelle's symbol layer as a stray ``\\`` before the
+    glyph and crash the SML lexer ("bad escape character"), breaking the build for
+    every symbolic query. The literal must therefore embed ``\\<le>`` verbatim.
+    """
+    text = generate_find_theorems_theory("_ \\<le> _", limit=20, result_file="R.tsv")
+    assert 'Find_Theorems.read_query Position.none "\\"_ \\<le> _\\""' in text
+    assert "\\\\<le>" not in text
+
+
 def test_generate_theory_includes_nonce_when_given() -> None:
     text = generate_find_theorems_theory(
         "x", limit=3, result_file="R.tsv", nonce="abc-123"

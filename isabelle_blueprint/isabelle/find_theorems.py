@@ -158,9 +158,28 @@ def generate_find_theorems_theory(
     return "\n".join(lines) + "\n"
 
 
+def _query_ml_literal(query: str) -> str:
+    """Return *query* as an ML double-quoted string literal for ``read_query``.
+
+    The normalized query is inner syntax (a quoted pattern such as ``"_ + 0 = _"``
+    or a structured criterion like ``name: add_0``) that Isabelle parses *after*
+    its symbol layer has run. Exactly like the sledgehammer goal path's
+    ``theory_gen._thy_inner_string``, only the double quote is escaped -- so an
+    inner ``"`` cannot terminate the ML string literal early -- and control
+    whitespace is collapsed. Backslashes are deliberately **not** doubled: an
+    Isabelle symbol token such as ``\\<le>`` is rewritten to its Unicode glyph by
+    the symbol layer before the SML lexer sees the string, so doubling the
+    backslash would leave a stray ``\\`` in front of that glyph that SML rejects
+    as a "bad escape character", breaking the build for any query that names a
+    symbolic operator.
+    """
+    text = re.sub(r"[\r\n\t]+", " ", normalize_query(query))
+    return '"' + text.replace('"', '\\"') + '"'
+
+
 def _find_theorems_ml_block(*, query: str, limit: int, result_file: str) -> list[str]:
     """Render the ML block that runs ``find_theorems`` and writes a hits TSV."""
-    query_lit = _ml_string(normalize_query(query))
+    query_lit = _query_ml_literal(query)
     result_lit = _ml_string(result_file)
     return [
         "ML \\<open>",
