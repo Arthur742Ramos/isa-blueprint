@@ -18,8 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES, coverage_percent
+from isabelle_blueprint.report.metrics import coverage_percent, group_status_counts
 
 KINDS_SCHEMA_VERSION = 1
 
@@ -67,15 +66,6 @@ class KindReport:
         }
 
 
-@dataclass
-class _Bucket:
-    nodes: int = 0
-    targets: int = 0
-    proved: int = 0
-    found: int = 0
-    problems: int = 0
-
-
 def build_kind_report(project: BlueprintProject) -> KindReport:
     """Compute the per-kind coverage roll-up for ``project``.
 
@@ -84,20 +74,7 @@ def build_kind_report(project: BlueprintProject) -> KindReport:
     count, ties broken alphabetically by kind name for stable output.
     """
 
-    buckets: dict[str, _Bucket] = {}
-    for node in project.nodes:
-        kind = node.kind.value
-        bucket = buckets.setdefault(kind, _Bucket())
-        bucket.nodes += 1
-        formal = node.status.formal.value
-        if formal != FormalStatus.MISSING.value:
-            bucket.targets += 1
-            if formal == FormalStatus.PROVED.value:
-                bucket.proved += 1
-            elif formal == FormalStatus.FOUND.value:
-                bucket.found += 1
-            if formal in PROBLEM_FORMAL_STATUSES:
-                bucket.problems += 1
+    buckets = group_status_counts(project, lambda node: node.kind.value)
 
     stats = tuple(
         KindStat(

@@ -32,6 +32,7 @@ from enum import StrEnum
 from isabelle_blueprint.model.node import BlueprintNode, NodeKind
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
+from isabelle_blueprint.report._markdown import md_cell as _escape_cell
 
 MATRIX_SCHEMA_VERSION = 1
 
@@ -162,12 +163,6 @@ def build_matrix_report(
 
 def _cell_lookup(report: MatrixReport) -> dict[tuple[str, str], int]:
     return {(cell.row, cell.col): cell.count for cell in report.cells}
-
-
-def _escape_cell(text: str) -> str:
-    """Neutralise Markdown table delimiters in a label cell."""
-
-    return text.replace("|", r"\|")
 
 
 def render_matrix_report(report: MatrixReport) -> str:

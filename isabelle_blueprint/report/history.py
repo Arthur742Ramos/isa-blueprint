@@ -11,6 +11,8 @@ import csv
 import io
 from dataclasses import dataclass, field
 
+from isabelle_blueprint.report._markdown import md_cell
+
 # Numeric metric keys we compute a delta for, in display order.
 _DELTA_KEYS = (
     "coverage_percent",
@@ -170,13 +172,7 @@ def _md_cell(value: object) -> str:
     """Escape a value for safe inclusion in a Markdown table cell."""
     if value is None:
         return ""
-    return (
-        str(value)
-        .replace("\r\n", " ")
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .replace("|", r"\|")
-    )
+    return md_cell(str(value))
 
 
 def render_trend_markdown(summary: TrendSummary) -> str:

@@ -41,6 +41,7 @@ from isabelle_blueprint.graph.dependency_graph import DependencyGraph, build_gra
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
 from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
@@ -427,16 +428,6 @@ def render_staleness_report(
         lines.append(console.dim(f"  ... and {hidden_nodes} more stale node(s)"))
 
     return "\n".join(lines).rstrip("\n") + "\n"
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are neutralised.
-    """
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def _markdown_cause(cause: StaleCause) -> str:

@@ -9,9 +9,10 @@ with the CI step summary - exactly the sort of confusion the roadmap's
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 
@@ -85,6 +86,52 @@ def coverage_percent(proved: int, target: int) -> int | None:
     if percent == 0 and proved > 0:
         percent = 1
     return percent
+
+
+@dataclass
+class StatusCounts:
+    """Per-group formal-status tally produced by :func:`group_status_counts`.
+
+    ``targets`` counts nodes with any non-``missing`` formal status; ``proved``,
+    ``found``, and ``problems`` are sub-tallies of that target set (a node can
+    be both counted as a target and as a problem). Mirrors the accumulation in
+    :func:`build_status_metrics` so per-group coverage stays consistent with the
+    project-wide figure.
+    """
+
+    nodes: int = 0
+    targets: int = 0
+    proved: int = 0
+    found: int = 0
+    problems: int = 0
+
+
+def group_status_counts(
+    project: BlueprintProject,
+    key_fn: Callable[[BlueprintNode], str],
+) -> dict[str, StatusCounts]:
+    """Group ``project`` nodes by ``key_fn`` and tally their formal statuses.
+
+    Returns a mapping from group key to :class:`StatusCounts`, with keys in
+    first-seen node order so callers can apply their own deterministic sort.
+    The per-group classification matches :func:`build_status_metrics` exactly,
+    keeping the kind/theory roll-ups in lock-step with the project totals.
+    """
+
+    buckets: dict[str, StatusCounts] = {}
+    for node in project.nodes:
+        bucket = buckets.setdefault(key_fn(node), StatusCounts())
+        bucket.nodes += 1
+        formal = node.status.formal.value
+        if formal != FormalStatus.MISSING.value:
+            bucket.targets += 1
+            if formal == FormalStatus.PROVED.value:
+                bucket.proved += 1
+            elif formal == FormalStatus.FOUND.value:
+                bucket.found += 1
+            if formal in PROBLEM_FORMAL_STATUSES:
+                bucket.problems += 1
+    return buckets
 
 
 def build_status_metrics(

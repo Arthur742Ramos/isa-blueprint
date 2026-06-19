@@ -22,8 +22,8 @@ import io
 from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
-from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
+from isabelle_blueprint.report._markdown import md_cell as _escape_cell
+from isabelle_blueprint.report.metrics import coverage_percent, group_status_counts
 
 FACT_COVERAGE_SCHEMA_VERSION = 1
 
@@ -83,15 +83,6 @@ class FactCoverageReport:
         }
 
 
-@dataclass
-class _Bucket:
-    nodes: int = 0
-    targets: int = 0
-    proved: int = 0
-    found: int = 0
-    problems: int = 0
-
-
 def build_fact_coverage_report(project: BlueprintProject) -> FactCoverageReport:
     """Compute the per-theory fact-coverage roll-up for ``project``.
 
@@ -101,20 +92,7 @@ def build_fact_coverage_report(project: BlueprintProject) -> FactCoverageReport:
     alphabetically for stable output.
     """
 
-    buckets: dict[str, _Bucket] = {}
-    for node in project.nodes:
-        theory = node.isabelle.theory or NO_FACT_LABEL
-        bucket = buckets.setdefault(theory, _Bucket())
-        bucket.nodes += 1
-        formal = node.status.formal.value
-        if formal != FormalStatus.MISSING.value:
-            bucket.targets += 1
-            if formal == FormalStatus.PROVED.value:
-                bucket.proved += 1
-            elif formal == FormalStatus.FOUND.value:
-                bucket.found += 1
-            if formal in PROBLEM_FORMAL_STATUSES:
-                bucket.problems += 1
+    buckets = group_status_counts(project, lambda node: node.isabelle.theory or NO_FACT_LABEL)
 
     stats = tuple(
         TheoryStat(
@@ -123,7 +101,7 @@ def build_fact_coverage_report(project: BlueprintProject) -> FactCoverageReport:
             proved_count=bucket.proved,
             found_count=bucket.found,
             problem_count=bucket.problems,
-            coverage_percent=_coverage(bucket.proved, bucket.targets),
+            coverage_percent=coverage_percent(bucket.proved, bucket.targets),
         )
         for theory, bucket in buckets.items()
     )
@@ -134,16 +112,6 @@ def build_fact_coverage_report(project: BlueprintProject) -> FactCoverageReport:
         total_nodes=len(project.nodes),
         theories=stats,
     )
-
-
-def _escape_cell(text: str) -> str:
-    """Neutralise Markdown table delimiters in a user-controlled cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are flattened.
-    """
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_fact_coverage_report(report: FactCoverageReport) -> str:
@@ -211,14 +179,3 @@ def render_fact_coverage_markdown(report: FactCoverageReport) -> str:
     """
 
     return render_fact_coverage_report(report)
-
-
-def _coverage(proved: int, targets: int) -> int | None:
-    if targets == 0:
-        return None
-    # Truncate (not round) so 100 means genuinely all proved; clamp a non-zero
-    # but sub-1% ratio up to 1. Mirrors report.metrics.build_status_metrics.
-    percent = proved * 100 // targets
-    if percent == 0 and proved > 0:
-        percent = 1
-    return percent

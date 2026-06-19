@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.lint import build_lint_report
 from isabelle_blueprint.report.metrics import build_status_metrics
 from isabelle_blueprint.report.scorecard import build_scorecard, grade_threshold
@@ -187,15 +188,6 @@ def render_gate_report(report: GateReport) -> str:
         mark = console.success("ok") if check.ok else console.error("FAIL")
         lines.append(f"  [{mark}] {check.name}: {check.detail}")
     return "\n".join(lines) + "\n"
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are neutralised.
-    """
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_gate_markdown(report: GateReport) -> str:

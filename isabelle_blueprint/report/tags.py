@@ -22,6 +22,7 @@ from dataclasses import dataclass
 
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report._markdown import md_cell as _escape_cell
 from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
 
 TAGS_SCHEMA_VERSION = 1
@@ -246,16 +247,6 @@ def render_tag_report(report: TagReport) -> str:
             f"{stat.proved_count} | {stat.found_count} | {stat.problem_count} | {coverage} |"
         )
     return "\n".join(lines) + "\n"
-
-
-def _escape_cell(text: str) -> str:
-    """Neutralise Markdown table delimiters in a user-controlled cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are flattened.
-    """
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_tags_markdown(report: TagReport) -> str:

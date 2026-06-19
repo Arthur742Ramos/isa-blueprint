@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
+
 BURNDOWN_SCHEMA_VERSION = 1
 
 # Default number of most-recent usable points used for the "recent" velocity.
@@ -438,16 +440,6 @@ _STALLED_NOTES = {
         "grows despite progress and no ETA can be forecast."
     ),
 }
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell."""
-    return (
-        text.replace("\r\n", " ")
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .replace("|", r"\|")
-    )
 
 
 def _md_opt(value: object) -> str:

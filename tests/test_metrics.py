@@ -8,6 +8,7 @@ from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
     build_status_metrics,
     coverage_percent,
+    group_status_counts,
     output_values,
     stable_output_keys,
 )
@@ -237,3 +238,39 @@ def test_to_dict_round_trips_all_metric_fields():
         "coverage_percent",
     ):
         assert key in data
+
+
+def test_group_status_counts_tallies_per_key():
+    project = _project(
+        _node("a", FormalStatus.PROVED),
+        _node("b", FormalStatus.FOUND),
+        _node("c", FormalStatus.BROKEN),
+        _node("d", FormalStatus.MISSING),
+    )
+
+    buckets = group_status_counts(project, lambda node: "all")
+
+    assert set(buckets) == {"all"}
+    bucket = buckets["all"]
+    assert bucket.nodes == 4
+    # Only non-missing nodes are formal targets.
+    assert bucket.targets == 3
+    assert bucket.proved == 1
+    assert bucket.found == 1
+    assert bucket.problems == 1
+    assert FormalStatus.BROKEN.value in PROBLEM_FORMAL_STATUSES
+
+
+def test_group_status_counts_groups_by_key_in_first_seen_order():
+    project = _project(
+        _node("x", FormalStatus.PROVED),
+        _node("y", FormalStatus.MISSING),
+        _node("z", FormalStatus.PROVED),
+    )
+
+    buckets = group_status_counts(project, lambda node: node.id)
+
+    # Keys preserve first-seen node order so callers can apply their own sort.
+    assert list(buckets) == ["x", "y", "z"]
+    assert buckets["y"].targets == 0
+    assert buckets["z"].proved == 1

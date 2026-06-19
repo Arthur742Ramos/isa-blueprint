@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report._markdown import md_cell as _escape_cell
 
 ORPHANS_SCHEMA_VERSION = 1
 
@@ -152,12 +153,6 @@ def render_orphan_report(report: OrphanReport) -> str:
         )
 
     return _render_orphan_table(report)
-
-
-def _escape_cell(text: str) -> str:
-    """Neutralise Markdown table delimiters in a user-controlled cell."""
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_orphans_markdown(report: OrphanReport) -> str:
