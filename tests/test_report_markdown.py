@@ -23,6 +23,13 @@ def test_md_cell_multiline_preserves_newlines_as_breaks() -> None:
     assert md_cell_multiline("a\nb") == "a<br/>b"
 
 
+def test_md_cell_multiline_leaves_carriage_returns_intact() -> None:
+    # Only ``\n`` is converted; ``\r\n`` and bare ``\r`` are left untouched to
+    # match the historical roadmap renderer.
+    assert md_cell_multiline("a\r\nb") == "a\r<br/>b"
+    assert md_cell_multiline("a\rb") == "a\rb"
+
+
 def test_md_cell_multiline_escapes_backslash_before_pipe() -> None:
     # Backslash is doubled first so the pipe escape is not mistaken for an
     # existing one; this mirrors the roadmap renderer's historical output.

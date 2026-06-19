@@ -21,12 +21,14 @@ def md_cell(text: str) -> str:
 
 
 def md_cell_multiline(text: str) -> str:
-    """Escape a cell, preserving newlines as ``<br/>`` line breaks.
+    """Escape a cell, converting ``\\n`` newlines to ``<br/>`` line breaks.
 
     Unlike :func:`md_cell`, this keeps multi-line cell content visible by
-    rendering newlines as HTML ``<br/>`` breaks rather than flattening them to
-    spaces. A literal backslash is escaped first so the escape introduced for
-    ``|`` is not mistaken for a pre-existing one.
+    rendering ``\\n`` as an HTML ``<br/>`` break rather than flattening it to a
+    space. Only ``\\n`` is converted: ``\\r\\n`` and bare ``\\r`` are left
+    intact, matching the historical roadmap renderer. A literal backslash is
+    escaped first so the escape introduced for ``|`` is not mistaken for a
+    pre-existing one.
     """
 
     return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br/>")

@@ -517,13 +517,13 @@ def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
         descendants_memo[node_id] = found
         return found
 
-    incomplete = {FormalStatus.FOUND, FormalStatus.PROVED}
+    complete_statuses = {FormalStatus.FOUND, FormalStatus.PROVED}
     counts: dict[str, int] = {}
     for node in project.nodes:
         count = 0
         for dependent in descendants(node.id):
             dependent_node = by_id.get(dependent)
-            if dependent_node and dependent_node.status.formal not in incomplete:
+            if dependent_node and dependent_node.status.formal not in complete_statuses:
                 count += 1
         if count:
             counts[node.id] = count
