@@ -2507,6 +2507,7 @@ def cmd_attempt(args: argparse.Namespace) -> int:
             "task": None,
             "prompt_path": None,
             "check": None,
+            "sledgehammer": None,
             "memory": None,
             "message": message,
             **_selection_metadata(
@@ -2636,18 +2637,27 @@ def _run_attempt_sledgehammer(
         outcome = "succeeded"
         mem_summary = f"sledgehammer found a proof for {node_id}"
         details = result.proof_line or ""
-    elif result.ran:
+    elif result.ran and result.error is None:
         summary_line = "sledgehammer: no proof found"
         outcome = "failed"
         mem_summary = f"sledgehammer found no proof for {node_id}"
-        details = result.error or result.outcome_tag or ""
-    else:
+        details = result.outcome_tag or ""
+    elif not result.ran:
         reason = "Isabelle unavailable" if not result.isabelle_available else (
             result.error or "unavailable"
         )
         summary_line = f"sledgehammer: skipped ({reason})"
         outcome = "blocked"
         mem_summary = f"sledgehammer skipped for {node_id}: {reason}"
+        details = result.error or ""
+    else:
+        # The build ran but reported an error (non-zero exit / missing result
+        # file): a runtime/build failure, not a clean "no proof". Treat it as a
+        # blocker rather than a normal proof miss.
+        reason = result.error or "unknown error"
+        summary_line = f"sledgehammer: error ({reason})"
+        outcome = "blocked"
+        mem_summary = f"sledgehammer error for {node_id}: {reason}"
         details = result.error or ""
 
     node = project.by_id().get(node_id)

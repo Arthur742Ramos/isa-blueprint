@@ -25,6 +25,7 @@ can distinguish merely-found facts from trusted ``proved`` facts.
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -256,7 +257,14 @@ def _thy_inner_string(text: str) -> str:
     character" -- breaking the build for essentially every realistic goal. (A
     bare backslash that is not part of a ``\\<...>`` symbol is not valid Isabelle
     inner syntax in the first place, so there is nothing useful to escape it to.)
+
+    Control whitespace (CR/LF/TAB), which a goal sourced from a multi-line or
+    space-padded YAML value can carry, is collapsed to single spaces: a raw
+    newline inside the ML string literal would produce invalid SML, while
+    Isabelle inner syntax treats runs of whitespace as insignificant, so the
+    parsed proposition is unchanged.
     """
+    text = re.sub(r"[\r\n\t]+", " ", text)
     return text.replace('"', '\\"')
 
 

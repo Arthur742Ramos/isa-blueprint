@@ -190,6 +190,36 @@ def test_generate_theory_goal_field_source() -> None:
     assert '"Main"' in text
 
 
+def test_thy_inner_string_normalizes_control_whitespace() -> None:
+    """Embedded newlines/tabs collapse to spaces; quotes escape; symbols survive."""
+    out = _thy_inner_string("\\<forall>x.\n\tx + 0\r\n= x")
+    assert "\n" not in out
+    assert "\r" not in out
+    assert "\t" not in out
+    # Backslash symbol token is left intact (single backslash, not doubled).
+    assert "\\<forall>" in out
+    assert "\\\\<forall>" not in out
+
+
+def test_generate_theory_multiline_goal_is_single_line() -> None:
+    """A goal carrying YAML newlines/tabs yields no raw newline in the ML string."""
+    project = BlueprintProject.from_nodes(
+        "p", [_goal_node("g", "\\<forall>x::nat.\n  x + 0\t= x")]
+    )
+    text = generate_sledgehammer_theory(
+        project, node_id="g", result_file="R.tsv", timeout=10
+    )
+    assert text is not None
+    # Locate the read_prop line carrying the goal and ensure it is one physical line.
+    read_prop_lines = [
+        ln for ln in text.splitlines() if "Syntax.read_prop ctxt" in ln
+    ]
+    assert read_prop_lines, text
+    line = read_prop_lines[0]
+    assert "\\<forall>" in line
+    assert "x + 0 = x" in line
+
+
 def test_generate_theory_reprove_source() -> None:
     project = BlueprintProject.from_nodes("p", [_fact_node("f", "Demo.thm")])
     text = generate_sledgehammer_theory(
@@ -274,6 +304,23 @@ def test_run_sledgehammer_no_proof(tmp_path: Path, monkeypatch) -> None:
     assert result.ran is True
     assert result.found is False
     assert result.proof_line is None
+
+
+def test_run_sledgehammer_build_error_sets_error(tmp_path: Path, monkeypatch) -> None:
+    """A non-zero build that writes no TSV must surface an ``error``, not a miss."""
+    monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+    def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
+        # Build fails and (deliberately) writes no result TSV.
+        return RunResult(args=cmd, returncode=1, stdout="", stderr="boom")
+
+    monkeypatch.setattr(sh_module, "run_capture", fake_run)
+    result = run_sledgehammer(
+        _goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL"
+    )
+    assert result.ran is True
+    assert result.found is False
+    assert "returned 1" in (result.error or "")
 
 
 def test_run_sledgehammer_timeout(tmp_path: Path, monkeypatch) -> None:
@@ -386,9 +433,47 @@ def test_cli_sledgehammer_run_skipped_when_unavailable(tmp_path: Path, monkeypat
     assert memory["nodes"]["t1"]["attempts"][-1]["outcome"] == "blocked"
 
 
-# ---------------------------------------------------------------------------
-# Model / parser / schema: the new goal field
-# ---------------------------------------------------------------------------
+def test_cli_sledgehammer_run_build_error_is_blocked(tmp_path: Path, monkeypatch, capsys) -> None:
+    """A build/runtime error (non-zero exit, no TSV) is blocked, not failed."""
+    _write_goal_project(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+    def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
+        return RunResult(args=cmd, returncode=1, stdout="", stderr="*** type error")
+
+    monkeypatch.setattr(sh_module, "run_capture", fake_run)
+
+    rc = cli_main(["attempt", str(tmp_path), "--node", "t1", "--sledgehammer-run", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    sh = payload["sledgehammer"]
+    assert sh["found"] is False
+    assert sh["error"]
+    assert sh["summary_line"].startswith("sledgehammer: error (")
+
+    memory = json.loads(
+        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(encoding="utf-8")
+    )
+    assert memory["nodes"]["t1"]["attempts"][-1]["outcome"] == "blocked"
+
+
+def test_cli_attempt_no_task_json_carries_null_sledgehammer(tmp_path: Path, capsys) -> None:
+    """The no-ready-task --json payload keeps the ``sledgehammer`` key (null)."""
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "Sh"\n', encoding="utf-8"
+    )
+    (tmp_path / "blueprint.md").write_text(
+        "# Sh\n\n::: theorem {#t1}\ntitle: T\nisabelle: Demo.t1\nstatus:\n"
+        "  blueprint: reviewed\n  formal: proved\n  agent: solved\n:::\n\nStmt.\n:::\n",
+        encoding="utf-8",
+    )
+
+    rc = cli_main(["attempt", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task"] is None
+    assert "sledgehammer" in payload
+    assert payload["sledgehammer"] is None
 
 
 def test_parser_reads_goal_metadata() -> None:

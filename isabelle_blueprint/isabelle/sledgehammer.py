@@ -244,6 +244,13 @@ def run_sledgehammer(
         result.found = found
         result.outcome_tag = outcome_tag
         result.proof_line = proof_line
+        # A non-zero exit with no proof signals a build/runtime failure (e.g. a
+        # malformed goal that does not typecheck) rather than a clean miss, so
+        # surface it as an error the caller can treat as a blocker.
+        if not found and proc.returncode != 0:
+            result.error = (
+                f"isabelle build returned {proc.returncode} (sledgehammer run failed)"
+            )
     else:
         result.found = False
         result.error = (

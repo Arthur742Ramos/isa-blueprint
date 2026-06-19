@@ -49,6 +49,24 @@ def test_parse_latex_theorem_with_lean_blueprint_metadata():
     assert "Expand both" in node.informal_proof
 
 
+def test_latex_goal_macro_accepts_balanced_inner_braces():
+    project = _parse(
+        r"""
+        \begin{theorem}
+        \label{thm:set-eq}
+        \goal{{x. x > (0::nat)} = S}
+        Body.
+        \end{theorem}
+        """
+    )
+
+    node = project.nodes[0]
+    assert node.goal == "{x. x > (0::nat)} = S"
+    # The brace-laden goal macro is stripped out of the statement text.
+    assert "\\goal" not in node.statement
+    assert node.statement == "Body."
+
+
 def test_parse_latex_accepts_isabelle_metadata_and_tags():
     project = _parse(
         r"""
