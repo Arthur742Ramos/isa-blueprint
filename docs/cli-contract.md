@@ -1371,7 +1371,7 @@ structured report. Degrades gracefully when the project is not a git checkout.
 ```text
 isabelle-blueprint search-facts [project_dir] [--theory PATH ...] [--root DIR]
                                 [--session NAME] [--query TEXT] [--kind KIND ...]
-                                [--limit N] [--json]
+                                [--limit N] [--isabelle] [--json]
 ```
 
 Added in v1.13. Scans Isabelle `.thy` roots for fact/lemma/theorem names. With
@@ -1383,6 +1383,19 @@ still unresolved (`not_found`/`failed_check`/`broken`/`named`) — nodes with a
 session ROOT declares (with `--session NAME` to disambiguate), `--kind`
 (repeatable) filters by declaration kind, and `--limit` caps the results
 (default 10). `--json` emits structured output.
+
+Added in v1.16. `--isabelle` switches to a *running-Isabelle* search: instead of
+the source index, it runs Isabelle's `find_theorems` over the configured session
+(`[isabelle].session`) and returns genuine candidate facts. It requires
+`--query`; a bare term such as `_ + 0 = _` is treated as a pattern, while
+structured queries (`name: add_0`, `simp: foo`) are passed through verbatim.
+`--limit` caps the number of hits. Human output prints a short summary header
+followed by one `name [theory] proposition` line per hit; `--json` emits a
+structured object (`ran`, `isabelle_available`, `return_code`, `error`, `query`,
+`hits`, `found_count`, `timestamp`). When no `isabelle` binary or session is
+available the run is a clean no-op (empty `hits`) and exits `0`; `--isabelle`
+requires `--query`, and omitting it is the usual argparse usage error (exit
+`2`). The default (no `--isabelle`) behaviour is byte-identical to before.
 
 ### `effort`
 

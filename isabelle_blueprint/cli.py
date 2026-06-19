@@ -117,6 +117,10 @@ from isabelle_blueprint.isabelle.fact_search import (
     render_matches_markdown,
     search_index,
 )
+from isabelle_blueprint.isabelle.find_theorems import (
+    render_find_theorems,
+    run_find_theorems,
+)
 from isabelle_blueprint.isabelle.reconcile import (
     reconcile_diff,
     reconcile_payload,
@@ -3306,6 +3310,9 @@ def cmd_theory_index(args: argparse.Namespace) -> int:
 
 
 def cmd_search_facts(args: argparse.Namespace) -> int:
+    if getattr(args, "isabelle", False):
+        return _cmd_search_facts_isabelle(args)
+
     files = _resolve_index_files(args)
     index = build_index(files)
     kinds = set(args.kind) if args.kind else None
@@ -3339,6 +3346,41 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
         print(render_matches_markdown(matches), end="")
     else:
         print(render_matches(matches), end="")
+    return 0
+
+
+def _cmd_search_facts_isabelle(args: argparse.Namespace) -> int:
+    """``search-facts --isabelle``: run Isabelle's find_theorems over the session.
+
+    Unlike the default source-only mode, this drives a real Isabelle build and
+    returns genuine candidate facts. When Isabelle or the session is unavailable
+    the run is a no-op: an empty hit list (human note on stderr / structured JSON
+    object) is emitted and the exit code stays 0.
+    """
+    if not args.query:
+        print("--isabelle requires --query TEXT", file=sys.stderr)
+        return 2
+
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    result = run_find_theorems(
+        project,
+        query=args.query,
+        limit=args.limit,
+        build_dir=config.build_dir,
+        session_name=config.isabelle_session,
+        isabelle_executable=config.isabelle_executable,
+        extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
+        timeout=config.isabelle_timeout,
+        jobs=getattr(args, "jobs", None),
+    )
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        if not result.ran and result.error:
+            print(f"note: {result.error}", file=sys.stderr)
+        print(render_find_theorems(result), end="")
     return 0
 
 
@@ -5094,6 +5136,13 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=10,
         metavar="N",
         help="maximum matches to show (per node in target mode; default: 10)",
+    )
+    p_search.add_argument(
+        "--isabelle",
+        action="store_true",
+        help="run Isabelle's find_theorems over the configured session instead of "
+        "the source index; requires --query (no-ops cleanly when no Isabelle/session "
+        "is available)",
     )
     p_search_fmt = p_search.add_mutually_exclusive_group()
     p_search_fmt.add_argument("--json", action="store_true", help="emit results as JSON")
