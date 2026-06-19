@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-06-19
+
 ### Added
 
 - **`reconcile` (alias `deps-audit`) — dependency audit.** A new subcommand that
@@ -1427,7 +1429,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.16.0...HEAD
+[1.16.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.12.0...v1.13.0

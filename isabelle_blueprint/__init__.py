@@ -7,7 +7,7 @@ from importlib import metadata as _metadata
 #: never installed (so distribution metadata is unavailable). Keep this in sync
 #: with ``pyproject.toml`` -- ``tests/test_packaging.py`` enforces the match so
 #: the two can never drift again (they did: ``1.11.0`` shipped as ``1.12.0``).
-_FALLBACK_VERSION = "1.15.0"
+_FALLBACK_VERSION = "1.16.0"
 
 try:
     __version__ = _metadata.version("isabelle-blueprint")
