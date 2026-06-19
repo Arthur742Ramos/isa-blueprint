@@ -27,6 +27,7 @@ from isabelle_blueprint import console
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report._markdown import md_cell as _escape_cell
 from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
 
 SEVERITY_ERROR = "error"
@@ -422,12 +423,6 @@ def render_lint_report(report: LintReport) -> str:
         severity = _paint_severity(finding.severity)
         lines.append(f"  {severity}: {finding.code}{location} - {finding.message}")
     return "\n".join(lines) + "\n"
-
-
-def _escape_cell(text: str) -> str:
-    """Flatten newlines and escape ``|`` so a value cannot break a table row."""
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_lint_markdown(report: LintReport) -> str:

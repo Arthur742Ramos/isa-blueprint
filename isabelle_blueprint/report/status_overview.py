@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from isabelle_blueprint import console
 from isabelle_blueprint.agents.tasks import AgentTask
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
 
@@ -158,15 +159,6 @@ def render_status_overview(overview: StatusOverview) -> str:
         else:
             lines.append(f"{top_label}: none")
     return "\n".join(lines) + "\n"
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are neutralised.
-    """
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_status_markdown(overview: StatusOverview) -> str:

@@ -187,6 +187,34 @@ def test_markdown_escapes_pipe_in_label() -> None:
     assert _escape_cell("a|b") == r"a\|b"
 
 
+def test_markdown_flattens_newline_in_label() -> None:
+    # Previously matrix only escaped "|", so a newline in a label would split
+    # the row and corrupt the table. The shared md_cell helper flattens all
+    # newline forms to spaces; assert the rendered row stays on a single line.
+    from isabelle_blueprint.report.matrix import MatrixCell, MatrixReport, render_matrix_report
+
+    report = MatrixReport(
+        project="mx",
+        rows_dimension="formal",
+        cols_dimension="kind",
+        row_labels=("line1\r\nline2\nline3\rline4",),
+        col_labels=("lemma",),
+        cells=(MatrixCell(row="line1\r\nline2\nline3\rline4", col="lemma", count=1),),
+        row_totals={"line1\r\nline2\nline3\rline4": 1},
+        col_totals={"lemma": 1},
+        total=1,
+    )
+
+    rendered = render_matrix_report(report)
+
+    assert "line1 line2 line3 line4" in rendered
+    # The data row must be a single physical line: find it and confirm no raw
+    # newline leaked into the cell.
+    data_rows = [ln for ln in rendered.splitlines() if ln.startswith("| line1")]
+    assert data_rows == ["| line1 line2 line3 line4 | 1 | 1 |"]
+
+
+
 _BODY = """# matrix-test
 
 ::: theorem {#big}

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.metrics import coverage_percent
 
 DEFAULT_EFFORT = 1
@@ -372,15 +373,6 @@ def render_effort_csv(
             ]
         )
     return buffer.getvalue()
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are neutralised.
-    """
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_effort_markdown(

@@ -15,6 +15,7 @@ from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_le
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.report._markdown import md_cell_multiline as _md_cell
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
@@ -583,8 +584,6 @@ def render_roadmap_markdown(
     return "\n".join(lines)
 
 
-def _md_cell(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br/>")
 def write_roadmap(
     roadmap: RoadmapOverview,
     build_dir: Path,

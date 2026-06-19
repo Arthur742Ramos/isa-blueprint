@@ -494,22 +494,39 @@ def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
         for dep_id in node.uses:
             if dep_id in reverse:
                 reverse[dep_id].append(node.id)
+
+    # Memoised transitive-dependent (reverse-reachable) set per node. Without
+    # the memo this is an independent DFS for every node — O(N*(N+E)) on the hot
+    # generate_tasks path; sharing sub-results makes it near-linear. Mirrors the
+    # descendants() memoisation in report.critical_path, including the visiting
+    # guard that breaks dependency cycles.
+    descendants_memo: dict[str, set[str]] = {}
+    visiting: set[str] = set()
+
+    def descendants(node_id: str) -> set[str]:
+        if node_id in descendants_memo:
+            return descendants_memo[node_id]
+        if node_id in visiting:
+            return set()
+        visiting.add(node_id)
+        found: set[str] = set()
+        for child in reverse.get(node_id, []):
+            found.add(child)
+            found |= descendants(child)
+        visiting.discard(node_id)
+        descendants_memo[node_id] = found
+        return found
+
+    complete_statuses = {FormalStatus.FOUND, FormalStatus.PROVED}
     counts: dict[str, int] = {}
     for node in project.nodes:
-        seen: set[str] = set()
-        stack = list(reverse[node.id])
-        while stack:
-            current = stack.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            current_node = by_id.get(current)
-            if current_node and current_node.status.formal not in {
-                FormalStatus.FOUND,
-                FormalStatus.PROVED,
-            }:
-                counts[node.id] = counts.get(node.id, 0) + 1
-            stack.extend(reverse.get(current, []))
+        count = 0
+        for dependent in descendants(node.id):
+            dependent_node = by_id.get(dependent)
+            if dependent_node and dependent_node.status.formal not in complete_statuses:
+                count += 1
+        if count:
+            counts[node.id] = count
     return counts
 
 

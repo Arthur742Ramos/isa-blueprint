@@ -26,6 +26,7 @@ from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAM
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.project_io import load_project_with_check
+from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.metrics import (
     PROBLEM_FORMAL_STATUSES,
     build_status_metrics,
@@ -434,16 +435,6 @@ _CSV_COLUMNS = (
     "has_cycles",
     "health",
 )
-
-
-def _md_cell(text: str) -> str:
-    """Escape a value for safe inclusion in a Markdown table cell.
-
-    A literal ``|`` would otherwise start a new column and a newline would
-    terminate the row, so both are neutralised.
-    """
-
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 _MARKDOWN_HEADERS = (
