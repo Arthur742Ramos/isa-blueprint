@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The command is additive and advisory: it exits `0` on a normal run (never
   gating on findings) and degrades to a clean no-op report when no `isabelle`
   binary or session is available. `--json` emits a packaged schema-style dict.
+- **`search-facts --isabelle` (real `find_theorems`).** A new `--isabelle` flag
+  on `isabelle-blueprint search-facts` runs Isabelle's `find_theorems` over the
+  configured session and returns genuine candidate facts (name, theory,
+  proposition) for the query, instead of the default source-index text search. A
+  bare term query (`_ + 0 = _`) is treated as a pattern; structured queries
+  (`name: add_0`, `simp: foo`) are passed through. Results honour `--limit` and
+  print a short summary header followed by one `name [theory] proposition` line
+  per hit (human), or a structured object under `--json`. A successful or no-op
+  run exits `0` (and is a clean no-op when no `isabelle` binary or session is
+  available); `--isabelle` requires `--query`, and a missing query is the usual
+  argparse usage error (exit `2`). The default (no `--isabelle`) behaviour is
+  unchanged.
 - **Real Sledgehammer runs from `attempt`.** A new `--sledgehammer-run` flag on
   `isabelle-blueprint attempt` actually invokes Isabelle's Sledgehammer on the
   selected node (in addition to the existing static `--sledgehammer` prompt
