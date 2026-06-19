@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-06-19
+
 ### Added
 
 - **`export-theory` — scaffold a buildable `.thy` from the plan.** The reverse of
@@ -1451,7 +1453,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.13.0...v1.14.0
