@@ -684,7 +684,7 @@ def cmd_new(args: argparse.Namespace) -> int:
 
     if args.append:
         project_dir = Path(args.project_dir).resolve()
-        config = load_config(project_dir)
+        config = load_config_checked(project_dir)
         paths = config.blueprint_paths
         target = getattr(args, "blueprint", None)
         if target is not None:
@@ -767,6 +767,8 @@ def _run_check_once(args: argparse.Namespace) -> int:
             print(f"  - {issue}", file=sys.stderr)
         return 2
 
+    session_label = config.isabelle_session or "(default)"
+    print(f"building session {session_label} with isabelle...", file=sys.stderr)
     result = run_check(
         project,
         build_dir=config.build_dir,
@@ -1773,7 +1775,7 @@ def cmd_history(args: argparse.Namespace) -> int:
     # history only needs trends.json, so avoid parsing the (possibly broken)
     # blueprint - historical data is most useful exactly when the current
     # blueprint does not load.
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     entries = load_trends(config.trends_path)
     summary = summarize_trends(entries, limit=args.limit)
     if args.json:
@@ -1791,7 +1793,7 @@ def cmd_burndown(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     # Like history, burndown reads only trends.json, so it still forecasts when
     # the current blueprint fails to parse.
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     entries = load_trends(config.trends_path)
     report = build_burndown_report(entries, recent_window=args.window)
     if args.json:
@@ -2023,6 +2025,8 @@ def cmd_dump(args: argparse.Namespace) -> int:
             isabelle_executable=args.isabelle or config.isabelle_executable,
         )
     else:
+        session_label = config.isabelle_session or "(default)"
+        print(f"building session {session_label} with isabelle...", file=sys.stderr)
         result = run_dump(
             project,
             output_dir=config.build_dir / "pide-dump",
@@ -2048,7 +2052,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
 
 def cmd_compat(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
-    config = load_config(project_dir)
+    config = load_config_checked(project_dir)
     report = check_compatibility(
         config, isabelle_executable=args.isabelle or config.isabelle_executable
     )
@@ -5043,6 +5047,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except BlueprintError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except BrokenPipeError:
+        # A downstream consumer (e.g. `| head`) closed the pipe early. Suppress
+        # the implicit flush-on-exit error by redirecting stdout to devnull, then
+        # exit cleanly rather than dumping a traceback.
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        return 0
+    except OSError as exc:
+        # e.g. a full or permission-denied output directory. Present it as a
+        # standard error line instead of letting the traceback escape.
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

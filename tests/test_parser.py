@@ -462,3 +462,26 @@ def test_render_node_stub_without_fact_omits_isabelle():
     node = project.nodes[0]
     assert node.title == "Set union"
     assert node.isabelle is None or node.isabelle.fact is None
+
+
+def test_parse_blueprint_file_strips_leading_utf8_bom(tmp_path):
+    """A leading UTF-8 BOM must not defeat the first anchored ^::: directive."""
+    from isabelle_blueprint.parser.markdown import parse_blueprint_file
+
+    text = textwrap.dedent(
+        """
+        ::: lemma {#lem-one}
+        title: One
+        :::
+
+        Body.
+        :::
+        """
+    ).lstrip("\n")
+    path = tmp_path / "bom.md"
+    # Prefixing the string with U+FEFF and encoding as utf-8 writes the BOM bytes.
+    path.write_text("﻿" + text, encoding="utf-8")
+
+    project = parse_blueprint_file(path)
+    assert len(project.nodes) == 1
+    assert project.nodes[0].id == "lem-one"

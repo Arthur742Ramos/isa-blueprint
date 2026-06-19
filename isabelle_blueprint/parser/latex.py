@@ -79,7 +79,9 @@ class _LatexBlock:
 def parse_latex_file(path: Path | str, *, project_name: str | None = None) -> BlueprintProject:
     """Parse a single LaTeX blueprint file."""
     p = Path(path)
-    text = p.read_text(encoding="utf-8")
+    # utf-8-sig strips a leading BOM if present; otherwise behaves like utf-8
+    # (parity with the Markdown parser).
+    text = p.read_text(encoding="utf-8-sig")
     name = project_name or p.stem
     return parse_latex_text(text, source=str(p), project_name=name)
 

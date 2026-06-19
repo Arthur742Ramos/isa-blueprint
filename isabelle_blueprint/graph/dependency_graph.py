@@ -122,7 +122,9 @@ def incomplete_subproject(project: BlueprintProject) -> BlueprintProject:
 
 
 def dependency_levels(project: BlueprintProject) -> list[list[str]]:
-    """Topological layering: level 0 = roots, level k = all-deps-in-prior-levels.
+    """Topological layering: level 0 = leaves (no dependencies), level k =
+    nodes whose dependencies all lie in prior levels; the final level holds
+    roots/goals.
 
     Nodes participating in cycles are placed in the final layer.
     """
