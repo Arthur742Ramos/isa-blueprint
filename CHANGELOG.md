@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-06-19
+
+### Security
+
+- **Static-site path traversal fixed.** Per-node HTML pages were written using
+  the raw node id as a filename, so a blueprint with an id such as `../../x`
+  could write outside the output directory. Node filenames now go through a
+  slug+hash sanitizer and every written path is verified to stay within the
+  site root; the renderer also refuses to run when the `nodes/` directory is a
+  pre-existing symlink pointing outside the output directory.
+- **Static-site stored XSS fixed.** The Jinja environment used
+  `select_autoescape(["html", "xml"])`, which does not match the `.html.j2`
+  templates and left titles, ids, owners, and check errors unescaped.
+  Autoescaping is now enabled for all HTML templates; `|safe` is retained only
+  for trusted, code-generated markup.
+
+### Added
+
+- **Math typesetting on the static site.** Statements and informal proofs are
+  now typeset with MathJax (`$...$`, `\(...\)`, `$$...$$`, `\[...\]`), so LaTeX
+  math in a blueprint renders instead of showing literal source. Text remains
+  HTML-escaped; no LaTeX toolchain is required.
+- `check` and `dump` now print a `building session <name> with isabelle…`
+  status line to stderr before a (potentially long, otherwise silent) Isabelle
+  build, and only when a session is actually configured. Stdout is unchanged.
+
+### Changed
+
+- **Per-node site page filenames now carry a deterministic hash suffix**
+  (e.g. `def-a-<hash>.html`) as part of the path-traversal fix. The hash is
+  stable across renders; in-site links are updated automatically, and the CLI
+  surface is unchanged.
+- All third-party GitHub Actions in the project's own workflows are pinned to
+  full commit SHAs (supply-chain hardening), with a guard test enforcing it.
+- Internal performance and de-duplication: the static-site reverse-dependents
+  computation is now O(N+E) instead of O(N·E); the Markdown table-cell escaper
+  is centralized across the report modules; status tallies share a single
+  helper; and `tasks` blocking-dependent counts are memoized.
+
+### Fixed
+
+- **UTF-8 BOM no longer drops the first node.** Markdown and LaTeX blueprints
+  are read as `utf-8-sig`, so a leading byte-order mark (common from Windows
+  editors / PowerShell) no longer defeats the first directive and silently
+  discards the first block.
+- `new --append`, `history`, `burndown`, and `compat` now report a malformed
+  `isabelle-blueprint.toml` with the standard `error: …` line instead of a
+  Python traceback.
+- The CLI entrypoint handles `BrokenPipeError` (e.g. piping into `head`) and
+  `OSError` (e.g. a full or unwritable output directory) cleanly instead of
+  emitting a traceback.
+- The `matrix` report escapes newlines in cell labels, so a multi-line label
+  can no longer break the Markdown table row.
+- Corrected the `dependency_levels` docstring (level 0 holds leaves, not roots).
+
 ## [1.14.0] - 2026-06-17
 
 ### Added
