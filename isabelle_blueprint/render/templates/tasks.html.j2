@@ -13,7 +13,7 @@
           <ul>
             {% for node in column.nodes %}
               <li>
-                <a href="nodes/{{ node.id }}.html">{{ node.title }}</a>
+                <a href="nodes/{{ node_filename(node.id) }}">{{ node.title }}</a>
                 <code>{{ node.id }}</code>
                 {% set memory = memory_summaries.get(node.id) %}
                 {% if memory %}
@@ -42,7 +42,7 @@
   <ol class="task-list">
     {% for task in tasks %}
       <li>
-        <h3><a href="nodes/{{ task.node_id }}.html">{{ task.title }}</a></h3>
+        <h3><a href="nodes/{{ node_filename(task.node_id) }}">{{ task.title }}</a></h3>
         <p>
           <code>{{ task.node_id }}</code>
           {% if task.target_fact %}&rarr; <code>{{ task.target_fact }}</code>{% endif %}

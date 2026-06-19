@@ -9,10 +9,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from isabelle_blueprint.agents.assignments import AssignmentStore
 from isabelle_blueprint.agents.memory import AgentMemory, summaries_by_node
+from isabelle_blueprint.agents.runner import safe_prompt_filename
 from isabelle_blueprint.agents.tasks import generate_tasks
 from isabelle_blueprint.graph.graphviz_render import (
     render_dot,
@@ -38,13 +39,30 @@ StatusBreakdown: TypeAlias = dict[str, object]
 DependencyLevel: TypeAlias = dict[str, object]
 
 
+def node_filename(node_id: str) -> str:
+    """Return the on-disk HTML filename for ``node_id``.
+
+    Node ids are author-controlled and may contain path separators (e.g.
+    ``../../evil``) or characters that are invalid on Windows. We reuse the
+    slug+hash helper from the agent runner so the resulting filename is a single
+    path component that can never escape the ``nodes/`` output directory, while
+    staying stable and collision-free across distinct ids. Templates call this
+    via the ``node_filename`` Jinja global so anchor hrefs match the files on
+    disk.
+    """
+
+    return safe_prompt_filename(node_id, suffix=".html")
+
+
 def _make_env() -> Environment:
-    return Environment(
+    env = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        autoescape=select_autoescape(["html", "xml"]),
+        autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.globals["node_filename"] = node_filename
+    return env
 
 
 def render_site(
@@ -72,6 +90,10 @@ def render_site(
     node are ignored.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Resolve the true site root once. All generated files must land within
+    # this directory; a pre-existing symlink elsewhere in the tree must not be
+    # able to redirect writes outside it.
+    output_dir_resolved = output_dir.resolve()
     env = _make_env()
 
     dot_source = render_dot(project)
@@ -158,14 +180,40 @@ def render_site(
     _render_page(env, "roadmap.html.j2", output_dir / "roadmap.html", page="roadmap", **common)
 
     node_dir = output_dir / "nodes"
+    # A pre-existing ``nodes/`` symlink would let ``mkdir(exist_ok=True)``
+    # silently accept a directory outside the site root, so that per-node
+    # writes (whose containment is verified relative to ``nodes/``) still land
+    # outside ``output_dir``. Refuse rather than follow it.
+    if node_dir.is_symlink():
+        raise ValueError(f"refusing to render: {node_dir} is a symlink")
     node_dir.mkdir(parents=True, exist_ok=True)
+    node_dir_resolved = node_dir.resolve()
     by_id = project.by_id()
+    # Reverse-dependents in a single pass (O(N+E)) instead of an O(N*E) scan
+    # per node. Order mirrors ``project.nodes`` so output is byte-identical.
+    dependents_map: dict[str, list[BlueprintNode]] = {node.id: [] for node in project.nodes}
+    for candidate in project.nodes:
+        seen: set[str] = set()
+        for dep_id in candidate.uses:
+            if dep_id in dependents_map and dep_id not in seen:
+                seen.add(dep_id)
+                dependents_map[dep_id].append(candidate)
     for node in project.nodes:
-        downstream = [m for m in project.nodes if node.id in m.uses]
+        downstream = dependents_map[node.id]
+        out_path = node_dir / node_filename(node.id)
+        # Defence in depth: the slug+hash filename is already a single path
+        # component, but verify the resolved path stays under ``nodes/`` *and*
+        # within the true site root. The latter guards against ``nodes/`` (or
+        # any parent) being redirected outside ``output_dir`` by a symlink.
+        resolved = out_path.resolve()
+        if not resolved.is_relative_to(node_dir_resolved) or not resolved.is_relative_to(
+            output_dir_resolved
+        ):
+            raise ValueError(f"refusing to write node page outside {output_dir}: {node.id!r}")
         _render_page(
             env,
             "node.html.j2",
-            node_dir / f"{node.id}.html",
+            out_path,
             page="node",
             node=node,
             dependencies=[by_id[d] for d in node.uses if d in by_id],

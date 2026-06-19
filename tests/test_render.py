@@ -11,7 +11,7 @@ from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, ad
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import AgentStatus, BlueprintStatus, FormalStatus
-from isabelle_blueprint.render.site import render_site
+from isabelle_blueprint.render.site import node_filename, render_site
 
 
 def _project():
@@ -41,9 +41,9 @@ def test_render_site_produces_expected_pages(tmp_path: Path):
     assert index.exists()
     for name in ("index.html", "graph.html", "status.html", "tasks.html", "roadmap.html"):
         assert (tmp_path / name).exists(), f"missing {name}"
-    # Per-node pages.
-    assert (tmp_path / "nodes" / "def-a.html").exists()
-    assert (tmp_path / "nodes" / "lem-b.html").exists()
+    # Per-node pages (filenames are slug+hash sanitised).
+    assert (tmp_path / "nodes" / node_filename("def-a")).exists()
+    assert (tmp_path / "nodes" / node_filename("lem-b")).exists()
     # JSON dumps.
     project_data = json.loads((tmp_path / "project.json").read_text(encoding="utf-8"))
     assert project_data["name"] == "smoke"
@@ -69,7 +69,7 @@ def test_render_site_index_mentions_node_titles(tmp_path: Path):
 
 def test_node_page_lists_dependency(tmp_path: Path):
     render_site(_project(), tmp_path)
-    text = (tmp_path / "nodes" / "lem-b.html").read_text(encoding="utf-8")
+    text = (tmp_path / "nodes" / node_filename("lem-b")).read_text(encoding="utf-8")
     assert "def-a" in text
 
 
@@ -410,7 +410,7 @@ def test_node_page_shows_owner_and_critical_marker(tmp_path: Path):
     store = AssignmentStore()
     set_assignment(store, "def-a", "alice")
     render_site(_project(), tmp_path, assignments=store)
-    text = (tmp_path / "nodes" / "def-a.html").read_text(encoding="utf-8")
+    text = (tmp_path / "nodes" / node_filename("def-a")).read_text(encoding="utf-8")
     assert "Owner" in text
     assert "alice" in text
     assert "on the critical path" in text
@@ -480,3 +480,128 @@ def test_critical_path_panel_warns_about_coexisting_cycles(tmp_path: Path):
     assert 'data-critical="true"' in body
     # ...but the lingering cycle is also called out.
     assert "dependency cycle(s) also remain" in body
+
+
+# ---------------------------------------------------------------------------
+# v1.15 render hardening: path-traversal safety, autoescaping, MathJax
+# ---------------------------------------------------------------------------
+
+
+def _traversal_project():
+    evil = BlueprintNode(
+        id="../../evil",
+        kind=NodeKind.LEMMA,
+        title="Escape attempt",
+        statement="trying to break out",
+        isabelle=IsabelleRef(fact="Demo.evil"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    return BlueprintProject.from_nodes("evil", [evil], sources=["evil.md"])
+
+
+def test_node_id_traversal_cannot_escape_output_dir(tmp_path: Path):
+    outer = tmp_path / "outside.html"
+    output_dir = tmp_path / "site"
+    render_site(_traversal_project(), output_dir)
+
+    # The malicious id must NOT have written a file outside the output dir.
+    assert not outer.exists()
+    assert not (tmp_path / "evil.html").exists()
+    # Every file produced stays inside output_dir.
+    output_resolved = output_dir.resolve()
+    for path in output_dir.rglob("*"):
+        assert path.resolve().is_relative_to(output_resolved)
+    # The sanitised page lives under nodes/ and is a single path component.
+    page = output_dir / "nodes" / node_filename("../../evil")
+    assert page.exists()
+    assert page.parent.resolve() == (output_dir / "nodes").resolve()
+
+
+def test_node_links_use_sanitised_filename(tmp_path: Path):
+    output_dir = tmp_path / "site"
+    render_site(_traversal_project(), output_dir)
+    safe_name = node_filename("../../evil")
+    # The status table links to the sanitised file, never the raw traversal id.
+    status = (output_dir / "status.html").read_text(encoding="utf-8")
+    assert f"nodes/{safe_name}" in status
+    assert "../../evil.html" not in status
+
+
+def test_render_refuses_when_nodes_dir_is_symlink(tmp_path: Path):
+    # An attacker pre-creates ``nodes/`` as a symlink pointing OUTSIDE the
+    # site root. ``mkdir(exist_ok=True)`` would happily accept it and per-node
+    # writes would land in ``outside/``. The renderer must refuse.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    output_dir = tmp_path / "site"
+    output_dir.mkdir()
+    (output_dir / "nodes").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        render_site(_project(), output_dir)
+
+    # Nothing leaked into the symlink target.
+    assert list(outside.iterdir()) == []
+
+
+def test_render_autoescapes_user_supplied_values(tmp_path: Path):
+    node = BlueprintNode(
+        id="xss-node",
+        kind=NodeKind.LEMMA,
+        title="<script>alert(1)</script>",
+        statement="payload <img src=x onerror=alert(2)> end",
+        isabelle=IsabelleRef(fact="Demo.xss"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    project = BlueprintProject.from_nodes("xss", [node], sources=["xss.md"])
+    render_site(project, tmp_path)
+
+    page = (tmp_path / "nodes" / node_filename("xss-node")).read_text(encoding="utf-8")
+    # The raw tags from user data must be escaped, not emitted live.
+    assert "<script>alert(1)</script>" not in page
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
+    assert "<img src=x onerror=alert(2)>" not in page
+    assert "&lt;img src=x onerror=alert(2)&gt;" in page
+
+
+def test_statement_paragraph_breaks_preserved(tmp_path: Path):
+    node = BlueprintNode(
+        id="multi",
+        kind=NodeKind.LEMMA,
+        title="Multi",
+        statement="first para\n\nsecond para",
+        isabelle=IsabelleRef(fact="Demo.multi"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    project = BlueprintProject.from_nodes("multi", [node], sources=["multi.md"])
+    render_site(project, tmp_path)
+    page = (tmp_path / "nodes" / node_filename("multi")).read_text(encoding="utf-8")
+    # The double newline becomes a real paragraph split, not escaped markup.
+    assert "first para</p><p>second para" in page
+
+
+def test_math_statement_stays_escaped_for_mathjax(tmp_path: Path):
+    node = BlueprintNode(
+        id="math-node",
+        kind=NodeKind.LEMMA,
+        title="Divisibility",
+        statement="$a \\mid b$ and $c < d$",
+        isabelle=IsabelleRef(fact="Demo.math"),
+        status=NodeStatus(blueprint=BlueprintStatus.WRITTEN, formal=FormalStatus.NAMED),
+    )
+    project = BlueprintProject.from_nodes("math", [node], sources=["math.md"])
+    render_site(project, tmp_path)
+    page = (tmp_path / "nodes" / node_filename("math-node")).read_text(encoding="utf-8")
+    # Dollar-delimited math survives verbatim so MathJax can typeset it; the
+    # comparison operator is HTML-escaped (MathJax reads DOM text).
+    assert "$a \\mid b$" in page
+    assert "$c &lt; d$" in page
+
+
+def test_base_layout_bootstraps_mathjax(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    for name in ("index.html", "nodes/" + node_filename("def-a")):
+        body = (tmp_path / name).read_text(encoding="utf-8")
+        assert "MathJax" in body
+        assert "tex-mml-chtml.js" in body
+        assert "inlineMath" in body

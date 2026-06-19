@@ -35,7 +35,7 @@
   <div class="graph-frame">
     <div class="callout warning">
       <p><strong>Graphviz is not installed.</strong> Showing raw DOT instead. Install <code>graphviz</code> on PATH to get an inline diagram.</p>
-      <pre><code>{{ dot_source|e }}</code></pre>
+      <pre><code>{{ dot_source }}</code></pre>
     </div>
   </div>
 {% endif %}
@@ -45,13 +45,13 @@
   {% if critical_path.longest %}
     <p class="lede">
       The longest remaining dependency chain to a goal &mdash; {{ critical_path.longest.depth }} step(s)
-      ending at <a href="nodes/{{ critical_path.longest.goal_id }}.html"><code>{{ critical_path.longest.goal_id }}</code></a>.
+      ending at <a href="nodes/{{ node_filename(critical_path.longest.goal_id) }}"><code>{{ critical_path.longest.goal_id }}</code></a>.
       Clearing these in order unblocks the most downstream work.
     </p>
     <ol class="critical-path-chain">
       {% for node_id in critical_path_ids %}
         <li data-critical-step="{{ loop.index }}">
-          <a href="nodes/{{ node_id }}.html"><code>{{ node_id }}</code></a>
+          <a href="nodes/{{ node_filename(node_id) }}"><code>{{ node_id }}</code></a>
           {% if has_owner_assignments and owners_by_node.get(node_id) %}
             <span class="owner-badge" data-owner="{{ owners_by_node[node_id] }}">{{ owners_by_node[node_id] }}</span>
           {% endif %}
@@ -64,7 +64,7 @@
       <ul class="bottleneck-list">
         {% for b in critical_path.bottlenecks[:8] %}
           <li>
-            <a href="nodes/{{ b.node_id }}.html"><code>{{ b.node_id }}</code></a>
+            <a href="nodes/{{ node_filename(b.node_id) }}"><code>{{ b.node_id }}</code></a>
             <span class="bottleneck-leverage">unblocks {{ b.leverage }}</span>
             {% if has_owner_assignments and owners_by_node.get(b.node_id) %}
               <span class="owner-badge" data-owner="{{ owners_by_node[b.node_id] }}">{{ owners_by_node[b.node_id] }}</span>
@@ -128,7 +128,7 @@
               {% if node.id in critical_path_set %}data-critical="true"{% endif %}
             >
               {% if node.id in critical_path_set %}<span class="critical-marker" title="On the critical path">★</span> {% endif %}
-              <a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a>
+              <a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a>
               <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
               {% if has_owner_assignments and owners_by_node.get(node.id) %}
                 <span class="owner-badge" data-owner="{{ owners_by_node[node.id] }}">{{ owners_by_node[node.id] }}</span>

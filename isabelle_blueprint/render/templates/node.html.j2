@@ -24,19 +24,19 @@
 
 {% if node.statement %}
   <h2>Statement</h2>
-  <div class="prose"><p>{{ node.statement|e|replace('\n\n', '</p><p>')|safe }}</p></div>
+  <div class="prose"><p>{{ node.statement|replace('\n\n', '</p><p>'|safe) }}</p></div>
 {% endif %}
 
 {% if node.informal_proof %}
   <h2>Informal proof</h2>
-  <div class="prose"><p>{{ node.informal_proof|e|replace('\n\n', '</p><p>')|safe }}</p></div>
+  <div class="prose"><p>{{ node.informal_proof|replace('\n\n', '</p><p>'|safe) }}</p></div>
 {% endif %}
 
 {% if dependencies %}
   <h2>Depends on</h2>
   <ul>
     {% for dep in dependencies %}
-      <li><a href="{{ dep.id }}.html"><code>{{ dep.id }}</code></a> &mdash; {{ dep.title }}</li>
+      <li><a href="{{ node_filename(dep.id) }}"><code>{{ dep.id }}</code></a> &mdash; {{ dep.title }}</li>
     {% endfor %}
   </ul>
 {% endif %}
@@ -45,7 +45,7 @@
   <h2>Used by</h2>
   <ul>
     {% for d in downstream %}
-      <li><a href="{{ d.id }}.html"><code>{{ d.id }}</code></a> &mdash; {{ d.title }}</li>
+      <li><a href="{{ node_filename(d.id) }}"><code>{{ d.id }}</code></a> &mdash; {{ d.title }}</li>
     {% endfor %}
   </ul>
 {% endif %}

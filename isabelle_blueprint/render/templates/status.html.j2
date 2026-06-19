@@ -79,7 +79,7 @@
   <tbody>
     {% for node in project.nodes %}
       <tr data-blueprint="{{ node.status.blueprint.value }}" data-formal="{{ node.status.formal.value }}" data-agent="{{ node.status.agent.value }}" data-search="{{ (node.id ~ ' ' ~ node.title ~ ' ' ~ node.kind.value ~ ' ' ~ (node.isabelle.fact or '') ~ ' ' ~ (node.tags|join(' ')))|lower }}">
-        <td><a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a></td>
+        <td><a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a></td>
         <td>{{ node.kind.value }}</td>
         <td>{{ node.title }}</td>
         <td><code>{{ node.isabelle.fact or '' }}</code></td>

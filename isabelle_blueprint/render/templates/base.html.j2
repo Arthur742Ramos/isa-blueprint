@@ -5,6 +5,16 @@
   <title>{{ project.name }} - {{ title or page|capitalize }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="{{ static_prefix or 'static/' }}style.css" />
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script"></script>
   <script defer src="{{ static_prefix or 'static/' }}filters.js"></script>
   <script defer src="{{ static_prefix or 'static/' }}graph.js"></script>
   <script defer src="{{ static_prefix or 'static/' }}trends.js"></script>

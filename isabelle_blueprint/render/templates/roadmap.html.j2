@@ -20,7 +20,7 @@
     {% if roadmap.suggested_path %}
       <ol class="compact-list">
         {% for node_id in roadmap.suggested_path[:8] %}
-          <li><a href="nodes/{{ node_id }}.html"><code>{{ node_id }}</code></a></li>
+          <li><a href="nodes/{{ node_filename(node_id) }}"><code>{{ node_id }}</code></a></li>
         {% endfor %}
       </ol>
     {% else %}
@@ -62,7 +62,7 @@
                    data-kind="{{ item.kind }}"
                    data-search="{{ (item.node_id ~ ' ' ~ item.title ~ ' ' ~ item.kind ~ ' ' ~ item.formal_status ~ ' ' ~ (item.target_fact or '') ~ ' ' ~ (item.blocked_by|map(attribute='id')|join(' ')))|lower }}">
             <div class="roadmap-card-header">
-              <a href="nodes/{{ item.node_id }}.html"><code>{{ item.node_id }}</code></a>
+              <a href="nodes/{{ node_filename(item.node_id) }}"><code>{{ item.node_id }}</code></a>
               <span class="roadmap-badge">{{ item.status }}</span>
             </div>
             <h3>{{ item.title }}</h3>
@@ -79,7 +79,7 @@
                 <summary>{{ item.blocked_by|length }} blocker{{ '' if item.blocked_by|length == 1 else 's' }}</summary>
                 <ul>
                   {% for blocker in item.blocked_by %}
-                    <li><a href="nodes/{{ blocker.id }}.html"><code>{{ blocker.id }}</code></a> — {{ blocker.reason }}</li>
+                    <li><a href="nodes/{{ node_filename(blocker.id) }}"><code>{{ blocker.id }}</code></a> — {{ blocker.reason }}</li>
                   {% endfor %}
                 </ul>
               </details>
