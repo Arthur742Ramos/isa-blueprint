@@ -193,6 +193,13 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # The release flow triggers this job twice for one version: once on
+          # the main push that bumps the version, and again on the v* tag that
+          # the push creates. Whichever runs first uploads the artifacts; the
+          # other must no-op rather than fail with PyPI's 400 file-name-reuse
+          # error (see the v1.14.0 tag run).
+          skip-existing: true
 
   github-release:
     name: create GitHub Release
