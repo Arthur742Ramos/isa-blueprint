@@ -117,6 +117,11 @@ from isabelle_blueprint.isabelle.fact_search import (
     render_matches_markdown,
     search_index,
 )
+from isabelle_blueprint.isabelle.reconcile import (
+    reconcile_diff,
+    reconcile_payload,
+    run_reconcile,
+)
 from isabelle_blueprint.isabelle.root import default_session_dir
 from isabelle_blueprint.isabelle.sledgehammer import run_sledgehammer
 from isabelle_blueprint.isabelle.source_index import (
@@ -804,6 +809,89 @@ def _run_check_once(args: argparse.Namespace) -> int:
     # The policy gate runs last so genuine infrastructure failures (3/4) are
     # surfaced before a "node still in a bad state" gate.
     return _report_fail_on(project, getattr(args, "fail_on", None))
+
+
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    """Diff author-declared ``uses`` edges against Isabelle's real proof deps.
+
+    Additive and advisory: the exit code is never gated on findings -- it is 0
+    on a normal run, 2 only on blueprint validation failure. An unavailable
+    Isabelle or unconfigured session yields a clean no-op report (``ran=False``),
+    not an error.
+    """
+    project_dir = Path(args.project_dir).resolve()
+    config, project = _load(project_dir)
+    try:
+        project.validate().raise_if_failed()
+    except ValidationError as exc:
+        if getattr(args, "json", False):
+            print(
+                json.dumps(
+                    {
+                        "ran": False,
+                        "schema": "reconcile",
+                        "error": str(exc),
+                        "issues": exc.issues,
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            print(f"validation failed: {exc}", file=sys.stderr)
+            for issue in exc.issues:
+                print(f"  - {issue}", file=sys.stderr)
+        return 2
+
+    session_name = getattr(args, "session", None) or config.isabelle_session
+    if session_name:
+        print(
+            f"building session {session_name} with isabelle...",
+            file=sys.stderr,
+        )
+    result = run_reconcile(
+        project,
+        build_dir=config.build_dir,
+        session_name=session_name,
+        isabelle_executable=args.isabelle or config.isabelle_executable,
+        extra_dirs=config.isabelle_dirs,
+        project_root=config.project_root,
+        timeout=args.timeout if args.timeout is not None else config.isabelle_timeout,
+        jobs=getattr(args, "jobs", None),
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(reconcile_payload(project, result), indent=2))
+        return 0
+
+    if not result.ran:
+        reason = result.error or "reconcile did not run"
+        print(f"reconcile: skipped ({reason})")
+        return 0
+
+    diffs = reconcile_diff(project, result.deps)
+    flagged = [d for d in diffs if d.used_but_undeclared or d.declared_but_unused]
+    if not flagged:
+        print(f"reconcile: {len(diffs)} node(s) analyzed; declared edges match proof deps")
+        return 0
+
+    print(f"reconcile: {len(diffs)} node(s) analyzed; {len(flagged)} with edge differences")
+    print("")
+    for d in flagged:
+        print(f"  {d.node_id} ({d.fact}):")
+        if d.used_but_undeclared:
+            joined = ", ".join(d.used_but_undeclared)
+            print(f"    used-but-undeclared: {joined}  [add to 'uses']")
+        if d.declared_but_unused:
+            joined = ", ".join(d.declared_but_unused)
+            print(f"    declared-but-unused (advisory): {joined}")
+    undeclared = sum(len(d.used_but_undeclared) for d in flagged)
+    unused = sum(len(d.declared_but_unused) for d in flagged)
+    print("")
+    print(
+        f"summary: {undeclared} undeclared edge(s), "
+        f"{unused} declared-but-unused edge(s) [advisory]"
+    )
+    return 0
 
 
 def _watch_check(args: argparse.Namespace) -> int:
@@ -3352,6 +3440,42 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     _add_fail_on_argument(p_check)
     p_check.set_defaults(func=cmd_check)
 
+    p_reconcile = sub.add_parser(
+        "reconcile",
+        aliases=["deps-audit"],
+        help="diff author-declared 'uses' edges against Isabelle's real proof deps",
+    )
+    p_reconcile.add_argument("project_dir", nargs="?", default=".")
+    p_reconcile.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
+    p_reconcile.add_argument(
+        "--session",
+        default=None,
+        help="override the Isabelle session to build against "
+        "(default: [isabelle].session)",
+    )
+    p_reconcile.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help=(
+            "max seconds to wait for `isabelle build` before aborting "
+            "(overrides [isabelle].timeout)"
+        ),
+    )
+    p_reconcile.add_argument(
+        "--jobs",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="forward `-j N` to `isabelle build` to parallelise upstream session builds",
+    )
+    p_reconcile.add_argument(
+        "--json",
+        action="store_true",
+        help="emit a packaged schema-style dict instead of the human report",
+    )
+    p_reconcile.set_defaults(func=cmd_reconcile)
+
     p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
     p_graph.add_argument(
@@ -5018,8 +5142,14 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
 
     # Accept `--color`/`--no-color` after the subcommand too (e.g. `lint --color
     # never`). SUPPRESS defaults mean an omitted sub-command flag never clobbers
-    # the value parsed from the top-level parser.
+    # the value parsed from the top-level parser. Aliased subcommands share one
+    # parser object across multiple ``sub.choices`` keys, so dedupe by identity
+    # to avoid adding the same flag twice (an argparse conflict).
+    seen_subparsers: set[int] = set()
     for subparser in sub.choices.values():
+        if id(subparser) in seen_subparsers:
+            continue
+        seen_subparsers.add(id(subparser))
         subparser.add_argument(
             "--color",
             choices=("auto", "always", "never"),

@@ -158,6 +158,40 @@ each declared fact exists and isn't tainted by `sorry` / oracles.
   `problem` expands to all problem statuses
   (`not_found`, `broken`, `failed_check`, `tainted`).
 
+### `reconcile` (alias `deps-audit`)
+
+```text
+isabelle-blueprint reconcile [project_dir]
+                             [--isabelle PATH]
+                             [--session NAME]
+                             [--timeout SECONDS]
+                             [--jobs N]
+                             [--json]
+```
+
+Diffs each author-declared `uses` edge against Isabelle's *real* immediate proof
+dependencies for PROVED-eligible nodes (those carrying a resolvable `isabelle:`
+fact). Builds a generated `Blueprint_Deps.thy` wrapper that asks the kernel via
+`Thm_Deps.thm_deps` for each fact's immediate named dependencies, maps those
+fact names back to blueprint node ids, and reports per node:
+
+- `used_but_undeclared` — a node the proof really depends on but which is missing
+  from `uses` (a strong signal of a missing edge), and
+- `declared_but_unused` — a declared dependency not seen among the immediate
+  proof deps. **Advisory only**: kernel deduplication and library aliasing can
+  legitimately hide a genuinely-used declared edge, so it is never an error.
+
+The command is additive and advisory. It exits `0` on a normal run regardless of
+findings (only blueprint validation failure exits `2`), and degrades to a clean
+no-op report (`ran=false`) when no `isabelle` binary or session is available.
+
+- `--isabelle PATH` overrides the `isabelle` binary location.
+- `--session NAME` overrides the `[isabelle].session` to build against.
+- `--timeout SECONDS` overrides `[isabelle].timeout` from the config.
+- `--jobs N` forwards `-j N` to `isabelle build`.
+- `--json` emits a packaged schema-style dict (`schema: "reconcile"`) with a
+  per-node `nodes` array and a `summary` block, instead of the human report.
+
 ### `graph`
 
 ```text
