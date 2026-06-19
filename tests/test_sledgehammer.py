@@ -141,10 +141,12 @@ def test_parse_tsv_blank() -> None:
     assert parse_sledgehammer_tsv("") == (False, None, None)
 
 
-def test_thy_inner_string_escapes_backslash_and_quote() -> None:
+def test_thy_inner_string_escapes_quote_only() -> None:
     assert _thy_inner_string('a "b" c') == 'a \\"b\\" c'
-    # An Isabelle symbol's backslash must survive doubling.
-    assert _thy_inner_string("\\<forall>x. P x") == "\\\\<forall>x. P x"
+    # An Isabelle symbol's backslash must survive UNCHANGED: Isabelle's symbol
+    # layer rewrites ``\<forall>`` to the glyph before SML lexes the string, so a
+    # doubled backslash would produce a "bad escape character" build failure.
+    assert _thy_inner_string("\\<forall>x. P x") == "\\<forall>x. P x"
 
 
 # ---------------------------------------------------------------------------
@@ -450,4 +452,36 @@ def test_real_sledgehammer_run_finds_proof(tmp_path: Path, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     sh = payload["sledgehammer"]
     assert sh["found"] is True, sh
+    assert sh["proof_line"].startswith("by")
+
+
+def test_real_sledgehammer_run_handles_isabelle_symbol_goal(tmp_path: Path, capsys) -> None:
+    """A goal containing an Isabelle symbol (``\\<forall>``) must build and prove.
+
+    Regression guard: doubling the backslash in the embedded goal produces a
+    stray ``\\`` in front of the symbol glyph, which SML rejects as a "bad escape
+    character" -- the generated theory then fails to build and writes no result
+    file. This test runs the real binary so that mistake cannot pass.
+    """
+    import pytest
+
+    if shutil.which("isabelle") is None:
+        pytest.skip("isabelle not on PATH")
+
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "Sh"\n\n[isabelle]\nsession = "HOL"\n', encoding="utf-8"
+    )
+    (tmp_path / "ROOT").write_text("", encoding="utf-8")
+    (tmp_path / "blueprint.md").write_text(
+        "# Sh\n\n::: theorem {#t1}\ntitle: T\n"
+        "goal: \\<forall>x::nat. x + 0 = x\n:::\n\nStmt.\n:::\n",
+        encoding="utf-8",
+    )
+
+    rc = cli_main(["attempt", str(tmp_path), "--node", "t1", "--sledgehammer-run", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    sh = payload["sledgehammer"]
+    assert sh["found"] is True, sh
+    assert sh["return_code"] == 0, sh
     assert sh["proof_line"].startswith("by")

@@ -244,12 +244,20 @@ def generate_check_root(
 def _thy_inner_string(text: str) -> str:
     """Escape *text* for embedding inside an ML/inner-syntax double-quoted string.
 
-    Only backslash and double-quote are escaped: the goal is written verbatim as
-    ``Syntax.read_prop ctxt "<goal>"`` so Isabelle symbols such as ``\\<forall>``
-    must survive (backslash doubling yields a single backslash back in the ML
-    string), and an embedded ``"`` must not terminate the literal early.
+    The goal is written verbatim as ``Syntax.read_prop ctxt "<goal>"``. Only the
+    double-quote is escaped (``"`` -> ``\\"``) so it cannot terminate the ML
+    string literal early.
+
+    Crucially, backslashes are *not* doubled. An Isabelle goal contains symbol
+    tokens such as ``\\<forall>`` or ``\\<le>`` written with a single backslash;
+    Isabelle's symbol layer rewrites ``\\<forall>`` to the Unicode glyph
+    *before* the SML lexer sees the string. Doubling the backslash would leave a
+    stray ``\\`` in front of that glyph, which SML then rejects as a "bad escape
+    character" -- breaking the build for essentially every realistic goal. (A
+    bare backslash that is not part of a ``\\<...>`` symbol is not valid Isabelle
+    inner syntax in the first place, so there is nothing useful to escape it to.)
     """
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    return text.replace('"', '\\"')
 
 
 def sledgehammer_imports(
