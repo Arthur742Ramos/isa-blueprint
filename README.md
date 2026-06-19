@@ -790,7 +790,7 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.15.0 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.16.0 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
 output, static site, live preview, task packs, project templates, fact
 suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,

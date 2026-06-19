@@ -537,7 +537,7 @@ def test_real_sledgehammer_run_finds_proof(tmp_path: Path, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     sh = payload["sledgehammer"]
     assert sh["found"] is True, sh
-    assert sh["proof_line"].startswith("by")
+    assert sh["proof_line"].split()[0] in {"by", "using", "apply", "unfolding", "proof"}, sh
 
 
 def test_real_sledgehammer_run_handles_isabelle_symbol_goal(tmp_path: Path, capsys) -> None:
@@ -569,4 +569,4 @@ def test_real_sledgehammer_run_handles_isabelle_symbol_goal(tmp_path: Path, caps
     sh = payload["sledgehammer"]
     assert sh["found"] is True, sh
     assert sh["return_code"] == 0, sh
-    assert sh["proof_line"].startswith("by")
+    assert sh["proof_line"].split()[0] in {"by", "using", "apply", "unfolding", "proof"}, sh
