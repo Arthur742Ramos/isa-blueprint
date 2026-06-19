@@ -48,7 +48,7 @@
   {% if suggested_next_task %}
     <div class="callout">
       <strong>Smallest high-value unblocked task:</strong>
-      <a href="nodes/{{ suggested_next_task.node_id }}.html">{{ suggested_next_task.title }}</a>
+      <a href="nodes/{{ node_filename(suggested_next_task.node_id) }}">{{ suggested_next_task.title }}</a>
       (<code>{{ suggested_next_task.node_id }}</code>)
       {% if suggested_next_task.metadata %}
         — priority <code>{{ suggested_next_task.metadata.priority }}</code>,
@@ -89,7 +89,7 @@
   <ul class="node-list">
     {% for node in project.nodes %}
       <li>
-        <a href="nodes/{{ node.id }}.html"><code>{{ node.id }}</code></a>
+        <a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a>
         &mdash; <span class="node-kind">{{ node.kind.value }}</span>
         &mdash; {{ node.title }}
         <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
