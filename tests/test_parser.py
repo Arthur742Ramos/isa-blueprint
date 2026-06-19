@@ -480,7 +480,7 @@ def test_parse_blueprint_file_strips_leading_utf8_bom(tmp_path):
     ).lstrip("\n")
     path = tmp_path / "bom.md"
     # Prefixing the string with U+FEFF and encoding as utf-8 writes the BOM bytes.
-    path.write_text("﻿" + text, encoding="utf-8")
+    path.write_text("\ufeff" + text, encoding="utf-8")
 
     project = parse_blueprint_file(path)
     assert len(project.nodes) == 1

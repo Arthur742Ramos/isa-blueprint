@@ -767,8 +767,11 @@ def _run_check_once(args: argparse.Namespace) -> int:
             print(f"  - {issue}", file=sys.stderr)
         return 2
 
-    session_label = config.isabelle_session or "(default)"
-    print(f"building session {session_label} with isabelle...", file=sys.stderr)
+    if config.isabelle_session:
+        print(
+            f"building session {config.isabelle_session} with isabelle...",
+            file=sys.stderr,
+        )
     result = run_check(
         project,
         build_dir=config.build_dir,
@@ -2025,8 +2028,11 @@ def cmd_dump(args: argparse.Namespace) -> int:
             isabelle_executable=args.isabelle or config.isabelle_executable,
         )
     else:
-        session_label = config.isabelle_session or "(default)"
-        print(f"building session {session_label} with isabelle...", file=sys.stderr)
+        if config.isabelle_session:
+            print(
+                f"building session {config.isabelle_session} with isabelle...",
+                file=sys.stderr,
+            )
         result = run_dump(
             project,
             output_dir=config.build_dir / "pide-dump",
@@ -5054,7 +5060,10 @@ def main(argv: list[str] | None = None) -> int:
         # the implicit flush-on-exit error by redirecting stdout to devnull, then
         # exit cleanly rather than dumping a traceback.
         devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
+        try:
+            os.dup2(devnull, sys.stdout.fileno())
+        finally:
+            os.close(devnull)
         return 0
     except OSError as exc:
         # e.g. a full or permission-denied output directory. Present it as a

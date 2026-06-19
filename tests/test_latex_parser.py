@@ -243,7 +243,7 @@ def test_parse_latex_file_strips_leading_utf8_bom(tmp_path):
         """
     ).lstrip("\n")
     path = tmp_path / "bom.tex"
-    path.write_text("﻿" + text, encoding="utf-8")
+    path.write_text("\ufeff" + text, encoding="utf-8")
 
     project = parse_blueprint_file(path)
     assert len(project.nodes) == 1

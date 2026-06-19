@@ -146,3 +146,20 @@ def test_check_prints_build_status_to_stderr_only(
     assert "building session Demo_Session with isabelle..." in captured.err
     # Status must not pollute stdout.
     assert "building session" not in captured.out
+
+
+def test_check_omits_build_status_when_no_session(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    (tmp_path / "isabelle-blueprint.toml").write_text(
+        '[project]\nname = "Demo"\n',
+        encoding="utf-8",
+    )
+
+    cli_main(["check", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    # With no session configured, check skips the build; no status line should print.
+    assert "building session" not in captured.err
+    assert "building session" not in captured.out
