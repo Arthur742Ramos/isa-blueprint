@@ -21,6 +21,28 @@ Sketch.
 """
 
 
+def _is_server_closed(server: object) -> bool:
+    # A closed ThreadingHTTPServer usually reports fileno() == -1, but that is
+    # brittle across CPython versions. Treat the server as closed if fileno()
+    # is -1, raises (the fd was already released), or the underlying socket is
+    # closed/None.
+    try:
+        if server.fileno() == -1:  # type: ignore[attr-defined]
+            return True
+    except OSError:
+        return True
+    sock = getattr(server, "socket", None)
+    if sock is None:
+        return True
+    fileno = getattr(sock, "fileno", None)
+    if fileno is None:
+        return True
+    try:
+        return fileno() == -1
+    except OSError:
+        return True
+
+
 def _write_project(tmp_path: Path) -> None:
     (tmp_path / "isabelle-blueprint.toml").write_text(
         '[project]\nname = "watch-test"\n',
@@ -184,11 +206,16 @@ def test_serve_starts_server_and_shuts_down(tmp_path: Path, capsys, monkeypatch)
     assert rc == 0
     out = capsys.readouterr().out
     assert "site -> " in out
-    assert "serving -> http://127.0.0.1:0/" in out
-    # The server was started and then closed in the finally-block; a closed
-    # ThreadingHTTPServer has a negative fileno.
+    # Port 0 is only the *requested* port; the OS binds an ephemeral one, so the
+    # advertised URL carries the real port. Assert the host:port prefix rather
+    # than the literal ":0/".
+    assert "serving -> http://127.0.0.1:" in out
+    # The server was started and then closed in the finally-block. A closed
+    # ThreadingHTTPServer reports a negative fileno on most CPython versions,
+    # but that detail is brittle across versions, so also accept the underlying
+    # socket being closed/None (and treat a raising fileno() as closed).
     assert len(started) == 1
-    assert started[0].fileno() == -1  # type: ignore[attr-defined]
+    assert _is_server_closed(started[0])
 
 
 def test_serve_allows_ci_with_allow_ci_flag(tmp_path: Path, capsys, monkeypatch) -> None:
