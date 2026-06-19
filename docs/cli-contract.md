@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.14.0. Subcommand names, flag names, default values,
+command-line tool as of v1.15.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.

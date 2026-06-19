@@ -2,7 +2,7 @@
 
 This document is the **frozen public surface** of the JSON files
 `isabelle-blueprint` writes under `build/` plus JSON stdout payloads as of
-v1.14.0. Keys, value types, and value semantics listed here will not change
+v1.15.0. Keys, value types, and value semantics listed here will not change
 without a major version bump. New keys may be added in backward-compatible
 releases; consumers should ignore unknown keys.
 
@@ -676,7 +676,7 @@ discover them one by one.
 ```json
 {
   "schema_version": 1,
-  "tool_version": "1.14.0",
+  "tool_version": "1.15.0",
   "generated_at": "2026-06-01T12:00:00Z",
   "project": {
     "name": "Group theory demo",
