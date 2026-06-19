@@ -26,8 +26,10 @@ def sanitize_theory_name(name: str) -> str:
 
     Isabelle theory names (and their long-ident lemma names) match
     ``[A-Za-z][A-Za-z0-9_']*``. Runs of other characters collapse to a single
-    underscore; a leading digit/underscore is prefixed with ``T`` so the result
-    always starts with a letter. Empty input yields ``Blueprint``.
+    underscore and leading/trailing underscores are stripped; if the result then
+    starts with a digit it is prefixed with ``T_`` so it always begins with a
+    letter. Input that is empty (or reduces to empty after stripping) yields
+    ``Blueprint``.
     """
     cleaned = re.sub(r"[^0-9A-Za-z_']+", "_", name).strip("_")
     if not cleaned:
@@ -106,10 +108,11 @@ def _assign_lemma_names(
 def _topological_node_ids(project: BlueprintProject) -> list[str]:
     """Node ids in dependency order: a node's ``uses`` appear before it.
 
-    Reuses :func:`dependency_levels` (leaves first, stable within a level by id).
-    Any ids that the layering omits -- it only sees nodes reachable in the
-    dependency graph -- are appended afterwards in declaration order so no node
-    is silently dropped.
+    Reuses :func:`dependency_levels` (leaves first, stable within a level by id),
+    which already layers every project node. The trailing pass over
+    ``project.nodes`` is a defensive safety net -- it appends, in declaration
+    order, any id the layering did not emit (normally none) so no node can be
+    silently dropped.
     """
     ordered: list[str] = []
     seen: set[str] = set()
