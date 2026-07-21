@@ -185,6 +185,28 @@ def test_graph_page_contains_filter_toolbar(tmp_path: Path):
         assert f'data-graph-formal="{status.value}"' in body
 
 
+def test_inline_dependency_graph_has_accessible_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """The figure describes the graph once and hides Graphviz's duplicate titles."""
+    monkeypatch.setattr(
+        "isabelle_blueprint.render.site.render_svg",
+        lambda *_args, **_kwargs: (
+            '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">'
+            "<title>G</title><g class=\"node\"><title>def-a</title></g></svg>"
+        ),
+    )
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+
+    assert '<figure class="graph-frame" data-graph-host' in body
+    assert 'aria-labelledby="dependency-graph-caption"' in body
+    assert '<figcaption id="dependency-graph-caption" class="sr-only">' in body
+    assert "The dependency levels and links below" in body
+    assert '<svg aria-hidden="true" focusable="false"' in body
+    assert 'data-graph-filters-count aria-live="polite"' in body
+
+
 def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
     """Both new JS files ship with their expected DOM hooks."""
     render_site(_project(), tmp_path)
@@ -580,7 +602,7 @@ def test_statement_paragraph_breaks_preserved(tmp_path: Path):
     assert "first para</p><p>second para" in page
 
 
-def test_math_statement_stays_escaped_for_mathjax(tmp_path: Path):
+def test_math_statement_remains_readable_without_mathjax(tmp_path: Path):
     node = BlueprintNode(
         id="math-node",
         kind=NodeKind.LEMMA,
@@ -592,16 +614,54 @@ def test_math_statement_stays_escaped_for_mathjax(tmp_path: Path):
     project = BlueprintProject.from_nodes("math", [node], sources=["math.md"])
     render_site(project, tmp_path)
     page = (tmp_path / "nodes" / node_filename("math-node")).read_text(encoding="utf-8")
-    # Dollar-delimited math survives verbatim so MathJax can typeset it; the
-    # comparison operator is HTML-escaped (MathJax reads DOM text).
+    # MathJax progressively enhances this source text. If the CDN is unavailable,
+    # the notation remains visible, while the comparison operator stays escaped.
     assert "$a \\mid b$" in page
     assert "$c &lt; d$" in page
 
 
-def test_base_layout_bootstraps_mathjax(tmp_path: Path):
+def test_rendered_tables_have_captions_and_scoped_headers(tmp_path: Path):
+    entry = {
+        "timestamp": "2025-01-01T00:00:00Z",
+        "commit_sha": "deadbeef",
+        "branch": "main",
+        "coverage_percent": 50,
+        "node_count": 2,
+        "proved_count": 1,
+        "problem_count": 0,
+    }
+    render_site(_project(), tmp_path, trends=[entry])
+
+    status = (tmp_path / "status.html").read_text(encoding="utf-8")
+    assert (
+        '<caption class="sr-only">Blueprint nodes and their blueprint, formal, and agent '
+        "statuses.</caption>"
+    ) in status
+    assert status.count('scope="col"') == 7
+    assert status.count('scope="row"') == 2
+
+    trends = (tmp_path / "trends.html").read_text(encoding="utf-8")
+    assert (
+        '<caption class="sr-only">Blueprint coverage and problem history by recorded run.'
+        "</caption>"
+    ) in trends
+    assert trends.count('scope="col"') == 7
+    assert trends.count('scope="row"') == 1
+
+
+def test_base_layout_uses_pinned_mathjax_with_integrity(tmp_path: Path):
+    source = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
+    integrity = (
+        "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei"
+    )
     render_site(_project(), tmp_path)
     for name in ("index.html", "nodes/" + node_filename("def-a")):
         body = (tmp_path / name).read_text(encoding="utf-8")
         assert "MathJax" in body
-        assert "tex-mml-chtml.js" in body
+        assert f'src="{source}"' in body
+        assert f'integrity="{integrity}"' in body
+        assert 'crossorigin="anonymous"' in body
+        assert 'referrerpolicy="no-referrer"' in body
+        assert "mathjax@3/es5" not in body
+        assert "defer" in body
         assert "inlineMath" in body

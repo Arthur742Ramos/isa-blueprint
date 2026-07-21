@@ -24,6 +24,18 @@
 
 * { box-sizing: border-box; }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -152,13 +164,16 @@ h2 { margin-top: 2rem; }
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
 }
-.status-table th { background: #f1f5f9; }
+.status-table thead th { background: #f1f5f9; }
+.status-table tbody th,
+.trend-table tbody th { font-weight: 400; }
 
 .graph-frame {
   background: white;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1rem;
+  margin: 0;
   overflow: auto;
 }
 .graph-svg { width: 100%; height: auto; min-height: 300px; }
@@ -429,7 +444,7 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
   text-align: left;
   font-size: 0.9rem;
 }
-.trend-table th { background: #f8fafc; }
+.trend-table thead th { background: #f8fafc; }
 .trend-table code { font-size: 0.85rem; }
 
 /* v1.6 polish: theme-aware surfaces, copy affordances, and roadmap cards. */
@@ -458,8 +473,8 @@ code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.9
   box-shadow: 0 1px 2px var(--shadow);
 }
 
-.status-table th,
-.trend-table th,
+.status-table thead th,
+.trend-table thead th,
 .filter-pill,
 .task-memory,
 .copy-button,

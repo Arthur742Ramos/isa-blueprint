@@ -285,6 +285,7 @@ def _task_board(project: BlueprintProject, tasks) -> list[dict[str, object]]:
 
 _SVG_PROLOG_RE = re.compile(r"<\?xml[^>]*\?>\s*", re.IGNORECASE)
 _SVG_DOCTYPE_RE = re.compile(r"<!DOCTYPE[^>]*>\s*", re.IGNORECASE)
+_SVG_ROOT_RE = re.compile(r"<svg\b", re.IGNORECASE)
 
 
 def _inline_svg(svg: str | None) -> str | None:
@@ -292,13 +293,16 @@ def _inline_svg(svg: str | None) -> str | None:
 
     Graphviz emits a standalone SVG document with an XML prolog and a DTD
     reference; both are invalid inside an HTML body and trip strict parsers.
-    Returning ``None`` (or ``None`` input) lets the template fall back to the
-    raw-DOT callout.
+    The surrounding figure supplies the diagram's accessible description, so
+    the embedded SVG is hidden from assistive technology to avoid announcing
+    Graphviz's internal titles a second time. Returning ``None`` (or ``None``
+    input) lets the template fall back to the raw-DOT callout.
     """
     if svg is None:
         return None
     text = _SVG_PROLOG_RE.sub("", svg, count=1)
     text = _SVG_DOCTYPE_RE.sub("", text, count=1)
+    text = _SVG_ROOT_RE.sub('<svg aria-hidden="true" focusable="false"', text, count=1)
     return text
 
 
