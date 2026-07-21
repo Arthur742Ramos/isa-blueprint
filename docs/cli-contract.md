@@ -61,9 +61,12 @@ project subdirectories, over MCP. The default transport is `stdio`;
 
 Read tools are always registered: `version`, `list_projects`, `status`,
 `roadmap`, `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`,
-`explain_node`, `lint`, `critical_path`, `impact`, `stats`, `staleness`,
-`history`, `burndown`, `portfolio`, `compat`, `suggest_facts`, `theory_index`,
-`graph`, `schema`, `doctor`, `preview_rename_node`, and `list_assignments`. The
+`explain_node`, `lint`, `gate`, `blame`, `effort`, `diff`, `deps_audit`,
+`critical_path`, `impact`, `stats`, `staleness`, `history`, `burndown`,
+`portfolio`, `compat`, `suggest_facts`, `theory_index`, `graph`, `scorecard`,
+`tags`, `kinds`, `proof_debt`, `fact_coverage`, `levels`, `orphans`,
+`tag_cooccurrence`, `matrix`, `depends`, `path`, `schema`, `doctor`,
+`preview_rename_node`, and `list_assignments`. The
 write tools `record_attempt` and `assign_node` are registered only with
 `--allow-writes`.
 Project-specific tools accept an optional `project` selector. It may be a
@@ -83,7 +86,9 @@ the same optional `project` selector.
 `assign_node`. Without the flag, write tools are omitted from `tools/list`.
 Destructive source rewrites are not exposed; `preview_rename_node` is always
 dry-run only. See [`docs/mcp.md`](mcp.md) for the MCP-specific contract and
-client configuration examples.
+client configuration examples, and
+[`docs/capability-parity.md`](capability-parity.md) for the intentionally
+narrower MCP, VS Code, and Action inventories.
 
 ---
 

@@ -51,6 +51,11 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     assert {"history", "compat", "suggest_facts", "staleness", "burndown"} <= read_only_names
     assert {"scorecard", "tags", "path", "graph"} <= read_only_names
     assert {
+        "blame",
+        "deps_audit",
+        "diff",
+        "effort",
+        "gate",
         "kinds",
         "proof_debt",
         "fact_coverage",
@@ -69,6 +74,23 @@ def test_mcp_server_lists_read_tools_and_gates_write_tools(tmp_path: Path) -> No
     writable_names = {tool.name for tool in asyncio.run(writable.list_tools())}
     assert "record_attempt" in writable_names
     assert "assign_node" in writable_names
+
+
+def test_mcp_new_analysis_tools_publish_typed_input_schemas(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    tools = {tool.name: tool for tool in asyncio.run(build_server(tmp_path).list_tools())}
+
+    gate_properties = tools["gate"].inputSchema["properties"]
+    assert gate_properties["min_coverage"]["anyOf"][0]["type"] == "integer"
+    assert "problem" in gate_properties["fail_on"]["anyOf"][0]["items"]["enum"]
+    assert gate_properties["min_grade"]["anyOf"][0]["enum"] == ["A", "B", "C", "D", "F"]
+
+    deps = tools["deps_audit"].inputSchema
+    assert deps["required"] == ["actual_dependencies"]
+    assert (
+        deps["properties"]["actual_dependencies"]["additionalProperties"]["items"]["type"]
+        == "string"
+    )
 
 
 def test_mcp_status_and_next_task_payloads(tmp_path: Path) -> None:
@@ -106,6 +128,134 @@ def test_mcp_analysis_tools_expose_cli_payloads(tmp_path: Path) -> None:
     stats = _direct_tool_result(server, "stats", {})
     assert stats["project"] == "mcp-test"
     assert stats["total_attempts"] == 0
+
+
+def test_mcp_gate_blame_and_effort_payloads(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    gate = _direct_tool_result(
+        server,
+        "gate",
+        {"min_coverage": 75, "fail_on": ["problem"], "min_grade": "C"},
+    )
+    assert gate["project"] == "mcp-test"
+    assert gate["ok"] is False
+    assert "coverage" in gate["failed"]
+
+    blame = _direct_tool_result(server, "blame", {"node": "main"})
+    assert [node["id"] for node in blame["nodes"]] == ["main"]
+    assert blame["nodes"][0]["memory"] is None
+
+    effort = _direct_tool_result(
+        server,
+        "effort",
+        {"by_tag": True, "nodes": True, "fail_under": 75},
+    )
+    assert effort["coverage_percent"] == 50
+    assert [node["id"] for node in effort["nodes"]] == ["base", "main"]
+    assert effort["gate"]["meets"] is False
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "label"),
+    [
+        ("gate", {"min_coverage": 101}, "min_coverage"),
+        ("effort", {"fail_under": -1}, "fail_under"),
+    ],
+)
+def test_mcp_analysis_thresholds_validate_percentages(
+    tmp_path: Path,
+    tool_name: str,
+    arguments: dict[str, object],
+    label: str,
+) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    with pytest.raises((BlueprintError, ToolError), match=rf"{label} must be between 0 and 100"):
+        _direct_tool_result(server, tool_name, arguments)
+
+
+def test_mcp_diff_reads_only_project_local_baselines(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    baseline = {
+        "nodes": [
+            {
+                "id": "base",
+                "status": {"formal": "proved", "agent": "solved", "blueprint": "written"},
+            },
+            {
+                "id": "main",
+                "status": {"formal": "proved", "agent": "solved", "blueprint": "written"},
+            },
+        ]
+    }
+    (tmp_path / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(server, "diff", {"baseline": "baseline.json"})
+    assert result["project"] == "mcp-test"
+    assert result["has_regression"] is True
+    assert any(
+        change["node_id"] == "main" and change["field"] == "formal"
+        for change in result["changes"]
+    )
+
+    with pytest.raises((BlueprintError, ToolError), match="within project root"):
+        _direct_tool_result(server, "diff", {"baseline": "../baseline.json"})
+
+
+def test_mcp_dependency_audit_is_pure_and_deterministic(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    result = _direct_tool_result(
+        server,
+        "deps_audit",
+        {
+            "actual_dependencies": {
+                "main": ["Demo.base", "Demo.base"],
+                "base": [],
+            }
+        },
+    )
+    assert result == {
+        "schema": "deps-audit",
+        "nodes": [
+            {
+                "node_id": "base",
+                "fact": "Demo.base",
+                "actual_dep_node_ids": [],
+                "declared_dep_node_ids": [],
+                "used_but_undeclared": [],
+                "declared_but_unused": [],
+            },
+            {
+                "node_id": "main",
+                "fact": "Demo.main",
+                "actual_dep_node_ids": ["base"],
+                "declared_dep_node_ids": ["base"],
+                "used_but_undeclared": [],
+                "declared_but_unused": [],
+            },
+        ],
+        "summary": {
+            "nodes_analyzed": 2,
+            "nodes_with_undeclared": 0,
+            "nodes_with_unused": 0,
+            "total_undeclared_edges": 0,
+            "total_unused_edges": 0,
+        },
+    }
+    assert not (tmp_path / "build").exists()
+
+    with pytest.raises((BlueprintError, ToolError), match="unknown node ids: ghost"):
+        _direct_tool_result(
+            server,
+            "deps_audit",
+            {"actual_dependencies": {"ghost": ["Demo.base"]}},
+        )
 
 
 def test_mcp_report_tools_expose_cli_payloads(tmp_path: Path) -> None:
@@ -756,6 +906,9 @@ def test_mcp_lists_and_selects_projects_from_repo_root(tmp_path: Path) -> None:
     alpha_status = _direct_tool_result(server, "status", {"project": "alpha", "top_tasks": 1})
     assert alpha_status["health"] == "ready"
     assert alpha_status["next_task"]["node_id"] == "main"
+    alpha_gate = _direct_tool_result(server, "gate", {"project": "alpha", "min_coverage": 50})
+    assert alpha_gate["project"] == "alpha-project"
+    assert alpha_gate["ok"] is True
 
     beta_status = _direct_tool_result(server, "status", {"project": "beta-project"})
     assert beta_status["ready_task_count"] == 1

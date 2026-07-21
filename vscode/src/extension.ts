@@ -424,6 +424,20 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runLint", async () => {
+      await runBlueprintCommand("lint", provider, diagnostics, output, running, {
+        refreshAfter: false,
+      });
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.runGate", async () => {
+      await runBlueprintCommand("gate", provider, diagnostics, output, running, {
+        refreshAfter: false,
+      });
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("isabelleBlueprint.runTasks", async () => {
       await runBlueprintCommand("tasks", provider, diagnostics, output, running);
     }),
@@ -577,6 +591,8 @@ async function runBlueprintCommand(
   command:
     | "report"
     | "check"
+    | "lint"
+    | "gate"
     | "tasks"
     | "roadmap"
     | "agent-context"
@@ -612,7 +628,7 @@ async function runBlueprintCommand(
     if (stderr.trim()) {
       output.appendLine(stderr.trimEnd());
     }
-    // Read-only analyses (staleness/burndown/critical-path) do not regenerate
+    // Read-only analyses (lint/gate/staleness/burndown/critical-path) do not regenerate
     // build/project.json, so a refresh would be wasted work.
     if (options.refreshAfter ?? true) {
       await refresh(provider, diagnostics);

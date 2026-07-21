@@ -318,6 +318,7 @@ The CLI, JSON output, and GitHub Action outputs are stable public contracts:
 - [`docs/cli-contract.md`](docs/cli-contract.md)
 - [`docs/json-contract.md`](docs/json-contract.md)
 - [`docs/mcp.md`](docs/mcp.md)
+- [`docs/capability-parity.md`](docs/capability-parity.md)
 
 ## MCP server for AI proof agents
 
@@ -345,6 +346,11 @@ multiple IsabelleBlueprint project subdirectories. For example:
   }
 }
 ```
+
+Read-only analysis tools include `gate`, `blame`, `effort`, `diff`, and
+`deps_audit`. The last exposes only reconciliation's deterministic comparison
+phase: it accepts already-observed Isabelle fact dependencies and never invokes
+Isabelle or writes wrapper theories.
 
 Use `list_projects` when a repo contains more than one project, then pass the
 returned project `id` (or a relative path / unique project name) as the optional
@@ -793,7 +799,10 @@ and adds:
 - source navigation,
 - refresh/watch support,
 - dependency navigation, status quick fixes, and node explanations,
-- commands to run `report`, `check`, `tasks`, `roadmap`, and `agent-context`,
+- commands to run `report`, `check`, `lint`, `gate`, `tasks`, `roadmap`, and
+  `agent-context`,
+- read-only lint/gate results in the existing output channel without clearing
+  project-report diagnostics,
 - next-task prompt preview directly from the CLI,
 - task prompt preview from generated `build/prompts/`,
 - memory recording from the editor context menu.

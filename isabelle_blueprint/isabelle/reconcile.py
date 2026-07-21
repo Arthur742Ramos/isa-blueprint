@@ -167,6 +167,28 @@ def reconcile_payload(project: BlueprintProject, result: ReconcileResult) -> dic
     }
 
 
+def dependency_audit_payload(
+    project: BlueprintProject,
+    actual_dependencies: dict[str, list[str]],
+) -> dict[str, object]:
+    """Compare supplied proof dependencies with the blueprint without running Isabelle."""
+
+    diffs = reconcile_diff(project, actual_dependencies)
+    nodes_with_undeclared = sum(1 for item in diffs if item.used_but_undeclared)
+    nodes_with_unused = sum(1 for item in diffs if item.declared_but_unused)
+    return {
+        "schema": "deps-audit",
+        "nodes": [item.to_dict() for item in diffs],
+        "summary": {
+            "nodes_analyzed": len(diffs),
+            "nodes_with_undeclared": nodes_with_undeclared,
+            "nodes_with_unused": nodes_with_unused,
+            "total_undeclared_edges": sum(len(item.used_but_undeclared) for item in diffs),
+            "total_unused_edges": sum(len(item.declared_but_unused) for item in diffs),
+        },
+    }
+
+
 def run_reconcile(
     project: BlueprintProject,
     *,
