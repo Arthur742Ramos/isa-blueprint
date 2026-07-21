@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 
 
 @dataclass
@@ -95,16 +95,17 @@ def leaves_subproject(project: BlueprintProject) -> BlueprintProject:
 def incomplete_subproject(project: BlueprintProject) -> BlueprintProject:
     """Return a pruned copy of ``project`` limited to its INCOMPLETE nodes.
 
-    An incomplete node is one whose :class:`FormalStatus` is neither
-    :attr:`FormalStatus.FOUND` nor :attr:`FormalStatus.PROVED` - i.e. the
-    remaining formal work. Edges to pruned (already complete) nodes are dropped
-    automatically when :func:`build_graph` rebuilds on the pruned project, so the
-    result is a "what is left to do" view: incomplete nodes plus the edges among
-    them. The original :class:`BlueprintNode` objects are reused unchanged and
-    the relevant source files are kept, mirroring :func:`roots_subproject`.
+    An incomplete node is one whose formal status is not in
+    :data:`COMPLETE_FORMAL_STATUSES` - i.e. the remaining formal work. Edges to
+    pruned (already complete) nodes are dropped automatically when
+    :func:`build_graph` rebuilds on the pruned project, so the result is a "what
+    is left to do" view: incomplete nodes plus the edges among them. The
+    original :class:`BlueprintNode` objects are reused unchanged and the
+    relevant source files are kept, mirroring :func:`roots_subproject`.
     """
-    complete = {FormalStatus.FOUND, FormalStatus.PROVED}
-    kept_nodes = [node for node in project.nodes if node.status.formal not in complete]
+    kept_nodes = [
+        node for node in project.nodes if node.status.formal not in COMPLETE_FORMAL_STATUSES
+    ]
     sources = [
         src for src in project.source_files if any(node.source_file == src for node in kept_nodes)
     ]

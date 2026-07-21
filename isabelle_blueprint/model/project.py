@@ -11,7 +11,7 @@ from typing import SupportsIndex
 
 from isabelle_blueprint.errors import ValidationError
 from isabelle_blueprint.model.node import BlueprintNode
-from isabelle_blueprint.model.status import AgentStatus, FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, AgentStatus, FormalStatus
 
 
 class _TrackedNodeList(list[BlueprintNode]):
@@ -316,8 +316,7 @@ class BlueprintProject:
                 node.status.agent = AgentStatus.SOLVED
                 continue
             deps_ok = all(
-                (dep := by_id.get(dep_id))
-                and dep.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}
+                (dep := by_id.get(dep_id)) and dep.status.formal in COMPLETE_FORMAL_STATUSES
                 for dep_id in node.uses
             )
             node.status.agent = AgentStatus.READY if deps_ok else AgentStatus.BLOCKED

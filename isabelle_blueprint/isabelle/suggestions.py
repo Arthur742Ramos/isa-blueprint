@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, FormalStatus
 from isabelle_blueprint.scaffold import suggest_fact
 
 
@@ -78,7 +78,7 @@ def _candidate_facts(
     candidates = {
         node.isabelle.fact
         for node in project.nodes
-        if node.isabelle.fact and node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}
+        if node.isabelle.fact and node.status.formal in COMPLETE_FORMAL_STATUSES
     }
     candidates.update(node.isabelle.fact for node in project.nodes if node.isabelle.fact)
     for node in project.nodes:

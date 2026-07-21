@@ -22,7 +22,7 @@ from isabelle_blueprint.agents.runner import prompt_filename
 from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 
 
 @dataclass
@@ -69,7 +69,7 @@ def _is_ready(
     project: BlueprintProject,
     by_id: dict[str, BlueprintNode] | None = None,
 ) -> bool:
-    if node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}:
+    if node.status.formal in COMPLETE_FORMAL_STATUSES:
         return False
     # A fresh ``by_id()`` copy is an O(n) rebuild-or-copy on every call; accept
     # a shared mapping (or fall back to the project's cached, zero-copy
@@ -82,7 +82,7 @@ def _is_ready(
         dep = by_id.get(dep_id)
         if dep is None:
             return False
-        if dep.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+        if dep.status.formal not in COMPLETE_FORMAL_STATUSES:
             return False
     return True
 
@@ -596,13 +596,12 @@ def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
         ensure(node_id)
         return descendants_memo.get(node_id, set())
 
-    complete_statuses = {FormalStatus.FOUND, FormalStatus.PROVED}
     counts: dict[str, int] = {}
     for node in project.nodes:
         count = 0
         for dependent in descendants(node.id):
             dependent_node = by_id.get(dependent)
-            if dependent_node and dependent_node.status.formal not in complete_statuses:
+            if dependent_node and dependent_node.status.formal not in COMPLETE_FORMAL_STATUSES:
                 count += 1
         if count:
             counts[node.id] = count

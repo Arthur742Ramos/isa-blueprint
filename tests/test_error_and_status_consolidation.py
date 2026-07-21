@@ -13,8 +13,12 @@ Covers two refactors:
 
 from __future__ import annotations
 
+import isabelle_blueprint.agents.selection as selection
+import isabelle_blueprint.agents.tasks as tasks
 import isabelle_blueprint.errors as errors
 import isabelle_blueprint.graph.dependency_graph as dependency_graph
+import isabelle_blueprint.isabelle.suggestions as suggestions
+import isabelle_blueprint.model.project as project_model
 import isabelle_blueprint.report.depends as depends
 import isabelle_blueprint.report.impact as impact
 import isabelle_blueprint.report.path as path
@@ -32,6 +36,11 @@ def test_report_modules_reexport_the_shared_constant() -> None:
     # constant, so they must be the exact same frozenset object as the
     # canonical one in model.status -- not merely an equal-by-value copy.
     assert roadmap.COMPLETE_FORMAL_STATUSES is COMPLETE_FORMAL_STATUSES
+
+
+def test_all_completion_checks_import_the_shared_constant() -> None:
+    modules = (dependency_graph, project_model, selection, suggestions, tasks)
+    assert all(module.COMPLETE_FORMAL_STATUSES is COMPLETE_FORMAL_STATUSES for module in modules)
 
 
 def test_scorecard_complete_formal_derives_from_shared_constant() -> None:
