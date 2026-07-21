@@ -6,10 +6,85 @@ import json
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import SupportsIndex
 
 from isabelle_blueprint.errors import ValidationError
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.status import AgentStatus, FormalStatus
+
+
+class _TrackedNodeList(list[BlueprintNode]):
+    """A ``list[BlueprintNode]`` that counts every mutation it undergoes.
+
+    ``BlueprintProject.nodes`` is transparently wrapped in this subclass
+    (see ``BlueprintProject.__setattr__``) purely so ``by_id()``'s cache can
+    tell *whether* the list changed since the index was built -- not just
+    "was it replaced" or "did its length change" (which misses same-length
+    in-place edits), but every mutating operation: ``append``, ``extend``,
+    ``insert``, ``remove``, ``pop``, ``clear``, ``sort``, ``reverse``,
+    ``+=``/``*=``, single-index assignment (``nodes[i] = other``), and slice
+    assignment/deletion. Reads are completely unaffected -- this is a plain
+    list to every other consumer, just with a monotonically increasing
+    ``_version`` counter bumped after each mutation.
+    """
+
+    def __init__(self, *args: Iterable[BlueprintNode]) -> None:
+        super().__init__(*args)
+        self._version = 0
+
+    def _bump(self) -> None:
+        self._version += 1
+
+    def append(self, obj: BlueprintNode) -> None:
+        super().append(obj)
+        self._bump()
+
+    def extend(self, iterable: Iterable[BlueprintNode]) -> None:
+        super().extend(iterable)
+        self._bump()
+
+    def insert(self, index: SupportsIndex, obj: BlueprintNode) -> None:
+        super().insert(index, obj)
+        self._bump()
+
+    def remove(self, value: BlueprintNode) -> None:
+        super().remove(value)
+        self._bump()
+
+    def pop(self, index: SupportsIndex = -1) -> BlueprintNode:
+        value = super().pop(index)
+        self._bump()
+        return value
+
+    def clear(self) -> None:
+        super().clear()
+        self._bump()
+
+    def sort(self, *args: object, **kwargs: object) -> None:
+        super().sort(*args, **kwargs)  # type: ignore[call-overload]
+        self._bump()
+
+    def reverse(self) -> None:
+        super().reverse()
+        self._bump()
+
+    def __setitem__(self, index: object, value: object) -> None:
+        super().__setitem__(index, value)  # type: ignore[call-overload]
+        self._bump()
+
+    def __delitem__(self, index: object) -> None:
+        super().__delitem__(index)  # type: ignore[arg-type]
+        self._bump()
+
+    def __iadd__(self, other: Iterable[BlueprintNode]) -> _TrackedNodeList:  # type: ignore[override, misc]
+        result = super().__iadd__(other)
+        self._bump()
+        return result  # type: ignore[return-value]
+
+    def __imul__(self, n: SupportsIndex) -> _TrackedNodeList:
+        result = super().__imul__(n)
+        self._bump()
+        return result  # type: ignore[return-value]
 
 
 @dataclass
@@ -69,20 +144,32 @@ class BlueprintProject:
     nodes: list[BlueprintNode] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
 
-    # Cache for by_id(): (identity of the `nodes` list, its length, index).
-    # Invalidated whenever `nodes` is reassigned or its length changes (e.g.
-    # append/remove/insert/extend/pop, or `project.nodes = [...]`). In-place
-    # attribute mutation on an already-present node (e.g. updating `status`)
-    # never needs invalidation: the cached index stores references to the
-    # same node objects, so such mutations are visible automatically. The one
-    # theoretical gap is replacing an element in place at the same index
-    # (``project.nodes[i] = other_node``) without changing list identity or
-    # length -- this pattern isn't used anywhere in this codebase, so it's
-    # documented here rather than solved with an O(n) fingerprint that would
-    # defeat the point of caching.
+    # Cache for by_id(): (identity of the `nodes` list, its `_version` at
+    # build time, index). `self.nodes` is transparently wrapped in
+    # `_TrackedNodeList` (see `__setattr__` below), which bumps a private
+    # `_version` counter on *every* mutating operation -- append, extend,
+    # insert, remove, pop, clear, sort, reverse, `+=`/`*=`, single-index
+    # assignment (`nodes[i] = other_node`), and slice assignment/deletion.
+    # The cache is valid iff the list object is still the same one *and* its
+    # version hasn't advanced, so same-length in-place edits (which a plain
+    # `(identity, len)` check would miss) are also caught, at O(1) cost.
+    # In-place attribute mutation on an already-present node (e.g. updating
+    # `status`) never needs invalidation: the cached index stores references
+    # to the same node objects, so such mutations are visible automatically.
+    # The one residual, deliberately out-of-scope gap is mutating
+    # `node.id` directly in place (`node.id = "new"`) without going through
+    # any list operation -- nothing in this codebase does that; the
+    # supported way to rename a node's id is index replacement
+    # (`project.nodes[i] = dataclasses.replace(node, id="new")`), which the
+    # `_TrackedNodeList.__setitem__` override already invalidates correctly.
     _id_index_cache: tuple[list[BlueprintNode], int, dict[str, BlueprintNode]] | None = field(
         default=None, init=False, repr=False, compare=False
     )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "nodes" and not isinstance(value, _TrackedNodeList):
+            value = _TrackedNodeList(value)  # type: ignore[arg-type]
+        super().__setattr__(name, value)
 
     # ---- collection helpers ------------------------------------------------
 
@@ -92,27 +179,42 @@ class BlueprintProject:
     def __len__(self) -> int:
         return len(self.nodes)
 
+    def _by_id_index(self) -> dict[str, BlueprintNode]:
+        """Return the *live*, cached node-id index -- for internal use only.
+
+        This is the zero-copy counterpart to :meth:`by_id`: it returns the
+        cached ``dict`` object directly rather than a defensive copy, so
+        repeated internal lookups (task generation, dependency-depth and
+        blocking-count calculations, ...) don't each pay an O(n) rebuild or
+        an O(n) copy. Callers **must never mutate** the returned mapping --
+        it is shared and reused across calls until ``self.nodes`` changes.
+        Public/external code should call :meth:`by_id` instead, which
+        returns an independent copy.
+        """
+        version = getattr(self.nodes, "_version", 0)
+        cache = self._id_index_cache
+        if cache is not None and cache[0] is self.nodes and cache[1] == version:
+            return cache[2]
+        index = {node.id: node for node in self.nodes}
+        self._id_index_cache = (self.nodes, version, index)
+        return index
+
     def by_id(self) -> dict[str, BlueprintNode]:
         """Return a mapping of node id -> node.
 
         The underlying index is cached and reused across calls as long as
-        ``self.nodes`` hasn't been structurally changed since it was built
-        (see ``_id_index_cache``), so hot paths that call ``by_id()``
-        repeatedly (task generation, dependency-depth/blocking-count
-        calculations, report generators, ...) don't each pay a full O(n)
-        rebuild. A fresh ``dict`` is still returned on every call -- callers
-        get an independent object, exactly as before -- so accidental
-        mutation of the result can never corrupt the cache.
+        ``self.nodes`` hasn't changed since it was built (see
+        ``_id_index_cache`` / :meth:`_by_id_index`), so hot paths that call
+        ``by_id()`` repeatedly (task generation, dependency-depth/blocking-
+        count calculations, report generators, ...) don't each pay a full
+        O(n) rebuild. A fresh ``dict`` is still returned on every call --
+        callers get an independent object, exactly as before -- so
+        accidental mutation of the result can never corrupt the cache.
         """
-        cache = self._id_index_cache
-        if cache is not None and cache[0] is self.nodes and cache[1] == len(self.nodes):
-            return dict(cache[2])
-        index = {node.id: node for node in self.nodes}
-        self._id_index_cache = (self.nodes, len(self.nodes), index)
-        return dict(index)
+        return dict(self._by_id_index())
 
     def get(self, node_id: str) -> BlueprintNode | None:
-        return self.by_id().get(node_id)
+        return self._by_id_index().get(node_id)
 
     # ---- validation --------------------------------------------------------
 
@@ -205,7 +307,7 @@ class BlueprintProject:
         Otherwise the node is BLOCKED, unless it is already PROVED (then SOLVED).
         ``IN_PROGRESS``/``ATTEMPTED``/``NEEDS_HUMAN`` set by humans are preserved.
         """
-        by_id = self.by_id()
+        by_id = self._by_id_index()
         manual = {AgentStatus.IN_PROGRESS, AgentStatus.ATTEMPTED, AgentStatus.NEEDS_HUMAN}
         for node in self.nodes:
             if node.status.agent in manual:

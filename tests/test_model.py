@@ -173,6 +173,111 @@ def test_by_id_cache_does_not_leak_across_instances_from_from_nodes():
     assert set(project2.by_id()) == {"b"}
 
 
+def test_by_id_cache_invalidated_on_single_index_assignment():
+    """Same-length in-place edit via `nodes[i] = other` -- the bug the
+    (identity, len) check used to miss entirely."""
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b")])
+    assert set(project.by_id()) == {"a", "b"}
+    project.nodes[0] = _node("z")
+    assert set(project.by_id()) == {"z", "b"}
+    assert "a" not in project.by_id()
+
+
+def test_by_id_cache_invalidated_on_slice_assignment_same_length():
+    """Same-length slice assignment must also invalidate: identity and len
+    are unchanged, only content differs."""
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a"), _node("b"), _node("c")]
+    )
+    assert set(project.by_id()) == {"a", "b", "c"}
+    project.nodes[0:2] = [_node("x"), _node("y")]
+    assert set(project.by_id()) == {"x", "y", "c"}
+
+
+def test_by_id_cache_invalidated_on_slice_assignment_different_length():
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b")])
+    project.nodes[0:1] = [_node("x"), _node("y"), _node("z")]
+    assert set(project.by_id()) == {"x", "y", "z", "b"}
+
+
+def test_by_id_cache_invalidated_on_sort():
+    """`.sort()` reorders in place -- same identity, same length, same ids,
+    but callers relying on iteration order must still see fresh results and
+    the cache bookkeeping must not go stale."""
+    project = BlueprintProject.from_nodes("p", [_node("b"), _node("a")])
+    project.by_id()  # warm the cache
+    cached = project._id_index_cache
+    project.nodes.sort(key=lambda n: n.id)
+    assert [n.id for n in project.nodes] == ["a", "b"]
+    project.by_id()  # trigger a rebuild check
+    assert project._id_index_cache is not cached, "version must bump on sort()"
+    assert set(project.by_id()) == {"a", "b"}
+
+
+def test_by_id_cache_invalidated_on_reverse():
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b"), _node("c")])
+    project.by_id()  # warm the cache
+    cached = project._id_index_cache
+    project.nodes.reverse()
+    assert [n.id for n in project.nodes] == ["c", "b", "a"]
+    project.by_id()  # trigger a rebuild check
+    assert project._id_index_cache is not cached, "version must bump on reverse()"
+    assert set(project.by_id()) == {"a", "b", "c"}
+
+
+def test_by_id_cache_invalidated_on_iadd():
+    """`+=` mutates the existing list object in place (same identity)."""
+    project = BlueprintProject.from_nodes("p", [_node("a")])
+    assert set(project.by_id()) == {"a"}
+    project.nodes += [_node("b"), _node("c")]
+    assert set(project.by_id()) == {"a", "b", "c"}
+
+
+def test_by_id_cache_invalidated_on_imul():
+    project = BlueprintProject.from_nodes("p", [_node("a")])
+    assert set(project.by_id()) == {"a"}
+    project.nodes *= 3
+    assert len(project.nodes) == 3
+    assert set(project.by_id()) == {"a"}
+
+
+def test_by_id_cache_invalidated_on_id_rename_via_index_replacement():
+    """The supported way to rename a node's id: replace it by index with a
+    `dataclasses.replace`d copy. `__setitem__` must invalidate this."""
+    import dataclasses
+
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b")])
+    assert set(project.by_id()) == {"a", "b"}
+    old = project.nodes[0]
+    project.nodes[0] = dataclasses.replace(old, id="renamed")
+    assert set(project.by_id()) == {"renamed", "b"}
+    assert "a" not in project.by_id()
+
+
+def test_private_index_accessor_returns_live_object_without_rebuild():
+    """`_by_id_index()` is the zero-copy hot-path accessor: repeated calls
+    with no mutation in between must return the *same* dict object (no
+    rebuild), unlike the public `by_id()` which always copies."""
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b")])
+    first = project._by_id_index()
+    second = project._by_id_index()
+    assert first is second, "no mutation occurred; must reuse the cached dict"
+    project.nodes.append(_node("c"))
+    third = project._by_id_index()
+    assert third is not first, "mutation occurred; must rebuild"
+    assert set(third) == {"a", "b", "c"}
+
+
+def test_private_index_accessor_is_the_same_object_by_id_copies_from():
+    """`by_id()` must be built from `_by_id_index()`'s live cache (not a
+    parallel/duplicate cache), so both stay in lockstep."""
+    project = BlueprintProject.from_nodes("p", [_node("a")])
+    internal = project._by_id_index()
+    external = project.by_id()
+    assert external == internal
+    assert external is not internal, "by_id() must still copy for external safety"
+
+
 def test_validate_ok_for_dag():
     project = BlueprintProject.from_nodes("p", [_node("a"), _node("b", uses=["a"])])
     report = project.validate()

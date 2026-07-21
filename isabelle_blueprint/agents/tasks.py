@@ -70,11 +70,13 @@ def _is_ready(
 ) -> bool:
     if node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}:
         return False
-    # ``by_id`` is an O(n) dict rebuild; accept a shared one so callers iterating
-    # over every node don't pay it once per node (an O(n^2) trap on the hot
-    # generate_tasks path, which runs on status/report/portfolio/agent-context).
+    # A fresh ``by_id()`` copy is an O(n) rebuild-or-copy on every call; accept
+    # a shared mapping (or fall back to the project's cached, zero-copy
+    # internal index) so callers iterating over every node don't pay it once
+    # per node (an O(n^2) trap on the hot generate_tasks path, which runs on
+    # status/report/portfolio/agent-context).
     if by_id is None:
-        by_id = project.by_id()
+        by_id = project._by_id_index()
     for dep_id in node.uses:
         dep = by_id.get(dep_id)
         if dep is None:
@@ -91,7 +93,7 @@ def generate_tasks(
     memory: AgentMemory | None = None,
 ) -> list[AgentTask]:
     tasks: list[AgentTask] = []
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     depths = _dependency_depths(project)
     blocking_counts = _blocking_counts(project)
     suggestion_index = suggestions_by_node(fact_suggestions or [])
@@ -465,7 +467,7 @@ def github_issue_drafts(
 
 
 def _dependency_depths(project: BlueprintProject) -> dict[str, int]:
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     memo: dict[str, int] = {}
     visiting: set[str] = set()
 
@@ -535,7 +537,7 @@ def _dependency_depths(project: BlueprintProject) -> dict[str, int]:
 
 
 def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     reverse: dict[str, list[str]] = {node.id: [] for node in project.nodes}
     for node in project.nodes:
         for dep_id in node.uses:
