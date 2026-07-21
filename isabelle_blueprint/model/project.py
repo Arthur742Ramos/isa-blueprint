@@ -69,6 +69,21 @@ class BlueprintProject:
     nodes: list[BlueprintNode] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
 
+    # Cache for by_id(): (identity of the `nodes` list, its length, index).
+    # Invalidated whenever `nodes` is reassigned or its length changes (e.g.
+    # append/remove/insert/extend/pop, or `project.nodes = [...]`). In-place
+    # attribute mutation on an already-present node (e.g. updating `status`)
+    # never needs invalidation: the cached index stores references to the
+    # same node objects, so such mutations are visible automatically. The one
+    # theoretical gap is replacing an element in place at the same index
+    # (``project.nodes[i] = other_node``) without changing list identity or
+    # length -- this pattern isn't used anywhere in this codebase, so it's
+    # documented here rather than solved with an O(n) fingerprint that would
+    # defeat the point of caching.
+    _id_index_cache: tuple[list[BlueprintNode], int, dict[str, BlueprintNode]] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+
     # ---- collection helpers ------------------------------------------------
 
     def __iter__(self) -> Iterator[BlueprintNode]:
@@ -78,7 +93,23 @@ class BlueprintProject:
         return len(self.nodes)
 
     def by_id(self) -> dict[str, BlueprintNode]:
-        return {node.id: node for node in self.nodes}
+        """Return a mapping of node id -> node.
+
+        The underlying index is cached and reused across calls as long as
+        ``self.nodes`` hasn't been structurally changed since it was built
+        (see ``_id_index_cache``), so hot paths that call ``by_id()``
+        repeatedly (task generation, dependency-depth/blocking-count
+        calculations, report generators, ...) don't each pay a full O(n)
+        rebuild. A fresh ``dict`` is still returned on every call -- callers
+        get an independent object, exactly as before -- so accidental
+        mutation of the result can never corrupt the cache.
+        """
+        cache = self._id_index_cache
+        if cache is not None and cache[0] is self.nodes and cache[1] == len(self.nodes):
+            return dict(cache[2])
+        index = {node.id: node for node in self.nodes}
+        self._id_index_cache = (self.nodes, len(self.nodes), index)
+        return dict(index)
 
     def get(self, node_id: str) -> BlueprintNode | None:
         return self.by_id().get(node_id)
@@ -107,7 +138,11 @@ class BlueprintProject:
                         if close:
                             report.suggestions[dep] = close
 
-        # cycle detection (DFS)
+        # cycle detection (DFS), run iteratively via an explicit stack so
+        # deep or reversed dependency chains (beyond
+        # ``sys.getrecursionlimit()``) don't raise ``RecursionError``. The
+        # traversal order, cycle-capture logic, and output ordering are kept
+        # identical to the previous recursive implementation.
         adjacency: dict[str, list[str]] = {
             n.id: [d for d in n.uses if d in all_ids] for n in self.nodes
         }
@@ -116,27 +151,45 @@ class BlueprintProject:
         on_stack: set[str] = set()
         cycles_seen: set[tuple[str, ...]] = set()
 
-        def dfs(current: str) -> None:
-            visited.add(current)
-            on_stack.add(current)
-            path.append(current)
-            for neighbour in adjacency.get(current, []):
+        for start in adjacency:
+            if start in visited:
+                continue
+            # Parallel stacks mirror the recursive call stack: `stack_ids[i]`
+            # is the node at depth `i`, and `stack_idx[i]` is the index of the
+            # next neighbour of that node still to be examined.
+            stack_ids: list[str] = [start]
+            stack_idx: list[int] = [0]
+            visited.add(start)
+            on_stack.add(start)
+            path.append(start)
+            while stack_ids:
+                current = stack_ids[-1]
+                idx = stack_idx[-1]
+                neighbours = adjacency.get(current, [])
+                if idx >= len(neighbours):
+                    # equivalent to falling off the end of dfs(current)
+                    path.pop()
+                    on_stack.discard(current)
+                    stack_ids.pop()
+                    stack_idx.pop()
+                    continue
+                stack_idx[-1] = idx + 1
+                neighbour = neighbours[idx]
                 if neighbour in on_stack:
-                    start = path.index(neighbour)
-                    cycle = tuple(path[start:] + [neighbour])
+                    cycle_start = path.index(neighbour)
+                    cycle = tuple(path[cycle_start:] + [neighbour])
                     # canonical form so we don't record both rotations
                     canonical = _canonical_cycle(cycle)
                     if canonical not in cycles_seen:
                         cycles_seen.add(canonical)
                         report.cycles.append(list(cycle))
                 elif neighbour not in visited:
-                    dfs(neighbour)
-            path.pop()
-            on_stack.discard(current)
-
-        for node_id in adjacency:
-            if node_id not in visited:
-                dfs(node_id)
+                    # equivalent to entering dfs(neighbour)
+                    visited.add(neighbour)
+                    on_stack.add(neighbour)
+                    path.append(neighbour)
+                    stack_ids.append(neighbour)
+                    stack_idx.append(0)
 
         return report
 
