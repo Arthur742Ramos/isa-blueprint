@@ -53,21 +53,24 @@ _BASE_WORKFLOW = """name: blueprint
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   blueprint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.11"
       - run: pip install isabelle-blueprint
       - run: isabelle-blueprint check .
+      - run: isabelle-blueprint gate .
       - run: isabelle-blueprint compat .
       - run: isabelle-blueprint graph .
       - run: isabelle-blueprint web .
       - run: isabelle-blueprint report .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: blueprint-site
           path: site
@@ -77,20 +80,23 @@ _AGENT_WORKFLOW = """name: blueprint
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   blueprint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.11"
       - run: pip install isabelle-blueprint
       - run: isabelle-blueprint check .
+      - run: isabelle-blueprint gate .
       - run: isabelle-blueprint tasks . --github-issues
       - run: isabelle-blueprint web .
       - run: isabelle-blueprint report .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: blueprint-agent-pack
           path: |

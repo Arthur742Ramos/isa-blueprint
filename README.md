@@ -438,6 +438,12 @@ directories passed to Isabelle, so AFP-backed projects should add the AFP
 
 ## CI, badges, and PR comments
 
+Generated project workflows run `isabelle-blueprint gate .` as the canonical
+pass/fail quality check and pin third-party actions to immutable commit SHAs.
+The composite GitHub Action also exposes opt-in `run-lint` and `run-gate`
+inputs (both default to `false`, preserving existing action behavior) for teams
+that want those checks alongside its existing report and artifact steps.
+
 `report` writes a Shields-compatible badge payload and a standalone SVG:
 
 ```markdown

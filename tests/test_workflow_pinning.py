@@ -13,6 +13,7 @@ import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOW_DIR = _REPO_ROOT / ".github" / "workflows"
+_ROOT_ACTION = _REPO_ROOT / "action.yml"
 _DEPENDABOT = _REPO_ROOT / ".github" / "dependabot.yml"
 
 # ``owner/repo@<ref>`` with an optional ``# comment``. Only local actions
@@ -27,7 +28,8 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 def _iter_uses() -> list[tuple[Path, str, str | None]]:
     """Return ``(file, action_ref, trailing_comment)`` for every ``uses:`` line."""
     found: list[tuple[Path, str, str | None]] = []
-    for wf in sorted(_WORKFLOW_DIR.glob("*.yml")):
+    workflow_files = [*sorted(_WORKFLOW_DIR.glob("*.yml")), _ROOT_ACTION]
+    for wf in workflow_files:
         for line in wf.read_text(encoding="utf-8").splitlines():
             match = _USES_RE.match(line)
             if not match:

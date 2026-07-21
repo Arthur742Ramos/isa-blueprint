@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.project import BlueprintProject
@@ -42,6 +43,16 @@ from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, BlueprintS
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
 SCORECARD_SCHEMA_VERSION = 1
+
+class _ScoreConsole(Protocol):
+    def dim(self, text: str) -> str: ...
+
+    def success(self, text: str) -> str: ...
+
+    def warning(self, text: str) -> str: ...
+
+    def error(self, text: str) -> str: ...
+
 
 # Statuses that count as "complete" formal work for readiness purposes, as
 # their string values (this module compares against ``status.formal.value``).
@@ -563,7 +574,7 @@ def _weighted_score(components: tuple[ScoreComponent, ...]) -> int | None:
     return round(weighted / total_weight * 100)
 
 
-def _paint_score(text: str, score: int | None, console) -> str:  # type: ignore[no-untyped-def]
+def _paint_score(text: str, score: int | None, console: _ScoreConsole) -> str:
     if score is None:
         return console.dim(text)
     if score >= 80:

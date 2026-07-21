@@ -8,10 +8,11 @@ import platform
 import re
 import sys
 import time
+from collections.abc import Callable
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from isabelle_blueprint import __version__, console
 from isabelle_blueprint.agents.assignments import (
@@ -902,7 +903,12 @@ def _watch_check(args: argparse.Namespace) -> int:
     return _run_watch(args, _run_check_once, label="checked")
 
 
-def _run_watch(args: argparse.Namespace, run_once, *, label: str = "ran") -> int:
+def _run_watch(
+    args: argparse.Namespace,
+    run_once: Callable[[argparse.Namespace], int],
+    *,
+    label: str = "ran",
+) -> int:
     """Re-run ``run_once(args)`` whenever an input source changes.
 
     Shared by ``check``/``report``/``status``/``tasks``; it only watches input
@@ -5485,7 +5491,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     console.configure(getattr(args, "color", "auto"), stream=sys.stdout)
     try:
-        return args.func(args)
+        func = cast(Callable[[argparse.Namespace], int], args.func)
+        return func(args)
     except BlueprintError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

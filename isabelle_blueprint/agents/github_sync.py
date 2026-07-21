@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from isabelle_blueprint.errors import BlueprintError
 
@@ -107,7 +107,12 @@ class GitHubApiClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return json.loads(response.read().decode("utf-8"))
+                decoded = json.loads(response.read().decode("utf-8"))
+                if not isinstance(decoded, dict):
+                    raise BlueprintError(
+                        f"GitHub API {method} {path} returned a non-object response"
+                    )
+                return cast(dict[str, Any], decoded)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise BlueprintError(

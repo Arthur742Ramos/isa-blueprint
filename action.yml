@@ -19,6 +19,12 @@ inputs:
   run-check:
     description: Run `isabelle-blueprint check`.
     default: 'true'
+  run-lint:
+    description: Run `isabelle-blueprint lint --strict`.
+    default: 'false'
+  run-gate:
+    description: Run the canonical `isabelle-blueprint gate` CI quality gate.
+    default: 'false'
   run-graph:
     description: Run `isabelle-blueprint graph`.
     default: 'true'
@@ -62,7 +68,7 @@ runs:
   using: composite
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
       with:
         python-version: ${{ inputs.python-version }}
         cache: pip
@@ -86,6 +92,16 @@ runs:
       if: inputs.run-check == 'true'
       shell: bash
       run: isabelle-blueprint check "${{ inputs.project_dir }}"
+
+    - name: Lint blueprint
+      if: inputs.run-lint == 'true'
+      shell: bash
+      run: isabelle-blueprint lint "${{ inputs.project_dir }}" --strict
+
+    - name: Enforce blueprint quality gate
+      if: inputs.run-gate == 'true'
+      shell: bash
+      run: isabelle-blueprint gate "${{ inputs.project_dir }}"
 
     - name: Generate dependency graph
       if: inputs.run-graph == 'true'
