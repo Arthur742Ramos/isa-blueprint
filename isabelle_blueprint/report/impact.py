@@ -34,10 +34,11 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
-from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 IMPACT_SCHEMA_VERSION = 1
 
@@ -132,10 +133,6 @@ class ImpactOverview:
             "rankings": [rank.to_dict() for rank in self.rankings],
             "cycles": [list(cycle) for cycle in self.cycles],
         }
-
-
-class UnknownNodeError(KeyError):
-    """Raised when an ``impact`` target id is not present in the project."""
 
 
 def _build_context(project: BlueprintProject):

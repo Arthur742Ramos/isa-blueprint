@@ -68,6 +68,15 @@ STATUS_COLORS: dict[str, str] = {
 }
 
 
+# Formal statuses that count as "complete" work: the fact exists and either
+# has not yet been checked for taint (``found``) or is fully trusted
+# (``proved``). Shared by every report that needs to ask "is this node done?"
+# so the definition lives in one place instead of being redefined per module.
+COMPLETE_FORMAL_STATUSES: frozenset[FormalStatus] = frozenset(
+    {FormalStatus.FOUND, FormalStatus.PROVED}
+)
+
+
 _StatusEnumT = TypeVar("_StatusEnumT", BlueprintStatus, FormalStatus, AgentStatus)
 
 _AXIS_NAMES: dict[type, str] = {

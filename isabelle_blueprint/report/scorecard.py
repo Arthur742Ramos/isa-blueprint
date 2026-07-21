@@ -38,15 +38,16 @@ from pathlib import Path
 
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, BlueprintStatus
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
 SCORECARD_SCHEMA_VERSION = 1
 
-# Statuses that count as "complete" formal work for readiness purposes. Kept
-# local (rather than importing roadmap.COMPLETE_FORMAL_STATUSES) so this module
-# stays free of cross-report coupling; the set mirrors that definition.
-_COMPLETE_FORMAL = frozenset({FormalStatus.FOUND.value, FormalStatus.PROVED.value})
+# Statuses that count as "complete" formal work for readiness purposes, as
+# their string values (this module compares against ``status.formal.value``).
+# Derived from the shared model.status definition so every report agrees on
+# what "complete" means.
+_COMPLETE_FORMAL = frozenset(status.value for status in COMPLETE_FORMAL_STATUSES)
 
 # Graded credit for each informal write-up state.
 _DOC_CREDIT: dict[str, float] = {

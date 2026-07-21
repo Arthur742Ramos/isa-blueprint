@@ -145,7 +145,7 @@ from isabelle_blueprint.isabelle.theory_import import (
     render_imported_blueprint,
 )
 from isabelle_blueprint.model.node import NodeKind
-from isabelle_blueprint.model.status import AgentStatus, FormalStatus
+from isabelle_blueprint.model.status import AgentStatus, COMPLETE_FORMAL_STATUSES, FormalStatus
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.project_io import (
     apply_stored_check_report,
@@ -301,7 +301,6 @@ from isabelle_blueprint.report.proof_debt import (
     render_proof_debt_report,
 )
 from isabelle_blueprint.report.roadmap import (
-    COMPLETE_FORMAL_STATUSES,
     ROADMAP_STATUSES,
     RoadmapFilters,
     build_roadmap,
@@ -900,33 +899,16 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
 
 def _watch_check(args: argparse.Namespace) -> int:
-    project_dir = Path(args.project_dir).resolve()
-    exit_code = _run_check_once(args)
-    print(f"watching for changes (exit code {exit_code}); press Ctrl-C to stop", file=sys.stderr)
-    snapshot = _snapshot(_check_watch_paths(project_dir))
-    try:
-        while True:
-            time.sleep(max(getattr(args, "interval", 1.0), 0.1))
-            current = _snapshot(_check_watch_paths(project_dir))
-            if current != snapshot:
-                snapshot = current
-                try:
-                    exit_code = _run_check_once(args)
-                except BlueprintError as exc:
-                    print(f"error: {exc}", file=sys.stderr)
-                    exit_code = 1
-                print(f"re-checked (exit code {exit_code})", file=sys.stderr)
-    except KeyboardInterrupt:
-        print("stopped", file=sys.stderr)
-        return exit_code
+    return _run_watch(args, _run_check_once, label="checked")
 
 
-def _run_watch(args: argparse.Namespace, run_once) -> int:
+def _run_watch(args: argparse.Namespace, run_once, *, label: str = "ran") -> int:
     """Re-run ``run_once(args)`` whenever an input source changes.
 
-    Shared by ``report``/``status``/``tasks``; like ``check --watch`` it only
-    watches input sources (config + blueprint files) via ``_check_watch_paths``
-    so regenerating outputs never re-triggers the loop.
+    Shared by ``check``/``report``/``status``/``tasks``; it only watches input
+    sources (config + blueprint files) via ``_check_watch_paths`` so
+    regenerating outputs never re-triggers the loop. ``label`` customizes the
+    per-iteration status message (e.g. ``"checked"`` vs. the default ``"ran"``).
     """
 
     project_dir = Path(args.project_dir).resolve()
@@ -944,7 +926,7 @@ def _run_watch(args: argparse.Namespace, run_once) -> int:
                 except BlueprintError as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     exit_code = 1
-                print(f"re-ran (exit code {exit_code})", file=sys.stderr)
+                print(f"re-{label} (exit code {exit_code})", file=sys.stderr)
     except KeyboardInterrupt:
         print("stopped", file=sys.stderr)
         return exit_code
@@ -1676,24 +1658,31 @@ def _resolve_lint_format(args: argparse.Namespace) -> str:
 PROG_NAME = "isabelle-blueprint"
 
 
-def _subcommand_names() -> list[str]:
-    """Return the sorted list of registered subcommand names."""
+def _subcommand_names(parser: argparse.ArgumentParser | None = None) -> list[str]:
+    """Return the sorted list of registered subcommand names.
 
-    parser = _build_parser()
+    Pass an already-built ``parser`` (e.g. from :func:`cmd_completion`) to avoid
+    constructing a fresh one; a new parser is built by default so callers never
+    observe a shared, mutable instance.
+    """
+
+    parser = parser if parser is not None else _build_parser()
     for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
         if isinstance(action, argparse._SubParsersAction):
             return sorted(action.choices)
     return []
 
 
-def _subcommand_options() -> dict[str, list[str]]:
+def _subcommand_options(parser: argparse.ArgumentParser | None = None) -> dict[str, list[str]]:
     """Map each registered subcommand to its sorted option strings.
 
     Generated from the live parser so the completion scripts never drift from
-    the actual flags a subcommand accepts.
+    the actual flags a subcommand accepts. Pass an already-built ``parser`` to
+    avoid constructing a fresh one; a new parser is built by default so callers
+    never observe a shared, mutable instance.
     """
 
-    parser = _build_parser()
+    parser = parser if parser is not None else _build_parser()
     result: dict[str, list[str]] = {}
     for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
         if isinstance(action, argparse._SubParsersAction):
@@ -1723,8 +1712,9 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 
 def cmd_completion(args: argparse.Namespace) -> int:
-    commands = _subcommand_names()
-    options = _subcommand_options()
+    parser = _build_parser()
+    commands = _subcommand_names(parser)
+    options = _subcommand_options(parser)
     if args.install or args.dest:
         target, hint = install_completion(
             args.shell, PROG_NAME, commands, options, dest=args.dest
@@ -3402,34 +3392,93 @@ def _cmd_search_facts_isabelle(args: argparse.Namespace) -> int:
     return 0
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="isabelle-blueprint",
-        description="Isabelle-aware blueprint tooling.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""common workflows:
+_COMMAND_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "project",
+        "scaffold, validate, and audit a project",
+        ("init", "check", "reconcile"),
+    ),
+    (
+        "explore",
+        "graph, catalogs, and dependency/coverage queries",
+        (
+            "graph", "scorecard", "kinds", "matrix", "tags", "tag-cooccurrence",
+            "path", "depends", "orphans", "levels", "fact-coverage",
+        ),
+    ),
+    (
+        "quality",
+        "gates, risk, and staleness signals",
+        (
+            "lint", "gate", "prometheus", "effort", "proof-debt", "hooks",
+            "notify", "blame", "critical-path", "impact", "stats", "staleness",
+        ),
+    ),
+    (
+        "meta",
+        "tooling, history, and comparisons",
+        ("version", "completion", "diff", "history", "burndown", "portfolio"),
+    ),
+    (
+        "manage",
+        "ownership, edits, and compatibility",
+        ("assign", "rename", "fmt", "dump", "compat"),
+    ),
+    (
+        "site",
+        "publish the static dashboard",
+        ("web", "serve"),
+    ),
+    (
+        "agent",
+        "AI/human agent task workflow",
+        ("tasks", "next", "attempt", "agent-run"),
+    ),
+    (
+        "reporting",
+        "status output and PR integration",
+        ("report", "status", "roadmap", "agent-context", "comment"),
+    ),
+    (
+        "diagnostics",
+        "environment setup and attempt history",
+        ("doctor", "schema", "memory", "explain"),
+    ),
+    (
+        "theory",
+        "Isabelle theory generation and analysis",
+        ("import-theory", "export-theory", "theory-index", "search-facts"),
+    ),
+    (
+        "scaffold",
+        "author a new node stub",
+        ("new",),
+    ),
+)
+
+
+def _render_command_groups() -> str:
+    """Render a concise grouped taxonomy of all subcommands for --help discoverability."""
+    lines = ["command groups (run `isabelle-blueprint <command> --help` for full options):"]
+    for label, summary, names in _COMMAND_GROUPS:
+        lines.append(f"  {label} - {summary}")
+        lines.append(f"    {', '.join(names)}")
+    return "\n".join(lines)
+
+
+_TOP_LEVEL_EPILOG = f'''{_render_command_groups()}
+
+common workflows:
   isabelle-blueprint init my-formalization --template agent-ready
   isabelle-blueprint check . --strict
   isabelle-blueprint roadmap . --write
   isabelle-blueprint web . --serve
 
-Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
-    )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument(
-        "--color",
-        choices=("auto", "always", "never"),
-        default="auto",
-        help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_const",
-        const="never",
-        dest="color",
-        help="disable coloured output (alias for --color never)",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
+Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.'''
+
+
+def _register_project_commands(sub: argparse._SubParsersAction) -> None:
+    """Scaffold, validate, and audit a project."""
 
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
     p_init.add_argument(
@@ -3535,6 +3584,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit a packaged schema-style dict instead of the human report",
     )
     p_reconcile.set_defaults(func=cmd_reconcile)
+
+
+def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
+    """Graph, catalogs, and dependency/coverage queries."""
 
     p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
@@ -3849,6 +3902,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit the per-theory fact-coverage roll-up as a Markdown document",
     )
     p_fact_coverage.set_defaults(func=cmd_fact_coverage)
+
+
+def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
+    """Gates, risk, and staleness signals."""
 
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
@@ -4263,6 +4320,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_staleness.set_defaults(func=cmd_staleness)
 
+
+def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
+    """Tooling, history, and comparisons."""
+
     p_version = sub.add_parser("version", help="print version, Python, and schema information")
     p_version.add_argument("--json", action="store_true", help="emit version info as JSON")
     p_version.set_defaults(func=cmd_version)
@@ -4432,6 +4493,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_portfolio.set_defaults(func=cmd_portfolio)
 
+
+def _register_manage_commands(sub: argparse._SubParsersAction) -> None:
+    """Ownership, edits, and compatibility."""
+
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
     p_assign.add_argument(
         "node_id",
@@ -4515,6 +4580,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_compat.set_defaults(func=cmd_compat)
 
+
+def _register_site_commands(sub: argparse._SubParsersAction) -> None:
+    """Publish the static dashboard."""
+
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
     p_web.add_argument(
@@ -4544,6 +4613,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
     p_serve.set_defaults(func=cmd_serve)
+
+
+def _register_agent_commands(sub: argparse._SubParsersAction) -> None:
+    """AI/human agent task workflow."""
 
     p_tasks = sub.add_parser("tasks", help="generate agent-ready tasks and per-task prompts")
     p_tasks.add_argument("project_dir", nargs="?", default=".")
@@ -4806,6 +4879,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_agent_run.set_defaults(func=cmd_agent_run)
 
+
+def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
+    """Status output and PR integration."""
+
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
     _add_fail_on_argument(p_report)
@@ -4963,6 +5040,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_comment.set_defaults(func=cmd_comment)
 
+
+def _register_diagnostics_commands(sub: argparse._SubParsersAction) -> None:
+    """Environment setup and attempt history."""
+
     p_doctor = sub.add_parser("doctor", help="diagnose local IsabelleBlueprint setup")
     p_doctor.add_argument("project_dir", nargs="?", default=".")
     p_doctor.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
@@ -5015,6 +5096,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown", action="store_true", help="render explanations as a Markdown document"
     )
     p_explain.set_defaults(func=cmd_explain)
+
+
+def _register_theory_commands(sub: argparse._SubParsersAction) -> None:
+    """Isabelle theory generation and analysis."""
 
     p_import = sub.add_parser(
         "import-theory", help="bootstrap a blueprint from Isabelle .thy declarations"
@@ -5188,6 +5273,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_search.set_defaults(func=cmd_search_facts)
 
+
+def _register_scaffold_commands(sub: argparse._SubParsersAction) -> None:
+    """Author a new node stub."""
+
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
@@ -5224,6 +5313,45 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_new.set_defaults(func=cmd_new)
 
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="isabelle-blueprint",
+        description="Isabelle-aware blueprint tooling.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_TOP_LEVEL_EPILOG,
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_const",
+        const="never",
+        dest="color",
+        help="disable coloured output (alias for --color never)",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    for register in (
+        _register_project_commands,
+        _register_explore_commands,
+        _register_quality_commands,
+        _register_meta_commands,
+        _register_manage_commands,
+        _register_site_commands,
+        _register_agent_commands,
+        _register_reporting_commands,
+        _register_diagnostics_commands,
+        _register_theory_commands,
+        _register_scaffold_commands,
+    ):
+        register(sub)
+
     # Accept `--color`/`--no-color` after the subcommand too (e.g. `lint --color
     # never`). SUPPRESS defaults mean an omitted sub-command flag never clobbers
     # the value parsed from the top-level parser. Aliased subcommands share one
@@ -5250,6 +5378,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         )
 
     return parser
+
 
 
 def _render_web_once(project_dir: Path) -> Path:

@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
 
@@ -27,10 +28,6 @@ PATH_SCHEMA_VERSION = 1
 DIRECTION_SELF = "self"
 DIRECTION_DEPENDS_ON = "depends-on"  # source -> ... -> target (source uses target)
 DIRECTION_DEPENDED_ON_BY = "depended-on-by"  # target -> ... -> source (target uses source)
-
-
-class UnknownNodeError(KeyError):
-    """Raised when a ``path`` endpoint id is not present in the project."""
 
 
 @dataclass(frozen=True)

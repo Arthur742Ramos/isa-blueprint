@@ -20,14 +20,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
 
 DEPENDS_SCHEMA_VERSION = 1
-
-
-class UnknownNodeError(KeyError):
-    """Raised when the ``depends`` target id is not present in the project."""
 
 
 @dataclass(frozen=True)

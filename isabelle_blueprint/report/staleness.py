@@ -40,10 +40,9 @@ from datetime import UTC, datetime
 from isabelle_blueprint.graph.dependency_graph import DependencyGraph, build_graph
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, FormalStatus
 from isabelle_blueprint.report._markdown import md_cell as _md_cell
 from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
-from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 STALENESS_SCHEMA_VERSION = 1
 

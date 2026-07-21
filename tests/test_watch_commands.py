@@ -60,6 +60,65 @@ def _stop_after_first(monkeypatch) -> None:
     monkeypatch.setattr(cli.time, "sleep", _raise)
 
 
+def _stop_after_one_change(monkeypatch) -> None:
+    # Let the first poll observe a changed snapshot (triggering one re-run),
+    # then raise on the second sleep to exit deterministically, exactly like
+    # Ctrl-C after a single re-run cycle.
+    calls = {"n": 0}
+
+    def _sleep(_seconds):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli.time, "sleep", _sleep)
+
+    snapshots = iter([{"a": 1}, {"a": 2}, {"a": 2}])
+
+    def _fake_snapshot(_paths):
+        return next(snapshots, {"a": 2})
+
+    monkeypatch.setattr(cli, "_snapshot", _fake_snapshot)
+
+
+def test_check_watch_runs_once_then_stops(tmp_path: Path, capsys, monkeypatch) -> None:
+    # `check --watch` is implemented by `_watch_check` delegating to the
+    # shared `_run_watch` loop (label="checked"); this pins that the watch
+    # loop still starts, prints the banner, and stops cleanly on Ctrl-C.
+    _write_project(tmp_path)
+    _stop_after_first(monkeypatch)
+    rc = cli_main(["check", str(tmp_path), "--watch", "--interval", "0.01"])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "watching for changes" in err
+    assert "stopped" in err
+
+
+def test_check_watch_rerun_uses_checked_label(tmp_path: Path, capsys, monkeypatch) -> None:
+    # After the `_watch_check`/`_run_watch` merge, `check --watch` must still
+    # report re-runs as "re-checked" (not the generic "re-ran" used by
+    # report/status/tasks), preserving the pre-refactor wording exactly.
+    _write_project(tmp_path)
+    _stop_after_one_change(monkeypatch)
+    rc = cli_main(["check", str(tmp_path), "--watch"])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "re-checked (exit code 0)" in err
+    assert "re-ran" not in err
+
+
+def test_report_watch_rerun_uses_ran_label(tmp_path: Path, capsys, monkeypatch) -> None:
+    # The other `_run_watch` consumers (report/status/tasks) must keep using
+    # the default "re-ran" wording after the merge with `_watch_check`.
+    _write_project(tmp_path)
+    _stop_after_one_change(monkeypatch)
+    rc = cli_main(["report", str(tmp_path), "--watch"])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "re-ran (exit code 0)" in err
+    assert "re-checked" not in err
+
+
 def test_report_watch_runs_once_then_stops(tmp_path: Path, capsys, monkeypatch) -> None:
     _write_project(tmp_path)
     _stop_after_first(monkeypatch)

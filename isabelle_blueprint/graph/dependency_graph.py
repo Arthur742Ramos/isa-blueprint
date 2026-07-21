@@ -3,12 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
-
-
-class UnknownNodeError(KeyError):
-    """Raised when a focus/neighbourhood node id is not present in the project."""
 
 
 @dataclass

@@ -38,8 +38,8 @@ from pathlib import Path
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
-from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 CRITICAL_PATH_SCHEMA_VERSION = 1
 

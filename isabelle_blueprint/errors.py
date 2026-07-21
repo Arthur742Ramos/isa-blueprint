@@ -31,3 +31,17 @@ class ValidationError(BlueprintError):
 
 class CheckerError(BlueprintError):
     """The Isabelle checker could not be invoked or produced unexpected output."""
+
+
+class UnknownNodeError(BlueprintError, KeyError):
+    """A referenced node id is not present in the project.
+
+    This consolidates what were previously four independent (but identical)
+    ``UnknownNodeError`` classes defined in
+    :mod:`isabelle_blueprint.graph.dependency_graph`,
+    :mod:`isabelle_blueprint.report.depends`, :mod:`isabelle_blueprint.report.path`,
+    and :mod:`isabelle_blueprint.report.impact`. It still subclasses
+    :class:`KeyError` (as each of those did) so existing ``except KeyError`` or
+    ``except UnknownNodeError`` handling keeps working unchanged; those modules
+    now import this class instead of defining their own.
+    """

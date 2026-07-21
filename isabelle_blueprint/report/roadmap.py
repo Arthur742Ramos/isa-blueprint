@@ -14,7 +14,7 @@ from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.graph.dependency_graph import build_graph, dependency_levels
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, FormalStatus
 from isabelle_blueprint.report._markdown import md_cell_multiline as _md_cell
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
 from isabelle_blueprint.report.metrics import (
@@ -25,7 +25,6 @@ from isabelle_blueprint.report.metrics import (
 
 ROADMAP_SCHEMA_VERSION = 1
 ROADMAP_STATUSES = ("complete", "ready", "blocked", "problem", "stale")
-COMPLETE_FORMAL_STATUSES = {FormalStatus.FOUND, FormalStatus.PROVED}
 
 
 @dataclass(frozen=True)
