@@ -19,9 +19,7 @@ def _make_session(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (tmp_path / "B.thy").write_text(
-        "theory B\nimports A\nbegin\n"
-        'lemma uses_base: "foo = 0" using base sorry\n'
-        "end\n",
+        'theory B\nimports A\nbegin\nlemma uses_base: "foo = 0" using base sorry\nend\n',
         encoding="utf-8",
     )
     return tmp_path
@@ -74,9 +72,7 @@ def test_theory_index_unreferenced(tmp_path: Path, capsys) -> None:
 def test_theory_index_unreferenced_empty_has_no_blank_line(tmp_path: Path, capsys) -> None:
     # When every entry is referenced, the section prints only its message with
     # no trailing blank line.
-    (tmp_path / "ROOT").write_text(
-        "session Demo = HOL +\n  theories\n    M\n", encoding="utf-8"
-    )
+    (tmp_path / "ROOT").write_text("session Demo = HOL +\n  theories\n    M\n", encoding="utf-8")
     (tmp_path / "M.thy").write_text(
         "theory M imports Main begin\n"
         'lemma alpha: "True" using beta by simp\n'
@@ -123,15 +119,11 @@ def test_theory_index_counts_dedupes_repeated_import(tmp_path: Path, capsys) -> 
         "session Demo = HOL +\n  theories\n    A\n    B\n", encoding="utf-8"
     )
     (tmp_path / "A.thy").write_text(
-        "theory A\nimports Main\nbegin\n"
-        'lemma base: "True" by simp\n'
-        "end\n",
+        'theory A\nimports Main\nbegin\nlemma base: "True" by simp\nend\n',
         encoding="utf-8",
     )
     (tmp_path / "B.thy").write_text(
-        "theory B\nimports A A\nbegin\n"
-        'lemma uses_base: "True" using base by simp\n'
-        "end\n",
+        'theory B\nimports A A\nbegin\nlemma uses_base: "True" using base by simp\nend\n',
         encoding="utf-8",
     )
     rc = cli_main(["theory-index", "--root", str(tmp_path), "--counts", "--json"])
@@ -163,10 +155,10 @@ def test_import_theory_rejects_cyclic_session(tmp_path: Path, capsys) -> None:
         "session Demo = HOL +\n  theories\n    X\n    Y\n", encoding="utf-8"
     )
     (tmp_path / "X.thy").write_text(
-        "theory X\nimports Y\nbegin\nlemma lx: \"True\" by simp\nend\n", encoding="utf-8"
+        'theory X\nimports Y\nbegin\nlemma lx: "True" by simp\nend\n', encoding="utf-8"
     )
     (tmp_path / "Y.thy").write_text(
-        "theory Y\nimports X\nbegin\nlemma ly: \"True\" by simp\nend\n", encoding="utf-8"
+        'theory Y\nimports X\nbegin\nlemma ly: "True" by simp\nend\n', encoding="utf-8"
     )
     rc = cli_main(["import-theory", "--root", str(tmp_path)])
     assert rc == 1
@@ -176,7 +168,7 @@ def test_import_theory_rejects_cyclic_session(tmp_path: Path, capsys) -> None:
 def test_import_theory_single_file_unchanged(tmp_path: Path, capsys) -> None:
     thy = tmp_path / "Solo.thy"
     thy.write_text(
-        "theory Solo imports Main begin\nlemma solo: \"True\" by simp\nend\n",
+        'theory Solo imports Main begin\nlemma solo: "True" by simp\nend\n',
         encoding="utf-8",
     )
     rc = cli_main(["import-theory", str(thy)])

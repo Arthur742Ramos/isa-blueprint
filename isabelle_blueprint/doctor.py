@@ -1,4 +1,5 @@
 """Environment diagnostics for IsabelleBlueprint projects."""
+
 from __future__ import annotations
 
 import json
@@ -244,4 +245,3 @@ def _check_afp(config: BlueprintConfig) -> list[DoctorCheck]:
             status = "error" if config.afp_required else "warning"
             return [DoctorCheck("afp", status, f"AFP entry not found: {entry_path}", details)]
     return [DoctorCheck("afp", "ok", f"AFP root is readable: {config.afp_root}", details)]
-

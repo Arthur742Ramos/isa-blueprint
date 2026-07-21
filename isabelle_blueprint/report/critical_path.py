@@ -27,6 +27,7 @@ leverage ranking (their ordering would be arbitrary) and surfaced in a separate
 cycles section instead. Note this is a *remaining-work* longest path, not a
 scheduler-style weighted critical path: there is no duration/effort weighting.
 """
+
 from __future__ import annotations
 
 import csv
@@ -38,8 +39,8 @@ from pathlib import Path
 
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
-from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 CRITICAL_PATH_SCHEMA_VERSION = 1
 
@@ -162,9 +163,7 @@ def build_critical_path(project: BlueprintProject) -> CriticalPathOverview:
         return sorted(dep for dep in graph.edges.get(node_id, []) if is_relevant(dep))
 
     def relevant_dependents(node_id: str) -> list[str]:
-        return sorted(
-            child for child in graph.reverse_edges.get(node_id, []) if is_relevant(child)
-        )
+        return sorted(child for child in graph.reverse_edges.get(node_id, []) if is_relevant(child))
 
     # Longest incomplete dependency chain ending at each relevant node, memoised
     # with a visiting guard so any residual self-reference stays finite.
@@ -278,9 +277,7 @@ def goal_chain_for(overview: CriticalPathOverview, node_id: str) -> GoalChain | 
     return None
 
 
-def _apply_min_leverage(
-    bottlenecks: list[Bottleneck], min_leverage: int
-) -> list[Bottleneck]:
+def _apply_min_leverage(bottlenecks: list[Bottleneck], min_leverage: int) -> list[Bottleneck]:
     """Keep only bottlenecks whose leverage meets ``min_leverage`` (0 = no filter)."""
 
     if min_leverage <= 0:
@@ -418,9 +415,7 @@ def render_critical_path_mermaid(
     elif overview.longest is not None:
         path = list(overview.longest.path)
     else:
-        return _mermaid_message(
-            "No critical path: remaining work is tangled in cycles."
-        )
+        return _mermaid_message("No critical path: remaining work is tangled in cycles.")
 
     bottleneck_ids = {
         b.node_id for b in _apply_min_leverage(overview.bottlenecks, min_leverage)[:top]
@@ -436,8 +431,7 @@ def render_critical_path_mermaid(
     for node_id in path:
         if node_id in bottleneck_ids:
             lines.append(
-                f"  style {mermaid_node_id(node_id)} "
-                "fill:#fde047,stroke:#1f2937,color:#111827"
+                f"  style {mermaid_node_id(node_id)} fill:#fde047,stroke:#1f2937,color:#111827"
             )
     return "\n".join(lines) + "\n"
 
@@ -536,9 +530,7 @@ def write_critical_path(
     was_enabled = console.is_enabled()
     console.set_enabled(False)
     try:
-        markdown = render_critical_path(
-            overview, top=md_top, goal=goal, min_leverage=min_leverage
-        )
+        markdown = render_critical_path(overview, top=md_top, goal=goal, min_leverage=min_leverage)
     finally:
         console.set_enabled(was_enabled)
     md_path.write_text(markdown, encoding="utf-8")
@@ -584,10 +576,7 @@ def _append_cycles(lines: list[str], overview: CriticalPathOverview, console) ->
 def critical_path_strict_failures(overview: CriticalPathOverview) -> list[str]:
     """Return human-readable strings describing cycle failures, if any."""
 
-    return [
-        "cycle: " + " -> ".join(cycle)
-        for cycle in overview.cycles
-    ]
+    return ["cycle: " + " -> ".join(cycle) for cycle in overview.cycles]
 
 
 def _format_path(path: Iterable[str]) -> str:

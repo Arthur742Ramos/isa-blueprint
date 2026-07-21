@@ -1,12 +1,20 @@
 """Tests for agent-task generation."""
+
 from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from isabelle_blueprint.agents.memory import node_input_hash, record_memory_attempt
-from isabelle_blueprint.agents.tasks import generate_tasks, render_task_prompt, write_tasks
+from isabelle_blueprint.agents.tasks import (
+    _blocking_counts,
+    _dependency_depths,
+    generate_tasks,
+    render_task_prompt,
+    write_tasks,
+)
 from isabelle_blueprint.cli import main as cli_main
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
@@ -36,6 +44,128 @@ def _node(
     )
 
 
+def _chain_reversed(n: int):
+    """n0 -> n1 -> ... -> n_{n-1} (earlier nodes depend on later ones)."""
+    nodes = [_node(f"n{i}", f"Demo.n{i}", uses=[f"n{i + 1}"]) for i in range(n - 1)]
+    nodes.append(_node(f"n{n - 1}", f"Demo.n{n - 1}"))
+    return nodes
+
+
+def _chain_natural(n: int):
+    """n0 <- n1 <- ... <- n_{n-1} (later nodes depend on earlier ones).
+
+    This is the realistic blueprint shape (later theorems depend on earlier
+    lemmas) and is the pathological direction for _blocking_counts(), which
+    walks the reverse-adjacency graph.
+    """
+    nodes = [_node("n0", "Demo.n0")]
+    for i in range(1, n):
+        nodes.append(_node(f"n{i}", f"Demo.n{i}", uses=[f"n{i - 1}"]))
+    return nodes
+
+
+def _big_cycle(n: int):
+    """A single ring: n_i uses n_{(i+1) % n} for all i."""
+    return [_node(f"n{i}", f"Demo.n{i}", uses=[f"n{(i + 1) % n}"]) for i in range(n)]
+
+
+def test_dependency_depths_self_cycle():
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", uses=["a"])])
+    assert _dependency_depths(project) == {"a": 1}
+
+
+def test_dependency_depths_two_cycle():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", "Demo.a", uses=["b"]), _node("b", "Demo.b", uses=["a"])]
+    )
+    assert _dependency_depths(project) == {"a": 2, "b": 1}
+
+
+def test_dependency_depths_simple_chain():
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", "Demo.a", uses=["b"]), _node("b", "Demo.b")]
+    )
+    assert _dependency_depths(project) == {"a": 1, "b": 0}
+
+
+def test_blocking_counts_linear_chain():
+    """c -> b -> a (c depends on b, b depends on a): descendants(a) = {b, c}."""
+    project = BlueprintProject.from_nodes(
+        "p",
+        [
+            _node("a", "Demo.a"),
+            _node("b", "Demo.b", uses=["a"]),
+            _node("c", "Demo.c", uses=["b"]),
+        ],
+    )
+    counts = _blocking_counts(project)
+    assert counts == {"a": 2, "b": 1}
+
+
+def test_blocking_counts_two_cycle():
+    """a uses b, b uses a: descendants(a) = {a, b} (self-reachable via the
+    cycle), descendants(b) = {a}."""
+    project = BlueprintProject.from_nodes(
+        "p", [_node("a", "Demo.a", uses=["b"]), _node("b", "Demo.b", uses=["a"])]
+    )
+    counts = _blocking_counts(project)
+    assert counts == {"a": 2, "b": 1}
+
+
+def test_dependency_depths_deep_reversed_chain_no_recursion_error():
+    n = sys.getrecursionlimit() + 2000
+    project = BlueprintProject.from_nodes("p", _chain_reversed(n))
+    depths = _dependency_depths(project)
+    assert len(depths) == n
+    assert depths["n0"] == n - 1
+    assert depths[f"n{n - 1}"] == 0
+
+
+def test_dependency_depths_deep_cycle_no_recursion_error():
+    n = sys.getrecursionlimit() + 2000
+    project = BlueprintProject.from_nodes("p", _big_cycle(n))
+    depths = _dependency_depths(project)
+    assert len(depths) == n
+
+
+def test_blocking_counts_deep_natural_chain_no_recursion_error():
+    n = sys.getrecursionlimit() + 2000
+    project = BlueprintProject.from_nodes("p", _chain_natural(n))
+    counts = _blocking_counts(project)
+    assert counts["n0"] == n - 1
+    # The last node blocks nothing (nothing depends on it), so it's excluded
+    # from the result entirely (blocking_count == 0 entries are dropped).
+    assert f"n{n - 1}" not in counts
+    assert len(counts) == n - 1
+
+
+def test_blocking_counts_deep_cycle_no_recursion_error():
+    n = sys.getrecursionlimit() + 2000
+    project = BlueprintProject.from_nodes("p", _big_cycle(n))
+    counts = _blocking_counts(project)
+    assert len(counts) == n
+
+
+def test_generate_tasks_deep_natural_chain_only_first_dependent_ready():
+    n = sys.getrecursionlimit() + 2000
+    nodes = _chain_natural(n)
+    nodes[0].status.formal = FormalStatus.PROVED
+    project = BlueprintProject.from_nodes("p", nodes)
+    tasks = generate_tasks(project)
+    assert {t.node_id for t in tasks} == {"n1"}
+    task = tasks[0]
+    assert task.metadata is not None
+    assert task.metadata.dependency_depth == 1
+    assert task.metadata.blocking_count == n - 2
+
+
+def test_validate_deep_reversed_chain_via_project_does_not_raise():
+    n = sys.getrecursionlimit() + 2000
+    project = BlueprintProject.from_nodes("p", _chain_reversed(n))
+    report = project.validate()
+    assert report.ok
+
+
 def test_generate_tasks_picks_ready_nodes_only():
     """Only nodes whose deps are all FOUND/PROVED should be tasks."""
     project = BlueprintProject.from_nodes(
@@ -52,16 +182,12 @@ def test_generate_tasks_picks_ready_nodes_only():
 
 
 def test_generate_tasks_skips_already_proved():
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
     assert generate_tasks(project) == []
 
 
 def test_generate_tasks_root_with_no_deps_is_ready():
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.MISSING)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.MISSING)])
     tasks = generate_tasks(project)
     assert len(tasks) == 1
     assert tasks[0].target_fact == "Demo.a"
@@ -201,9 +327,7 @@ def test_write_tasks_unsafe_ids_are_not_treated_as_stale_on_rewrite(tmp_path: Pa
 
 
 def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
     paths = write_tasks(project, tmp_path)
     md_text = paths["md"].read_text(encoding="utf-8")
     assert "No ready tasks" in md_text
@@ -468,9 +592,7 @@ def test_cli_attempt_records_memory_when_requested(tmp_path: Path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["memory"]["outcome"] == "failed"
     memory = json.loads(
-        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(
-            encoding="utf-8"
-        )
+        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(encoding="utf-8")
     )
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp looped"
 

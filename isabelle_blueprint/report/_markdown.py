@@ -6,6 +6,7 @@ into a Markdown table. Centralising the logic here keeps the ~dozen report
 renderers that build Markdown tables in lock-step rather than each carrying its
 own copy of the same ``str.replace`` chain.
 """
+
 from __future__ import annotations
 
 

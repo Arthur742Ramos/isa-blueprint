@@ -1,4 +1,5 @@
 """Tests for the dependency-graph builder and Graphviz renderer."""
+
 from __future__ import annotations
 
 import pytest
@@ -175,7 +176,7 @@ def test_render_graphml_escapes_special_characters():
         BlueprintNode(
             id="a",
             kind=NodeKind.LEMMA,
-            title="A < B & \"C\"",
+            title='A < B & "C"',
             isabelle=IsabelleRef(fact="Demo.a"),
             status=NodeStatus(),
         )
@@ -483,8 +484,6 @@ def test_render_svg_bounds_a_hung_dot_with_timeout(monkeypatch):
     assert seen.get("timeout") == 2.5  # the bound was actually handed to dot
 
 
-
-
 def test_roots_subproject_keeps_only_uninbound_nodes():
     # a <- b <- c and a <- d: roots are the nodes nothing else uses (b, c, d
     # are depended upon? no: b depends on a, c depends on b, d depends on a).
@@ -599,9 +598,7 @@ def test_cli_graph_roots_only_and_leaves_only_are_mutually_exclusive(tmp_path, c
 
     _write_chain_project(tmp_path)
     with pytest.raises(SystemExit) as excinfo:
-        cli_main(
-            ["graph", str(tmp_path), "--format", "json", "--roots-only", "--leaves-only"]
-        )
+        cli_main(["graph", str(tmp_path), "--format", "json", "--roots-only", "--leaves-only"])
     assert excinfo.value.code == 2
     err = capsys.readouterr().err
     assert "not allowed with" in err
@@ -707,9 +704,7 @@ def test_cli_graph_without_incomplete_only_is_unchanged(tmp_path, capsys):
     assert node_ids == {"a", "b"}
 
 
-def test_cli_graph_incomplete_only_and_roots_only_are_mutually_exclusive(
-    tmp_path, capsys
-):
+def test_cli_graph_incomplete_only_and_roots_only_are_mutually_exclusive(tmp_path, capsys):
     from isabelle_blueprint.cli import main as cli_main
 
     _write_mixed_formal_project(tmp_path)
@@ -727,4 +722,3 @@ def test_cli_graph_incomplete_only_and_roots_only_are_mutually_exclusive(
     assert excinfo.value.code == 2
     err = capsys.readouterr().err
     assert "not allowed with" in err
-

@@ -23,6 +23,7 @@ generated ML also prints a machine-readable status line based on
 ``Thm_Deps.has_skip_proof`` and ``Thm_Deps.all_oracles`` so the Python checker
 can distinguish merely-found facts from trusted ``proved`` facts.
 """
+
 from __future__ import annotations
 
 import re
@@ -159,8 +160,7 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
     row_lines = []
     for ref in refs:
         row_lines.append(
-            f"    ({_ml_string(ref.node_id)}, {_ml_string(ref.fact)}, "
-            f"@{{thm {ref.fact}}})"
+            f"    ({_ml_string(ref.node_id)}, {_ml_string(ref.fact)}, @{{thm {ref.fact}}})"
         )
     rows = ",\n".join(row_lines)
     return [
@@ -176,15 +176,14 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
         "      val oracles = Thm_Deps.all_oracles thms",
         "        |> map (fn ((name, _), _) => name)",
         "      val has_skip = Thm_Deps.has_skip_proof thms",
-        "      val status = if has_skip orelse not (null oracles) then "
-        "\"tainted\" else \"proved\"",
-        "      val oracle_text = if null oracles then \"-\" else space_implode \",\" oracles",
+        '      val status = if has_skip orelse not (null oracles) then "tainted" else "proved"',
+        '      val oracle_text = if null oracles then "-" else space_implode "," oracles',
         "    in",
-        "      \"ISABELLE_BLUEPRINT_FACT\\t\" ^ node_id ^ \"\\t\" ^ fact ^ \"\\t\" ^ "
-        "status ^ \"\\t\" ^ oracle_text",
+        '      "ISABELLE_BLUEPRINT_FACT\\t" ^ node_id ^ "\\t" ^ fact ^ "\\t" ^ '
+        'status ^ "\\t" ^ oracle_text',
         "    end",
         "in",
-        f"  File.write (Path.explode {path}) (cat_lines (map render rows) ^ \"\\n\")",
+        f'  File.write (Path.explode {path}) (cat_lines (map render rows) ^ "\\n")',
         "end",
         "\\<close>",
     ]
@@ -192,10 +191,7 @@ def _proof_status_ml_block(refs: list[FactReference], *, proof_status_file: str)
 
 def _ml_string(text: str) -> str:
     escaped = (
-        text.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\t", "\\t")
+        text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
     )
     return f'"{escaped}"'
 
@@ -329,7 +325,7 @@ def generate_sledgehammer_theory(
     if goal:
         goal_source = f'Syntax.read_prop ctxt "{_thy_inner_string(goal)}"'
     elif ref is not None:
-        goal_source = f'Thm.prop_of (Proof_Context.get_thm ctxt {_ml_string(ref.fact)})'
+        goal_source = f"Thm.prop_of (Proof_Context.get_thm ctxt {_ml_string(ref.fact)})"
     else:
         return None
 
@@ -406,4 +402,3 @@ def _sledgehammer_ml_block(
         "end",
         "\\<close>",
     ]
-

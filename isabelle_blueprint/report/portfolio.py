@@ -12,6 +12,7 @@ nested projects are not descended into, and noisy build/vendor directories are
 skipped. Loading each project is best-effort - a project that fails to parse is
 recorded with its error rather than aborting the whole roll-up.
 """
+
 from __future__ import annotations
 
 import csv
@@ -179,9 +180,7 @@ def discover_project_roots(root: Path) -> list[Path]:
 
     for current_raw, dirnames, filenames in os.walk(root, followlinks=False):
         current = Path(current_raw)
-        dirnames[:] = sorted(
-            dirname for dirname in dirnames if _should_descend(current / dirname)
-        )
+        dirnames[:] = sorted(dirname for dirname in dirnames if _should_descend(current / dirname))
         if current == root:
             continue
         if DEFAULT_CONFIG_NAME in filenames or DEFAULT_BLUEPRINT_NAME in filenames:
@@ -327,8 +326,7 @@ def coverage_gate_failures(report: PortfolioReport, min_coverage: int) -> list[s
     return [
         project.id
         for project in report.projects
-        if project.coverage_percent is not None
-        and project.coverage_percent < min_coverage
+        if project.coverage_percent is not None and project.coverage_percent < min_coverage
     ]
 
 
@@ -361,13 +359,9 @@ def render_portfolio_report(report: PortfolioReport, *, details: bool = False) -
     """
     totals = report.totals
     if totals.project_count == 0:
-        return (
-            f"Portfolio: no IsabelleBlueprint projects found under {report.root}.\n"
-        )
+        return f"Portfolio: no IsabelleBlueprint projects found under {report.root}.\n"
 
-    lines = [
-        f"Portfolio: {totals.project_count} project(s) under {report.root}"
-    ]
+    lines = [f"Portfolio: {totals.project_count} project(s) under {report.root}"]
     lines.append(
         f"  Coverage: {_coverage_text(totals.coverage_percent)} "
         f"({totals.proved_count}/{totals.formal_target_count} proved across "
@@ -415,9 +409,7 @@ def _problem_detail_lines(report: PortfolioReport) -> list[str]:
         parts: list[str] = []
         if project.problem_nodes:
             parts.append(
-                ", ".join(
-                    f"{node.id} ({node.formal_status})" for node in project.problem_nodes
-                )
+                ", ".join(f"{node.id} ({node.formal_status})" for node in project.problem_nodes)
             )
         if project.has_cycles:
             parts.append("has cycles")
@@ -450,9 +442,7 @@ _MARKDOWN_HEADERS = (
 
 def _problem_nodes_cell(project: PortfolioProject) -> str:
     """Semicolon-joined ``id (status)`` list of a project's problem nodes."""
-    return "; ".join(
-        f"{node.id} ({node.formal_status})" for node in project.problem_nodes
-    )
+    return "; ".join(f"{node.id} ({node.formal_status})" for node in project.problem_nodes)
 
 
 def render_portfolio_markdown(report: PortfolioReport, *, details: bool = False) -> str:
@@ -471,9 +461,7 @@ def render_portfolio_markdown(report: PortfolioReport, *, details: bool = False)
     lines = ["## Portfolio"]
     if totals.project_count == 0:
         lines.append("")
-        lines.append(
-            f"No IsabelleBlueprint projects found under `{report.root}`."
-        )
+        lines.append(f"No IsabelleBlueprint projects found under `{report.root}`.")
         return "\n".join(lines) + "\n"
 
     lines.append("")

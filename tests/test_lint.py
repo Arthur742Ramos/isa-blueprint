@@ -406,7 +406,6 @@ def test_lint_tag_case_collision_in_sarif_rules(tmp_path: Path, capsys) -> None:
     assert "tag-case-collision" in rule_ids
 
 
-
 def test_lint_flags_duplicate_fact(tmp_path: Path, capsys) -> None:
     body = """# dup-fact
 

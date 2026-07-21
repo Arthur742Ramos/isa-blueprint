@@ -1,4 +1,5 @@
 """Tests for the Isabelle checker scaffolding."""
+
 from __future__ import annotations
 
 import json
@@ -89,7 +90,7 @@ def test_generate_check_root_declares_session_dependencies_before_theories():
     )
     assert text.count('"Other_Session"') == 1
     assert text.count('"Base_Session"') == 1
-    assert "  sessions\n    \"Other_Session\"\n  theories\n" in text
+    assert '  sessions\n    "Other_Session"\n  theories\n' in text
     assert text.index("  sessions") < text.index("  theories")
 
 
@@ -104,8 +105,10 @@ def test_apply_check_report_skipped_run_marks_all_named():
         ran=False,
         isabelle_available=False,
         error="isabelle not on PATH",
-        facts=[FactCheck("a", "Demo.a", "Demo", exists=False),
-               FactCheck("b", "Demo.b", "Demo", exists=False)],
+        facts=[
+            FactCheck("a", "Demo.a", "Demo", exists=False),
+            FactCheck("b", "Demo.b", "Demo", exists=False),
+        ],
     )
     apply_check_report(project, result)
     by_id = project.by_id()
@@ -222,8 +225,13 @@ def test_check_result_from_dict_tolerates_unknown_fields():
         "ran": False,
         "isabelle_available": False,
         "facts": [
-            {"node_id": "a", "fact": "Demo.a", "theory": "Demo", "exists": False,
-             "secret_future_field": 42}
+            {
+                "node_id": "a",
+                "fact": "Demo.a",
+                "theory": "Demo",
+                "exists": False,
+                "secret_future_field": 42,
+            }
         ],
         "totally_unknown_top_key": "ignored",
     }
@@ -269,8 +277,11 @@ def test_run_check_proof_status_nonce_only_when_tsv_absent(tmp_path: Path):
     unavailable = "definitely-not-installed-isabelle-xyz"
 
     run_check(
-        project, build_dir=build_dir, session_name="Demo",
-        isabelle_executable=unavailable, proof_status=True,
+        project,
+        build_dir=build_dir,
+        session_name="Demo",
+        isabelle_executable=unavailable,
+        proof_status=True,
     )
     first = (build_dir / "Blueprint_Check.thy").read_text(encoding="utf-8")
     assert "Check nonce:" in first
@@ -279,8 +290,11 @@ def test_run_check_proof_status_nonce_only_when_tsv_absent(tmp_path: Path):
     (build_dir / "Blueprint_Proof_Status.tsv").write_text("", encoding="utf-8")
 
     run_check(
-        project, build_dir=build_dir, session_name="Demo",
-        isabelle_executable=unavailable, proof_status=True,
+        project,
+        build_dir=build_dir,
+        session_name="Demo",
+        isabelle_executable=unavailable,
+        proof_status=True,
     )
     second = (build_dir / "Blueprint_Check.thy").read_text(encoding="utf-8")
     assert "Check nonce:" not in second
@@ -308,7 +322,7 @@ def test_run_check_writes_root_with_per_node_session_deps(tmp_path: Path, monkey
 
     def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
         root_text = (Path(cwd) / "ROOT").read_text(encoding="utf-8")
-        assert "  sessions\n    \"Other_Session\"\n  theories\n" in root_text
+        assert '  sessions\n    "Other_Session"\n  theories\n' in root_text
         assert root_text.index("  sessions") < root_text.index("  theories")
         assert '"Base_Session"' in root_text
         return RunResult(args=cmd, returncode=0, stdout="", stderr="")

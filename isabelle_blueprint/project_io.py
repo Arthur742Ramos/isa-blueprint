@@ -1,4 +1,5 @@
 """Shared project loading helpers for CLI and MCP entry points."""
+
 from __future__ import annotations
 
 import json

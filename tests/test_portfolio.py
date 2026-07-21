@@ -103,9 +103,7 @@ def test_build_portfolio_records_unparseable_project_as_error(tmp_path: Path) ->
     # A config marker with no blueprint.md is discovered but fails to load.
     bad_dir = tmp_path / "bad"
     bad_dir.mkdir(parents=True, exist_ok=True)
-    (bad_dir / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "bad"\n', encoding="utf-8"
-    )
+    (bad_dir / "isabelle-blueprint.toml").write_text('[project]\nname = "bad"\n', encoding="utf-8")
 
     report = build_portfolio(tmp_path)
     by_id = {project.id: project for project in report.projects}
@@ -121,12 +119,7 @@ def test_build_portfolio_records_unparseable_project_as_error(tmp_path: Path) ->
 
 def test_build_portfolio_coverage_none_without_targets(tmp_path: Path) -> None:
     # A node with no Isabelle ref is not a formal target, so coverage is undefined.
-    body = (
-        "::: lemma {#text-only}\n"
-        "title: Text only\n\n"
-        "Just prose, no formal ref.\n"
-        ":::\n"
-    )
+    body = "::: lemma {#text-only}\ntitle: Text only\n\nJust prose, no formal ref.\n:::\n"
     _write_project(tmp_path / "draft", name="draft", body=body)
 
     report = build_portfolio(tmp_path)
@@ -179,9 +172,7 @@ def test_cli_portfolio_text(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert "alpha" in out
 
 
-def test_cli_portfolio_fail_on_problem(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_portfolio_fail_on_problem(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _write_project(tmp_path / "broken", name="broken", body=_node_md("a", formal="broken"))
 
     exit_code = cli_main(["portfolio", str(tmp_path), "--fail-on-problem"])
@@ -247,9 +238,7 @@ def test_cli_portfolio_fail_on_problem_load_error(
     # A discovered-but-unloadable project should trip --fail-on-problem too.
     bad_dir = tmp_path / "bad"
     bad_dir.mkdir(parents=True, exist_ok=True)
-    (bad_dir / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "bad"\n', encoding="utf-8"
-    )
+    (bad_dir / "isabelle-blueprint.toml").write_text('[project]\nname = "bad"\n', encoding="utf-8")
 
     exit_code = cli_main(["portfolio", str(tmp_path), "--fail-on-problem"])
     capsys.readouterr()
@@ -389,9 +378,7 @@ def test_cli_portfolio_min_coverage_trips_and_lists_projects(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # A high floor over the examples tree fails: several projects sit below 100%.
-    exit_code = cli_main(
-        ["portfolio", str(EXAMPLES_DIR), "--min-coverage", "100"]
-    )
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--min-coverage", "100"])
     captured = capsys.readouterr()
 
     assert exit_code == 5
@@ -425,9 +412,7 @@ def test_cli_portfolio_no_min_coverage_unchanged(
 def test_cli_portfolio_min_coverage_json_gate_object(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code = cli_main(
-        ["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "100"]
-    )
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "100"])
     out = capsys.readouterr().out
 
     assert exit_code == 5
@@ -441,9 +426,7 @@ def test_cli_portfolio_min_coverage_json_gate_object(
 def test_cli_portfolio_min_coverage_json_pass(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code = cli_main(
-        ["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "0"]
-    )
+    exit_code = cli_main(["portfolio", str(EXAMPLES_DIR), "--json", "--min-coverage", "0"])
     out = capsys.readouterr().out
 
     assert exit_code == 0
@@ -493,12 +476,7 @@ def test_cli_portfolio_min_coverage_composes_with_fail_on_problem(
 def test_coverage_gate_failures_ignores_undefined_coverage(tmp_path: Path) -> None:
     _write_project(tmp_path / "full", name="full", body=_node_md("a", formal="proved"))
     # A project with no formal targets has undefined coverage and never fails.
-    draft_body = (
-        "::: lemma {#text-only}\n"
-        "title: Text only\n\n"
-        "Just prose.\n"
-        ":::\n"
-    )
+    draft_body = "::: lemma {#text-only}\ntitle: Text only\n\nJust prose.\n:::\n"
     _write_project(tmp_path / "draft", name="draft", body=draft_body)
 
     report = build_portfolio(tmp_path)
@@ -507,9 +485,7 @@ def test_coverage_gate_failures_ignores_undefined_coverage(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize("value", ["150", "-1", "101"])
-def test_cli_portfolio_min_coverage_out_of_range_rejected(
-    tmp_path: Path, value: str
-) -> None:
+def test_cli_portfolio_min_coverage_out_of_range_rejected(tmp_path: Path, value: str) -> None:
     with pytest.raises(SystemExit) as excinfo:
         cli_main(["portfolio", str(tmp_path), "--min-coverage", value])
 
@@ -648,9 +624,7 @@ def test_cli_portfolio_sort_undefined_metric_sorts_last(
     )
     bad_dir = tmp_path / "zbad"
     bad_dir.mkdir(parents=True, exist_ok=True)
-    (bad_dir / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "zbad"\n', encoding="utf-8"
-    )
+    (bad_dir / "isabelle-blueprint.toml").write_text('[project]\nname = "zbad"\n', encoding="utf-8")
 
     assert cli_main(["portfolio", str(tmp_path), "--json", "--sort", "coverage"]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -820,10 +794,7 @@ def test_render_portfolio_markdown_details_adds_column(tmp_path: Path) -> None:
 
     text = render_portfolio_markdown(report, details=True)
 
-    header = (
-        "| Project | Nodes | Coverage | Proved | Problems | Cycles | Health "
-        "| Problem nodes |"
-    )
+    header = "| Project | Nodes | Coverage | Proved | Problems | Cycles | Health | Problem nodes |"
     assert header in text
     assert "p1 (broken)" in text
 
@@ -833,12 +804,9 @@ def test_cli_portfolio_details_composes_with_fail_on_problem(
 ) -> None:
     _write_unhealthy_tree(tmp_path)
 
-    exit_code = cli_main(
-        ["portfolio", str(tmp_path), "--details", "--fail-on-problem"]
-    )
+    exit_code = cli_main(["portfolio", str(tmp_path), "--details", "--fail-on-problem"])
     out = capsys.readouterr().out
 
     # --fail-on-problem still trips (exit 5) and the breakdown is printed.
     assert exit_code == 5
     assert "p1 (broken)" in out
-

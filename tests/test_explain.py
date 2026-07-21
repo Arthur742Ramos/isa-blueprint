@@ -105,17 +105,13 @@ def test_explain_reports_dependency_cycle():
 
     explanations = explain_project(project)
 
-    assert any(
-        any("cycle" in reason.lower() for reason in e.reasons) for e in explanations
-    )
+    assert any(any("cycle" in reason.lower() for reason in e.reasons) for e in explanations)
 
 
 def test_explain_not_found_includes_fact_suggestions():
     node = _node("a", FormalStatus.NOT_FOUND)
     project = BlueprintProject.from_nodes("p", [node])
-    suggestions = [
-        FactSuggestion(node_id="a", target_fact="Demo.a", suggestions=["Demo.alpha"])
-    ]
+    suggestions = [FactSuggestion(node_id="a", target_fact="Demo.a", suggestions=["Demo.alpha"])]
 
     explanation = explain_project(project, fact_suggestions=suggestions)[0]
 
@@ -129,9 +125,7 @@ def test_explain_taint_provenance_points_at_upstream():
 
     by_id = {e.node_id: e for e in explain_project(project)}
 
-    assert any(
-        "undermined by upstream" in r and "`base`" in r for r in by_id["top"].reasons
-    )
+    assert any("undermined by upstream" in r and "`base`" in r for r in by_id["top"].reasons)
     assert any("tainted/broken upstream" in s for s in by_id["top"].next_steps)
 
 
@@ -189,9 +183,7 @@ def test_cli_explain_single_node_selector(tmp_path: Path, capsys) -> None:
 
 
 def test_render_explanations_markdown_has_heading_and_status():
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", FormalStatus.NAMED, uses=["dep"])]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", FormalStatus.NAMED, uses=["dep"])])
 
     md = render_explanations_markdown(explain_project(project), project)
 

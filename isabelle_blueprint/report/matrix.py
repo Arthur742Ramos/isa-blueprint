@@ -20,6 +20,7 @@ declaration order so the output is stable and reads in a natural progression
 (e.g. ``missing -> named -> ... -> proved`` for the formal axis). No Isabelle
 invocation is required.
 """
+
 from __future__ import annotations
 
 import csv
@@ -113,13 +114,10 @@ def build_matrix_report(
     for name in (rows_dimension, cols_dimension):
         if name not in _AXES:
             raise ValueError(
-                f"unknown matrix dimension {name!r}; choose one of: "
-                f"{', '.join(AXIS_NAMES)}"
+                f"unknown matrix dimension {name!r}; choose one of: {', '.join(AXIS_NAMES)}"
             )
     if rows_dimension == cols_dimension:
-        raise ValueError(
-            f"matrix rows and cols must differ; both are {rows_dimension!r}"
-        )
+        raise ValueError(f"matrix rows and cols must differ; both are {rows_dimension!r}")
 
     row_of, row_enum = _AXES[rows_dimension]
     col_of, col_enum = _AXES[cols_dimension]
@@ -141,12 +139,8 @@ def build_matrix_report(
         for row in row_labels
         for col in col_labels
     )
-    row_totals = {
-        row: sum(counts.get((row, col), 0) for col in col_labels) for row in row_labels
-    }
-    col_totals = {
-        col: sum(counts.get((row, col), 0) for row in row_labels) for col in col_labels
-    }
+    row_totals = {row: sum(counts.get((row, col), 0) for col in col_labels) for row in row_labels}
+    col_totals = {col: sum(counts.get((row, col), 0) for row in row_labels) for col in col_labels}
 
     return MatrixReport(
         project=project.name,
@@ -186,9 +180,11 @@ def render_matrix_report(report: MatrixReport) -> str:
         lines.append("_(no nodes)_")
         return "\n".join(lines) + "\n"
 
-    header = f"| {_escape_cell(report.rows_dimension)} | " + " | ".join(
-        [*(_escape_cell(col) for col in report.col_labels), "Total"]
-    ) + " |"
+    header = (
+        f"| {_escape_cell(report.rows_dimension)} | "
+        + " | ".join([*(_escape_cell(col) for col in report.col_labels), "Total"])
+        + " |"
+    )
     sep = "| " + " | ".join(["---"] * (len(report.col_labels) + 2)) + " |"
     lines.extend([header, sep])
 

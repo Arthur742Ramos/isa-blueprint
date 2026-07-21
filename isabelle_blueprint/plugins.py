@@ -4,6 +4,7 @@ Third-party packages can register status providers, node-kind providers, and
 report renderers through entry-point groups.  The discovery layer is
 deliberately permissive so a misbehaving plugin never aborts a CLI run.
 """
+
 from __future__ import annotations
 
 import warnings

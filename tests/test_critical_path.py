@@ -331,9 +331,7 @@ def test_cli_write_json_payload_matches_stdout(tmp_path: Path, capsys) -> None:
 def test_cli_write_goal_focus_is_plain_markdown(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
-    rc = cli_main(
-        ["critical-path", str(tmp_path), "--goal", "b", "--write", "--color", "always"]
-    )
+    rc = cli_main(["critical-path", str(tmp_path), "--goal", "b", "--write", "--color", "always"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -471,7 +469,9 @@ def test_cli_csv_output(tmp_path: Path, capsys) -> None:
 
 
 def test_cli_csv_honours_top(tmp_path: Path, capsys) -> None:
-    body = _BODY + """
+    body = (
+        _BODY
+        + """
 ::: lemma {#c}
 title: C
 isabelle: Demo.c
@@ -483,6 +483,7 @@ Depends on a.
 Sketch.
 :::
 """
+    )
     _write_project(tmp_path, body)
 
     rc = cli_main(["critical-path", str(tmp_path), "--csv", "--top", "1"])
@@ -589,7 +590,9 @@ def test_mermaid_cycle_tangled_message() -> None:
 
 # Two bottlenecks with distinct leverage: ``a`` unblocks b, c, d (leverage 3);
 # ``b`` unblocks c (leverage 1). Used to exercise the --min-leverage filter.
-_LEVERAGE_BODY = _BODY + """
+_LEVERAGE_BODY = (
+    _BODY
+    + """
 ::: lemma {#c}
 title: C
 isabelle: Demo.c
@@ -612,6 +615,7 @@ Depends on a.
 Sketch.
 :::
 """
+)
 
 
 def test_build_min_leverage_filter_unaffected() -> None:
@@ -710,4 +714,3 @@ def test_cli_min_leverage_rejects_negative(tmp_path, capsys) -> None:
 
     with pytest.raises(SystemExit):
         cli_main(["critical-path", str(tmp_path), "--min-leverage", "-1"])
-

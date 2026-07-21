@@ -10,6 +10,7 @@ includes the informal statement, the informal proof sketch, the names of any
 dependencies (with their Isabelle facts), and explicit acceptance criteria. See
 roadmap section 9.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,7 +22,7 @@ from isabelle_blueprint.agents.runner import prompt_filename
 from isabelle_blueprint.isabelle.suggestions import FactSuggestion, suggestions_by_node
 from isabelle_blueprint.model.node import BlueprintNode
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 
 
 @dataclass
@@ -68,18 +69,20 @@ def _is_ready(
     project: BlueprintProject,
     by_id: dict[str, BlueprintNode] | None = None,
 ) -> bool:
-    if node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}:
+    if node.status.formal in COMPLETE_FORMAL_STATUSES:
         return False
-    # ``by_id`` is an O(n) dict rebuild; accept a shared one so callers iterating
-    # over every node don't pay it once per node (an O(n^2) trap on the hot
-    # generate_tasks path, which runs on status/report/portfolio/agent-context).
+    # A fresh ``by_id()`` copy is an O(n) rebuild-or-copy on every call; accept
+    # a shared mapping (or fall back to the project's cached, zero-copy
+    # internal index) so callers iterating over every node don't pay it once
+    # per node (an O(n^2) trap on the hot generate_tasks path, which runs on
+    # status/report/portfolio/agent-context).
     if by_id is None:
-        by_id = project.by_id()
+        by_id = project._by_id_index()
     for dep_id in node.uses:
         dep = by_id.get(dep_id)
         if dep is None:
             return False
-        if dep.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+        if dep.status.formal not in COMPLETE_FORMAL_STATUSES:
             return False
     return True
 
@@ -91,7 +94,7 @@ def generate_tasks(
     memory: AgentMemory | None = None,
 ) -> list[AgentTask]:
     tasks: list[AgentTask] = []
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     depths = _dependency_depths(project)
     blocking_counts = _blocking_counts(project)
     suggestion_index = suggestions_by_node(fact_suggestions or [])
@@ -111,9 +114,7 @@ def generate_tasks(
         ]
         criteria = _acceptance_criteria(node)
         suggested_facts = (
-            suggestion_index[node.id].suggestions
-            if node.id in suggestion_index
-            else []
+            suggestion_index[node.id].suggestions if node.id in suggestion_index else []
         )
         tasks.append(
             AgentTask(
@@ -280,8 +281,7 @@ def render_tasks_summary(tasks: list[AgentTask]) -> str:
 
     def _fmt(cols: tuple[str, str, str, str, str, str]) -> str:
         return "  ".join(
-            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i]
-            for i in range(len(cols))
+            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i] for i in range(len(cols))
         ).rstrip()
 
     lines = [_fmt(headers)]
@@ -365,10 +365,7 @@ def render_sledgehammer_appendix(task: AgentTask) -> str:
     parts: list[str] = []
     parts.append("## Sledgehammer-first strategy")
     parts.append("")
-    parts.append(
-        "Before writing a manual proof, let Isabelle's automation try to close "
-        "the goal:"
-    )
+    parts.append("Before writing a manual proof, let Isabelle's automation try to close the goal:")
     parts.append("")
     parts.append("1. State the lemma and replace the proof body with `sledgehammer`:")
     parts.append("")
@@ -385,13 +382,11 @@ def render_sledgehammer_appendix(task: AgentTask) -> str:
     if dep_facts:
         hint = " ".join(dep_facts)
         parts.append(
-            f"3. Seed the search with this node's dependencies: "
-            f"`sledgehammer (add: {hint})`."
+            f"3. Seed the search with this node's dependencies: `sledgehammer (add: {hint})`."
         )
     else:
         parts.append(
-            "3. Seed the search with nearby simp lemmas: "
-            "`sledgehammer (add: <relevant facts>)`."
+            "3. Seed the search with nearby simp lemmas: `sledgehammer (add: <relevant facts>)`."
         )
     parts.append(
         "4. On a timeout, widen the provers and budget: "
@@ -465,30 +460,77 @@ def github_issue_drafts(
 
 
 def _dependency_depths(project: BlueprintProject) -> dict[str, int]:
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     memo: dict[str, int] = {}
     visiting: set[str] = set()
 
-    def depth(node_id: str) -> int:
-        if node_id in memo:
-            return memo[node_id]
-        if node_id in visiting:
-            return 0
+    def push(
+        node_id: str,
+        ids_stack: list[str],
+        deps_stack: list[list[str]],
+        idx_stack: list[int],
+        max_stack: list[int],
+    ) -> None:
         visiting.add(node_id)
         node = by_id.get(node_id)
-        if node is None or not node.uses:
-            value = 0
-        else:
-            value = 1 + max((depth(dep_id) for dep_id in node.uses if dep_id in by_id), default=-1)
-        visiting.discard(node_id)
-        memo[node_id] = value
-        return value
+        deps = [dep_id for dep_id in node.uses if dep_id in by_id] if node is not None else []
+        ids_stack.append(node_id)
+        deps_stack.append(deps)
+        idx_stack.append(0)
+        max_stack.append(-1)
 
-    return {node.id: depth(node.id) for node in project.nodes}
+    def ensure(root: str) -> None:
+        if root in memo:
+            return
+        # Iterative post-order DFS mirroring the original recursive `depth()`,
+        # to avoid RecursionError on deep or reversed dependency chains.
+        # Parallel stacks emulate the call stack:
+        #   ids_stack[i]  - node id at this depth
+        #   deps_stack[i] - its filtered (existing) dependency ids
+        #   idx_stack[i]  - index of the next dependency still to examine
+        #   max_stack[i]  - running max of dependency depths seen so far,
+        #                   mirroring `max(..., default=-1)`
+        ids_stack: list[str] = []
+        deps_stack: list[list[str]] = []
+        idx_stack: list[int] = []
+        max_stack: list[int] = []
+        push(root, ids_stack, deps_stack, idx_stack, max_stack)
+
+        while ids_stack:
+            node_id = ids_stack[-1]
+            deps = deps_stack[-1]
+            idx = idx_stack[-1]
+            if idx >= len(deps):
+                # equivalent to falling off the end of depth(node_id)
+                value = 1 + max_stack[-1] if deps else 0
+                visiting.discard(node_id)
+                memo[node_id] = value
+                ids_stack.pop()
+                deps_stack.pop()
+                idx_stack.pop()
+                max_stack.pop()
+                if max_stack:
+                    max_stack[-1] = max(max_stack[-1], value)
+                continue
+            idx_stack[-1] = idx + 1
+            dep_id = deps[idx]
+            if dep_id in memo:
+                max_stack[-1] = max(max_stack[-1], memo[dep_id])
+            elif dep_id in visiting:
+                # cycle: the recursive call short-circuits to 0, which still
+                # feeds into the max(...) accumulator.
+                max_stack[-1] = max(max_stack[-1], 0)
+            else:
+                push(dep_id, ids_stack, deps_stack, idx_stack, max_stack)
+
+    for node in project.nodes:
+        ensure(node.id)
+
+    return {node.id: memo[node.id] for node in project.nodes}
 
 
 def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
-    by_id = project.by_id()
+    by_id = project._by_id_index()
     reverse: dict[str, list[str]] = {node.id: [] for node in project.nodes}
     for node in project.nodes:
         for dep_id in node.uses:
@@ -499,31 +541,67 @@ def _blocking_counts(project: BlueprintProject) -> dict[str, int]:
     # the memo this is an independent DFS for every node — O(N*(N+E)) on the hot
     # generate_tasks path; sharing sub-results makes it near-linear. Mirrors the
     # descendants() memoisation in report.critical_path, including the visiting
-    # guard that breaks dependency cycles.
+    # guard that breaks dependency cycles. Implemented iteratively (explicit
+    # stack) so deep or reversed dependency chains don't raise RecursionError.
     descendants_memo: dict[str, set[str]] = {}
     visiting: set[str] = set()
 
-    def descendants(node_id: str) -> set[str]:
-        if node_id in descendants_memo:
-            return descendants_memo[node_id]
-        if node_id in visiting:
-            return set()
-        visiting.add(node_id)
-        found: set[str] = set()
-        for child in reverse.get(node_id, []):
-            found.add(child)
-            found |= descendants(child)
-        visiting.discard(node_id)
-        descendants_memo[node_id] = found
-        return found
+    def ensure(root: str) -> None:
+        if root in descendants_memo:
+            return
+        # Iterative post-order DFS mirroring the original recursive
+        # `descendants()`. Parallel stacks emulate the call stack:
+        #   ids_stack[i]   - node id at this depth
+        #   idx_stack[i]   - index of the next child still to examine
+        #   found_stack[i] - the "found" set being accumulated at this depth
+        ids_stack: list[str] = [root]
+        idx_stack: list[int] = [0]
+        found_stack: list[set[str]] = [set()]
+        visiting.add(root)
 
-    complete_statuses = {FormalStatus.FOUND, FormalStatus.PROVED}
+        while ids_stack:
+            node_id = ids_stack[-1]
+            children = reverse.get(node_id, [])
+            idx = idx_stack[-1]
+            if idx >= len(children):
+                # equivalent to falling off the end of descendants(node_id)
+                visiting.discard(node_id)
+                value = found_stack[-1]
+                descendants_memo[node_id] = value
+                ids_stack.pop()
+                idx_stack.pop()
+                found_stack.pop()
+                if found_stack:
+                    found_stack[-1] |= value
+                continue
+            idx_stack[-1] = idx + 1
+            child = children[idx]
+            # `found.add(child)` happens unconditionally in the recursive
+            # version, regardless of memo/visiting/unvisited status below.
+            found_stack[-1].add(child)
+            if child in descendants_memo:
+                found_stack[-1] |= descendants_memo[child]
+            elif child in visiting:
+                # cycle: descendants(child) short-circuits to an empty set,
+                # a no-op for the union (found.add(child) above already
+                # captured the direct edge).
+                pass
+            else:
+                ids_stack.append(child)
+                idx_stack.append(0)
+                found_stack.append(set())
+                visiting.add(child)
+
+    def descendants(node_id: str) -> set[str]:
+        ensure(node_id)
+        return descendants_memo.get(node_id, set())
+
     counts: dict[str, int] = {}
     for node in project.nodes:
         count = 0
         for dependent in descendants(node.id):
             dependent_node = by_id.get(dependent)
-            if dependent_node and dependent_node.status.formal not in complete_statuses:
+            if dependent_node and dependent_node.status.formal not in COMPLETE_FORMAL_STATUSES:
                 count += 1
         if count:
             counts[node.id] = count

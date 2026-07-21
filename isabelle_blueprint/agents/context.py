@@ -1,4 +1,5 @@
 """Build agent handoff context bundles."""
+
 from __future__ import annotations
 
 import json
@@ -269,9 +270,7 @@ def render_agent_context(context: AgentContext) -> str:
                 if warning.related_nodes
                 else ""
             )
-            lines.append(
-                f"- `{warning.severity}` `{warning.code}`: {warning.message}{related}"
-            )
+            lines.append(f"- `{warning.severity}` `{warning.code}`: {warning.message}{related}")
         lines.append("")
 
     ready_heading = "## Ready tasks matching filters" if filters_active else "## Ready tasks"
@@ -307,9 +306,7 @@ def render_agent_context(context: AgentContext) -> str:
                     f"`{tasks_json}` for the canonical (unfiltered) catalog._"
                 )
             else:
-                lines.append(
-                    f"- _Ready task list truncated; see `{tasks_json}` for all tasks._"
-                )
+                lines.append(f"- _Ready task list truncated; see `{tasks_json}` for all tasks._")
     lines.append("")
 
     lines.extend(["## Recommended commands", ""])
@@ -399,10 +396,7 @@ def _context_warnings(
             )
         )
     problem_nodes = sorted(
-        item.node_id
-        for stage in roadmap.stages
-        for item in stage.items
-        if item.status == "problem"
+        item.node_id for stage in roadmap.stages for item in stage.items if item.status == "problem"
     )
     if problem_nodes:
         warnings.append(
@@ -414,10 +408,7 @@ def _context_warnings(
             )
         )
     stale_nodes = sorted(
-        item.node_id
-        for stage in roadmap.stages
-        for item in stage.items
-        if item.status == "stale"
+        item.node_id for stage in roadmap.stages for item in stage.items if item.status == "stale"
     )
     if stale_nodes:
         warnings.append(
@@ -444,9 +435,7 @@ def _context_warnings(
             )
         )
     stale_memory = sorted(
-        task.node_id
-        for task in ready_tasks
-        if task.memory is not None and task.memory.stale
+        task.node_id for task in ready_tasks if task.memory is not None and task.memory.stale
     )
     if stale_memory:
         warnings.append(

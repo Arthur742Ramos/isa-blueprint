@@ -21,11 +21,16 @@
       </label>
     {% endfor %}
     <button type="button" class="graph-filter-reset" data-graph-filters-reset>Reset</button>
-    <span class="graph-filter-count" data-graph-filters-count></span>
+    <span class="graph-filter-count" data-graph-filters-count aria-live="polite"></span>
   </div>
-  <div class="graph-frame" data-graph-host>
+  <figure class="graph-frame" data-graph-host aria-labelledby="dependency-graph-caption">
+    <figcaption id="dependency-graph-caption" class="sr-only">
+      Dependency graph for {{ project.name }} with {{ project.nodes|length }} node{{ '' if project.nodes|length == 1 else 's' }}.
+      Arrows point from each result to its dependencies. The dependency levels and links below
+      provide the same information without relying on the diagram.
+    </figcaption>
     {{ svg_source|safe }}
-  </div>
+  </figure>
   <p class="graph-download">
     <a href="graph.svg">Download SVG</a>
     &middot; <a href="graph.dot">graph.dot</a>
@@ -146,4 +151,3 @@
   <p><a href="graph.dot">Download <code>graph.dot</code></a> &middot; <a href="graph.json">Download <code>graph.json</code></a></p>
 </details>
 {% endblock %}
-

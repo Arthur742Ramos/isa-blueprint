@@ -18,6 +18,7 @@ The buckets ``named``/``found``/``problem`` partition the remaining formal
 targets, so their debts sum to :attr:`total_debt`. A ``--fail-over N`` ceiling
 turns the figure into a gate: CI fails once accumulated debt exceeds ``N``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -122,8 +123,7 @@ def build_proof_debt_report(project: BlueprintProject) -> ProofDebtReport:
             default_used = True
 
     buckets = tuple(
-        DebtBucket(name=name, node_count=counts[name], debt=debts[name])
-        for name in BUCKET_NAMES
+        DebtBucket(name=name, node_count=counts[name], debt=debts[name]) for name in BUCKET_NAMES
     )
     total_debt = sum(debts[name] for name in BUCKET_NAMES if name != "missing")
     remaining = sum(counts[name] for name in BUCKET_NAMES if name != "missing")

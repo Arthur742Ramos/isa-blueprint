@@ -14,6 +14,7 @@ goal can reach, where every member has edges yet none is a root. A node with no
 dependencies *and* no dependents is reported as ``isolated`` (a subset of the
 orphans). No Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 import csv
@@ -137,8 +138,7 @@ def _render_orphan_table(report: OrphanReport) -> str:
     for orphan in report.orphans:
         isolated = "yes" if orphan.isolated else "no"
         lines.append(
-            f"| {_escape_cell(orphan.id)} | {orphan.kind} | "
-            f"{orphan.formal_status} | {isolated} |"
+            f"| {_escape_cell(orphan.id)} | {orphan.kind} | {orphan.formal_status} | {isolated} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -147,10 +147,7 @@ def render_orphan_report(report: OrphanReport) -> str:
     """Render the orphan report as compact Markdown for the terminal."""
 
     if not report.orphans:
-        return (
-            f"{report.project}: No orphan nodes "
-            "(every node is reachable from a project goal).\n"
-        )
+        return f"{report.project}: No orphan nodes (every node is reachable from a project goal).\n"
 
     return _render_orphan_table(report)
 

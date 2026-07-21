@@ -12,6 +12,7 @@ known to exist *and* show no detected ``sorry``/oracle taint; mere existence
 maps to :class:`FormalStatus.FOUND` per the README disclaimer
 "fact exists != proof trusted" (roadmap section 12).
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -29,14 +30,14 @@ class BlueprintStatus(StrEnum):
 class FormalStatus(StrEnum):
     """State of the corresponding Isabelle fact."""
 
-    MISSING = "missing"          # No isabelle ref assigned.
-    NAMED = "named"              # Ref assigned but never checked.
-    NOT_FOUND = "not_found"      # Checker could not resolve the ref.
-    FOUND = "found"              # Fact exists in Isabelle.
-    PROVED = "proved"            # Fact exists, no detected sorry/oracle.
-    TAINTED = "tainted"          # Fact exists but appears to rely on sorry/oracle.
-    STALE = "stale"              # Dependencies changed since the last successful check.
-    BROKEN = "broken"            # Isabelle build failed.
+    MISSING = "missing"  # No isabelle ref assigned.
+    NAMED = "named"  # Ref assigned but never checked.
+    NOT_FOUND = "not_found"  # Checker could not resolve the ref.
+    FOUND = "found"  # Fact exists in Isabelle.
+    PROVED = "proved"  # Fact exists, no detected sorry/oracle.
+    TAINTED = "tainted"  # Fact exists but appears to rely on sorry/oracle.
+    STALE = "stale"  # Dependencies changed since the last successful check.
+    BROKEN = "broken"  # Isabelle build failed.
     FAILED_CHECK = "failed_check"  # Generic check failure (kept for forward compat).
 
 
@@ -56,16 +57,25 @@ class AgentStatus(StrEnum):
 # Templates look these up by the enum's string value (e.g. ``node.status.formal.value``)
 # so we key the table by those same strings rather than by enum members.
 STATUS_COLORS: dict[str, str] = {
-    FormalStatus.MISSING.value: "#9ca3af",       # gray - only blueprint text exists
-    FormalStatus.NAMED.value: "#f59e0b",         # orange - fact name assigned, unchecked
-    FormalStatus.NOT_FOUND.value: "#ef4444",     # red - fact name assigned but not found
-    FormalStatus.FOUND.value: "#3b82f6",         # blue - exists, dependencies may be incomplete
-    FormalStatus.PROVED.value: "#10b981",        # green - exists and trusted
-    FormalStatus.TAINTED.value: "#a855f7",       # purple - sorry/oracle suspected
-    FormalStatus.STALE.value: "#fbbf24",         # amber - dependencies changed
-    FormalStatus.BROKEN.value: "#dc2626",        # dark red - build failure
+    FormalStatus.MISSING.value: "#9ca3af",  # gray - only blueprint text exists
+    FormalStatus.NAMED.value: "#f59e0b",  # orange - fact name assigned, unchecked
+    FormalStatus.NOT_FOUND.value: "#ef4444",  # red - fact name assigned but not found
+    FormalStatus.FOUND.value: "#3b82f6",  # blue - exists, dependencies may be incomplete
+    FormalStatus.PROVED.value: "#10b981",  # green - exists and trusted
+    FormalStatus.TAINTED.value: "#a855f7",  # purple - sorry/oracle suspected
+    FormalStatus.STALE.value: "#fbbf24",  # amber - dependencies changed
+    FormalStatus.BROKEN.value: "#dc2626",  # dark red - build failure
     FormalStatus.FAILED_CHECK.value: "#dc2626",
 }
+
+
+# Formal statuses that count as "complete" work: the fact exists and either
+# has not yet been checked for taint (``found``) or is fully trusted
+# (``proved``). Shared by every report that needs to ask "is this node done?"
+# so the definition lives in one place instead of being redefined per module.
+COMPLETE_FORMAL_STATUSES: frozenset[FormalStatus] = frozenset(
+    {FormalStatus.FOUND, FormalStatus.PROVED}
+)
 
 
 _StatusEnumT = TypeVar("_StatusEnumT", BlueprintStatus, FormalStatus, AgentStatus)
@@ -92,6 +102,4 @@ def coerce_status(enum_cls: type[_StatusEnumT], value: object) -> _StatusEnumT:
     except ValueError:
         axis = _AXIS_NAMES.get(enum_cls, enum_cls.__name__)
         valid = ", ".join(member.value for member in enum_cls)
-        raise ValueError(
-            f"invalid {axis} status {token!r}; expected one of: {valid}"
-        ) from None
+        raise ValueError(f"invalid {axis} status {token!r}; expected one of: {valid}") from None

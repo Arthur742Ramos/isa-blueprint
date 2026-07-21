@@ -16,6 +16,7 @@ endpoint, so it is deliberately conservative):
 * **Short timeout**, and the payload only ever contains aggregate counts - never
   file paths, node bodies, or other project contents.
 """
+
 from __future__ import annotations
 
 import json
@@ -78,8 +79,7 @@ def build_notification(
 
     lines = [
         f"Coverage: {coverage}",
-        f"Nodes: {metrics.node_count} "
-        f"({metrics.formal_target_count} formal target(s))",
+        f"Nodes: {metrics.node_count} ({metrics.formal_target_count} formal target(s))",
         f"Proved: {metrics.proved_count}  Found: {metrics.found_count}",
         f"Problems: {metrics.problem_count}  Stale: {metrics.stale_count}",
     ]
@@ -114,8 +114,7 @@ def render_payload(content: NotificationContent, fmt: str) -> dict[str, object]:
             "lines": list(content.lines),
         }
     raise BlueprintError(
-        f"unsupported notification format {fmt!r}; "
-        f"choose one of {', '.join(SUPPORTED_FORMATS)}"
+        f"unsupported notification format {fmt!r}; choose one of {', '.join(SUPPORTED_FORMATS)}"
     )
 
 
@@ -128,9 +127,7 @@ def render_markdown(content: NotificationContent) -> str:
     aggregate metric lines as the webhook formats (including the optional
     burndown ETA line, when present).
     """
-    coverage_line = next(
-        (line for line in content.lines if line.startswith("Coverage:")), None
-    )
+    coverage_line = next((line for line in content.lines if line.startswith("Coverage:")), None)
     heading = f"# {content.title}"
     if coverage_line is not None:
         heading = f"{heading} ({coverage_line})"
@@ -156,13 +153,10 @@ def post_notification(
     scheme = urlparse(url).scheme.lower()
     if scheme == "http" and not allow_http:
         raise BlueprintError(
-            "refusing to POST over plaintext http; use https "
-            "or pass --allow-http to override"
+            "refusing to POST over plaintext http; use https or pass --allow-http to override"
         )
     if scheme not in ("https", "http"):
-        raise BlueprintError(
-            f"unsupported URL scheme {scheme!r}; the webhook must be http(s)"
-        )
+        raise BlueprintError(f"unsupported URL scheme {scheme!r}; the webhook must be http(s)")
 
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
@@ -176,8 +170,6 @@ def post_notification(
         with opener.open(request, timeout=timeout) as response:
             return int(response.status)
     except urllib.error.HTTPError as exc:
-        raise BlueprintError(
-            f"webhook POST failed with HTTP {exc.code}: {exc.reason}"
-        ) from exc
+        raise BlueprintError(f"webhook POST failed with HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:
         raise BlueprintError(f"webhook POST failed: {exc.reason}") from exc

@@ -9,6 +9,7 @@ information (``source_file`` / ``source_line``) the result gets a physical
 ``location`` so code scanning can annotate the exact blueprint line; otherwise
 it falls back to a ``logicalLocation`` keyed by the node id.
 """
+
 from __future__ import annotations
 
 import hashlib

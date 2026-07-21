@@ -1,4 +1,5 @@
 """Ready-task filtering and selection shared by CLI and MCP surfaces."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,7 +9,7 @@ from isabelle_blueprint.agents.tasks import AgentTask
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.node import NodeKind
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 
 READY_TASK_PRIORITIES = ("high", "medium", "low")
 READY_TASK_DIFFICULTIES = ("low", "medium", "high")
@@ -93,9 +94,7 @@ def task_matches_filters(task: AgentTask, filters: ReadyTaskFilters) -> bool:
     if filters.kinds and task.kind not in filters.kinds:
         return False
     metadata = task.metadata
-    if filters.priorities and (
-        metadata is None or metadata.priority not in filters.priorities
-    ):
+    if filters.priorities and (metadata is None or metadata.priority not in filters.priorities):
         return False
     if filters.difficulties and (
         metadata is None or metadata.difficulty not in filters.difficulties
@@ -310,7 +309,7 @@ def _readiness_blockers(node_id: str, project: BlueprintProject) -> list[str]:
         dependency = by_id.get(dep_id)
         if dependency is None:
             blockers.append(f"{dep_id} (missing dependency)")
-        elif dependency.status.formal not in {FormalStatus.FOUND, FormalStatus.PROVED}:
+        elif dependency.status.formal not in COMPLETE_FORMAL_STATUSES:
             blockers.append(f"{dep_id} (formal status: {dependency.status.formal.value})")
     return blockers
 

@@ -7,6 +7,7 @@ these tests drive it against *real* short-lived ``python -c`` subprocesses --
 exercising the timeout, output-cap, stdin-EOF, and decoding paths directly,
 without needing Isabelle installed.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -45,9 +46,7 @@ def test_stdin_is_devnull_so_readers_get_eof_and_do_not_hang() -> None:
 
 
 def test_invalid_utf8_bytes_are_replaced_not_crashed() -> None:
-    result = run_capture(
-        _py(r"import sys; sys.stdout.buffer.write(b'\xff\xfe' + b'tail')")
-    )
+    result = run_capture(_py(r"import sys; sys.stdout.buffer.write(b'\xff\xfe' + b'tail')"))
     assert result.returncode == 0
     assert result.stdout.endswith("tail")
     assert "\ufffd" in result.stdout  # the undecodable bytes became U+FFFD

@@ -22,7 +22,7 @@ def test_bash_completion_includes_subcommand_options() -> None:
         "bash", "isabelle-blueprint", ["lint"], {"lint": ["--json", "--strict"]}
     )
     assert 'case "$sub" in' in script
-    assert "lint) opts=\"--json --strict\"" in script
+    assert 'lint) opts="--json --strict"' in script
     assert '"$cur" == -*' in script
 
 
@@ -33,9 +33,7 @@ def test_zsh_completion_uses_compdef() -> None:
 
 
 def test_zsh_completion_includes_subcommand_options() -> None:
-    script = render_completion(
-        "zsh", "isabelle-blueprint", ["lint"], {"lint": ["--json"]}
-    )
+    script = render_completion("zsh", "isabelle-blueprint", ["lint"], {"lint": ["--json"]})
     assert "lint) opts=(--json) ;;" in script
     assert "compadd -- $opts" in script
 
@@ -48,9 +46,7 @@ def test_fish_completion_emits_per_command_lines() -> None:
 
 
 def test_fish_completion_includes_subcommand_options() -> None:
-    script = render_completion(
-        "fish", "isabelle-blueprint", ["lint"], {"lint": ["--json", "-q"]}
-    )
+    script = render_completion("fish", "isabelle-blueprint", ["lint"], {"lint": ["--json", "-q"]})
     assert "__fish_seen_subcommand_from lint' -l json" in script
     assert "__fish_seen_subcommand_from lint' -s q" in script
 
@@ -63,9 +59,7 @@ def test_powershell_completion_registers_argument_completer() -> None:
 
 
 def test_powershell_completion_includes_subcommand_options() -> None:
-    script = render_completion(
-        "powershell", "isabelle-blueprint", ["lint"], {"lint": ["--json"]}
-    )
+    script = render_completion("powershell", "isabelle-blueprint", ["lint"], {"lint": ["--json"]})
     assert "'lint' = @('--json')" in script
     assert "$options.ContainsKey($sub)" in script
 
@@ -140,9 +134,7 @@ def test_install_completion_writes_file(tmp_path) -> None:
 
 def test_install_completion_powershell_hint(tmp_path) -> None:
     dest = tmp_path / "ib.ps1"
-    target, hint = install_completion(
-        "powershell", "isabelle-blueprint", ["lint"], dest=str(dest)
-    )
+    target, hint = install_completion("powershell", "isabelle-blueprint", ["lint"], dest=str(dest))
     assert target.exists()
     assert hint is not None
     assert "$PROFILE" in hint

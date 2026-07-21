@@ -18,6 +18,7 @@ CI metadata (``commit_sha`` / ``branch``) is auto-detected from
 ``GITHUB_SHA`` / ``GITHUB_REF_NAME`` when not supplied. When neither is
 available we keep the entry but tag it as ``local``.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,9 +38,7 @@ def _now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _ci_meta(
-    *, commit_sha: str | None, branch: str | None
-) -> tuple[str | None, str | None]:
+def _ci_meta(*, commit_sha: str | None, branch: str | None) -> tuple[str | None, str | None]:
     sha = commit_sha if commit_sha is not None else os.environ.get("GITHUB_SHA")
     ref = branch if branch is not None else os.environ.get("GITHUB_REF_NAME")
     return (sha or None, ref or None)

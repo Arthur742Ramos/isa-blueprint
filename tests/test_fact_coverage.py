@@ -226,9 +226,7 @@ def test_render_csv_columns_and_no_carriage_return() -> None:
     out = render_fact_coverage_csv(build_fact_coverage_report(project))
 
     lines = out.splitlines()
-    assert lines[0] == (
-        "theory,node_count,proved_count,found_count,problem_count,coverage_percent"
-    )
+    assert lines[0] == ("theory,node_count,proved_count,found_count,problem_count,coverage_percent")
     assert lines[1] == "Alpha,2,1,1,0,50"
     assert "\r" not in out
 
@@ -258,9 +256,7 @@ def test_cli_csv_two_theories_and_no_fact(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "\r" not in out
     lines = out.splitlines()
-    assert lines[0] == (
-        "theory,node_count,proved_count,found_count,problem_count,coverage_percent"
-    )
+    assert lines[0] == ("theory,node_count,proved_count,found_count,problem_count,coverage_percent")
     rows = {line.split(",", 1)[0]: line for line in lines[1:]}
     assert rows["Alpha"] == "Alpha,2,1,1,0,50"
     assert rows["Beta"] == "Beta,1,1,0,0,100"

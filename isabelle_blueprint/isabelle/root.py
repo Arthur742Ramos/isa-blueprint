@@ -14,6 +14,7 @@ omitted; session discovery here uses an explicit directory, then
 ``$ISABELLE_BLUEPRINT_ROOT``, then the nearest ancestor that holds a ``ROOT``
 file.
 """
+
 from __future__ import annotations
 
 import os
@@ -388,9 +389,7 @@ def parse_root_sessions(root_path: Path) -> list[SessionInfo]:
             if val == "session":
                 if cur is not None:
                     out.append(cur)
-                cur = SessionInfo(
-                    name="<anon>", root_path=abs_root, in_subdir=None, parent=None
-                )
+                cur = SessionInfo(name="<anon>", root_path=abs_root, in_subdir=None, parent=None)
                 if i + 1 < len(toks) and toks[i + 1][0] in ("id", "str"):
                     cur.name = toks[i + 1][1]
                     i += 2

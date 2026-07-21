@@ -14,6 +14,7 @@ operators, mixfix syntax, locale qualification, or generated facts
 authoritative dependency/proof data still comes from ``isabelle`` via
 ``check`` / ``dump``.
 """
+
 from __future__ import annotations
 
 import re
@@ -108,6 +109,7 @@ def _blank_cartouches(text: str) -> str:
             out[i] = " "
         i += 1
     return "".join(out)
+
 
 # Isar lemma/definition keywords that may sit where a name would and must never
 # be captured as one.
@@ -329,9 +331,7 @@ class SourceIndex:
         for match in _SORRY_RE.finditer(scan_source):
             offset = match.start()
             line = scan_source.count("\n", 0, offset) + 1
-            enclosing = next(
-                (p.entry.name for p in parsed if p.start <= offset < p.end), None
-            )
+            enclosing = next((p.entry.name for p in parsed if p.start <= offset < p.end), None)
             self.sorries.append(
                 SorryMarker(
                     theory=theory,
@@ -348,9 +348,7 @@ class SourceIndex:
         for key, entry in self._entry_by_key.items():
             by_short.setdefault(entry.name, []).append(key)
 
-        short_names = sorted(
-            {name for name in by_short if len(name) >= 2}, key=len, reverse=True
-        )
+        short_names = sorted({name for name in by_short if len(name) >= 2}, key=len, reverse=True)
         qualified = sorted(keys, key=len, reverse=True)
         short_re = (
             re.compile(
@@ -440,9 +438,7 @@ class SourceIndex:
         """Return ``(imports_in_project, imported_by)`` for ``theory``."""
         imports = sorted(self.in_project_imports.get(theory, []))
         imported_by = sorted(
-            other
-            for other, deps in self.in_project_imports.items()
-            if theory in deps
+            other for other, deps in self.in_project_imports.items() if theory in deps
         )
         return imports, imported_by
 
@@ -465,9 +461,7 @@ class SourceIndex:
         *earlier* in the global order, which guarantees an acyclic dependency
         graph (the blueprint validator rejects cycles).
         """
-        ordered = sorted(
-            self._entry_by_key.values(), key=lambda e: self._order_index[e.key]
-        )
+        ordered = sorted(self._entry_by_key.values(), key=lambda e: self._order_index[e.key])
         used_ids: set[str] = set()
         node_id_by_key: dict[str, str] = {}
         for entry in ordered:
@@ -495,12 +489,8 @@ class SourceIndex:
 
     def counts(self) -> dict[str, int]:
         """Compact numeric summary of the index (source-only, no Isabelle)."""
-        entries_with_sorry = {
-            f"{m.theory}.{m.entry}" for m in self.sorries if m.entry is not None
-        }
-        import_edges = sum(
-            len(set(deps)) for deps in self.in_project_imports.values()
-        )
+        entries_with_sorry = {f"{m.theory}.{m.entry}" for m in self.sorries if m.entry is not None}
+        import_edges = sum(len(set(deps)) for deps in self.in_project_imports.values())
         return {
             "theories": len(self.theory_order),
             "entries": len(self.entries),
@@ -575,14 +565,10 @@ def render_theory_index_mermaid(index: SourceIndex) -> str:
     """
     lines = ["flowchart TB"]
     for theory in index.theory_order:
-        lines.append(
-            f'  {_mermaid_theory_id(theory)}["{_mermaid_theory_label(theory)}"]'
-        )
+        lines.append(f'  {_mermaid_theory_id(theory)}["{_mermaid_theory_label(theory)}"]')
     for theory in index.theory_order:
         for imp in sorted(index.in_project_imports.get(theory, [])):
-            lines.append(
-                f"  {_mermaid_theory_id(imp)} --> {_mermaid_theory_id(theory)}"
-            )
+            lines.append(f"  {_mermaid_theory_id(imp)} --> {_mermaid_theory_id(theory)}")
     return "\n".join(lines) + "\n"
 
 

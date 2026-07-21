@@ -24,6 +24,8 @@
     "onCommand:isabelleBlueprint.refresh",
     "onCommand:isabelleBlueprint.runReport",
     "onCommand:isabelleBlueprint.runCheck",
+    "onCommand:isabelleBlueprint.runLint",
+    "onCommand:isabelleBlueprint.runGate",
     "onCommand:isabelleBlueprint.runTasks",
     "onCommand:isabelleBlueprint.runRoadmap",
     "onCommand:isabelleBlueprint.runAgentContext",
@@ -65,6 +67,14 @@
       {
         "command": "isabelleBlueprint.runCheck",
         "title": "IsabelleBlueprint: Run Check"
+      },
+      {
+        "command": "isabelleBlueprint.runLint",
+        "title": "IsabelleBlueprint: Run Lint"
+      },
+      {
+        "command": "isabelleBlueprint.runGate",
+        "title": "IsabelleBlueprint: Run Gate"
       },
       {
         "command": "isabelleBlueprint.runTasks",

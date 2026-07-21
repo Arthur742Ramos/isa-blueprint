@@ -10,6 +10,7 @@ The transform is intentionally limited to the Markdown interchange format. The
 LaTeX writer emits a whole standalone document, so reformatting ``.tex`` sources
 in place is out of scope; those files are reported as skipped.
 """
+
 from __future__ import annotations
 
 import difflib

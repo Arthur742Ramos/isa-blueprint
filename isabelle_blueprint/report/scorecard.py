@@ -30,23 +30,37 @@ The overall score is the weight-normalised average of the components that are
 defined, scaled to 0-100. When no component is defined (an empty project) the
 score is ``None`` and the grade is ``n/a``.
 """
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.model.project import BlueprintProject
-from isabelle_blueprint.model.status import BlueprintStatus, FormalStatus
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES, BlueprintStatus
 from isabelle_blueprint.report.metrics import StatusMetrics, build_status_metrics
 
 SCORECARD_SCHEMA_VERSION = 1
 
-# Statuses that count as "complete" formal work for readiness purposes. Kept
-# local (rather than importing roadmap.COMPLETE_FORMAL_STATUSES) so this module
-# stays free of cross-report coupling; the set mirrors that definition.
-_COMPLETE_FORMAL = frozenset({FormalStatus.FOUND.value, FormalStatus.PROVED.value})
+
+class _ScoreConsole(Protocol):
+    def dim(self, text: str) -> str: ...
+
+    def success(self, text: str) -> str: ...
+
+    def warning(self, text: str) -> str: ...
+
+    def error(self, text: str) -> str: ...
+
+
+# Statuses that count as "complete" formal work for readiness purposes, as
+# their string values (this module compares against ``status.formal.value``).
+# Derived from the shared model.status definition so every report agrees on
+# what "complete" means.
+_COMPLETE_FORMAL = frozenset(status.value for status in COMPLETE_FORMAL_STATUSES)
 
 # Graded credit for each informal write-up state.
 _DOC_CREDIT: dict[str, float] = {
@@ -181,9 +195,7 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise BlueprintError(
-            f"scorecard baseline is not valid JSON: {payload_path}"
-        ) from exc
+        raise BlueprintError(f"scorecard baseline is not valid JSON: {payload_path}") from exc
     if not isinstance(data, dict):
         raise BlueprintError(f"scorecard baseline must be a JSON object: {payload_path}")
     schema_version = data.get("schema_version")
@@ -194,30 +206,20 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
         )
     score = data.get("score")
     if not (score is None or isinstance(score, int)):
-        raise BlueprintError(
-            f"scorecard baseline has an invalid 'score': {payload_path}"
-        )
+        raise BlueprintError(f"scorecard baseline has an invalid 'score': {payload_path}")
     project = data.get("project")
     if not isinstance(project, str):
-        raise BlueprintError(
-            f"scorecard baseline 'project' must be a string: {payload_path}"
-        )
+        raise BlueprintError(f"scorecard baseline 'project' must be a string: {payload_path}")
     grade = data.get("grade")
     if not isinstance(grade, str):
-        raise BlueprintError(
-            f"scorecard baseline 'grade' must be a string: {payload_path}"
-        )
+        raise BlueprintError(f"scorecard baseline 'grade' must be a string: {payload_path}")
     raw_components = data.get("components")
     if not isinstance(raw_components, list):
-        raise BlueprintError(
-            f"scorecard baseline is missing its 'components': {payload_path}"
-        )
+        raise BlueprintError(f"scorecard baseline is missing its 'components': {payload_path}")
     components: list[ScoreComponent] = []
     for entry in raw_components:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
-            raise BlueprintError(
-                f"scorecard baseline has a malformed component: {payload_path}"
-            )
+            raise BlueprintError(f"scorecard baseline has a malformed component: {payload_path}")
         name = entry["name"]
         label = entry.get("label")
         detail = entry.get("detail")
@@ -228,14 +230,12 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
             )
         if "score" not in entry:
             raise BlueprintError(
-                f"scorecard baseline component '{name}' is missing its "
-                f"'score': {payload_path}"
+                f"scorecard baseline component '{name}' is missing its 'score': {payload_path}"
             )
         comp_score = entry["score"]
         if not (comp_score is None or isinstance(comp_score, (int, float))):
             raise BlueprintError(
-                f"scorecard baseline component '{name}' has an invalid "
-                f"score: {payload_path}"
+                f"scorecard baseline component '{name}' has an invalid score: {payload_path}"
             )
         if comp_score is not None and not (0.0 <= float(comp_score) <= 1.0):
             raise BlueprintError(
@@ -245,8 +245,7 @@ def load_scorecard_baseline(path: Path) -> Scorecard:
         weight = entry.get("weight")
         if not isinstance(weight, (int, float)) or float(weight) < 0.0:
             raise BlueprintError(
-                f"scorecard baseline component '{name}' has an invalid "
-                f"weight: {payload_path}"
+                f"scorecard baseline component '{name}' has an invalid weight: {payload_path}"
             )
         components.append(
             ScoreComponent(
@@ -282,9 +281,7 @@ def build_scorecard_delta(current: Scorecard, baseline: Scorecard) -> ScorecardD
         prev = baseline_by_name.get(component.name)
         if prev is None:
             continue
-        component_changes[component.name] = round(component.score * 100) - round(
-            prev * 100
-        )
+        component_changes[component.name] = round(component.score * 100) - round(prev * 100)
     return ScorecardDelta(
         baseline_score=baseline.score,
         score_change=score_change,
@@ -405,11 +402,7 @@ def build_scorecard(
             label=_COMPONENT_LABELS["documentation"],
             score=documentation,
             weight=_WEIGHTS["documentation"],
-            detail=(
-                f"write-up credit across {node_count} node(s)"
-                if node_count
-                else "no nodes"
-            ),
+            detail=(f"write-up credit across {node_count} node(s)" if node_count else "no nodes"),
         ),
         ScoreComponent(
             name="readiness",
@@ -540,8 +533,7 @@ def _readiness_score(project: BlueprintProject) -> tuple[float | None, int, int]
     actionable = 0
     for node in incomplete:
         deps_ok = all(
-            (dep := by_id.get(dep_id)) is not None
-            and dep.status.formal.value in _COMPLETE_FORMAL
+            (dep := by_id.get(dep_id)) is not None and dep.status.formal.value in _COMPLETE_FORMAL
             for dep_id in node.uses
         )
         if deps_ok:
@@ -562,7 +554,7 @@ def _weighted_score(components: tuple[ScoreComponent, ...]) -> int | None:
     return round(weighted / total_weight * 100)
 
 
-def _paint_score(text: str, score: int | None, console) -> str:  # type: ignore[no-untyped-def]
+def _paint_score(text: str, score: int | None, console: _ScoreConsole) -> str:
     if score is None:
         return console.dim(text)
     if score >= 80:

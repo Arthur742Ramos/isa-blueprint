@@ -11,6 +11,7 @@ anything is written to disk. If verification fails, the rename is aborted with a
 Persistent JSON stores keyed by node id (agent memory, GitHub sync state, and
 assignments) are rekeyed in lock-step so history/ownership follow the rename.
 """
+
 from __future__ import annotations
 
 import json
@@ -201,9 +202,7 @@ def _verify_rename(
             ) from exc
         for node in sub.nodes:
             if node.id in seen:
-                raise BlueprintError(
-                    f"rename aborted: duplicate id {node.id!r} after rewrite"
-                )
+                raise BlueprintError(f"rename aborted: duplicate id {node.id!r} after rewrite")
             seen[node.id] = str(path)
             nodes.append(node)
 
@@ -342,9 +341,7 @@ _KEY_RE = re.compile(r"^(?P<indent>\s*)(?P<key>[A-Za-z_][\w-]*)\s*:(?P<rest>.*)$
 _LIST_ITEM_RE = re.compile(r"^(?P<prefix>\s*-\s+)(?P<rest>.*)$")
 
 
-def _rewrite_meta_line(
-    line: str, old: str, new: str, in_uses_block: bool
-) -> tuple[str, int, bool]:
+def _rewrite_meta_line(line: str, old: str, new: str, in_uses_block: bool) -> tuple[str, int, bool]:
     """Rewrite id references on a single metadata line.
 
     Only the ``id`` value and ``uses`` references are rewritten; other metadata

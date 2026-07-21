@@ -7,6 +7,7 @@ Covers:
   leaking a traceback;
 - ``check`` printing a one-line "building session ..." status to stderr only.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -105,9 +106,7 @@ def test_main_handles_broken_pipe_cleanly() -> None:
         "cli.cmd_history = _broken\n"
         "sys.exit(cli.main(['history', '.']))\n"
     )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
 
     assert proc.returncode == 0
     assert "Traceback" not in proc.stderr

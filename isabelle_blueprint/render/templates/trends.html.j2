@@ -20,21 +20,22 @@
   <section class="trend-table-wrap">
     <h2>History</h2>
     <table class="trend-table">
+      <caption class="sr-only">Blueprint coverage and problem history by recorded run.</caption>
       <thead>
         <tr>
-          <th>Recorded</th>
-          <th>Commit</th>
-          <th>Branch</th>
-          <th>Coverage</th>
-          <th>Proved</th>
-          <th>Problems</th>
-          <th>Nodes</th>
+          <th scope="col">Recorded</th>
+          <th scope="col">Commit</th>
+          <th scope="col">Branch</th>
+          <th scope="col">Coverage</th>
+          <th scope="col">Proved</th>
+          <th scope="col">Problems</th>
+          <th scope="col">Nodes</th>
         </tr>
       </thead>
       <tbody>
         {% for entry in trends|reverse %}
           <tr>
-            <td>{{ entry.timestamp }}</td>
+            <th scope="row">{{ entry.timestamp }}</th>
             <td><code>{{ (entry.commit_sha or 'local')[:8] }}</code></td>
             <td>{{ entry.branch or '-' }}</td>
             <td>{{ '%d%%'|format(entry.coverage_percent) if entry.coverage_percent is not none else '-' }}</td>

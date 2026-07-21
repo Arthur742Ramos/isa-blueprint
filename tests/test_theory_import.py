@@ -43,17 +43,17 @@ def test_import_theory_reports_exact_line_numbers_across_blank_lines(tmp_path: P
     # (which an ^\s* anchor would do, since \s matches newlines in (?m) mode).
     thy = tmp_path / "Demo.thy"
     thy.write_text(
-        "theory Demo\n"          # line 1
-        "imports Main\n"         # line 2
-        "begin\n"                # line 3
-        "\n"                     # line 4
+        "theory Demo\n"  # line 1
+        "imports Main\n"  # line 2
+        "begin\n"  # line 3
+        "\n"  # line 4
         'lemma first: "True"\n'  # line 5
-        "  by simp\n"            # line 6
-        "\n"                     # line 7
+        "  by simp\n"  # line 6
+        "\n"  # line 7
         'lemma second: "True"\n'  # line 8
-        "  by simp\n"            # line 9
-        "\n"                     # line 10
-        "end\n",                 # line 11
+        "  by simp\n"  # line 9
+        "\n"  # line 10
+        "end\n",  # line 11
         encoding="utf-8",
     )
 
@@ -70,7 +70,7 @@ def test_import_theory_tolerates_non_utf8_bytes(tmp_path: Path):
     thy = tmp_path / "Demo.thy"
     thy.write_bytes(
         b"theory Demo imports Main begin\n"
-        b'(* compl\xe9ted by caf\xe9 *)\n'  # 0xe9 is invalid UTF-8
+        b"(* compl\xe9ted by caf\xe9 *)\n"  # 0xe9 is invalid UTF-8
         b'lemma real_demo: "True" by simp\n'
         b"end\n"
     )
@@ -100,7 +100,7 @@ end
 def test_render_imported_blueprint_contains_review_banner(tmp_path: Path):
     thy = tmp_path / "Demo.thy"
     thy.write_text(
-        "theory Demo imports Main begin\nlemma real: \"True\" by simp\nend\n",
+        'theory Demo imports Main begin\nlemma real: "True" by simp\nend\n',
         encoding="utf-8",
     )
 

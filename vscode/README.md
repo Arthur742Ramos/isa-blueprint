@@ -12,8 +12,8 @@ Features:
 - Inline diagnostics on source lines for missing, stale, broken, or tainted nodes.
 - Refresh command and file watcher for `build/project.json`.
 - One-click navigation from the tree to the node source.
-- Commands to run `isabelle-blueprint report`, `check`, `tasks`, `roadmap`, and
-  `agent-context` from the active workspace.
+- Commands to run `isabelle-blueprint report`, `check`, `lint`, `gate`, `tasks`,
+  `roadmap`, and `agent-context` from the active workspace.
 - Proof-analytics commands that surface read-only insight in the output panel:
   **Audit Staleness** (`staleness`), **Forecast Burndown** (`burndown`), and
   **Show Critical Path** (`critical-path`).
@@ -38,3 +38,9 @@ Configuration:
   "isabelleBlueprint.cliPath": "isabelle-blueprint"
 }
 ```
+
+**Run Lint** and **Run Gate** use the same shell-free `execFile` path as the
+other CLI commands. Their stdout/stderr and gate failure details appear in the
+`IsabelleBlueprint` output channel. Both analyses are read-only, so they leave
+the current editor diagnostics in place; run **Check** or **Report** to
+regenerate `build/project.json` and refresh diagnostics from new project state.

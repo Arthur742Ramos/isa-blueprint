@@ -89,4 +89,13 @@ python_version = "3.11"
 files = ["isabelle_blueprint"]
 ignore_missing_imports = true
 no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
 warn_redundant_casts = true
+strict_equality = true
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 87

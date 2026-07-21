@@ -1,4 +1,5 @@
 """Tests for the plugin discovery layer."""
+
 from __future__ import annotations
 
 import warnings

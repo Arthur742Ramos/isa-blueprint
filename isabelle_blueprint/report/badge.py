@@ -10,6 +10,7 @@ Two artefacts are produced:
   - no font downloads, no external CSS, no scripts - and so README badges
   keep rendering even when shields.io is unreachable.
 """
+
 from __future__ import annotations
 
 import json

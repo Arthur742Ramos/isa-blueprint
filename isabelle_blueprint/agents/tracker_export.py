@@ -14,6 +14,7 @@ Everything is produced with the stdlib :mod:`csv` module and a fixed
 ``\\n`` line terminator so the output is stable and diff-friendly. No network
 access is involved; the CSV is meant to be handed to the tracker's own importer.
 """
+
 from __future__ import annotations
 
 import csv

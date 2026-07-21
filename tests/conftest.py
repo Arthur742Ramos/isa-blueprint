@@ -1,4 +1,5 @@
 """Pytest fixtures shared across the IsabelleBlueprint test suite."""
+
 from __future__ import annotations
 
 import textwrap

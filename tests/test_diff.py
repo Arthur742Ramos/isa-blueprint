@@ -136,9 +136,7 @@ def test_diff_markdown_reports_removed_and_changed(tmp_path: Path, capsys) -> No
         ],
     )
 
-    rc = cli_main(
-        ["diff", str(baseline), str(tmp_path), "--markdown", "--fail-on-regression"]
-    )
+    rc = cli_main(["diff", str(baseline), str(tmp_path), "--markdown", "--fail-on-regression"])
 
     # --fail-on-regression still wins exit code 5 alongside --markdown.
     assert rc == 5
@@ -286,4 +284,3 @@ def test_diff_both_flags_emit_regression_message(tmp_path: Path, capsys) -> None
     err = capsys.readouterr().err
     assert "regression detected vs baseline" in err
     assert "change detected vs baseline" not in err
-

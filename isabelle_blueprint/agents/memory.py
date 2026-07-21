@@ -4,6 +4,7 @@ The memory file is intentionally separate from generated ``build/`` artefacts:
 it records human/agent experience that is useful across reruns, machines, and
 CI jobs.  The default location is ``.isabelle-blueprint/agent-memory.json``.
 """
+
 from __future__ import annotations
 
 import hashlib

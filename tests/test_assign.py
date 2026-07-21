@@ -126,9 +126,7 @@ def test_assign_clear_with_owner_is_rejected(tmp_path: Path, capsys) -> None:
     # would silently ignore them. Reject the contradictory combination outright.
     _write_project(tmp_path)
 
-    rc = cli_main(
-        ["assign", "a", "--project-dir", str(tmp_path), "--clear", "--owner", "alice"]
-    )
+    rc = cli_main(["assign", "a", "--project-dir", str(tmp_path), "--clear", "--owner", "alice"])
 
     assert rc == 1
     assert "--clear cannot be combined with --owner/--note" in capsys.readouterr().err
@@ -137,9 +135,7 @@ def test_assign_clear_with_owner_is_rejected(tmp_path: Path, capsys) -> None:
 def test_assign_clear_with_note_is_rejected(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
 
-    rc = cli_main(
-        ["assign", "a", "--project-dir", str(tmp_path), "--clear", "--note", "x"]
-    )
+    rc = cli_main(["assign", "a", "--project-dir", str(tmp_path), "--clear", "--note", "x"])
 
     assert rc == 1
     assert "--clear cannot be combined with --owner/--note" in capsys.readouterr().err

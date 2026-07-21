@@ -65,21 +65,22 @@
 </section>
 
 <table class="status-table">
+  <caption class="sr-only">Blueprint nodes and their blueprint, formal, and agent statuses.</caption>
   <thead>
     <tr>
-      <th>ID</th>
-      <th>Kind</th>
-      <th>Title</th>
-      <th>Isabelle fact</th>
-      <th>Blueprint</th>
-      <th>Formal</th>
-      <th>Agent</th>
+      <th scope="col">ID</th>
+      <th scope="col">Kind</th>
+      <th scope="col">Title</th>
+      <th scope="col">Isabelle fact</th>
+      <th scope="col">Blueprint</th>
+      <th scope="col">Formal</th>
+      <th scope="col">Agent</th>
     </tr>
   </thead>
   <tbody>
     {% for node in project.nodes %}
       <tr data-blueprint="{{ node.status.blueprint.value }}" data-formal="{{ node.status.formal.value }}" data-agent="{{ node.status.agent.value }}" data-search="{{ (node.id ~ ' ' ~ node.title ~ ' ' ~ node.kind.value ~ ' ' ~ (node.isabelle.fact or '') ~ ' ' ~ (node.tags|join(' ')))|lower }}">
-        <td><a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a></td>
+        <th scope="row"><a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a></th>
         <td>{{ node.kind.value }}</td>
         <td>{{ node.title }}</td>
         <td><code>{{ node.isabelle.fact or '' }}</code></td>

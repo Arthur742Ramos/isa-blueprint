@@ -112,9 +112,7 @@ def test_search_facts_text_output(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, "# sf-test\n")
     thy = _write_theory(tmp_path)
 
-    rc = cli_main(
-        ["search-facts", str(tmp_path), "--theory", str(thy), "--query", "nomatchxyz"]
-    )
+    rc = cli_main(["search-facts", str(tmp_path), "--theory", str(thy), "--query", "nomatchxyz"])
 
     assert rc == 0
     assert "no declarations match" in capsys.readouterr().out

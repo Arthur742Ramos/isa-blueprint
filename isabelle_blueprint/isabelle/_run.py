@@ -32,7 +32,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, BinaryIO
 
 
 class OutputLimitExceeded(subprocess.SubprocessError):
@@ -160,7 +160,7 @@ def run_capture(
             # between polls, so reading the whole temp file back would allocate
             # an unbounded string and defeat the cap. The tail holds the most
             # recent (and usually most diagnostic) output.
-            def _read(stream: Any) -> str:
+            def _read(stream: BinaryIO) -> str:
                 stream.seek(0, os.SEEK_END)
                 size = stream.tell()
                 if cap is not None and size > cap:

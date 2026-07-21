@@ -5,6 +5,7 @@ This powers the ``isabelle-blueprint new`` command. The goal is to remove the
 title, a suggested Isabelle fact name, and (for proof-carrying kinds) a
 proof section, so the author only has to fill in the prose.
 """
+
 from __future__ import annotations
 
 import re

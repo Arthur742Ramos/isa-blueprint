@@ -6,6 +6,7 @@ they swallow ``OSError`` so a misconfigured runner cannot turn a successful
 report into a failed CLI exit. Returning ``bool`` lets the caller log
 whether anything was written, but exit codes are never affected.
 """
+
 from __future__ import annotations
 
 import os

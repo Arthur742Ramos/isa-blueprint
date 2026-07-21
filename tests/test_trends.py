@@ -1,4 +1,5 @@
 """Tests for the v0.8 trend history store."""
+
 from __future__ import annotations
 
 import json

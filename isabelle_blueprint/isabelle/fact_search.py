@@ -14,6 +14,7 @@ Two modes are supported:
   unresolved (``not_found``/``failed_check``/``broken``/``named``), fuzzy-match
   its referenced fact's short name against the real declarations.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -153,9 +154,7 @@ def render_hits(query: str, hits: list[FactHit]) -> str:
         return f"no declarations match {query!r}\n"
     lines = [f"matches for {query!r}:"]
     for hit in hits:
-        lines.append(
-            f"  {hit.key}  [{hit.kind}]  {hit.path}:{hit.line}  (score {hit.score:.2f})"
-        )
+        lines.append(f"  {hit.key}  [{hit.kind}]  {hit.path}:{hit.line}  (score {hit.score:.2f})")
     return "\n".join(lines) + "\n"
 
 
@@ -173,9 +172,7 @@ def render_hits_markdown(query: str, hits: list[FactHit]) -> str:
     lines.append("| Fact | Score | Theory |")
     lines.append("| --- | --- | --- |")
     for hit in hits:
-        lines.append(
-            f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |"
-        )
+        lines.append(f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |")
     return "\n".join(lines) + "\n"
 
 
@@ -191,9 +188,7 @@ def render_matches_markdown(matches: list[NodeFactMatch]) -> str:
         lines.append("| Fact | Score | Theory |")
         lines.append("| --- | --- | --- |")
         for hit in match.hits:
-            lines.append(
-                f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |"
-            )
+            lines.append(f"| `{_md_cell(hit.key)}` | {hit.score:.2f} | {_md_cell(hit.theory)} |")
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -207,7 +202,6 @@ def render_matches(matches: list[NodeFactMatch]) -> str:
         lines.append(f"{match.node_id}  (target {match.target_fact})")
         for hit in match.hits:
             lines.append(
-                f"  -> {hit.key}  [{hit.kind}]  {hit.path}:{hit.line}  "
-                f"(score {hit.score:.2f})"
+                f"  -> {hit.key}  [{hit.kind}]  {hit.path}:{hit.line}  (score {hit.score:.2f})"
             )
     return "\n".join(lines) + "\n"

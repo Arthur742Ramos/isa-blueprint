@@ -184,7 +184,7 @@ def test_goal_with_symbol_and_quote_is_escaped_well_formed():
     assert r"\<forall>" in lemma_line
     assert r"\\<forall>" not in lemma_line
     # The embedded double-quote is backslash-escaped so it cannot terminate early.
-    assert r'\"' in lemma_line
+    assert r"\"" in lemma_line
     # Exactly one opening and one closing unescaped quote delimit the proposition.
     assert lemma_line.startswith('lemma q: "')
     assert lemma_line.endswith('"')
@@ -275,9 +275,7 @@ def test_generated_theory_builds_in_real_isabelle(tmp_path: Path):
     session_dir.mkdir()
     (session_dir / f"{theory_name}.thy").write_text(thy_text, encoding="utf-8")
     (session_dir / "ROOT").write_text(
-        f'session "Demo_Build" = "HOL" +\n'
-        f"  theories\n"
-        f"    {theory_name}\n",
+        f'session "Demo_Build" = "HOL" +\n  theories\n    {theory_name}\n',
         encoding="utf-8",
     )
     # `sorry` only builds under quick_and_dirty.

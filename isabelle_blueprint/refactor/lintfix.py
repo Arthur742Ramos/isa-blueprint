@@ -17,6 +17,7 @@ Two safety rails keep the fix trustworthy:
 Only Markdown sources are rewritten; LaTeX blueprints are reported as skipped
 (the LaTeX writer emits a whole standalone document, as with ``fmt``).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -44,9 +45,7 @@ class LintFixFileResult:
             "changed": self.changed,
             "skipped": self.skipped,
             "reason": self.reason,
-            "removed": [
-                {"node": node_id, "dependency": dep} for node_id, dep in self.removed
-            ],
+            "removed": [{"node": node_id, "dependency": dep} for node_id, dep in self.removed],
         }
 
 
@@ -120,16 +119,12 @@ def apply_lint_fixes(
     for path in paths:
         if path.suffix.lower() != ".md":
             result.files.append(
-                LintFixFileResult(
-                    str(path), skipped=True, reason="not a .md source"
-                )
+                LintFixFileResult(str(path), skipped=True, reason="not a .md source")
             )
             continue
 
         original = path.read_text(encoding="utf-8")
-        file_project = parse_blueprint_text(
-            original, source=str(path), project_name=project_name
-        )
+        file_project = parse_blueprint_text(original, source=str(path), project_name=project_name)
         removed: list[tuple[str, str]] = []
         for node in file_project.nodes:
             kept: list[str] = []
@@ -148,9 +143,7 @@ def apply_lint_fixes(
         changed = rendered != original
         if changed and not check_only:
             path.write_text(rendered, encoding="utf-8")
-        result.files.append(
-            LintFixFileResult(str(path), changed=changed, removed=removed)
-        )
+        result.files.append(LintFixFileResult(str(path), changed=changed, removed=removed))
 
     # Keep the in-memory merged project consistent with the on-disk fix so the
     # caller's follow-up lint report reflects the post-fix state.
@@ -170,9 +163,7 @@ def render_lint_fix_summary(result: LintFixResult) -> str:
             lines.append(f"  skipped {entry.path} ({entry.reason})")
             continue
         for node_id, dep in entry.removed:
-            lines.append(
-                f"  {entry.path} [{node_id}]: dropped dangling dependency {dep!r}"
-            )
+            lines.append(f"  {entry.path} [{node_id}]: dropped dangling dependency {dep!r}")
         if entry.changed:
             verb = "would rewrite" if result.check_only else "rewrote"
             lines.append(f"  {verb} {entry.path}")

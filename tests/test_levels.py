@@ -54,9 +54,7 @@ def test_levels_layering_basic() -> None:
 
 def test_leaf_in_level_zero() -> None:
     # Two leaves at level 0, one dependent at level 1; widest level = 2.
-    report = build_levels_report(
-        _project(_node("x"), _node("y"), _node("z", uses=["x", "y"]))
-    )
+    report = build_levels_report(_project(_node("x"), _node("y"), _node("z", uses=["x", "y"])))
 
     assert report.level_count == 2
     assert set(report.levels[0].node_ids) == {"x", "y"}

@@ -6,6 +6,7 @@ GitHub sync state, this lives outside generated ``build/`` artefacts (default
 ``.isabelle-blueprint/assignments.json``) so ownership survives reruns and is
 shared via version control if the team wants.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,8 +74,7 @@ class AssignmentStore:
         return {
             "schema_version": ASSIGNMENTS_SCHEMA_VERSION,
             "nodes": {
-                node_id: assignment.to_dict()
-                for node_id, assignment in sorted(self.nodes.items())
+                node_id: assignment.to_dict() for node_id, assignment in sorted(self.nodes.items())
             },
         }
 

@@ -16,18 +16,16 @@ Only real nodes appear: a ``uses`` entry that does not resolve to a known node i
 a missing-dependency edge (surfaced by ``lint``/``critical-path``) and is omitted
 here. No Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
 
 DEPENDS_SCHEMA_VERSION = 1
-
-
-class UnknownNodeError(KeyError):
-    """Raised when the ``depends`` target id is not present in the project."""
 
 
 @dataclass(frozen=True)
@@ -88,13 +86,9 @@ def build_depends_report(project: BlueprintProject, node_id: str) -> DependsRepo
             formal_status=node.status.formal.value,
         )
 
-    depends_on = [
-        neighbour(dep) for dep in sorted(graph.edges.get(node_id, [])) if dep != node_id
-    ]
+    depends_on = [neighbour(dep) for dep in sorted(graph.edges.get(node_id, [])) if dep != node_id]
     depended_on_by = [
-        neighbour(dep)
-        for dep in sorted(graph.reverse_edges.get(node_id, []))
-        if dep != node_id
+        neighbour(dep) for dep in sorted(graph.reverse_edges.get(node_id, [])) if dep != node_id
     ]
 
     return DependsReport(
@@ -113,9 +107,7 @@ def render_depends_report(report: DependsReport) -> str:
     lines.append("Depends on:")
     if report.depends_on:
         for item in report.depends_on:
-            lines.append(
-                f"- `{item.id}` ({item.kind}, formal `{item.formal_status}`)"
-            )
+            lines.append(f"- `{item.id}` ({item.kind}, formal `{item.formal_status}`)")
     else:
         lines.append("- (none)")
     lines.append("")
@@ -123,9 +115,7 @@ def render_depends_report(report: DependsReport) -> str:
     lines.append("Depended on by:")
     if report.depended_on_by:
         for item in report.depended_on_by:
-            lines.append(
-                f"- `{item.id}` ({item.kind}, formal `{item.formal_status}`)"
-            )
+            lines.append(f"- `{item.id}` ({item.kind}, formal `{item.formal_status}`)")
     else:
         lines.append("- (none)")
 

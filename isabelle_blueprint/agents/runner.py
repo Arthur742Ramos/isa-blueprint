@@ -17,6 +17,7 @@ Security notes:
 * Combined stdout/stderr is size-capped while the command runs to avoid a
   runaway solver flooding the disk, and only bounded tails are surfaced/recorded.
 """
+
 from __future__ import annotations
 
 import hashlib

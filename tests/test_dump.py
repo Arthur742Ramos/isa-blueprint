@@ -1,4 +1,5 @@
 """Tests for PIDE dump inspection."""
+
 from __future__ import annotations
 
 import json
@@ -170,4 +171,3 @@ def test_cli_dump_plain_output_unchanged(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "dump report ->" in out
     assert "{" not in out  # not JSON
-

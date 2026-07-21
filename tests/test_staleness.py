@@ -400,15 +400,11 @@ def test_cli_staleness_outdated_without_flag_unchanged(tmp_path: Path, capsys) -
     assert capsys.readouterr().err == ""
 
 
-def test_cli_staleness_fail_on_outdated_composes_with_problem(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_staleness_fail_on_outdated_composes_with_problem(tmp_path: Path, capsys) -> None:
     # A broken-dependency project trips when either gate is enabled, confirming
     # the two flags compose without interfering with each other.
     _write_project(tmp_path, _BODY)
-    rc = cli_main(
-        ["staleness", str(tmp_path), "--fail-on-problem", "--fail-on-outdated"]
-    )
+    rc = cli_main(["staleness", str(tmp_path), "--fail-on-problem", "--fail-on-outdated"])
     assert rc == 5
     err = capsys.readouterr().err
     assert "broken/missing" in err
@@ -441,9 +437,7 @@ def test_cli_staleness_csv(tmp_path: Path, capsys) -> None:
     assert "problem" in b_row
 
 
-def test_cli_staleness_csv_composes_with_fail_on_problem(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_staleness_csv_composes_with_fail_on_problem(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
     rc = cli_main(["staleness", str(tmp_path), "--csv", "--fail-on-problem"])
     assert rc == 5
@@ -456,4 +450,3 @@ def test_cli_staleness_csv_rejects_json(tmp_path: Path) -> None:
     _write_project(tmp_path, _BODY)
     with pytest.raises(SystemExit):
         cli_main(["staleness", str(tmp_path), "--csv", "--json"])
-

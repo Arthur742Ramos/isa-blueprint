@@ -6,6 +6,7 @@ guarantee the rest of the CLI already provides: every published payload conforms
 to a packaged ``*.schema.json``, and every packaged schema is itself a valid
 draft 2020-12 schema.
 """
+
 from __future__ import annotations
 
 import json
@@ -131,7 +132,9 @@ def test_tags_json_conforms(tmp_path: Path, capsys) -> None:
     _validate(data, "tags")
 
 
-_ORPHAN_BLUEPRINT = _BLUEPRINT + """
+_ORPHAN_BLUEPRINT = (
+    _BLUEPRINT
+    + """
 ::: lemma {#orbit_a}
 title: Orbit A
 isabelle: Demo.orbit_a
@@ -152,6 +155,7 @@ status: stub
 Orbit B.
 :::
 """
+)
 
 
 def test_orphans_json_conforms(tmp_path: Path, capsys) -> None:

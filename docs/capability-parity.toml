@@ -1,0 +1,97 @@
+schema_version = 1
+
+# Aliases are part of the frozen CLI contract but share their canonical
+# command's ecosystem classification.
+[cli.aliases]
+"deps-audit" = "reconcile"
+
+# Commands omitted from every secondary surface are grouped by intent. A new
+# CLI command must be placed here or mapped to at least one surface below.
+[cli.omissions]
+scaffolding_or_editing = ["fmt", "import-theory", "init", "new"]
+external_or_long_running = ["attempt", "completion", "dump", "hooks", "notify", "serve"]
+specialized_artifacts = ["export-theory", "prometheus"]
+
+[mcp]
+native_tools = ["list_projects"]
+
+# Values are MCP tool names. Several tools deliberately expose safe subsets:
+# deps_audit is reconcile's pure comparison phase, agent_run_plan never starts
+# a solver, and preview_rename_node never writes.
+[mcp.cli]
+"agent-context" = ["agent_context"]
+"agent-run" = ["agent_run_plan"]
+assign = ["assign_node", "list_assignments"]
+blame = ["blame"]
+burndown = ["burndown"]
+compat = ["compat"]
+"critical-path" = ["critical_path"]
+depends = ["depends"]
+diff = ["diff"]
+doctor = ["doctor"]
+effort = ["effort"]
+explain = ["explain_node"]
+"fact-coverage" = ["fact_coverage"]
+gate = ["gate"]
+graph = ["graph"]
+history = ["history"]
+impact = ["impact"]
+kinds = ["kinds"]
+levels = ["levels"]
+lint = ["lint"]
+matrix = ["matrix"]
+memory = ["record_attempt"]
+next = ["next_task"]
+orphans = ["orphans"]
+path = ["path"]
+portfolio = ["portfolio"]
+"proof-debt" = ["proof_debt"]
+reconcile = ["deps_audit"]
+rename = ["preview_rename_node"]
+roadmap = ["roadmap"]
+schema = ["schema"]
+scorecard = ["scorecard"]
+"search-facts" = ["suggest_facts"]
+staleness = ["staleness"]
+stats = ["stats"]
+status = ["status"]
+"tag-cooccurrence" = ["tag_cooccurrence"]
+tags = ["tags"]
+tasks = ["list_tasks"]
+"theory-index" = ["theory_index"]
+version = ["version"]
+
+[vscode]
+native_commands = ["isabelleBlueprint.openNode", "isabelleBlueprint.refresh"]
+internal_commands = ["isabelleBlueprint.createMissingDependency"]
+
+# Values are contributed VS Code command identifiers. Commands run the CLI with
+# execFile; lint/gate and the other analyses are read-only and keep existing
+# editor diagnostics unchanged while writing complete output to the output pane.
+[vscode.cli]
+"agent-context" = ["isabelleBlueprint.runAgentContext"]
+burndown = ["isabelleBlueprint.runBurndown"]
+check = ["isabelleBlueprint.runCheck"]
+"critical-path" = ["isabelleBlueprint.runCriticalPath"]
+explain = ["isabelleBlueprint.explainNode"]
+gate = ["isabelleBlueprint.runGate"]
+lint = ["isabelleBlueprint.runLint"]
+memory = ["isabelleBlueprint.recordMemory"]
+next = [
+  "isabelleBlueprint.openNextTaskPrompt",
+  "isabelleBlueprint.previewTaskPrompt",
+]
+report = ["isabelleBlueprint.runReport"]
+roadmap = ["isabelleBlueprint.runRoadmap"]
+staleness = ["isabelleBlueprint.runStaleness"]
+tasks = ["isabelleBlueprint.runTasks"]
+
+[action.cli]
+check = ["check"]
+comment = ["comment"]
+graph = ["graph"]
+gate = ["gate"]
+lint = ["lint"]
+report = ["report"]
+tasks = ["tasks"]
+web = ["web"]

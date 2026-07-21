@@ -24,8 +24,18 @@ Run the same checks that CI runs before opening a pull request:
 
 ```bash
 python -m ruff check .
+python -m ruff format --check .
 python -m mypy isabelle_blueprint
 python -m pytest tests/ -q
+```
+
+Use `python -m ruff format .` to apply the canonical Python formatting before
+re-running the check. The coverage job also exercises branch coverage and emits
+`coverage.xml`; reproduce its threshold locally with:
+
+```bash
+python -m pytest tests/ --cov=isabelle_blueprint --cov-branch \
+  --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=87
 ```
 
 For the extension:

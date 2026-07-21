@@ -11,6 +11,7 @@ imports only ``Main`` -- keeping the scaffold buildable before the real
 session theories exist -- with the nodes laid out in dependency order (a node's
 dependencies always precede it).
 """
+
 from __future__ import annotations
 
 import re
@@ -44,18 +45,91 @@ def sanitize_theory_name(name: str) -> str:
 # so a sanitized name that lands on one gets a trailing underscore.
 _ISABELLE_KEYWORDS = frozenset(
     {
-        "abbreviation", "also", "and", "apply", "assume", "assumes", "axiomatization",
-        "begin", "binder", "by", "case", "class", "consts", "constrains", "context",
-        "corollary", "datatype", "declare", "defines", "definition", "done", "end",
-        "finally", "fix", "fixes", "for", "from", "fun", "function", "have", "hence",
-        "if", "imports", "in", "includes", "inductive", "instance", "instantiation",
-        "interpretation", "is", "keywords", "lemma", "let", "locale", "method",
-        "moreover", "next", "notation", "notes", "obtain", "obtains", "oops", "open",
-        "overloaded", "pervasive", "primrec", "private", "proof", "proposition",
-        "qed", "qualified", "record", "rewrites", "schematic_goal", "show", "shows",
-        "sorry", "structure", "sublocale", "syntax", "term", "then", "theorem",
-        "theory", "thus", "translations", "type", "typedef", "ultimately",
-        "unfolding", "using", "value", "when", "where", "with",
+        "abbreviation",
+        "also",
+        "and",
+        "apply",
+        "assume",
+        "assumes",
+        "axiomatization",
+        "begin",
+        "binder",
+        "by",
+        "case",
+        "class",
+        "consts",
+        "constrains",
+        "context",
+        "corollary",
+        "datatype",
+        "declare",
+        "defines",
+        "definition",
+        "done",
+        "end",
+        "finally",
+        "fix",
+        "fixes",
+        "for",
+        "from",
+        "fun",
+        "function",
+        "have",
+        "hence",
+        "if",
+        "imports",
+        "in",
+        "includes",
+        "inductive",
+        "instance",
+        "instantiation",
+        "interpretation",
+        "is",
+        "keywords",
+        "lemma",
+        "let",
+        "locale",
+        "method",
+        "moreover",
+        "next",
+        "notation",
+        "notes",
+        "obtain",
+        "obtains",
+        "oops",
+        "open",
+        "overloaded",
+        "pervasive",
+        "primrec",
+        "private",
+        "proof",
+        "proposition",
+        "qed",
+        "qualified",
+        "record",
+        "rewrites",
+        "schematic_goal",
+        "show",
+        "shows",
+        "sorry",
+        "structure",
+        "sublocale",
+        "syntax",
+        "term",
+        "then",
+        "theorem",
+        "theory",
+        "thus",
+        "translations",
+        "type",
+        "typedef",
+        "ultimately",
+        "unfolding",
+        "using",
+        "value",
+        "when",
+        "where",
+        "with",
     }
 )
 
@@ -78,9 +152,7 @@ def _base_lemma_name(node: BlueprintNode) -> str:
     return name
 
 
-def _assign_lemma_names(
-    ordered_ids: list[str], by_id: dict[str, BlueprintNode]
-) -> dict[str, str]:
+def _assign_lemma_names(ordered_ids: list[str], by_id: dict[str, BlueprintNode]) -> dict[str, str]:
     """Map node id -> unique lemma name, deterministically in *ordered_ids* order.
 
     Two nodes whose facts (or ids) sanitize to the same identifier would emit a
@@ -174,9 +246,7 @@ def _render_node(
     return lines
 
 
-def generate_theory_scaffold(
-    project: BlueprintProject, *, theory_name: str | None = None
-) -> str:
+def generate_theory_scaffold(project: BlueprintProject, *, theory_name: str | None = None) -> str:
     """Return the source of a buildable ``.thy`` scaffold for *project*.
 
     The theory imports only ``Main`` and lays out every node in dependency order.

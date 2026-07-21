@@ -14,6 +14,7 @@ half rather than failing. Git is invoked with ``shell=False`` and a ``--``
 path separator, and results are cached per file so a large blueprint only shells
 out once per source file.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -246,8 +247,7 @@ def render_blame_table(blames: list[NodeBlame]) -> str:
 
     def _fmt(cols: tuple[str, str, str, str]) -> str:
         return "  ".join(
-            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i]
-            for i in range(len(cols))
+            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i] for i in range(len(cols))
         ).rstrip()
 
     lines = [_fmt(headers)]
@@ -261,20 +261,12 @@ def _md_cell(text: str) -> str:
     A literal ``|`` would otherwise start a new column and a newline would
     terminate the row, so both are neutralised.
     """
-    return (
-        text.replace("\r\n", " ")
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .replace("|", r"\|")
-    )
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", r"\|")
 
 
 def render_blame_markdown(blames: list[NodeBlame]) -> str:
     """Render ``blames`` as a Markdown table (trailing newline)."""
-    header = (
-        "| Node | Source | Git | Agent memory |\n"
-        "| --- | --- | --- | --- |\n"
-    )
+    header = "| Node | Source | Git | Agent memory |\n| --- | --- | --- | --- |\n"
     if not blames:
         return header
     lines: list[str] = []
@@ -284,8 +276,7 @@ def render_blame_markdown(blames: list[NodeBlame]) -> str:
             location = f"{location}:{blame.source_line}"
         if blame.git is not None:
             git_cell = (
-                f"{blame.git.commit} {blame.git.author} "
-                f"{blame.git.date} - {blame.git.subject}"
+                f"{blame.git.commit} {blame.git.author} {blame.git.date} - {blame.git.subject}"
             )
         else:
             git_cell = "(no commit history)"
@@ -293,10 +284,7 @@ def render_blame_markdown(blames: list[NodeBlame]) -> str:
             actor = blame.memory.last_actor or "?"
             outcome = blame.memory.last_outcome or "?"
             stamp = blame.memory.last_timestamp or "?"
-            agent_cell = (
-                f"{blame.memory.attempts} attempt(s); "
-                f"last {outcome} by {actor} at {stamp}"
-            )
+            agent_cell = f"{blame.memory.attempts} attempt(s); last {outcome} by {actor} at {stamp}"
         else:
             agent_cell = "(no recorded attempts)"
         lines.append(

@@ -1,14 +1,59 @@
 """Tests for :mod:`isabelle_blueprint.report.github_actions`."""
+
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+import yaml
 
 from isabelle_blueprint.report.github_actions import (
     build_summary_markdown,
     emit_step_outputs,
     emit_step_summary,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_composite_action_preserves_outputs_and_adds_opt_in_quality_gates():
+    manifest = yaml.safe_load((_REPO_ROOT / "action.yml").read_text(encoding="utf-8"))
+
+    assert set(manifest["outputs"]) == {
+        "coverage_percent",
+        "node_count",
+        "formal_target_count",
+        "proved_count",
+        "found_count",
+        "problem_count",
+        "has_cycles",
+    }
+    defaults = {name: definition["default"] for name, definition in manifest["inputs"].items()}
+    assert defaults == {
+        "project_dir": ".",
+        "python-version": "3.12",
+        "isabelle-blueprint-version": "",
+        "run-check": "true",
+        "run-lint": "false",
+        "run-gate": "false",
+        "run-graph": "true",
+        "run-web": "false",
+        "run-tasks": "true",
+        "run-report": "true",
+        "run-comment": "false",
+    }
+
+    steps = manifest["runs"]["steps"]
+    assert any(
+        step.get("if") == "inputs.run-lint == 'true'"
+        and step.get("run") == 'isabelle-blueprint lint "${{ inputs.project_dir }}" --strict'
+        for step in steps
+    )
+    assert any(
+        step.get("if") == "inputs.run-gate == 'true'"
+        and step.get("run") == 'isabelle-blueprint gate "${{ inputs.project_dir }}"'
+        for step in steps
+    )
 
 
 def test_emit_step_outputs_returns_false_when_env_var_missing():
@@ -19,9 +64,7 @@ def test_emit_step_outputs_returns_false_when_env_var_missing():
 def test_emit_step_outputs_appends_scalar_key_value_lines(tmp_path: Path):
     out = tmp_path / "outputs"
     env = {"GITHUB_OUTPUT": str(out)}
-    assert emit_step_outputs(
-        {"coverage_percent": "42", "has_cycles": "false"}, env=env
-    )
+    assert emit_step_outputs({"coverage_percent": "42", "has_cycles": "false"}, env=env)
     body = out.read_text(encoding="utf-8")
     assert "coverage_percent=42" in body
     assert "has_cycles=false" in body

@@ -105,6 +105,11 @@ Read tools are always registered:
 | `agent_context` | Compact handoff bundle matching `agent-context --json`. |
 | `explain_node` | Status/blocker explanations for one node or all nodes. |
 | `lint` | Structural and quality findings without invoking Isabelle. |
+| `gate` | Explainable lint/coverage/status/grade gate matching `gate`; accepts `min_coverage`, `fail_on`, and `min_grade` and returns every check plus the failed check names. |
+| `blame` | Source, Git, and agent-memory provenance for all nodes or one selected `node`. |
+| `effort` | Effort-weighted progress with optional per-tag/per-node details and an optional `fail_under` result. |
+| `diff` | Compare the current project with a `project.json` baseline. The baseline must resolve inside the selected project root. |
+| `deps_audit` | Pure dependency comparison phase of `reconcile`: accepts `actual_dependencies` as node-id to Isabelle-fact-name lists and reports undeclared/unused edges. It never generates theories, invokes Isabelle, or writes artifacts. |
 | `critical_path` | Longest-pole proof-dependency analysis; supports `top` to limit bottlenecks. |
 | `impact` | Downstream blast-radius ranking, or one node's impact report when `node` is set (`top` limits rankings; ignored with `node`). |
 | `staleness` | Trust audit of `found`/`proved` nodes: flags ones resting on broken/missing (`problem`), unproven (`incomplete`), `stale`, or newer-checked (`outdated`) dependencies, plus cycle members; supports `top` and `max_causes`. |
@@ -116,6 +121,8 @@ Read tools are always registered:
 | `suggest_facts` | Fuzzy fact-name suggestions for unresolved formal targets. |
 | `theory_index` | Source-only index of Isabelle `.thy` files (cross-theory reference graph, import deps, `sorry`/`oops` markers, unreferenced entries); supports `session`. Never parses the blueprint, so it works in CI, on partial checkouts, and when the blueprint fails to load. Resolves sources from `[isabelle].dirs`/`session` (or a `ROOT`/`.thy` files at the project root) best-effort across roots, echoing `source_roots`/`theory_files` and any per-root `warnings`. |
 | `graph` | Dependency graph as `json`, `dot`, `mermaid`, `graphml`, or `d2` without writing files. |
+| `scorecard` | Project quality scorecard matching `scorecard --json`. |
+| `tags` | Tag inventory and coverage roll-up matching `tags --json`. |
 | `kinds` | Per-kind coverage roll-up (mirrors `kinds --json`): node counts, formal targets, proved/found/problem, and per-kind coverage. |
 | `proof_debt` | Effort-weighted remaining proof work (mirrors `proof-debt --json`): one debt figure attributed to status buckets (named/found/problem, plus informational missing). |
 | `fact_coverage` | Per-theory Isabelle fact coverage (mirrors `fact-coverage --json`): how many formal targets resolve to known facts per theory. |
@@ -124,6 +131,7 @@ Read tools are always registered:
 | `tag_cooccurrence` | Ranked co-occurring tag pairs (mirrors `tag-cooccurrence --json`); supports `min_shared` (default 1). |
 | `matrix` | 2D node-count cross-tabulation (mirrors `matrix --json`); `rows`/`cols` each one of `formal`/`blueprint`/`agent`/`kind` (default `formal` x `kind`) and must differ. |
 | `depends` | A node's direct dependency neighbourhood (mirrors `depends --json`): the nodes it directly `uses` and the nodes that directly use it; requires `node`. |
+| `path` | Shortest dependency path between two nodes, matching `path --json`. |
 | `schema` | List packaged JSON Schemas or return one schema by name. |
 | `doctor` | Local setup diagnostics. |
 | `preview_rename_node` | Dry-run node rename preview; never writes files. |
@@ -146,6 +154,13 @@ surface, so `agent_run_plan` only *plans* the invocation and hands back the exac
 `cli_argv`; actually executing it is left to `isabelle-blueprint agent-run` on the
 operator's machine, where the timeout, output cap, and shell-free argv handling
 apply.
+
+The full `reconcile` runner is excluded for the same trust-boundary reason: it
+generates wrapper theories, invokes Isabelle, and writes dependency artifacts.
+Agents can run that CLI command outside the server and pass the observed
+dependencies to the deterministic `deps_audit` tool. The cross-surface mapping
+and intentional omissions are tracked in
+[`capability-parity.toml`](capability-parity.toml).
 
 ## Resources
 

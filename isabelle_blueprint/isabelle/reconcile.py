@@ -16,6 +16,7 @@ Like :mod:`isabelle_blueprint.isabelle.checker`, this module is tolerant of a
 missing ``isabelle`` binary or unconfigured session: it always returns a
 :class:`ReconcileResult` describing what happened and never raises.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -167,6 +168,28 @@ def reconcile_payload(project: BlueprintProject, result: ReconcileResult) -> dic
     }
 
 
+def dependency_audit_payload(
+    project: BlueprintProject,
+    actual_dependencies: dict[str, list[str]],
+) -> dict[str, object]:
+    """Compare supplied proof dependencies with the blueprint without running Isabelle."""
+
+    diffs = reconcile_diff(project, actual_dependencies)
+    nodes_with_undeclared = sum(1 for item in diffs if item.used_but_undeclared)
+    nodes_with_unused = sum(1 for item in diffs if item.declared_but_unused)
+    return {
+        "schema": "deps-audit",
+        "nodes": [item.to_dict() for item in diffs],
+        "summary": {
+            "nodes_analyzed": len(diffs),
+            "nodes_with_undeclared": nodes_with_undeclared,
+            "nodes_with_unused": nodes_with_unused,
+            "total_undeclared_edges": sum(len(item.used_but_undeclared) for item in diffs),
+            "total_unused_edges": sum(len(item.declared_but_unused) for item in diffs),
+        },
+    }
+
+
 def run_reconcile(
     project: BlueprintProject,
     *,
@@ -211,8 +234,7 @@ def run_reconcile(
 
     if theory_text is None:
         result.error = (
-            "no PROVED-eligible nodes (none carry a resolvable Isabelle fact); "
-            "nothing to reconcile"
+            "no PROVED-eligible nodes (none carry a resolvable Isabelle fact); nothing to reconcile"
         )
         return result
 
@@ -284,13 +306,9 @@ def run_reconcile(
     if deps_path.exists():
         result.deps = parse_deps_tsv(deps_path.read_text(encoding="utf-8", errors="ignore"))
         if proc.returncode != 0 and not result.deps:
-            result.error = (
-                f"isabelle build returned {proc.returncode} (reconcile run failed)"
-            )
+            result.error = f"isabelle build returned {proc.returncode} (reconcile run failed)"
     else:
-        result.error = (
-            f"isabelle build returned {proc.returncode} without writing a deps file"
-        )
+        result.error = f"isabelle build returned {proc.returncode} without writing a deps file"
 
     return result
 

@@ -286,9 +286,7 @@ Later.
 def test_cli_status_filters_top_tasks_by_kind(tmp_path: Path, capsys) -> None:
     _write_multi_status_project(tmp_path)
 
-    rc = cli_main(
-        ["status", str(tmp_path), "--json", "--top-tasks", "5", "--kind", "theorem"]
-    )
+    rc = cli_main(["status", str(tmp_path), "--json", "--top-tasks", "5", "--kind", "theorem"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -328,14 +326,10 @@ def test_cli_status_filters_by_priority_and_difficulty(tmp_path: Path, capsys) -
         assert task["difficulty"] == "medium"
 
 
-def test_cli_status_filter_no_match_reports_excluded(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_status_filter_no_match_reports_excluded(tmp_path: Path, capsys) -> None:
     _write_multi_status_project(tmp_path)
 
-    rc = cli_main(
-        ["status", str(tmp_path), "--json", "--top-tasks", "5", "--difficulty", "low"]
-    )
+    rc = cli_main(["status", str(tmp_path), "--json", "--top-tasks", "5", "--difficulty", "low"])
 
     assert rc == 0
     captured = capsys.readouterr()
@@ -351,14 +345,10 @@ def test_cli_status_filter_no_match_reports_excluded(
     assert "2 ready tasks were excluded" in captured.err
 
 
-def test_cli_status_human_output_shows_filter_banner(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_status_human_output_shows_filter_banner(tmp_path: Path, capsys) -> None:
     _write_multi_status_project(tmp_path)
 
-    rc = cli_main(
-        ["status", str(tmp_path), "--top-tasks", "5", "--kind", "theorem"]
-    )
+    rc = cli_main(["status", str(tmp_path), "--top-tasks", "5", "--kind", "theorem"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -392,9 +382,7 @@ def test_cli_status_filters_by_exclude_node(tmp_path: Path, capsys) -> None:
     assert data["next_task"]["node_id"] == "helper"
 
 
-def test_cli_status_without_filters_omits_filter_fields(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_status_without_filters_omits_filter_fields(tmp_path: Path, capsys) -> None:
     _write_multi_status_project(tmp_path)
 
     rc = cli_main(["status", str(tmp_path), "--json", "--top-tasks", "2"])
@@ -451,9 +439,7 @@ def test_cli_status_markdown_respects_filters(tmp_path: Path, capsys) -> None:
     assert "Next task matching filters: task-main" in out
 
 
-def test_cli_status_markdown_with_fail_on_trips_and_passes(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_status_markdown_with_fail_on_trips_and_passes(tmp_path: Path, capsys) -> None:
     _write_status_project(tmp_path)
 
     # Node "b" is named, so the gate trips with exit 5 while still rendering.
@@ -474,5 +460,3 @@ def test_cli_status_markdown_and_json_are_mutually_exclusive(
 
     with pytest.raises(SystemExit):
         cli_main(["status", str(tmp_path), "--markdown", "--json"])
-
-

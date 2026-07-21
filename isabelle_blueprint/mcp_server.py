@@ -1,4 +1,5 @@
 """Model Context Protocol server for IsabelleBlueprint projects."""
+
 from __future__ import annotations
 
 import argparse
@@ -9,6 +10,7 @@ import re
 import sys
 import threading
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +23,7 @@ from isabelle_blueprint.agents.assignments import (
     set_assignment,
     write_assignments,
 )
+from isabelle_blueprint.agents.blame import blame_payload, build_blame
 from isabelle_blueprint.agents.context import (
     DEFAULT_AGENT_CONTEXT_TASK_LIMIT,
     build_agent_context,
@@ -66,9 +69,11 @@ from isabelle_blueprint.graph.graphviz_render import (
     render_mermaid,
 )
 from isabelle_blueprint.isabelle.compat import check_compatibility
+from isabelle_blueprint.isabelle.reconcile import dependency_audit_payload
 from isabelle_blueprint.isabelle.source_index import build_index, session_theory_files
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.model.node import NodeKind
+from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.project_io import (
     load_config_checked,
     load_project,
@@ -86,7 +91,10 @@ from isabelle_blueprint.report.depends import (
 from isabelle_blueprint.report.depends import (
     build_depends_report,
 )
+from isabelle_blueprint.report.diff import build_diff, load_baseline
+from isabelle_blueprint.report.effort import build_effort_gate, build_effort_report
 from isabelle_blueprint.report.fact_coverage import build_fact_coverage_report
+from isabelle_blueprint.report.gate import build_gate_report
 from isabelle_blueprint.report.history import summarize_trends
 from isabelle_blueprint.report.impact import (
     UnknownNodeError,
@@ -99,6 +107,7 @@ from isabelle_blueprint.report.kinds import build_kind_report
 from isabelle_blueprint.report.levels import build_levels_report
 from isabelle_blueprint.report.lint import build_lint_report
 from isabelle_blueprint.report.matrix import build_matrix_report
+from isabelle_blueprint.report.metrics import PROBLEM_FORMAL_STATUSES
 from isabelle_blueprint.report.orphans import build_orphan_report
 from isabelle_blueprint.report.path import (
     UnknownNodeError as PathUnknownNodeError,
@@ -124,6 +133,19 @@ from isabelle_blueprint.report.trends import load_trends
 from isabelle_blueprint.schemas import available_schemas, read_schema
 
 GraphFormat = Literal["json", "dot", "mermaid", "graphml", "d2"]
+GateGrade = Literal["A", "B", "C", "D", "F"]
+GateStatus = Literal[
+    "missing",
+    "named",
+    "not_found",
+    "found",
+    "proved",
+    "tainted",
+    "stale",
+    "broken",
+    "failed_check",
+    "problem",
+]
 
 
 def build_server(
@@ -383,6 +405,93 @@ def build_server(
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return build_lint_report(parsed).to_dict()
 
+    @server.tool(name="gate")
+    def gate(
+        min_coverage: int | None = None,
+        fail_on: list[GateStatus] | None = None,
+        min_grade: GateGrade | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Evaluate the explainable lint, coverage, status, and scorecard gate."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        coverage = _percentage_or_none(min_coverage, label="min_coverage")
+        report = build_gate_report(
+            parsed,
+            min_coverage=int(coverage) if coverage is not None else None,
+            fail_on=_gate_fail_on(fail_on),
+            min_grade=min_grade,
+        )
+        return report.to_dict()
+
+    @server.tool(name="blame")
+    def blame(
+        node: str | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return source, Git, and agent-memory provenance for blueprint nodes."""
+
+        selected = catalog.resolve(project).root
+        config, parsed = load_project_with_check(selected)
+        memory = load_agent_memory(config.agent_memory_path)
+        return blame_payload(build_blame(parsed, selected, memory, node_id=node))
+
+    @server.tool(name="effort")
+    def effort(
+        by_tag: bool = False,
+        nodes: bool = False,
+        fail_under: float | None = None,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Return effort-weighted proof progress and an optional threshold gate."""
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        report = build_effort_report(parsed, include_by_tag=by_tag, include_nodes=nodes)
+        payload = report.to_dict(include_by_tag=by_tag, include_nodes=nodes)
+        threshold = _percentage_or_none(fail_under, label="fail_under")
+        if threshold is not None:
+            payload["gate"] = build_effort_gate(report, threshold)
+        return payload
+
+    @server.tool(name="diff")
+    def diff(
+        baseline: str,
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Compare the current project with a project-report baseline under its root."""
+
+        selected = catalog.resolve(project).root
+        _config, parsed = load_project_with_check(selected)
+        baseline_path = _project_file(selected, baseline, label="baseline")
+        return build_diff(load_baseline(baseline_path), parsed).to_dict()
+
+    @server.tool(name="deps_audit")
+    def deps_audit(
+        actual_dependencies: dict[str, list[str]],
+        project: str | None = None,
+    ) -> dict[str, object]:
+        """Compare supplied Isabelle fact dependencies with declared blueprint edges.
+
+        This is the read-only comparison phase of ``reconcile``. It does not
+        generate theories, invoke Isabelle, or write artifacts.
+        """
+
+        _config, parsed = load_project_with_check(catalog.resolve(project).root)
+        known = set(parsed.by_id())
+        unknown = sorted(set(actual_dependencies) - known)
+        if unknown:
+            raise BlueprintError(
+                "actual_dependencies contains unknown node ids: "
+                + ", ".join(unknown)
+                + "; known node ids: "
+                + (", ".join(sorted(known)) or "(none)")
+            )
+        normalized = {
+            node_id: sorted(set(dependencies))
+            for node_id, dependencies in sorted(actual_dependencies.items())
+        }
+        return dependency_audit_payload(parsed, normalized)
+
     @server.tool(name="critical_path")
     def critical_path(
         top: int | None = None,
@@ -414,9 +523,7 @@ def build_server(
                 report = build_impact_report(parsed, node)
             except UnknownNodeError:
                 known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-                raise BlueprintError(
-                    f"unknown node {node!r}; known node ids: {known}"
-                ) from None
+                raise BlueprintError(f"unknown node {node!r}; known node ids: {known}") from None
             return impact_report_payload(report)
         overview = build_impact_overview(parsed)
         return impact_overview_payload(overview, top=top_value)
@@ -578,9 +685,7 @@ def build_server(
                 parsed = focus_subproject(parsed, focus, depth)
             except GraphUnknownNodeError:
                 known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-                raise BlueprintError(
-                    f"unknown node {focus!r}; known node ids: {known}"
-                ) from None
+                raise BlueprintError(f"unknown node {focus!r}; known node ids: {known}") from None
         if format == "json":
             return {"format": "json", "graph": json.loads(render_json(parsed))}
         if format == "dot":
@@ -730,9 +835,7 @@ def build_server(
         except DependsUnknownNodeError as exc:
             unknown = exc.args[0] if exc.args else "?"
             known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {unknown!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
 
     @server.tool(name="path")
     def path_tool(
@@ -754,9 +857,7 @@ def build_server(
         except PathUnknownNodeError as exc:
             unknown = exc.args[0] if exc.args else "?"
             known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {unknown!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
         return report.to_dict()
 
     @server.tool(name="schema")
@@ -1025,71 +1126,55 @@ def build_server(
         suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
         return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
 
-    @server.resource(
-        "blueprint://projects/{project}/theory-index", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/theory-index", mime_type="application/json")
     def project_scoped_theory_index_resource(project: str) -> str:
         """Source-only Isabelle ``.thy`` index for a selected project id."""
 
         return _json_resource(_theory_index_payload(catalog.resolve(project).root))
 
-    @server.resource(
-        "blueprint://projects/{project}/staleness", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/staleness", mime_type="application/json")
     def project_scoped_staleness_resource(project: str) -> str:
         """Trusted-node staleness audit for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(staleness_payload(build_staleness_report(parsed)))
 
-    @server.resource(
-        "blueprint://projects/{project}/critical-path", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/critical-path", mime_type="application/json")
     def project_scoped_critical_path_resource(project: str) -> str:
         """Longest remaining incomplete dependency chain for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(critical_path_payload(build_critical_path(parsed)))
 
-    @server.resource(
-        "blueprint://projects/{project}/kinds", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/kinds", mime_type="application/json")
     def project_scoped_kinds_resource(project: str) -> str:
         """Per-kind coverage roll-up for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_kind_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/proof-debt", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/proof-debt", mime_type="application/json")
     def project_scoped_proof_debt_resource(project: str) -> str:
         """Effort-weighted remaining proof work for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_proof_debt_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/fact-coverage", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/fact-coverage", mime_type="application/json")
     def project_scoped_fact_coverage_resource(project: str) -> str:
         """Per-theory Isabelle fact coverage for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_fact_coverage_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/levels", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/levels", mime_type="application/json")
     def project_scoped_levels_resource(project: str) -> str:
         """Dependency-depth layering for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_levels_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/orphans", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/orphans", mime_type="application/json")
     def project_scoped_orphans_resource(project: str) -> str:
         """Nodes unreachable from any goal for a selected project id."""
 
@@ -1105,9 +1190,7 @@ def build_server(
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_tag_cooccurrence_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/assignments", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/assignments", mime_type="application/json")
     def project_scoped_assignments_resource(project: str) -> str:
         """Recorded node ownership for a selected project id."""
 
@@ -1339,9 +1422,7 @@ def _discover_project_roots(launch_root: Path) -> list[Path]:
     for current_raw, dirnames, filenames in os.walk(launch_root, followlinks=False):
         current = Path(current_raw)
         dirnames[:] = sorted(
-            dirname
-            for dirname in dirnames
-            if _should_descend_into(current / dirname)
+            dirname for dirname in dirnames if _should_descend_into(current / dirname)
         )
         if current == launch_root:
             continue
@@ -1745,6 +1826,7 @@ def _agent_run_plan_payload(
     plan["cli_argv"] = cli_argv
     return plan
 
+
 def _ready_filters(
     *,
     kind: list[str] | None = None,
@@ -1782,8 +1864,7 @@ def _roadmap_filters(
     unknown_kinds = [value for value in kinds if value not in valid_kinds]
     if unknown_kinds:
         raise BlueprintError(
-            f"unknown roadmap kind {unknown_kinds[0]!r}; choose one of: "
-            f"{', '.join(valid_kinds)}"
+            f"unknown roadmap kind {unknown_kinds[0]!r}; choose one of: {', '.join(valid_kinds)}"
         )
     stages = tuple(dict.fromkeys(stage or ()))
     for value in stages:
@@ -1815,6 +1896,50 @@ def _positive_or_none(value: int | None, *, label: str = "top_tasks") -> int | N
     if value < 1:
         raise BlueprintError(f"{label} must be at least 1")
     return value
+
+
+def _percentage_or_none(
+    value: int | float | None,
+    *,
+    label: str,
+) -> int | float | None:
+    if value is None:
+        return None
+    if not 0 <= value <= 100:
+        raise BlueprintError(f"{label} must be between 0 and 100")
+    return value
+
+
+def _gate_fail_on(values: Sequence[str] | None) -> set[str]:
+    selected = set(values or ())
+    valid = {status.value for status in FormalStatus} | {"problem"}
+    unknown = sorted(selected - valid)
+    if unknown:
+        raise BlueprintError(
+            "unknown gate status "
+            + ", ".join(repr(item) for item in unknown)
+            + "; expected one of: "
+            + ", ".join(sorted(valid))
+        )
+    if "problem" in selected:
+        selected.remove("problem")
+        selected.update(PROBLEM_FORMAL_STATUSES)
+    return selected
+
+
+def _project_file(project_dir: Path, value: str, *, label: str) -> Path:
+    if not value.strip():
+        raise BlueprintError(f"{label} must not be empty")
+    root = project_dir.resolve()
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise BlueprintError(f"{label} must resolve within project root {root}") from None
+    return candidate
 
 
 def _json_resource(payload: dict[str, object]) -> str:

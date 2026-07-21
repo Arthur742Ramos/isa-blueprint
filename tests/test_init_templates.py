@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+import pytest
 
 from isabelle_blueprint.cli import _build_parser
 from isabelle_blueprint.cli import main as cli_main
@@ -40,7 +43,22 @@ def test_init_agent_ready_template_writes_task_workflow(tmp_path: Path) -> None:
     assert rc == 0
     assert "Agent-ready blueprint" in (tmp_path / "blueprint.md").read_text(encoding="utf-8")
     workflow = (tmp_path / ".github" / "workflows" / "blueprint.yml").read_text(encoding="utf-8")
+    assert "isabelle-blueprint gate ." in workflow
     assert "isabelle-blueprint tasks . --github-issues" in workflow
+
+
+@pytest.mark.parametrize("template_name", sorted(TEMPLATES))
+def test_init_templates_write_pinned_least_privilege_ci(tmp_path: Path, template_name: str) -> None:
+    project_dir = tmp_path / template_name
+    assert cli_main(["init", str(project_dir), "--template", template_name]) == 0
+
+    workflow = (project_dir / ".github" / "workflows" / "blueprint.yml").read_text(encoding="utf-8")
+    assert "permissions:\n  contents: read" in workflow
+    assert "isabelle-blueprint gate ." in workflow
+    for line in workflow.splitlines():
+        if "uses:" in line:
+            ref = line.split("uses:", 1)[1].split("#", 1)[0].strip()
+            assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", ref), ref
 
 
 def test_init_on_existing_file_reports_clean_error(tmp_path: Path, capsys) -> None:

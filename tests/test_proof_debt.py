@@ -1,4 +1,5 @@
 """Tests for the ``proof-debt`` weighted remaining-work command."""
+
 from __future__ import annotations
 
 import json
@@ -66,17 +67,13 @@ def test_total_debt_sums_weighted_unproved_targets() -> None:
 
 
 def test_default_effort_used_when_no_explicit_effort() -> None:
-    report = build_proof_debt_report(
-        _project(_node("a", formal=FormalStatus.NAMED))
-    )
+    report = build_proof_debt_report(_project(_node("a", formal=FormalStatus.NAMED)))
     assert report.total_debt == 1  # DEFAULT_EFFORT
     assert report.default_effort_used is True
 
 
 def test_stale_counts_as_found_bucket() -> None:
-    report = build_proof_debt_report(
-        _project(_node("a", formal=FormalStatus.STALE, effort=4))
-    )
+    report = build_proof_debt_report(_project(_node("a", formal=FormalStatus.STALE, effort=4)))
     assert report.bucket("found").debt == 4
     assert report.total_debt == 4
 
@@ -111,26 +108,20 @@ def test_default_effort_not_flagged_for_excluded_missing_node() -> None:
 
 
 def test_fully_proved_project_has_zero_debt() -> None:
-    report = build_proof_debt_report(
-        _project(_node("a", formal=FormalStatus.PROVED, effort=9))
-    )
+    report = build_proof_debt_report(_project(_node("a", formal=FormalStatus.PROVED, effort=9)))
     assert report.total_debt == 0
     assert report.remaining_node_count == 0
     assert report.default_effort_used is False
 
 
 def test_gate_ceiling_is_inclusive() -> None:
-    report = build_proof_debt_report(
-        _project(_node("a", formal=FormalStatus.NAMED, effort=5))
-    )
+    report = build_proof_debt_report(_project(_node("a", formal=FormalStatus.NAMED, effort=5)))
     assert build_proof_debt_gate(report, 5)["exceeds"] is False
     assert build_proof_debt_gate(report, 4)["exceeds"] is True
 
 
 def test_render_lists_every_bucket() -> None:
-    report = build_proof_debt_report(
-        _project(_node("a", formal=FormalStatus.NAMED, effort=2))
-    )
+    report = build_proof_debt_report(_project(_node("a", formal=FormalStatus.NAMED, effort=2)))
     text = render_proof_debt_report(report)
     assert "Proof debt: 2" in text
     for bucket in ("named", "found", "problem", "missing"):

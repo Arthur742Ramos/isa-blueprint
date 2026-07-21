@@ -1,4 +1,5 @@
 """GitHub issue synchronization for generated proof tasks."""
+
 from __future__ import annotations
 
 import json
@@ -8,7 +9,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from isabelle_blueprint.errors import BlueprintError
 
@@ -50,8 +51,7 @@ class GitHubIssueClient(Protocol):
 
     def update_issue(
         self, repo: str, issue_number: int, draft: dict[str, Any]
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
 
@@ -72,12 +72,8 @@ class GitHubApiClient:
     def create_issue(self, repo: str, draft: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", f"/repos/{repo}/issues", _issue_payload(draft))
 
-    def update_issue(
-        self, repo: str, issue_number: int, draft: dict[str, Any]
-    ) -> dict[str, Any]:
-        return self._request(
-            "PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft)
-        )
+    def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]:
+        return self._request("PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft))
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]:
         return self._request(
@@ -107,7 +103,12 @@ class GitHubApiClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return json.loads(response.read().decode("utf-8"))
+                decoded = json.loads(response.read().decode("utf-8"))
+                if not isinstance(decoded, dict):
+                    raise BlueprintError(
+                        f"GitHub API {method} {path} returned a non-object response"
+                    )
+                return cast(dict[str, Any], decoded)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise BlueprintError(

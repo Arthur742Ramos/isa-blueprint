@@ -236,9 +236,7 @@ def test_filter_none_matches_unfiltered() -> None:
         _node("b", tags=["alg"]),
     )
 
-    assert build_tag_report(project, only=None).to_dict() == (
-        build_tag_report(project).to_dict()
-    )
+    assert build_tag_report(project, only=None).to_dict() == (build_tag_report(project).to_dict())
 
 
 def test_filter_dedupes_repeated_tag_request() -> None:
@@ -267,9 +265,7 @@ def test_cli_tag_filter_json(tmp_path: Path, capsys) -> None:
 def test_cli_tag_filter_repeatable_and_unknown(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
-    rc = cli_main(
-        ["tags", str(tmp_path), "--json", "--tag", "alg", "--tag", "ghost"]
-    )
+    rc = cli_main(["tags", str(tmp_path), "--json", "--tag", "alg", "--tag", "ghost"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -381,9 +377,7 @@ def test_cli_fail_under_json_gate_object(tmp_path: Path, capsys) -> None:
     }
 
 
-def test_cli_fail_under_passes_when_all_meet_threshold(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_fail_under_passes_when_all_meet_threshold(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _GATE_BODY)
 
     rc = cli_main(["tags", str(tmp_path), "--json", "--fail-under", "50"])
@@ -398,9 +392,7 @@ def test_cli_fail_under_respects_tag_filter(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _GATE_BODY)
 
     # alg is 100%; restricting to it means the otherwise-failing core is ignored.
-    rc = cli_main(
-        ["tags", str(tmp_path), "--json", "--tag", "alg", "--fail-under", "90"]
-    )
+    rc = cli_main(["tags", str(tmp_path), "--json", "--tag", "alg", "--fail-under", "90"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -440,8 +432,7 @@ def test_cli_markdown(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "# tag-test tags" in out
     assert (
-        "| Tag | Nodes | Formal targets | Proved | Found | Problems | "
-        "Proved-coverage% |"
+        "| Tag | Nodes | Formal targets | Proved | Found | Problems | Proved-coverage% |"
     ) in out
     # core carries two nodes; the row must be present.
     assert "| core | 2 |" in out
@@ -527,10 +518,7 @@ def test_cli_csv(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert (
-        "tag,nodes,formal_targets,proved,found,problems,proved_coverage_percent"
-        in out
-    )
+    assert "tag,nodes,formal_targets,proved,found,problems,proved_coverage_percent" in out
     assert "core,2," in out
     assert "(untagged),1," in out
 
@@ -680,9 +668,7 @@ def test_cli_sort_default_is_byte_unchanged(tmp_path: Path, capsys) -> None:
 def test_cli_sort_composes_with_tag_filter(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _GATE_BODY)
 
-    rc = cli_main(
-        ["tags", str(tmp_path), "--json", "--sort", "name", "--tag", "core"]
-    )
+    rc = cli_main(["tags", str(tmp_path), "--json", "--sort", "name", "--tag", "core"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -703,9 +689,7 @@ def test_cli_sort_invalid_choice_rejected(tmp_path: Path) -> None:
 def test_cli_sort_composes_with_fail_under(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _GATE_BODY)
 
-    rc = cli_main(
-        ["tags", str(tmp_path), "--json", "--sort", "coverage", "--fail-under", "80"]
-    )
+    rc = cli_main(["tags", str(tmp_path), "--json", "--sort", "coverage", "--fail-under", "80"])
 
     assert rc == 5
     data = json.loads(capsys.readouterr().out)

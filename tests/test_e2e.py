@@ -11,6 +11,7 @@ validate that the JSON emitted by the published commands conforms to the JSON
 Schemas shipped inside the wheel -- turning the "stable contracts" promise in
 the README into an enforced, end-to-end guarantee.
 """
+
 from __future__ import annotations
 
 import json
@@ -77,9 +78,9 @@ def load_schema(name: str) -> dict:
     # Read from the *installed* package (the wheel under test in CI), not the
     # source checkout, so a wheel that failed to ship a schema is caught here
     # rather than silently passing against the working tree.
-    text = (
-        resource_files("isabelle_blueprint") / "schemas" / f"{name}.schema.json"
-    ).read_text(encoding="utf-8")
+    text = (resource_files("isabelle_blueprint") / "schemas" / f"{name}.schema.json").read_text(
+        encoding="utf-8"
+    )
     return json.loads(text)
 
 
@@ -167,8 +168,9 @@ def test_init_every_template_scaffolds_a_usable_project(tmp_path: Path, template
 
 
 def test_init_latex_lifecycle(tmp_path: Path) -> None:
-    run("init", "tex", "--template", "agent-ready", "--format", "latex", cwd=tmp_path,
-        expect_code=0)
+    run(
+        "init", "tex", "--template", "agent-ready", "--format", "latex", cwd=tmp_path, expect_code=0
+    )
     project = tmp_path / "tex"
     tex = project / "blueprint.tex"
     assert tex.exists(), "latex scaffold should emit blueprint.tex"

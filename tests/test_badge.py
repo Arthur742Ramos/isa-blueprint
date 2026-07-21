@@ -1,4 +1,5 @@
 """Tests for :mod:`isabelle_blueprint.report.badge`."""
+
 from __future__ import annotations
 
 import json

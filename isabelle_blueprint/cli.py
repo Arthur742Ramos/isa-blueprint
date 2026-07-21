@@ -1,4 +1,5 @@
 """Command-line interface for IsabelleBlueprint."""
+
 from __future__ import annotations  # noqa: I001
 
 import argparse
@@ -8,10 +9,11 @@ import platform
 import re
 import sys
 import time
+from collections.abc import Callable
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from isabelle_blueprint import __version__, console
 from isabelle_blueprint.agents.assignments import (
@@ -145,7 +147,7 @@ from isabelle_blueprint.isabelle.theory_import import (
     render_imported_blueprint,
 )
 from isabelle_blueprint.model.node import NodeKind
-from isabelle_blueprint.model.status import AgentStatus, FormalStatus
+from isabelle_blueprint.model.status import AgentStatus, COMPLETE_FORMAL_STATUSES, FormalStatus
 from isabelle_blueprint.plugins import run_report_renderers, run_status_providers
 from isabelle_blueprint.project_io import (
     apply_stored_check_report,
@@ -301,7 +303,6 @@ from isabelle_blueprint.report.proof_debt import (
     render_proof_debt_report,
 )
 from isabelle_blueprint.report.roadmap import (
-    COMPLETE_FORMAL_STATUSES,
     ROADMAP_STATUSES,
     RoadmapFilters,
     build_roadmap,
@@ -434,9 +435,7 @@ def _fail_on_failures(project: BlueprintProject, statuses: set[str]) -> list[str
     """Return ids of nodes whose formal status is in ``statuses`` (sorted)."""
     if not statuses:
         return []
-    return sorted(
-        node.id for node in project.nodes if node.status.formal.value in statuses
-    )
+    return sorted(node.id for node in project.nodes if node.status.formal.value in statuses)
 
 
 def _report_fail_on(project: BlueprintProject, raw_statuses: list[str] | None) -> int:
@@ -450,8 +449,7 @@ def _report_fail_on(project: BlueprintProject, raw_statuses: list[str] | None) -
     if failures:
         selected = ", ".join(sorted(statuses))
         print(
-            f"fail-on policy triggered ({selected}): "
-            + ", ".join(failures),
+            f"fail-on policy triggered ({selected}): " + ", ".join(failures),
             file=sys.stderr,
         )
         return 5
@@ -506,9 +504,7 @@ def _min_component_arg(value: str) -> tuple[str, int]:
     name, sep, pct_text = value.partition("=")
     name = name.strip().lower()
     if not sep:
-        raise argparse.ArgumentTypeError(
-            f"invalid component gate {value!r}; expected NAME=PCT"
-        )
+        raise argparse.ArgumentTypeError(f"invalid component gate {value!r}; expected NAME=PCT")
     if name not in SCORE_COMPONENTS:
         raise argparse.ArgumentTypeError(
             f"invalid component {name!r}; choose one of {', '.join(SCORE_COMPONENTS)}"
@@ -535,9 +531,7 @@ def _label_arg(value: str) -> tuple[str, str]:
     """
     key, sep, label_value = value.partition("=")
     if not sep:
-        raise argparse.ArgumentTypeError(
-            f"invalid label {value!r}; expected key=value"
-        )
+        raise argparse.ArgumentTypeError(f"invalid label {value!r}; expected key=value")
     if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key):
         raise argparse.ArgumentTypeError(
             f"invalid label name {key!r}; must match [a-zA-Z_][a-zA-Z0-9_]*"
@@ -547,7 +541,6 @@ def _label_arg(value: str) -> tuple[str, str]:
             f"invalid label name {key!r}; names beginning with '__' are reserved by Prometheus"
         )
     return key, label_value
-
 
 
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
@@ -893,40 +886,27 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     unused = sum(len(d.declared_but_unused) for d in flagged)
     print("")
     print(
-        f"summary: {undeclared} undeclared edge(s), "
-        f"{unused} declared-but-unused edge(s) [advisory]"
+        f"summary: {undeclared} undeclared edge(s), {unused} declared-but-unused edge(s) [advisory]"
     )
     return 0
 
 
 def _watch_check(args: argparse.Namespace) -> int:
-    project_dir = Path(args.project_dir).resolve()
-    exit_code = _run_check_once(args)
-    print(f"watching for changes (exit code {exit_code}); press Ctrl-C to stop", file=sys.stderr)
-    snapshot = _snapshot(_check_watch_paths(project_dir))
-    try:
-        while True:
-            time.sleep(max(getattr(args, "interval", 1.0), 0.1))
-            current = _snapshot(_check_watch_paths(project_dir))
-            if current != snapshot:
-                snapshot = current
-                try:
-                    exit_code = _run_check_once(args)
-                except BlueprintError as exc:
-                    print(f"error: {exc}", file=sys.stderr)
-                    exit_code = 1
-                print(f"re-checked (exit code {exit_code})", file=sys.stderr)
-    except KeyboardInterrupt:
-        print("stopped", file=sys.stderr)
-        return exit_code
+    return _run_watch(args, _run_check_once, label="checked")
 
 
-def _run_watch(args: argparse.Namespace, run_once) -> int:
+def _run_watch(
+    args: argparse.Namespace,
+    run_once: Callable[[argparse.Namespace], int],
+    *,
+    label: str = "ran",
+) -> int:
     """Re-run ``run_once(args)`` whenever an input source changes.
 
-    Shared by ``report``/``status``/``tasks``; like ``check --watch`` it only
-    watches input sources (config + blueprint files) via ``_check_watch_paths``
-    so regenerating outputs never re-triggers the loop.
+    Shared by ``check``/``report``/``status``/``tasks``; it only watches input
+    sources (config + blueprint files) via ``_check_watch_paths`` so
+    regenerating outputs never re-triggers the loop. ``label`` customizes the
+    per-iteration status message (e.g. ``"checked"`` vs. the default ``"ran"``).
     """
 
     project_dir = Path(args.project_dir).resolve()
@@ -944,7 +924,7 @@ def _run_watch(args: argparse.Namespace, run_once) -> int:
                 except BlueprintError as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     exit_code = 1
-                print(f"re-ran (exit code {exit_code})", file=sys.stderr)
+                print(f"re-{label} (exit code {exit_code})", file=sys.stderr)
     except KeyboardInterrupt:
         print("stopped", file=sys.stderr)
         return exit_code
@@ -963,9 +943,7 @@ def cmd_graph(args: argparse.Namespace) -> int:
             project = focus_subproject(project, focus, depth)
         except GraphUnknownNodeError:
             known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {focus!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {focus!r}; known node ids: {known}") from None
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
     if getattr(args, "leaves_only", False):
@@ -996,9 +974,7 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     )
 
     if getattr(args, "markdown", False):
-        md_path = write_scorecard_markdown(
-            card, config.build_dir / "scorecard.md", delta=delta
-        )
+        md_path = write_scorecard_markdown(card, config.build_dir / "scorecard.md", delta=delta)
         print(f"scorecard markdown -> {md_path}", file=sys.stderr)
 
     exit_code = 0
@@ -1076,8 +1052,7 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         if min_grade is not None:
             if meets_grade is None:
                 print(
-                    f"min-grade {min_grade} not enforced: project has no gradeable "
-                    "components yet.",
+                    f"min-grade {min_grade} not enforced: project has no gradeable components yet.",
                     file=sys.stderr,
                 )
             elif not meets_grade:
@@ -1089,20 +1064,17 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         if min_score is not None:
             if meets_score is None:
                 print(
-                    f"min-score {min_score} not enforced: project has no gradeable "
-                    "components yet.",
+                    f"min-score {min_score} not enforced: project has no gradeable components yet.",
                     file=sys.stderr,
                 )
             elif not meets_score:
                 print(
-                    f"min-score policy triggered: {card.score}/100 "
-                    f"is below {min_score}.",
+                    f"min-score policy triggered: {card.score}/100 is below {min_score}.",
                     file=sys.stderr,
                 )
         for name, threshold, pct in failed_components:
             print(
-                f"min-component policy triggered: {name} {pct}% "
-                f"is below {threshold}%.",
+                f"min-component policy triggered: {name} {pct}% is below {threshold}%.",
                 file=sys.stderr,
             )
     return exit_code
@@ -1213,9 +1185,7 @@ def cmd_path(args: argparse.Namespace) -> int:
     except PathUnknownNodeError as exc:
         unknown = exc.args[0] if exc.args else "?"
         known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-        raise BlueprintError(
-            f"unknown node {unknown!r}; known node ids: {known}"
-        ) from None
+        raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     elif getattr(args, "markdown", False):
@@ -1234,9 +1204,7 @@ def cmd_depends(args: argparse.Namespace) -> int:
     except DependsUnknownNodeError as exc:
         unknown = exc.args[0] if exc.args else "?"
         known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-        raise BlueprintError(
-            f"unknown node {unknown!r}; known node ids: {known}"
-        ) from None
+        raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -1400,9 +1368,7 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(
-        project, include_by_tag=args.by_tag, include_nodes=args.nodes
-    )
+    report = build_effort_report(project, include_by_tag=args.by_tag, include_nodes=args.nodes)
     fail_under = getattr(args, "fail_under", None)
     gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
@@ -1428,9 +1394,7 @@ def cmd_effort(args: argparse.Namespace) -> int:
             )
         if gate is not None and not gate["meets"]:
             actual = (
-                "undefined"
-                if report.coverage_percent is None
-                else f"{report.coverage_percent}%"
+                "undefined" if report.coverage_percent is None else f"{report.coverage_percent}%"
             )
             print(
                 f"effort-weighted coverage {actual} is below {fail_under}%",
@@ -1582,9 +1546,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         print(
-            render_critical_path_csv(
-                overview, top=args.top, goal=goal, min_leverage=min_leverage
-            ),
+            render_critical_path_csv(overview, top=args.top, goal=goal, min_leverage=min_leverage),
             end="",
         )
     elif getattr(args, "markdown", False):
@@ -1601,9 +1563,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
         print(markdown, end="")
     else:
         print(
-            render_critical_path(
-                overview, top=args.top, goal=goal, min_leverage=min_leverage
-            ),
+            render_critical_path(overview, top=args.top, goal=goal, min_leverage=min_leverage),
             end="",
         )
     if getattr(args, "write", False):
@@ -1632,9 +1592,7 @@ def cmd_impact(args: argparse.Namespace) -> int:
             report = build_impact_report(project, node)
         except UnknownNodeError:
             known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {node!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {node!r}; known node ids: {known}") from None
         if fmt == "dot":
             print(render_impact_dot(project, node), end="")
         elif fmt == "mermaid":
@@ -1666,9 +1624,7 @@ def _resolve_lint_format(args: argparse.Namespace) -> str:
     fmt = getattr(args, "format", None)
     if args.json:
         if fmt is not None and fmt != "json":
-            raise BlueprintError(
-                f"--json conflicts with --format {fmt}; use one or the other"
-            )
+            raise BlueprintError(f"--json conflicts with --format {fmt}; use one or the other")
         return "json"
     return fmt or "text"
 
@@ -1676,24 +1632,31 @@ def _resolve_lint_format(args: argparse.Namespace) -> str:
 PROG_NAME = "isabelle-blueprint"
 
 
-def _subcommand_names() -> list[str]:
-    """Return the sorted list of registered subcommand names."""
+def _subcommand_names(parser: argparse.ArgumentParser | None = None) -> list[str]:
+    """Return the sorted list of registered subcommand names.
 
-    parser = _build_parser()
+    Pass an already-built ``parser`` (e.g. from :func:`cmd_completion`) to avoid
+    constructing a fresh one; a new parser is built by default so callers never
+    observe a shared, mutable instance.
+    """
+
+    parser = parser if parser is not None else _build_parser()
     for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
         if isinstance(action, argparse._SubParsersAction):
             return sorted(action.choices)
     return []
 
 
-def _subcommand_options() -> dict[str, list[str]]:
+def _subcommand_options(parser: argparse.ArgumentParser | None = None) -> dict[str, list[str]]:
     """Map each registered subcommand to its sorted option strings.
 
     Generated from the live parser so the completion scripts never drift from
-    the actual flags a subcommand accepts.
+    the actual flags a subcommand accepts. Pass an already-built ``parser`` to
+    avoid constructing a fresh one; a new parser is built by default so callers
+    never observe a shared, mutable instance.
     """
 
-    parser = _build_parser()
+    parser = parser if parser is not None else _build_parser()
     result: dict[str, list[str]] = {}
     for action in parser._actions:  # noqa: SLF001 - argparse exposes no public API
         if isinstance(action, argparse._SubParsersAction):
@@ -1723,12 +1686,11 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 
 def cmd_completion(args: argparse.Namespace) -> int:
-    commands = _subcommand_names()
-    options = _subcommand_options()
+    parser = _build_parser()
+    commands = _subcommand_names(parser)
+    options = _subcommand_options(parser)
     if args.install or args.dest:
-        target, hint = install_completion(
-            args.shell, PROG_NAME, commands, options, dest=args.dest
-        )
+        target, hint = install_completion(args.shell, PROG_NAME, commands, options, dest=args.dest)
         print(f"Wrote {args.shell} completion to {target}")
         if hint:
             print(hint)
@@ -1784,8 +1746,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         elif not meets:
             assert raw_rate is not None
             print(
-                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% "
-                f"is below {min_rate:g}%.",
+                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% is below {min_rate:g}%.",
                 file=sys.stderr,
             )
     return exit_code
@@ -1797,9 +1758,7 @@ def cmd_staleness(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     report = build_staleness_report(project)
     if args.json:
-        payload = staleness_payload(
-            report, top=args.top, max_causes=args.max_causes
-        )
+        payload = staleness_payload(report, top=args.top, max_causes=args.max_causes)
         print(json.dumps(payload, indent=2))
     elif args.markdown:
         print(
@@ -1819,8 +1778,7 @@ def cmd_staleness(args: argparse.Namespace) -> int:
     tripped = False
     if args.fail_on_problem and report.problem_count > 0:
         print(
-            f"{report.problem_count} trusted node(s) rest on broken/missing "
-            "dependencies",
+            f"{report.problem_count} trusted node(s) rest on broken/missing dependencies",
             file=sys.stderr,
         )
         tripped = True
@@ -1902,12 +1860,17 @@ def cmd_burndown(args: argparse.Namespace) -> int:
     else:
         limit = args.limit if args.limit is not None else 10
         print(render_burndown_report(report, limit=limit), end="")
-    if args.fail_when_stalled and report.remaining and report.status in {
-        "stalled",
-        "regressing",
-        "scope_growing",
-        "beyond_horizon",
-    }:
+    if (
+        args.fail_when_stalled
+        and report.remaining
+        and report.status
+        in {
+            "stalled",
+            "regressing",
+            "scope_growing",
+            "beyond_horizon",
+        }
+    ):
         return 5
     return 0
 
@@ -2409,9 +2372,7 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
         raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
     output_flags = [name for name in ("mermaid", "json", "csv", "markdown") if getattr(args, name)]
     if len(output_flags) > 1:
-        raise BlueprintError(
-            "roadmap --mermaid, --json, and --csv are mutually exclusive"
-        )
+        raise BlueprintError("roadmap --mermaid, --json, and --csv are mutually exclusive")
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -2736,8 +2697,10 @@ def _run_attempt_sledgehammer(
         mem_summary = f"sledgehammer found no proof for {node_id}"
         details = result.outcome_tag or ""
     elif not result.ran:
-        reason = "Isabelle unavailable" if not result.isabelle_available else (
-            result.error or "unavailable"
+        reason = (
+            "Isabelle unavailable"
+            if not result.isabelle_available
+            else (result.error or "unavailable")
         )
         summary_line = f"sledgehammer: skipped ({reason})"
         outcome = "blocked"
@@ -2794,13 +2757,14 @@ def _agent_run_command_tokens(args: argparse.Namespace) -> list[str]:
     if args.command:
         return split_command_string(args.command)
     raise BlueprintError(
-        "agent-run requires a solver command: pass --command \"<template>\" or "
+        'agent-run requires a solver command: pass --command "<template>" or '
         "--exec PROGRAM [--arg ARG ...]"
     )
 
 
-def _agent_run_prompt_path(args: argparse.Namespace, config: BlueprintConfig,
-                           project_dir: Path, task_id: str) -> Path:
+def _agent_run_prompt_path(
+    args: argparse.Namespace, config: BlueprintConfig, project_dir: Path, task_id: str
+) -> Path:
     if args.output:
         path = Path(args.output)
         if not path.is_absolute():
@@ -2916,9 +2880,7 @@ def cmd_agent_run(args: argparse.Namespace) -> int:
     )
     outcome = classify_run_outcome(result, failure_outcome=args.failure_outcome)
     summary = (
-        args.summary.strip()
-        if args.summary
-        else default_run_summary(command, result, outcome)
+        args.summary.strip() if args.summary else default_run_summary(command, result, outcome)
     )
     stdout_tail = tail(result.stdout)
     stderr_tail = tail(result.stderr)
@@ -2987,8 +2949,7 @@ def _completed_node_ids(project: BlueprintProject) -> set[str]:
     return {
         node.id
         for node in project.nodes
-        if node.status.formal in COMPLETE_FORMAL_STATUSES
-        or node.status.agent is AgentStatus.SOLVED
+        if node.status.formal in COMPLETE_FORMAL_STATUSES or node.status.agent is AgentStatus.SOLVED
     }
 
 
@@ -3107,10 +3068,7 @@ def cmd_memory(args: argparse.Namespace) -> int:
         print("No agent memory recorded yet.")
     else:
         for row in rows:
-            print(
-                f"{row['node_id']} {row['timestamp']} {row['outcome']}: "
-                f"{row['summary']}"
-            )
+            print(f"{row['node_id']} {row['timestamp']} {row['outcome']}: {row['summary']}")
             if row.get("next_step"):
                 print(f"  next: {row['next_step']}")
     return 0
@@ -3355,11 +3313,7 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     matches = match_missing_facts(project, index, limit=args.limit)
     if args.json:
-        print(
-            json.dumps(
-                {"matches": [match.to_dict() for match in matches]}, indent=2
-            )
-        )
+        print(json.dumps({"matches": [match.to_dict() for match in matches]}, indent=2))
     elif args.markdown:
         print(render_matches_markdown(matches), end="")
     else:
@@ -3402,34 +3356,112 @@ def _cmd_search_facts_isabelle(args: argparse.Namespace) -> int:
     return 0
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="isabelle-blueprint",
-        description="Isabelle-aware blueprint tooling.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""common workflows:
+_COMMAND_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "project",
+        "scaffold, validate, and audit a project",
+        ("init", "check", "reconcile"),
+    ),
+    (
+        "explore",
+        "graph, catalogs, and dependency/coverage queries",
+        (
+            "graph",
+            "scorecard",
+            "kinds",
+            "matrix",
+            "tags",
+            "tag-cooccurrence",
+            "path",
+            "depends",
+            "orphans",
+            "levels",
+            "fact-coverage",
+        ),
+    ),
+    (
+        "quality",
+        "gates, risk, and staleness signals",
+        (
+            "lint",
+            "gate",
+            "prometheus",
+            "effort",
+            "proof-debt",
+            "hooks",
+            "notify",
+            "blame",
+            "critical-path",
+            "impact",
+            "stats",
+            "staleness",
+        ),
+    ),
+    (
+        "meta",
+        "tooling, history, and comparisons",
+        ("version", "completion", "diff", "history", "burndown", "portfolio"),
+    ),
+    (
+        "manage",
+        "ownership, edits, and compatibility",
+        ("assign", "rename", "fmt", "dump", "compat"),
+    ),
+    (
+        "site",
+        "publish the static dashboard",
+        ("web", "serve"),
+    ),
+    (
+        "agent",
+        "AI/human agent task workflow",
+        ("tasks", "next", "attempt", "agent-run"),
+    ),
+    (
+        "reporting",
+        "status output and PR integration",
+        ("report", "status", "roadmap", "agent-context", "comment"),
+    ),
+    (
+        "diagnostics",
+        "environment setup and attempt history",
+        ("doctor", "schema", "memory", "explain"),
+    ),
+    (
+        "theory",
+        "Isabelle theory generation and analysis",
+        ("import-theory", "export-theory", "theory-index", "search-facts"),
+    ),
+    (
+        "scaffold",
+        "author a new node stub",
+        ("new",),
+    ),
+)
+
+
+def _render_command_groups() -> str:
+    """Render a concise grouped taxonomy of all subcommands for --help discoverability."""
+    lines = ["command groups (run `isabelle-blueprint <command> --help` for full options):"]
+    for label, summary, names in _COMMAND_GROUPS:
+        lines.append(f"  {label} - {summary}")
+        lines.append(f"    {', '.join(names)}")
+    return "\n".join(lines)
+
+
+_TOP_LEVEL_EPILOG = f"""{_render_command_groups()}
+
+common workflows:
   isabelle-blueprint init my-formalization --template agent-ready
   isabelle-blueprint check . --strict
   isabelle-blueprint roadmap . --write
   isabelle-blueprint web . --serve
 
-Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
-    )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument(
-        "--color",
-        choices=("auto", "always", "never"),
-        default="auto",
-        help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_const",
-        const="never",
-        dest="color",
-        help="disable coloured output (alias for --color never)",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
+Run `isabelle-blueprint init --list-templates` to inspect scaffold choices."""
+
+
+def _register_project_commands(sub: argparse._SubParsersAction) -> None:
+    """Scaffold, validate, and audit a project."""
 
     p_init = sub.add_parser("init", help="scaffold a fresh blueprint project")
     p_init.add_argument(
@@ -3510,8 +3542,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_reconcile.add_argument(
         "--session",
         default=None,
-        help="override the Isabelle session to build against "
-        "(default: [isabelle].session)",
+        help="override the Isabelle session to build against (default: [isabelle].session)",
     )
     p_reconcile.add_argument(
         "--timeout",
@@ -3535,6 +3566,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="emit a packaged schema-style dict instead of the human report",
     )
     p_reconcile.set_defaults(func=cmd_reconcile)
+
+
+def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
+    """Graph, catalogs, and dependency/coverage queries."""
 
     p_graph = sub.add_parser("graph", help="emit DOT/JSON/SVG/Mermaid/GraphML/D2 dependency graph")
     p_graph.add_argument("project_dir", nargs="?", default=".")
@@ -3583,9 +3618,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="grade overall project health as one weighted 0-100 score (A+...F)",
     )
     p_scorecard.add_argument("project_dir", nargs="?", default=".")
-    p_scorecard.add_argument(
-        "--json", action="store_true", help="emit the scorecard as JSON"
-    )
+    p_scorecard.add_argument("--json", action="store_true", help="emit the scorecard as JSON")
     p_scorecard.add_argument(
         "--markdown",
         action="store_true",
@@ -3648,9 +3681,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="roll up node counts and coverage per blueprint node kind",
     )
     p_kinds.add_argument("project_dir", nargs="?", default=".")
-    p_kinds.add_argument(
-        "--json", action="store_true", help="emit the kind roll-up as JSON"
-    )
+    p_kinds.add_argument("--json", action="store_true", help="emit the kind roll-up as JSON")
     p_kinds.set_defaults(func=cmd_kinds)
 
     p_matrix = sub.add_parser(
@@ -3671,9 +3702,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="dimension for the matrix columns (default: kind)",
     )
     p_matrix_format = p_matrix.add_mutually_exclusive_group()
-    p_matrix_format.add_argument(
-        "--json", action="store_true", help="emit the matrix as JSON"
-    )
+    p_matrix_format.add_argument("--json", action="store_true", help="emit the matrix as JSON")
     p_matrix_format.add_argument(
         "--csv",
         action="store_true",
@@ -3687,9 +3716,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
     p_tags_format = p_tags.add_mutually_exclusive_group()
-    p_tags_format.add_argument(
-        "--json", action="store_true", help="emit the tag roll-up as JSON"
-    )
+    p_tags_format.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
     p_tags_format.add_argument(
         "--markdown",
         action="store_true",
@@ -3743,10 +3770,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         type=_positive_int,
         default=1,
         metavar="N",
-        help=(
-            "only report tag pairs shared by at least N nodes (an integer >= 1; "
-            "default 1)"
-        ),
+        help=("only report tag pairs shared by at least N nodes (an integer >= 1; default 1)"),
     )
     p_tag_cooccurrence.set_defaults(func=cmd_tag_cooccurrence)
 
@@ -3758,9 +3782,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_path.add_argument("target", help="target node id")
     p_path.add_argument("project_dir", nargs="?", default=".")
     p_path_format = p_path.add_mutually_exclusive_group()
-    p_path_format.add_argument(
-        "--json", action="store_true", help="emit the path report as JSON"
-    )
+    p_path_format.add_argument("--json", action="store_true", help="emit the path report as JSON")
     p_path_format.add_argument(
         "--markdown",
         action="store_true",
@@ -3850,6 +3872,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_fact_coverage.set_defaults(func=cmd_fact_coverage)
 
+
+def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
+    """Gates, risk, and staleness signals."""
+
     p_lint = sub.add_parser("lint", help="run structural and quality checks on the blueprint")
     p_lint.add_argument("project_dir", nargs="?", default=".")
     p_lint.add_argument(
@@ -3889,9 +3915,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_gate.add_argument("project_dir", nargs="?", default=".")
     p_gate_format = p_gate.add_mutually_exclusive_group()
-    p_gate_format.add_argument(
-        "--json", action="store_true", help="emit the gate result as JSON"
-    )
+    p_gate_format.add_argument("--json", action="store_true", help="emit the gate result as JSON")
     p_gate_format.add_argument(
         "--markdown",
         action="store_true",
@@ -3988,8 +4012,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="PCT",
         help=(
-            "fail (exit 5) when effort-weighted coverage is below PCT percent "
-            "(0-100), or undefined"
+            "fail (exit 5) when effort-weighted coverage is below PCT percent (0-100), or undefined"
         ),
     )
     p_effort.set_defaults(func=cmd_effort)
@@ -4086,9 +4109,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="restrict output to a single node id (default: all nodes)",
     )
     p_blame_format = p_blame.add_mutually_exclusive_group()
-    p_blame_format.add_argument(
-        "--json", action="store_true", help="emit provenance as JSON"
-    )
+    p_blame_format.add_argument("--json", action="store_true", help="emit provenance as JSON")
     p_blame_format.add_argument(
         "--table",
         action="store_true",
@@ -4218,9 +4239,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_staleness.add_argument("project_dir", nargs="?", default=".")
     p_staleness_format = p_staleness.add_mutually_exclusive_group()
-    p_staleness_format.add_argument(
-        "--json", action="store_true", help="emit the analysis as JSON"
-    )
+    p_staleness_format.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_staleness_format.add_argument(
         "--markdown",
         action="store_true",
@@ -4262,6 +4281,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_staleness.set_defaults(func=cmd_staleness)
+
+
+def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
+    """Tooling, history, and comparisons."""
 
     p_version = sub.add_parser("version", help="print version, Python, and schema information")
     p_version.add_argument("--json", action="store_true", help="emit version info as JSON")
@@ -4310,9 +4333,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_history = sub.add_parser("history", help="summarize trends.json coverage history")
     p_history.add_argument("project_dir", nargs="?", default=".")
     p_history_format = p_history.add_mutually_exclusive_group()
-    p_history_format.add_argument(
-        "--json", action="store_true", help="emit the summary as JSON"
-    )
+    p_history_format.add_argument("--json", action="store_true", help="emit the summary as JSON")
     p_history_format.add_argument(
         "--csv", action="store_true", help="emit the trend snapshots as CSV"
     )
@@ -4336,9 +4357,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_burndown.add_argument("project_dir", nargs="?", default=".")
     p_burndown_format = p_burndown.add_mutually_exclusive_group()
-    p_burndown_format.add_argument(
-        "--json", action="store_true", help="emit the forecast as JSON"
-    )
+    p_burndown_format.add_argument("--json", action="store_true", help="emit the forecast as JSON")
     p_burndown_format.add_argument(
         "--markdown",
         action="store_true",
@@ -4376,9 +4395,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="directory tree to scan for blueprint projects (default: .)",
     )
     p_portfolio_format = p_portfolio.add_mutually_exclusive_group()
-    p_portfolio_format.add_argument(
-        "--json", action="store_true", help="emit the roll-up as JSON"
-    )
+    p_portfolio_format.add_argument("--json", action="store_true", help="emit the roll-up as JSON")
     p_portfolio_format.add_argument(
         "--csv",
         action="store_true",
@@ -4393,8 +4410,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--fail-on-problem",
         action="store_true",
         help=(
-            "exit non-zero (5) when any project has problems, dependency "
-            "cycles, or fails to load"
+            "exit non-zero (5) when any project has problems, dependency cycles, or fails to load"
         ),
     )
     p_portfolio.add_argument(
@@ -4431,6 +4447,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_portfolio.set_defaults(func=cmd_portfolio)
+
+
+def _register_manage_commands(sub: argparse._SubParsersAction) -> None:
+    """Ownership, edits, and compatibility."""
 
     p_assign = sub.add_parser("assign", help="record or list per-node ownership")
     p_assign.add_argument(
@@ -4481,8 +4501,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         type=float,
         default=None,
         help=(
-            "max seconds to wait for `isabelle dump` before aborting "
-            "(overrides [isabelle].timeout)"
+            "max seconds to wait for `isabelle dump` before aborting (overrides [isabelle].timeout)"
         ),
     )
     p_dump.add_argument(
@@ -4515,6 +4534,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_compat.set_defaults(func=cmd_compat)
 
+
+def _register_site_commands(sub: argparse._SubParsersAction) -> None:
+    """Publish the static dashboard."""
+
     p_web = sub.add_parser("web", help="render the static HTML site")
     p_web.add_argument("project_dir", nargs="?", default=".")
     p_web.add_argument(
@@ -4523,12 +4546,8 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_web.add_argument(
         "--serve", action="store_true", help="serve the rendered site while watching"
     )
-    p_web.add_argument(
-        "--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)"
-    )
-    p_web.add_argument(
-        "--port", type=int, default=8000, help="port for --serve (default: 8000)"
-    )
+    p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
+    p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
     p_web.add_argument(
         "--interval", type=float, default=1.0, help="watch polling interval in seconds"
     )
@@ -4544,6 +4563,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
     p_serve.set_defaults(func=cmd_serve)
+
+
+def _register_agent_commands(sub: argparse._SubParsersAction) -> None:
+    """AI/human agent task workflow."""
 
     p_tasks = sub.add_parser("tasks", help="generate agent-ready tasks and per-task prompts")
     p_tasks.add_argument("project_dir", nargs="?", default=".")
@@ -4597,8 +4620,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         action="append",
         default=None,
         help=(
-            "GitHub username to assign to generated issue drafts; repeat to add "
-            "multiple assignees"
+            "GitHub username to assign to generated issue drafts; repeat to add multiple assignees"
         ),
     )
     p_tasks.add_argument(
@@ -4624,8 +4646,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         default=None,
         metavar="NODE_OR_TASK",
         help=(
-            "print the ready prompt for this node id or task id instead of the "
-            "suggested next task"
+            "print the ready prompt for this node id or task id instead of the suggested next task"
         ),
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
@@ -4703,9 +4724,7 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     p_attempt.add_argument("--next-step", default=None, help="recommended next action for memory")
     p_attempt.add_argument("--actor", default=None, help="person or agent that made the attempt")
     p_attempt.add_argument("--tool", default=None, help="tool/model used for the attempt")
-    p_attempt.add_argument(
-        "--max-attempts", type=int, default=20, help="attempts to keep per node"
-    )
+    p_attempt.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
     p_attempt.set_defaults(func=cmd_attempt)
 
     p_agent_run = sub.add_parser(
@@ -4805,6 +4824,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         help="exit 5 when the recorded outcome is not 'succeeded'",
     )
     p_agent_run.set_defaults(func=cmd_agent_run)
+
+
+def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
+    """Status output and PR integration."""
 
     p_report = sub.add_parser("report", help="write JSON and Markdown status reports")
     p_report.add_argument("project_dir", nargs="?", default=".")
@@ -4963,6 +4986,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_comment.set_defaults(func=cmd_comment)
 
+
+def _register_diagnostics_commands(sub: argparse._SubParsersAction) -> None:
+    """Environment setup and attempt history."""
+
     p_doctor = sub.add_parser("doctor", help="diagnose local IsabelleBlueprint setup")
     p_doctor.add_argument("project_dir", nargs="?", default=".")
     p_doctor.add_argument("--isabelle", default=None, help="path to the `isabelle` binary")
@@ -5015,6 +5042,10 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         "--markdown", action="store_true", help="render explanations as a Markdown document"
     )
     p_explain.set_defaults(func=cmd_explain)
+
+
+def _register_theory_commands(sub: argparse._SubParsersAction) -> None:
+    """Isabelle theory generation and analysis."""
 
     p_import = sub.add_parser(
         "import-theory", help="bootstrap a blueprint from Isabelle .thy declarations"
@@ -5188,15 +5219,17 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
     )
     p_search.set_defaults(func=cmd_search_facts)
 
+
+def _register_scaffold_commands(sub: argparse._SubParsersAction) -> None:
+    """Author a new node stub."""
+
     p_new = sub.add_parser("new", help="print (or append) a ready-to-edit node stub")
     p_new.add_argument("kind", help="node kind, e.g. definition, lemma, theorem")
     p_new.add_argument("id", help="node id, e.g. add-zero-right or thm:pythagoras")
     p_new.add_argument(
         "project_dir", nargs="?", default=".", help="project dir (used with --append)"
     )
-    p_new.add_argument(
-        "--title", default=None, help="explicit title (default: humanised from id)"
-    )
+    p_new.add_argument("--title", default=None, help="explicit title (default: humanised from id)")
     p_new.add_argument(
         "--fact", default=None, help="Isabelle fact name (default: suggested from id)"
     )
@@ -5223,6 +5256,45 @@ Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.""",
         ),
     )
     p_new.set_defaults(func=cmd_new)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="isabelle-blueprint",
+        description="Isabelle-aware blueprint tooling.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_TOP_LEVEL_EPILOG,
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="when to colourise human-facing output (default: auto; honours NO_COLOR)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_const",
+        const="never",
+        dest="color",
+        help="disable coloured output (alias for --color never)",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    for register in (
+        _register_project_commands,
+        _register_explore_commands,
+        _register_quality_commands,
+        _register_meta_commands,
+        _register_manage_commands,
+        _register_site_commands,
+        _register_agent_commands,
+        _register_reporting_commands,
+        _register_diagnostics_commands,
+        _register_theory_commands,
+        _register_scaffold_commands,
+    ):
+        register(sub)
 
     # Accept `--color`/`--no-color` after the subcommand too (e.g. `lint --color
     # never`). SUPPRESS defaults mean an omitted sub-command flag never clobbers
@@ -5356,7 +5428,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     console.configure(getattr(args, "color", "auto"), stream=sys.stdout)
     try:
-        return args.func(args)
+        func = cast(Callable[[argparse.Namespace], int], args.func)
+        return func(args)
     except BlueprintError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

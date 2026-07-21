@@ -29,15 +29,17 @@ Nodes participating in a dependency cycle are still traversed (so the blast
 radius stays honest), but the cycle membership of the *target* is reported via
 ``in_cycle`` because its own ordering relative to the cycle is ambiguous.
 """
+
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
 
+from isabelle_blueprint.errors import UnknownNodeError
 from isabelle_blueprint.graph.dependency_graph import build_graph
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import COMPLETE_FORMAL_STATUSES
 from isabelle_blueprint.report.mermaid import mermaid_label, mermaid_node_id
-from isabelle_blueprint.report.roadmap import COMPLETE_FORMAL_STATUSES
 
 IMPACT_SCHEMA_VERSION = 1
 
@@ -134,16 +136,10 @@ class ImpactOverview:
         }
 
 
-class UnknownNodeError(KeyError):
-    """Raised when an ``impact`` target id is not present in the project."""
-
-
 def _build_context(project: BlueprintProject):
     by_id = project.by_id()
     graph = build_graph(project)
-    cycle_nodes = {
-        node_id for cycle in project.validate().cycles for node_id in cycle
-    }
+    cycle_nodes = {node_id for cycle in project.validate().cycles for node_id in cycle}
     return by_id, graph, cycle_nodes
 
 
@@ -187,9 +183,7 @@ def build_impact_report(project: BlueprintProject, node_id: str) -> ImpactReport
         AffectedNode(
             node_id=dep_id,
             title=by_id[dep_id].title if dep_id in by_id else "",
-            formal_status=(
-                by_id[dep_id].status.formal.value if dep_id in by_id else "missing"
-            ),
+            formal_status=(by_id[dep_id].status.formal.value if dep_id in by_id else "missing"),
             distance=distance,
         )
         for dep_id, distance in distances.items()
@@ -235,11 +229,7 @@ def build_impact_overview(project: BlueprintProject) -> ImpactOverview:
         affected_goal_count = sum(
             1
             for dep_id in distances
-            if not [
-                child
-                for child in graph.reverse_edges.get(dep_id, [])
-                if child != dep_id
-            ]
+            if not [child for child in graph.reverse_edges.get(dep_id, []) if child != dep_id]
         )
         rankings.append(
             ImpactRank(
@@ -286,13 +276,9 @@ def render_impact_report(report: ImpactReport, *, top: int = 10) -> str:
     from isabelle_blueprint import console
 
     lines = [f"# {report.title or report.node_id} impact", ""]
-    lines.append(
-        f"Target `{report.node_id}` - {report.title} (formal `{report.formal_status}`)"
-    )
+    lines.append(f"Target `{report.node_id}` - {report.title} (formal `{report.formal_status}`)")
     if report.in_cycle:
-        lines.append(
-            console.warning("Note: this node participates in a dependency cycle.")
-        )
+        lines.append(console.warning("Note: this node participates in a dependency cycle."))
     lines.append(
         f"Blast radius: {report.blast_radius_count} node(s) depend on it "
         f"({len(report.direct_dependents)} directly)."
@@ -300,9 +286,7 @@ def render_impact_report(report: ImpactReport, *, top: int = 10) -> str:
     lines.append("")
 
     if report.blast_radius_count == 0:
-        lines.append(
-            console.success("Nothing depends on this node - changes are self-contained.")
-        )
+        lines.append(console.success("Nothing depends on this node - changes are self-contained."))
         return "\n".join(lines).rstrip("\n") + "\n"
 
     lines.extend(["## Blast radius", ""])
@@ -375,15 +359,12 @@ def render_impact_dot(project: BlueprintProject, node_id: str) -> str:
             )
         else:
             lines.append(
-                f'  "{member_id}" [label="{label}", fillcolor="#e5e7eb", '
-                f'color="#1f2937"];'
+                f'  "{member_id}" [label="{label}", fillcolor="#e5e7eb", color="#1f2937"];'
             )
     for src in members:
         for dep in graph.edges.get(src, []):
             if dep in member_set:
-                lines.append(
-                    f'  "{_impact_dot_escape(src)}" -> "{_impact_dot_escape(dep)}";'
-                )
+                lines.append(f'  "{_impact_dot_escape(src)}" -> "{_impact_dot_escape(dep)}";')
     lines.append("}")
     return "\n".join(lines) + "\n"
 
@@ -414,13 +395,8 @@ def render_impact_mermaid(project: BlueprintProject, node_id: str) -> str:
     for src in members:
         for dep in graph.edges.get(src, []):
             if dep in member_set:
-                lines.append(
-                    f"  {mermaid_node_id(src)} --> {mermaid_node_id(dep)}"
-                )
-    lines.append(
-        f"  style {mermaid_node_id(node_id)} "
-        "fill:#fde047,stroke:#1f2937,color:#111827"
-    )
+                lines.append(f"  {mermaid_node_id(src)} --> {mermaid_node_id(dep)}")
+    lines.append(f"  style {mermaid_node_id(node_id)} fill:#fde047,stroke:#1f2937,color:#111827")
     return "\n".join(lines) + "\n"
 
 
@@ -442,9 +418,7 @@ def render_impact_report_csv(report: ImpactReport) -> str:
     return out.getvalue()
 
 
-def render_impact_overview_csv(
-    overview: ImpactOverview, *, top: int | None = None
-) -> str:
+def render_impact_overview_csv(overview: ImpactOverview, *, top: int | None = None) -> str:
     """Return the project-wide blast-radius ranking as CSV (one row per node).
 
     Columns: ``node_id``, ``direct_dependent_count``, ``blast_radius_count``,
@@ -490,15 +464,11 @@ def render_impact_overview(overview: ImpactOverview, *, top: int = 10) -> str:
         return "\n".join(lines).rstrip("\n") + "\n"
 
     ranked = [rank for rank in overview.rankings if rank.blast_radius_count > 0]
-    lines.append(
-        f"{overview.node_count} node(s); {len(ranked)} have downstream dependents."
-    )
+    lines.append(f"{overview.node_count} node(s); {len(ranked)} have downstream dependents.")
     lines.append("")
 
     if not ranked:
-        lines.append(
-            console.dim("No node has dependents - every node is independent.")
-        )
+        lines.append(console.dim("No node has dependents - every node is independent."))
         return "\n".join(lines).rstrip("\n") + "\n"
 
     lines.extend(["## Highest blast radius", ""])

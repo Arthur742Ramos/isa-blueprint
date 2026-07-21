@@ -1,4 +1,5 @@
 """Packaged JSON Schema helpers."""
+
 from __future__ import annotations
 
 from importlib import resources
@@ -42,9 +43,7 @@ def read_schema(name: str) -> str:
     """Read a packaged schema by short name."""
 
     if name not in SCHEMA_NAMES:
-        raise BlueprintError(
-            f"unknown schema {name!r}; choose one of: {', '.join(SCHEMA_NAMES)}"
-        )
+        raise BlueprintError(f"unknown schema {name!r}; choose one of: {', '.join(SCHEMA_NAMES)}")
     schema = resources.files("isabelle_blueprint").joinpath("schemas", f"{name}.schema.json")
     return schema.read_text(encoding="utf-8")
 
