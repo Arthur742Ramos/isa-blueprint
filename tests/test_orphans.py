@@ -1,4 +1,5 @@
 """Tests for the ``orphans`` unreachable-node analysis."""
+
 from __future__ import annotations
 
 import json
@@ -397,4 +398,3 @@ def test_cli_markdown_and_json_rejected(tmp_path: Path) -> None:
         cli_main(["orphans", str(tmp_path), "--markdown", "--json"])
 
     assert exc.value.code == 2
-

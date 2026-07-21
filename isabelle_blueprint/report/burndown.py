@@ -23,6 +23,7 @@ Design notes (informed by review):
 * The analysis is pure and best-effort: malformed or partial historical entries
   are skipped, never fatal.
 """
+
 from __future__ import annotations
 
 import math
@@ -298,9 +299,7 @@ def build_burndown_report(
     )
 
 
-def _classify(
-    last: BurndownPoint, forecast: VelocityBlock
-) -> tuple[str, float | None, str | None]:
+def _classify(last: BurndownPoint, forecast: VelocityBlock) -> tuple[str, float | None, str | None]:
     """Resolve status + ETA from the latest point and forecast velocities."""
     if last.total == 0:
         return STATUS_NO_TARGETS, None, None
@@ -389,10 +388,7 @@ def render_burndown_report(report: BurndownReport, *, limit: int = 10) -> str:
         f"(of {report.total_entries}) over {report.span_days} days"
     )
     if report.total is not None:
-        lines.append(
-            f"  Proved {report.completed}/{report.total} "
-            f"(remaining {report.remaining})"
-        )
+        lines.append(f"  Proved {report.completed}/{report.total} (remaining {report.remaining})")
 
     forecast = report.forecast
     if forecast is not None and forecast.remaining_per_day is not None:
@@ -422,9 +418,7 @@ def render_burndown_report(report: BurndownReport, *, limit: int = 10) -> str:
 
 
 # Statuses that warrant a "completion is not in sight" caveat in the Markdown.
-_STALLED_STATUSES = frozenset(
-    {STATUS_STALLED, STATUS_REGRESSING, STATUS_SCOPE_GROWING}
-)
+_STALLED_STATUSES = frozenset({STATUS_STALLED, STATUS_REGRESSING, STATUS_SCOPE_GROWING})
 
 _STALLED_NOTES = {
     STATUS_STALLED: (

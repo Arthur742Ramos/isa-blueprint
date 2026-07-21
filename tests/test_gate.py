@@ -295,4 +295,3 @@ def test_gate_verdict_is_plain_without_colour(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "\033[" not in out
     assert "gate PASS" in out  # plain text unchanged
-

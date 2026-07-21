@@ -1,4 +1,5 @@
 """Tests for the data model (validation, graph layering, status recomputation)."""
+
 from __future__ import annotations
 
 import sys
@@ -186,9 +187,7 @@ def test_by_id_cache_invalidated_on_single_index_assignment():
 def test_by_id_cache_invalidated_on_slice_assignment_same_length():
     """Same-length slice assignment must also invalidate: identity and len
     are unchanged, only content differs."""
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a"), _node("b"), _node("c")]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a"), _node("b"), _node("c")])
     assert set(project.by_id()) == {"a", "b", "c"}
     project.nodes[0:2] = [_node("x"), _node("y")]
     assert set(project.by_id()) == {"x", "y", "c"}

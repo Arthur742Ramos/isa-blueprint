@@ -11,6 +11,7 @@ participates in (or only reaches the project through) a dependency cycle is
 reported separately as ``cyclic_nodes`` rather than crashing or being silently
 folded into the last level. No Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -104,10 +105,7 @@ def build_levels_report(project: BlueprintProject) -> LevelsReport:
     # When the sweep hits a cycle the helper appends the unresolved set as a
     # final bucket; drop that bucket from the proper levels and report it apart.
     layers = raw[:-1] if cyclic else raw
-    levels = tuple(
-        Level(index=index, node_ids=tuple(layer))
-        for index, layer in enumerate(layers)
-    )
+    levels = tuple(Level(index=index, node_ids=tuple(layer)) for index, layer in enumerate(layers))
     return LevelsReport(
         project=project.name,
         levels=levels,
@@ -129,15 +127,10 @@ def render_levels_report(report: LevelsReport) -> str:
         lines.append(ids if ids else "_(empty)_")
         lines.append("")
 
-    lines.append(
-        f"{report.level_count} level(s); widest level holds "
-        f"{report.max_width} node(s)."
-    )
+    lines.append(f"{report.level_count} level(s); widest level holds {report.max_width} node(s).")
     if report.cyclic_nodes:
         cyclic = ", ".join(f"`{node_id}`" for node_id in report.cyclic_nodes)
-        lines.append(
-            f"{len(report.cyclic_nodes)} node(s) in dependency cycle(s): {cyclic}."
-        )
+        lines.append(f"{len(report.cyclic_nodes)} node(s) in dependency cycle(s): {cyclic}.")
     return "\n".join(lines) + "\n"
 
 
@@ -156,16 +149,12 @@ def render_levels_mermaid(report: LevelsReport, project: BlueprintProject) -> st
     for level in report.levels:
         lines.append(f'  subgraph level{level.index}["Level {level.index}"]')
         for node_id in level.node_ids:
-            lines.append(
-                f'    {mermaid_node_id(node_id)}["{mermaid_label(node_id)}"]'
-            )
+            lines.append(f'    {mermaid_node_id(node_id)}["{mermaid_label(node_id)}"]')
         lines.append("  end")
     graph = build_graph(project)
     for level in report.levels:
         for node_id in level.node_ids:
             for dep_id in graph.edges.get(node_id, []):
                 if dep_id in placed:
-                    lines.append(
-                        f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(node_id)}"
-                    )
+                    lines.append(f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(node_id)}")
     return "\n".join(lines) + "\n"

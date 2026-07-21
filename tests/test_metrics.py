@@ -1,4 +1,5 @@
 """Tests for the shared :mod:`isabelle_blueprint.report.metrics` helper."""
+
 from __future__ import annotations
 
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus

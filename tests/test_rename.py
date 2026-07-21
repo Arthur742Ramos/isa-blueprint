@@ -41,9 +41,7 @@ def test_rename_dry_run_does_not_write(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     before = (tmp_path / "blueprint.md").read_text(encoding="utf-8")
 
-    rc = cli_main(
-        ["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"]
-    )
+    rc = cli_main(["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -245,9 +243,7 @@ def test_rename_dry_run_reports_edit_count(tmp_path: Path, capsys) -> None:
     _write_multi_ref_project(tmp_path)
     before = (tmp_path / "blueprint.md").read_text(encoding="utf-8")
 
-    rc = cli_main(
-        ["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"]
-    )
+    rc = cli_main(["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -283,12 +279,9 @@ def test_rename_dry_run_counts_store_rekey_in_total(tmp_path: Path, capsys) -> N
         encoding="utf-8",
     )
 
-    rc = cli_main(
-        ["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"]
-    )
+    rc = cli_main(["rename", "a", "a2", "--project-dir", str(tmp_path), "--dry-run", "--json"])
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     # Four source edits plus one rekeyed store.
     assert data["total_edits"] == 5
-

@@ -1,4 +1,5 @@
 """GitHub issue synchronization for generated proof tasks."""
+
 from __future__ import annotations
 
 import json
@@ -50,8 +51,7 @@ class GitHubIssueClient(Protocol):
 
     def update_issue(
         self, repo: str, issue_number: int, draft: dict[str, Any]
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]: ...
 
@@ -72,12 +72,8 @@ class GitHubApiClient:
     def create_issue(self, repo: str, draft: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", f"/repos/{repo}/issues", _issue_payload(draft))
 
-    def update_issue(
-        self, repo: str, issue_number: int, draft: dict[str, Any]
-    ) -> dict[str, Any]:
-        return self._request(
-            "PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft)
-        )
+    def update_issue(self, repo: str, issue_number: int, draft: dict[str, Any]) -> dict[str, Any]:
+        return self._request("PATCH", f"/repos/{repo}/issues/{issue_number}", _issue_payload(draft))
 
     def close_issue(self, repo: str, issue_number: int) -> dict[str, Any]:
         return self._request(

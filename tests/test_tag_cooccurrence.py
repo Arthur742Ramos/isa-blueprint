@@ -110,9 +110,7 @@ def test_report_to_dict_shape() -> None:
     assert payload["project"] == "co"
     assert payload["min_shared"] == 1
     assert payload["pair_count"] == 1
-    assert payload["pairs"] == [
-        {"tags": ["x", "y"], "shared_count": 1, "node_ids": ["a"]}
-    ]
+    assert payload["pairs"] == [{"tags": ["x", "y"], "shared_count": 1, "node_ids": ["a"]}]
 
 
 def test_render_lists_pairs_and_empty_message() -> None:
@@ -162,9 +160,7 @@ C.
 
 
 def _write_project(tmp_path: Path) -> None:
-    (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "co"\n', encoding="utf-8"
-    )
+    (tmp_path / "isabelle-blueprint.toml").write_text('[project]\nname = "co"\n', encoding="utf-8")
     (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
 
 
@@ -187,14 +183,14 @@ def test_cli_json_payload_shape(tmp_path: Path, capsys) -> None:
     data = json.loads(capsys.readouterr().out)
     assert data["project"] == "co"
     assert data["min_shared"] == 1
-    assert data["pairs"] == [
-        {"tags": ["alg", "core"], "shared_count": 2, "node_ids": ["a", "b"]}
-    ]
+    assert data["pairs"] == [{"tags": ["alg", "core"], "shared_count": 2, "node_ids": ["a", "b"]}]
 
 
 def test_cli_min_filters_low_count_pairs(tmp_path: Path, capsys) -> None:
     # Add a node introducing a count-1 pair that --min 2 should drop.
-    blueprint = _BLUEPRINT + """
+    blueprint = (
+        _BLUEPRINT
+        + """
 ::: lemma {#d}
 title: D
 isabelle: Demo.d
@@ -204,9 +200,8 @@ status: stub
 D.
 :::
 """
-    (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "co"\n', encoding="utf-8"
     )
+    (tmp_path / "isabelle-blueprint.toml").write_text('[project]\nname = "co"\n', encoding="utf-8")
     (tmp_path / "blueprint.md").write_text(blueprint, encoding="utf-8")
 
     rc = cli_main(["tag-cooccurrence", str(tmp_path), "--json", "--min", "2"])

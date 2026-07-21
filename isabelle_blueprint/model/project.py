@@ -1,4 +1,5 @@
 """Project model: a collection of nodes plus validation."""
+
 from __future__ import annotations
 
 import difflib
@@ -124,8 +125,7 @@ class ValidationReport:
         return {
             "duplicate_ids": list(self.duplicate_ids),
             "missing_dependencies": [
-                {"node": node, "missing": missing}
-                for node, missing in self.missing_dependencies
+                {"node": node, "missing": missing} for node, missing in self.missing_dependencies
             ],
             "cycles": [list(cycle) for cycle in self.cycles],
             "suggestions": {k: list(v) for k, v in self.suggestions.items()},

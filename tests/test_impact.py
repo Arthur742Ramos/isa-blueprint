@@ -317,9 +317,7 @@ def test_mermaid_label_escapes_newline_and_quote() -> None:
     assert "&quot;" in mermaid
     # The focus node's label line must carry the escaped <br/> form and contain no
     # raw newline inside the label token itself.
-    label_line = next(
-        line for line in mermaid.splitlines() if line.lstrip().startswith("n_a")
-    )
+    label_line = next(line for line in mermaid.splitlines() if line.lstrip().startswith("n_a"))
     assert "<br/>" in label_line
     assert "\n" not in label_line
 
@@ -405,9 +403,7 @@ def test_cli_csv_overview_ranks_nodes(tmp_path: Path, capsys) -> None:
     # would otherwise yield \r\r\n per row when redirected to a file).
     assert "\r" not in out
     rows = out.splitlines()
-    assert rows[0] == (
-        "node_id,direct_dependent_count,blast_radius_count,affected_goal_count"
-    )
+    assert rows[0] == ("node_id,direct_dependent_count,blast_radius_count,affected_goal_count")
     # `a` ranks first (one dependent `b`, which is also a terminal goal); `b` has
     # no dependents.
     assert rows[1] == "a,1,1,1"
@@ -426,6 +422,3 @@ def test_cli_csv_single_node_lists_dependents(tmp_path: Path, capsys) -> None:
     assert rows[0] == "dependent_id,distance"
     assert rows[1] == "b,1"
     assert len(rows) == 2
-
-
-

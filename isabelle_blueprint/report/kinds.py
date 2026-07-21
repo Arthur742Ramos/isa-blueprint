@@ -13,6 +13,7 @@ Coverage per kind mirrors :func:`isabelle_blueprint.report.metrics.build_status_
 with a sub-1% non-zero ratio clamped up to 1, and ``None`` when the kind has no
 formal targets). No Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

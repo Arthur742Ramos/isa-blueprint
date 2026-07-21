@@ -1,4 +1,5 @@
 """Human-readable Markdown status report."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -15,9 +16,7 @@ def render_markdown_report(project: BlueprintProject) -> str:
     proved = metrics.proved_count
     found = metrics.found_count
     if metrics.coverage_percent is None:
-        coverage_line = (
-            "- Coverage (proved / formal targets): _no formal targets assigned yet_"
-        )
+        coverage_line = "- Coverage (proved / formal targets): _no formal targets assigned yet_"
     else:
         coverage_line = (
             f"- Coverage (proved / formal targets): **{metrics.coverage_percent}%** "

@@ -4,6 +4,7 @@ The mocked tests are CI-safe: they never invoke the real ``isabelle`` binary.
 One gated test runs the genuine end-to-end flow and is skipped unless an
 ``isabelle`` executable is on PATH.
 """
+
 from __future__ import annotations
 
 import json
@@ -100,9 +101,7 @@ def test_normalize_blank_is_blank() -> None:
 
 
 def test_generate_theory_has_required_ml() -> None:
-    text = generate_find_theorems_theory(
-        "name: add_0", limit=20, result_file="R.tsv"
-    )
+    text = generate_find_theorems_theory("name: add_0", limit=20, result_file="R.tsv")
     assert "theory Blueprint_Search" in text
     assert "Find_Theorems.read_query Position.none" in text
     assert "Find_Theorems.find_theorems_cmd ctxt NONE (SOME 20) true criteria" in text
@@ -115,9 +114,7 @@ def test_generate_theory_has_required_ml() -> None:
 
 def test_generate_theory_escapes_query_quotes() -> None:
     """A pattern query carrying inner-syntax double quotes is escaped, not broken."""
-    text = generate_find_theorems_theory(
-        '"_ + 0 = _"', limit=5, result_file="R.tsv"
-    )
+    text = generate_find_theorems_theory('"_ + 0 = _"', limit=5, result_file="R.tsv")
     # The embedded SML literal escapes the inner quotes.
     assert '"\\"_ + 0 = _\\""' in text
     assert "(SOME 5)" in text
@@ -142,9 +139,7 @@ def test_generate_theory_does_not_double_isabelle_symbol_backslash() -> None:
 
 
 def test_generate_theory_includes_nonce_when_given() -> None:
-    text = generate_find_theorems_theory(
-        "x", limit=3, result_file="R.tsv", nonce="abc-123"
-    )
+    text = generate_find_theorems_theory("x", limit=3, result_file="R.tsv", nonce="abc-123")
     assert "Run nonce: abc-123" in text
 
 
@@ -300,9 +295,7 @@ def test_cli_search_facts_isabelle_json(tmp_path: Path, monkeypatch, capsys) -> 
         "run_capture",
         _fake_run_factory("Nat.add_0_right\tNat\t?m + 0 = ?m\n"),
     )
-    rc = cli_main(
-        ["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _", "--json"]
-    )
+    rc = cli_main(["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ran"] is True
@@ -317,9 +310,7 @@ def test_cli_search_facts_isabelle_human(tmp_path: Path, monkeypatch, capsys) ->
         "run_capture",
         _fake_run_factory("Nat.add_0_right\tNat\t?m + 0 = ?m\n"),
     )
-    rc = cli_main(
-        ["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _"]
-    )
+    rc = cli_main(["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _"])
     assert rc == 0
     out = capsys.readouterr().out
     assert "Nat.add_0_right" in out
@@ -334,9 +325,7 @@ def test_cli_search_facts_isabelle_requires_query(tmp_path: Path) -> None:
 def test_cli_search_facts_isabelle_unavailable_is_noop(tmp_path: Path, monkeypatch, capsys) -> None:
     _write_project(tmp_path)
     monkeypatch.setattr(shutil, "which", lambda _x: None)
-    rc = cli_main(
-        ["search-facts", str(tmp_path), "--isabelle", "--query", "x", "--json"]
-    )
+    rc = cli_main(["search-facts", str(tmp_path), "--isabelle", "--query", "x", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ran"] is False
@@ -347,7 +336,7 @@ def test_cli_search_facts_default_path_unchanged(tmp_path: Path, monkeypatch, ca
     """Without --isabelle the command never touches run_find_theorems."""
     _write_project(tmp_path)
     (tmp_path / "Demo.thy").write_text(
-        "theory Demo\nimports Main\nbegin\nlemma t1: \"True\" by simp\nend\n",
+        'theory Demo\nimports Main\nbegin\nlemma t1: "True" by simp\nend\n',
         encoding="utf-8",
     )
 
@@ -379,9 +368,7 @@ def test_real_find_theorems_over_hol(tmp_path: Path, capsys) -> None:
         encoding="utf-8",
     )
 
-    rc = cli_main(
-        ["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _", "--json"]
-    )
+    rc = cli_main(["search-facts", str(tmp_path), "--isabelle", "--query", "_ + 0 = _", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ran"] is True, payload

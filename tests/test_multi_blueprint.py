@@ -1,4 +1,5 @@
 """Tests for multi-blueprint project support (v0.7)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -109,7 +110,8 @@ def test_cli_reports_malformed_config_as_clean_error(tmp_path: Path, capsys) -> 
     # tomllib.TOMLDecodeError traceback; load_project now wraps it so the CLI
     # prints a one-line error and exits 1.
     (tmp_path / "isabelle-blueprint.toml").write_text(
-        "[project]\nname = \"oops\n", encoding="utf-8"  # unterminated string
+        '[project]\nname = "oops\n',
+        encoding="utf-8",  # unterminated string
     )
 
     rc = cli_main(["status", str(tmp_path)])
@@ -121,9 +123,7 @@ def test_cli_reports_malformed_config_as_clean_error(tmp_path: Path, capsys) -> 
 def test_cli_rename_reports_malformed_config_as_clean_error(tmp_path: Path, capsys) -> None:
     # cmd_rename loads only the config (not the full project); a malformed TOML
     # must still surface as a clean BlueprintError, not a raw traceback.
-    (tmp_path / "isabelle-blueprint.toml").write_text(
-        "[project]\nname = \"oops\n", encoding="utf-8"
-    )
+    (tmp_path / "isabelle-blueprint.toml").write_text('[project]\nname = "oops\n', encoding="utf-8")
 
     rc = cli_main(["rename", "old", "new", "--project-dir", str(tmp_path)])
 

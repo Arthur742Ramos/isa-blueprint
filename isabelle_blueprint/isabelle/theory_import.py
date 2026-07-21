@@ -1,4 +1,5 @@
 """Best-effort import of Isabelle theory declarations into blueprint nodes."""
+
 from __future__ import annotations
 
 import re

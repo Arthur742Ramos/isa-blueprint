@@ -1,4 +1,5 @@
 """Human-readable explanations for blueprint status problems."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -191,8 +192,7 @@ def _explain_node(
             f"Fact `{node.isabelle.fact}` exists, but proof trust has not been established."
         )
         next_steps.append(
-            "Run `dump` or a proof-status-aware `check` to detect sorry/oracle "
-            "dependencies."
+            "Run `dump` or a proof-status-aware `check` to detect sorry/oracle dependencies."
         )
         summary = "Fact exists, proof trust still needs confirmation."
         severity = "ok"
@@ -305,6 +305,4 @@ def _add_dependency_provenance(
             "their taint propagates here."
         )
     if unproved_up and status in {FormalStatus.FOUND, FormalStatus.STALE, FormalStatus.NAMED}:
-        reasons.append(
-            "Upstream dependencies are not proved yet: " + ", ".join(unproved_up) + "."
-        )
+        reasons.append("Upstream dependencies are not proved yet: " + ", ".join(unproved_up) + ".")

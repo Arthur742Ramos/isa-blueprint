@@ -9,6 +9,7 @@ hidden HTML marker. When the context is missing, it returns a
 ``ResultStatus`` instead of raising — running the CLI locally must not
 fail just because there's no PR in scope.
 """
+
 from __future__ import annotations
 
 import json
@@ -180,9 +181,7 @@ def _gh_request(
         return exc.code, payload
 
 
-def _find_existing_comment(
-    repo: str, pr_number: int, token: str, opener=_gh_request
-) -> int | None:
+def _find_existing_comment(repo: str, pr_number: int, token: str, opener=_gh_request) -> int | None:
     """Page through the PR's issue comments looking for our marker."""
     page = 1
     while True:

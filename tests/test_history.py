@@ -87,10 +87,7 @@ def test_history_limit(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     _write_trends(
         tmp_path,
-        [
-            {"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i}
-            for i in range(1, 4)
-        ],
+        [{"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i} for i in range(1, 4)],
     )
 
     rc = cli_main(["history", str(tmp_path), "--json", "--limit", "1"])
@@ -103,9 +100,7 @@ def test_history_limit(tmp_path: Path, capsys) -> None:
 
 def test_render_trend_summary_empty():
     text = render_trend_summary(summarize_trends([]))
-    assert text == (
-        "No trend history yet. Run `isabelle-blueprint report` to record a snapshot.\n"
-    )
+    assert text == ("No trend history yet. Run `isabelle-blueprint report` to record a snapshot.\n")
 
 
 def test_render_trend_summary_single_entry_has_no_delta():
@@ -219,10 +214,7 @@ def test_history_csv_respects_limit(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     _write_trends(
         tmp_path,
-        [
-            {"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i}
-            for i in range(1, 4)
-        ],
+        [{"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i} for i in range(1, 4)],
     )
 
     rc = cli_main(["history", str(tmp_path), "--csv", "--limit", "1"])
@@ -289,10 +281,7 @@ def test_history_markdown_respects_limit(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     _write_trends(
         tmp_path,
-        [
-            {"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i}
-            for i in range(1, 4)
-        ],
+        [{"timestamp": f"2024-01-0{i}T00:00:00Z", "proved_count": i} for i in range(1, 4)],
     )
 
     rc = cli_main(["history", str(tmp_path), "--markdown", "--limit", "1"])

@@ -7,6 +7,7 @@ options of the chosen subcommand (any word starting with ``-``), and otherwise
 fall back to the shell's default file completion.  No third-party dependency
 (such as argcomplete) is required.
 """
+
 from __future__ import annotations
 
 import os
@@ -122,7 +123,7 @@ def _bash(prog: str, commands: list[str], options: dict[str, list[str]]) -> str:
     words = " ".join(commands)
     fn = f"_{_func_slug(prog)}_completion"
     case_lines = [
-        f"        {command}) opts=\"{' '.join(options[command])}\" ;;"
+        f'        {command}) opts="{" ".join(options[command])}" ;;'
         for command in commands
         if options.get(command)
     ]
@@ -208,9 +209,7 @@ def _fish(prog: str, commands: list[str], options: dict[str, list[str]]) -> str:
         f"complete -c {prog} -f",
     ]
     for command in commands:
-        lines.append(
-            f"complete -c {prog} -n '__fish_use_subcommand' -a {command}"
-        )
+        lines.append(f"complete -c {prog} -n '__fish_use_subcommand' -a {command}")
     for command in commands:
         for opt in options.get(command, []):
             flag = _fish_option_flag(opt)

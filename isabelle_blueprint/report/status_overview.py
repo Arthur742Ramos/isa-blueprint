@@ -1,4 +1,5 @@
 """Concise project health overview for terminal and JSON status output."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence

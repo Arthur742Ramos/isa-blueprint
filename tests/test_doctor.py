@@ -63,14 +63,16 @@ def test_doctor_require_present_tool_exits_zero(tmp_path: Path, monkeypatch) -> 
         lambda exe: "/usr/bin/dot" if exe == "dot" else None,
     )
 
-    rc = cli_main([
-        "doctor",
-        str(tmp_path),
-        "--isabelle",
-        "__isabelle_absent__",
-        "--require",
-        "graphviz",
-    ])
+    rc = cli_main(
+        [
+            "doctor",
+            str(tmp_path),
+            "--isabelle",
+            "__isabelle_absent__",
+            "--require",
+            "graphviz",
+        ]
+    )
 
     assert rc == 0
 
@@ -80,14 +82,16 @@ def test_doctor_require_absent_tool_exits_five(tmp_path: Path, capsys, monkeypat
     # Force every tool off PATH so the isabelle check is deterministically not ok
     # (no dependency on whether a real `isabelle` happens to be installed).
     monkeypatch.setattr(doctor_module.shutil, "which", lambda _exe: None)
-    rc = cli_main([
-        "doctor",
-        str(tmp_path),
-        "--isabelle",
-        "__isabelle_absent__",
-        "--require",
-        "isabelle",
-    ])
+    rc = cli_main(
+        [
+            "doctor",
+            str(tmp_path),
+            "--isabelle",
+            "__isabelle_absent__",
+            "--require",
+            "isabelle",
+        ]
+    )
 
     assert rc == 5
     out = capsys.readouterr().out
@@ -104,17 +108,19 @@ def test_doctor_require_json_reports_requirements(tmp_path: Path, capsys, monkey
         lambda exe: "/usr/bin/dot" if exe == "dot" else None,
     )
 
-    rc = cli_main([
-        "doctor",
-        str(tmp_path),
-        "--isabelle",
-        "__isabelle_absent__",
-        "--require",
-        "graphviz",
-        "--require",
-        "isabelle",
-        "--json",
-    ])
+    rc = cli_main(
+        [
+            "doctor",
+            str(tmp_path),
+            "--isabelle",
+            "__isabelle_absent__",
+            "--require",
+            "graphviz",
+            "--require",
+            "isabelle",
+            "--json",
+        ]
+    )
 
     assert rc == 5
     payload = json.loads(capsys.readouterr().out)
@@ -221,4 +227,3 @@ def test_check_afp_ok(tmp_path: Path) -> None:
     (afp / "thys" / "Good_Entry").mkdir(parents=True)
     [check] = _check_afp(_config(tmp_path, afp_root=afp, afp_entry="Good_Entry"))
     assert check.status == "ok"
-

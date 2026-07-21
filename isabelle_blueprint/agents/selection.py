@@ -1,4 +1,5 @@
 """Ready-task filtering and selection shared by CLI and MCP surfaces."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -93,9 +94,7 @@ def task_matches_filters(task: AgentTask, filters: ReadyTaskFilters) -> bool:
     if filters.kinds and task.kind not in filters.kinds:
         return False
     metadata = task.metadata
-    if filters.priorities and (
-        metadata is None or metadata.priority not in filters.priorities
-    ):
+    if filters.priorities and (metadata is None or metadata.priority not in filters.priorities):
         return False
     if filters.difficulties and (
         metadata is None or metadata.difficulty not in filters.difficulties

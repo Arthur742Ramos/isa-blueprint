@@ -6,6 +6,7 @@ If the calculation drifts, the badge ends up disagreeing with the README and
 with the CI step summary - exactly the sort of confusion the roadmap's
 "shareable status badge" item was meant to avoid.
 """
+
 from __future__ import annotations
 
 from collections import Counter

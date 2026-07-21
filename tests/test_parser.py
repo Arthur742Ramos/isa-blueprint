@@ -1,4 +1,5 @@
 """Tests for the Markdown blueprint parser."""
+
 from __future__ import annotations
 
 import textwrap
@@ -438,8 +439,6 @@ def test_explicit_status_overrides_written_default():
         """
     )
     assert project.nodes[0].status.blueprint == BlueprintStatus.STUB
-
-
 
 
 def test_render_node_stub_round_trips_through_parser():

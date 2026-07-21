@@ -360,9 +360,7 @@ def test_render_markdown_backward_direction() -> None:
 
 
 def test_render_markdown_not_connected() -> None:
-    text = render_path_markdown(
-        build_path_report(_project(_node("x"), _node("y")), "x", "y")
-    )
+    text = render_path_markdown(build_path_report(_project(_node("x"), _node("y")), "x", "y"))
 
     assert "not connected" in text
 

@@ -1,4 +1,5 @@
 """Write a machine-readable summary of the project."""
+
 from __future__ import annotations
 
 import json

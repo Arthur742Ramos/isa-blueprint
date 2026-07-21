@@ -240,9 +240,7 @@ def test_pull_requires_repo(tmp_path: Path):
     _write_state_file(state_path, {"a": 1})
 
     try:
-        pull_github_issue_states(
-            state_path, repo=None, client=_PullClient({1: {"state": "open"}})
-        )
+        pull_github_issue_states(state_path, repo=None, client=_PullClient({1: {"state": "open"}}))
     except BlueprintError as exc:
         assert "repo" in str(exc).lower()
     else:  # pragma: no cover - guard
@@ -262,4 +260,3 @@ def test_pull_requires_token(tmp_path: Path, monkeypatch):
         assert "GITHUB_TOKEN" in str(exc)
     else:  # pragma: no cover - guard
         raise AssertionError("expected BlueprintError when token is missing")
-

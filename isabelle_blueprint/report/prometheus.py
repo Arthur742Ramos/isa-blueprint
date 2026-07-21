@@ -13,6 +13,7 @@ Undefined coverage (a project with no formal targets yet) is represented by the
 companion ``isabelle_blueprint_coverage_defined`` gauge being ``0`` rather than
 emitting a misleading ``NaN`` or ``0`` ratio.
 """
+
 from __future__ import annotations
 
 from isabelle_blueprint.report.metrics import StatusMetrics
@@ -101,7 +102,6 @@ def _render_labels(labels: dict[str, str] | None) -> str:
 
 def _escape_label_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-
 
 
 def _format_value(value: float | int) -> str:

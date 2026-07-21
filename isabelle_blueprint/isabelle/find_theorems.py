@@ -16,6 +16,7 @@ Because batch ``isabelle build`` suppresses ``find_theorems``/``writeln`` stdout
 the generated wrapper theory writes the hits to a TSV file which we read back
 here -- exactly the pattern the proof-status checker uses.
 """
+
 from __future__ import annotations
 
 import re
@@ -148,11 +149,7 @@ def generate_find_theorems_theory(
         # perturbs the theory source so the session is always rebuilt.
         lines.append(f"(* Run nonce: {_comment_escape(nonce)} *)")
     lines.append("")
-    lines.extend(
-        _find_theorems_ml_block(
-            query=query, limit=safe_limit, result_file=result_file
-        )
-    )
+    lines.extend(_find_theorems_ml_block(query=query, limit=safe_limit, result_file=result_file))
     lines.append("")
     lines.append("end")
     return "\n".join(lines) + "\n"
@@ -186,8 +183,8 @@ def _find_theorems_ml_block(*, query: str, limit: int, result_file: str) -> list
         "let",
         "  fun strip s = XML.content_of (YXML.parse_body s)",
         "  fun clean s = String.translate",
-        '    (fn c => if c = #\"\\n\" orelse c = #\"\\t\" orelse c = #\"\\r\"',
-        '             then \" \" else String.str c) s',
+        '    (fn c => if c = #"\\n" orelse c = #"\\t" orelse c = #"\\r"',
+        '             then " " else String.str c) s',
         "  val ctxt = @{context}",
         "  val ctxt' = ctxt |> Config.put show_markup false |> Config.put show_types false",
         f"  val criteria = Find_Theorems.read_query Position.none {query_lit}",
@@ -323,13 +320,10 @@ def run_find_theorems(
         # A non-zero exit with no hits file is a build failure (e.g. an
         # unparseable query); surface it so the caller can treat it as a blocker.
         if not result.hits and proc.returncode != 0:
-            result.error = (
-                f"isabelle build returned {proc.returncode} (find_theorems run failed)"
-            )
+            result.error = f"isabelle build returned {proc.returncode} (find_theorems run failed)"
     else:
         result.error = (
-            f"isabelle build returned {proc.returncode} without writing a "
-            "find_theorems result file"
+            f"isabelle build returned {proc.returncode} without writing a find_theorems result file"
         )
 
     return result

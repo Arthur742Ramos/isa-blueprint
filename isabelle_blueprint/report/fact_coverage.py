@@ -15,6 +15,7 @@ is the proved share of that target count (truncated, with a sub-1% non-zero
 ratio clamped up to 1, and ``None`` when the theory has no formal targets). No
 Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 import csv
@@ -120,10 +121,7 @@ def render_fact_coverage_report(report: FactCoverageReport) -> str:
     lines = [
         f"# {report.project} fact coverage",
         "",
-        (
-            f"{report.total_nodes} node(s) across {len(report.theories)} "
-            "theory(s)."
-        ),
+        (f"{report.total_nodes} node(s) across {len(report.theories)} theory(s)."),
         "",
     ]
     if not report.theories:

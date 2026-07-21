@@ -5,6 +5,7 @@ snapshot of the coverage / problem counts. ``history`` reads that store back and
 presents the series plus the delta between the two most recent entries, so a
 glance shows whether coverage is moving in the right direction.
 """
+
 from __future__ import annotations
 
 import csv
@@ -105,8 +106,7 @@ def render_trend_summary(summary: TrendSummary) -> str:
         return "No trend history yet. Run `isabelle-blueprint report` to record a snapshot.\n"
 
     lines = [
-        f"Trend history ({summary.entry_count} "
-        f"entr{'y' if summary.entry_count == 1 else 'ies'}):"
+        f"Trend history ({summary.entry_count} entr{'y' if summary.entry_count == 1 else 'ies'}):"
     ]
     for entry in summary.entries:
         timestamp = entry.get("timestamp", "?")

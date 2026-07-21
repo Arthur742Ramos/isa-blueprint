@@ -10,6 +10,7 @@ The JSON form is intentionally lightweight and not part of the frozen v1.0
 contract surface; it is meant for humans and ad-hoc scripts, so fields may grow
 over time.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

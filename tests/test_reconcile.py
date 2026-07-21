@@ -5,6 +5,7 @@ a fake ``run_capture`` writes the expected deps TSV into the build directory.
 One gated test runs the genuine end-to-end flow against a tiny custom session
 and is skipped unless an ``isabelle`` executable is on PATH.
 """
+
 from __future__ import annotations
 
 import json
@@ -75,11 +76,7 @@ def test_parse_deps_tsv_dash_is_empty() -> None:
 
 
 def test_parse_deps_tsv_ignores_noise_lines() -> None:
-    text = (
-        "Building Demo ...\n"
-        f"{DEPS_MARKER}\tb\tDemo.lemma_B\tDemo.lemma_A\n"
-        "Finished.\n"
-    )
+    text = f"Building Demo ...\n{DEPS_MARKER}\tb\tDemo.lemma_B\tDemo.lemma_A\nFinished.\n"
     assert parse_deps_tsv(text) == {"b": ["Demo.lemma_A"]}
 
 
@@ -185,9 +182,7 @@ def test_reconcile_payload_shape() -> None:
 
 
 def test_generate_reconcile_theory_basic() -> None:
-    text = generate_reconcile_theory(
-        _project(), deps_file="R.tsv", default_import_session="Demo"
-    )
+    text = generate_reconcile_theory(_project(), deps_file="R.tsv", default_import_session="Demo")
     assert text is not None
     assert "theory Blueprint_Deps" in text
     assert "Thm_Deps.thm_deps thy" in text
@@ -282,9 +277,7 @@ def test_run_reconcile_timeout(tmp_path: Path, monkeypatch) -> None:
         raise subprocess.TimeoutExpired(cmd, timeout)
 
     monkeypatch.setattr(rec_module, "run_capture", fake_run)
-    result = run_reconcile(
-        _project(), build_dir=tmp_path, session_name="Demo", timeout=5
-    )
+    result = run_reconcile(_project(), build_dir=tmp_path, session_name="Demo", timeout=5)
     assert result.ran is False
     assert "timed out" in (result.error or "").lower()
 

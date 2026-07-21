@@ -1,4 +1,5 @@
 """Compatibility and version-pin checks for Isabelle/AFP projects."""
+
 from __future__ import annotations
 
 import json

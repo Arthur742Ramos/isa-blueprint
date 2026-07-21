@@ -82,9 +82,7 @@ def test_prometheus_writes_output_file(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _TWO_NODES)
     out_file = tmp_path / "metrics" / "blueprint.prom"
 
-    rc = cli_main(
-        ["prometheus", str(tmp_path), "--no-burndown", "--output", str(out_file)]
-    )
+    rc = cli_main(["prometheus", str(tmp_path), "--no-burndown", "--output", str(out_file)])
 
     assert rc == 0
     assert out_file.exists()
@@ -109,11 +107,7 @@ def test_prometheus_static_labels_on_every_metric(tmp_path: Path, capsys) -> Non
 
     assert rc == 0
     out = capsys.readouterr().out
-    metric_lines = [
-        line
-        for line in out.splitlines()
-        if line and not line.startswith("#")
-    ]
+    metric_lines = [line for line in out.splitlines() if line and not line.startswith("#")]
     assert metric_lines
     for line in metric_lines:
         assert '{env="ci",team="hol"}' in line
@@ -145,9 +139,7 @@ def test_prometheus_no_label_is_byte_identical(tmp_path: Path, capsys) -> None:
     assert cli_main(["prometheus", str(tmp_path), "--no-burndown"]) == 0
     baseline = capsys.readouterr().out
 
-    assert (
-        cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "x=y"]) == 0
-    )
+    assert cli_main(["prometheus", str(tmp_path), "--no-burndown", "--label", "x=y"]) == 0
     labelled = capsys.readouterr().out
 
     assert "{" not in baseline

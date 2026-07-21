@@ -151,12 +151,8 @@ def test_cli_json(tmp_path: Path, capsys) -> None:
     assert data["schema_version"] == DEPENDS_SCHEMA_VERSION
     assert data["project"] == "dep-test"
     assert data["node"] == "b"
-    assert data["depends_on"] == [
-        {"id": "a", "kind": "definition", "formal_status": "missing"}
-    ]
-    assert data["depended_on_by"] == [
-        {"id": "c", "kind": "theorem", "formal_status": "missing"}
-    ]
+    assert data["depends_on"] == [{"id": "a", "kind": "definition", "formal_status": "missing"}]
+    assert data["depended_on_by"] == [{"id": "c", "kind": "theorem", "formal_status": "missing"}]
 
 
 def test_cli_json_leaf_empty(tmp_path: Path, capsys) -> None:

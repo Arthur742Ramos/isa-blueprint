@@ -13,6 +13,7 @@ Coverage per tag mirrors :func:`isabelle_blueprint.report.metrics.build_status_m
 with a sub-1% non-zero ratio clamped up to 1, and ``None`` when the tag has no
 formal targets). No Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 import csv
@@ -155,9 +156,7 @@ class _Bucket:
     problems: int = 0
 
 
-def build_tag_report(
-    project: BlueprintProject, only: Iterable[str] | None = None
-) -> TagReport:
+def build_tag_report(project: BlueprintProject, only: Iterable[str] | None = None) -> TagReport:
     """Compute the per-tag coverage roll-up for ``project``.
 
     When ``only`` is given, the roll-up is restricted to those tag names. Each
@@ -264,15 +263,12 @@ def render_tags_markdown(report: TagReport) -> str:
     if report.tags:
         lines.extend(
             [
-                "| Tag | Nodes | Formal targets | Proved | Found | Problems | "
-                "Proved-coverage% |",
+                "| Tag | Nodes | Formal targets | Proved | Found | Problems | Proved-coverage% |",
                 "| --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for stat in report.tags:
-            coverage = (
-                "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
-            )
+            coverage = "n/a" if stat.coverage_percent is None else f"{stat.coverage_percent}%"
             lines.append(
                 f"| {_escape_cell(stat.tag)} | {stat.node_count} | "
                 f"{stat.formal_target_count} | {stat.proved_count} | "

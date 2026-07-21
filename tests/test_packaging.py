@@ -1,4 +1,5 @@
 """Packaging metadata smoke tests."""
+
 from __future__ import annotations
 
 import json
@@ -17,8 +18,7 @@ def test_package_version_matches_pyproject():
     declared = data["project"]["version"]
 
     assert isabelle_blueprint.__version__ == declared, (
-        f"runtime __version__={isabelle_blueprint.__version__!r} != "
-        f"pyproject version={declared!r}"
+        f"runtime __version__={isabelle_blueprint.__version__!r} != pyproject version={declared!r}"
     )
     assert isabelle_blueprint._FALLBACK_VERSION == declared, (
         "the source-tree fallback version must track pyproject.toml"
@@ -47,8 +47,7 @@ def test_static_assets_are_packaged():
     # Either the broad static glob, or each individual file listed explicitly.
     has_glob = any(entry == "render/templates/static/*" for entry in package_data)
     assert has_glob, (
-        "expected 'render/templates/static/*' in pyproject.toml package-data; "
-        f"got {package_data!r}"
+        f"expected 'render/templates/static/*' in pyproject.toml package-data; got {package_data!r}"
     )
 
     # And the on-disk files the glob is meant to capture must actually exist.
@@ -81,10 +80,7 @@ def test_pyproject_declares_changelog_url():
 def test_vscode_extension_contributes_roadmap_command():
     root = Path(__file__).resolve().parents[1]
     package = json.loads((root / "vscode" / "package.json").read_text(encoding="utf-8"))
-    commands = {
-        command["command"]
-        for command in package["contributes"]["commands"]
-    }
+    commands = {command["command"] for command in package["contributes"]["commands"]}
     extension_source = (root / "vscode" / "src" / "extension.ts").read_text(encoding="utf-8")
 
     assert "onCommand:isabelleBlueprint.runRoadmap" in package["activationEvents"]

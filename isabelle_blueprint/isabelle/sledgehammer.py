@@ -14,6 +14,7 @@ Because batch ``isabelle build`` suppresses sledgehammer/``writeln`` stdout, the
 generated theory writes a one-line TSV result to a file which we read back here
 -- exactly the pattern the proof-status checker uses.
 """
+
 from __future__ import annotations
 
 import re
@@ -222,8 +223,7 @@ def run_sledgehammer(
         proc = run_capture(cmd, cwd=str(build_dir), timeout=build_timeout)
     except subprocess.TimeoutExpired:
         result.error = (
-            f"isabelle build timed out after {build_timeout:.0f}s; "
-            "increase --sledgehammer-timeout"
+            f"isabelle build timed out after {build_timeout:.0f}s; increase --sledgehammer-timeout"
         )
         return result
     except OSError as exc:
@@ -248,14 +248,11 @@ def run_sledgehammer(
         # malformed goal that does not typecheck) rather than a clean miss, so
         # surface it as an error the caller can treat as a blocker.
         if not found and proc.returncode != 0:
-            result.error = (
-                f"isabelle build returned {proc.returncode} (sledgehammer run failed)"
-            )
+            result.error = f"isabelle build returned {proc.returncode} (sledgehammer run failed)"
     else:
         result.found = False
         result.error = (
-            f"isabelle build returned {proc.returncode} without writing a "
-            "sledgehammer result file"
+            f"isabelle build returned {proc.returncode} without writing a sledgehammer result file"
         )
 
     return result

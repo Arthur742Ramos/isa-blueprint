@@ -1,4 +1,5 @@
 """Render the static HTML site for a blueprint project."""
+
 from __future__ import annotations
 
 import json
@@ -351,8 +352,7 @@ def _count_breakdown(
 def _dependency_levels(project: BlueprintProject) -> list[DependencyLevel]:
     by_id = project.by_id()
     dependency_counts = {
-        node.id: sum(1 for dep_id in node.uses if dep_id in by_id)
-        for node in project.nodes
+        node.id: sum(1 for dep_id in node.uses if dep_id in by_id) for node in project.nodes
     }
     dependents: dict[str, list[str]] = {node.id: [] for node in project.nodes}
     for node in project.nodes:

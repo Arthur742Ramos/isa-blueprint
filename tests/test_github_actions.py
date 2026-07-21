@@ -1,4 +1,5 @@
 """Tests for :mod:`isabelle_blueprint.report.github_actions`."""
+
 from __future__ import annotations
 
 import re
@@ -63,9 +64,7 @@ def test_emit_step_outputs_returns_false_when_env_var_missing():
 def test_emit_step_outputs_appends_scalar_key_value_lines(tmp_path: Path):
     out = tmp_path / "outputs"
     env = {"GITHUB_OUTPUT": str(out)}
-    assert emit_step_outputs(
-        {"coverage_percent": "42", "has_cycles": "false"}, env=env
-    )
+    assert emit_step_outputs({"coverage_percent": "42", "has_cycles": "false"}, env=env)
     body = out.read_text(encoding="utf-8")
     assert "coverage_percent=42" in body
     assert "has_cycles=false" in body

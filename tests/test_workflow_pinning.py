@@ -4,6 +4,7 @@ These tests fail if anyone reintroduces a floating ``uses:`` tag (e.g.
 ``actions/checkout@v6``) instead of a 40-character commit SHA, or drops the
 ``github-actions`` Dependabot ecosystem that keeps those pins fresh.
 """
+
 from __future__ import annotations
 
 import re
@@ -19,9 +20,7 @@ _DEPENDABOT = _REPO_ROOT / ".github" / "dependabot.yml"
 # ``owner/repo@<ref>`` with an optional ``# comment``. Only local actions
 # (``./...``) are exempt; every other ``uses:`` reference -- including reusable
 # workflows -- must be pinned to a full commit SHA.
-_USES_RE = re.compile(
-    r"^\s*-?\s*uses:\s*(?P<ref>[^\s#]+)\s*(?:#\s*(?P<comment>.+?))?\s*$"
-)
+_USES_RE = re.compile(r"^\s*-?\s*uses:\s*(?P<ref>[^\s#]+)\s*(?:#\s*(?P<comment>.+?))?\s*$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -69,9 +68,7 @@ def test_pinned_actions_keep_a_human_readable_version_comment():
 
 def test_dependabot_enables_github_actions_weekly():
     config = yaml.safe_load(_DEPENDABOT.read_text(encoding="utf-8"))
-    ecosystems = {
-        update.get("package-ecosystem"): update for update in config.get("updates", [])
-    }
+    ecosystems = {update.get("package-ecosystem"): update for update in config.get("updates", [])}
     assert "github-actions" in ecosystems, "dependabot must update github-actions"
     schedule = ecosystems["github-actions"].get("schedule", {})
     assert schedule.get("interval") == "weekly"

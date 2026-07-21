@@ -189,9 +189,7 @@ def test_stats_min_success_rate_no_attempts_not_enforced(tmp_path: Path, capsys)
     assert "not enforced" in err
 
 
-def test_stats_min_success_rate_no_resolved_attempts_not_enforced(
-    tmp_path: Path, capsys
-) -> None:
+def test_stats_min_success_rate_no_resolved_attempts_not_enforced(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     capsys.readouterr()
     # Only non-resolved outcomes -> success_rate undefined.
@@ -235,9 +233,7 @@ def _write_memory(tmp_path: Path, succeeded: int, failed: int) -> None:
     )
 
 
-def test_stats_min_success_rate_raw_rate_fails_near_threshold(
-    tmp_path: Path, capsys
-) -> None:
+def test_stats_min_success_rate_raw_rate_fails_near_threshold(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     # 3203/4004 = 0.79995..., which rounds to 0.8000 at 4 decimals. Gating on the
     # rounded report rate would wrongly PASS; gating on the raw rate must FAIL.
@@ -250,9 +246,7 @@ def test_stats_min_success_rate_raw_rate_fails_near_threshold(
     assert "min-success-rate policy triggered" in err
 
 
-def test_stats_min_success_rate_message_keeps_decimals(
-    tmp_path: Path, capsys
-) -> None:
+def test_stats_min_success_rate_message_keeps_decimals(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
     # 1067/1334 = 0.79985 -> a true 79.99% that fails "< 80". The failure message
     # must print decimals (79.99%) and never round up to a contradictory "80%".
@@ -264,5 +258,3 @@ def test_stats_min_success_rate_message_keeps_decimals(
     err = capsys.readouterr().err
     assert "triggered: 79.99%" in err
     assert "triggered: 80" not in err
-
-

@@ -33,9 +33,7 @@ def test_parse_root_theories_basic(tmp_path: Path) -> None:
 def test_parse_root_theories_stops_at_next_block(tmp_path: Path) -> None:
     root = _write(
         tmp_path / "ROOT",
-        "session Demo = HOL +\n"
-        "  theories\n    Alpha\n    Beta\n"
-        "  document_files\n    root.tex\n",
+        "session Demo = HOL +\n  theories\n    Alpha\n    Beta\n  document_files\n    root.tex\n",
     )
     assert parse_root_theories(root) == ["Alpha", "Beta"]
 
@@ -53,7 +51,7 @@ def test_parse_root_directories_accepts_unquoted_names(tmp_path: Path) -> None:
     # just like quoted ones, and the two forms may be mixed on one line.
     root = _write(
         tmp_path / "ROOT",
-        "session Demo = HOL +\n  directories src \"my proofs\" lib\n  theories\n    Alpha\n",
+        'session Demo = HOL +\n  directories src "my proofs" lib\n  theories\n    Alpha\n',
     )
     assert parse_root_directories(root) == ["src", "my proofs", "lib"]
 
@@ -97,8 +95,7 @@ def test_parse_root_theories_ignores_commented_names(tmp_path: Path) -> None:
     # theory.
     root = _write(
         tmp_path / "ROOT",
-        "session Demo = HOL +\n  theories\n    Alpha\n"
-        "    (*\n    Phantom\n    *)\n    Beta\n",
+        "session Demo = HOL +\n  theories\n    Alpha\n    (*\n    Phantom\n    *)\n    Beta\n",
     )
     assert parse_root_theories(root) == ["Alpha", "Beta"]
 
@@ -157,8 +154,8 @@ def test_parse_root_sessions_multi_session_parent_and_subdir(tmp_path: Path) -> 
         "  description {* a legacy description *}\n"
         "  options [document = false]\n"
         "  sessions\n    Base\n"
-        "  directories \"lib\"\n"
-        "  theories\n    Tools\n    Helpers in \"lib\"\n",
+        '  directories "lib"\n'
+        '  theories\n    Tools\n    Helpers in "lib"\n',
     )
     sessions = parse_root_sessions(root)
     names = [s.name for s in sessions]

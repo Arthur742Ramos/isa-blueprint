@@ -52,6 +52,7 @@ When ``title`` is omitted it is derived from the node id (``add-comm`` becomes
 ``Add comm``); when ``status`` is omitted a node with a real body is treated as
 ``written`` rather than ``stub``.
 """
+
 from __future__ import annotations
 
 import re

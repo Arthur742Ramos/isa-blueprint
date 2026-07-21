@@ -11,6 +11,7 @@ Both run via the installed ``isabelle-blueprint`` console script (``language:
 system``) and pass ``pass_filenames: false`` because the commands discover their
 own inputs from ``isabelle-blueprint.toml``.
 """
+
 from __future__ import annotations
 
 PRECOMMIT_CONFIG_FILENAME = ".pre-commit-config.yaml"

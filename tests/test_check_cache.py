@@ -1,4 +1,5 @@
 """Tests for the incremental check cache (v0.6)."""
+
 from __future__ import annotations
 
 import json
@@ -136,8 +137,15 @@ def test_save_then_load_round_trip(tmp_path: Path):
     path = tmp_path / "cache.json"
     entries = {
         "a": check_cache.record_entry(
-            {"node_id": "a", "fact": "Demo.a", "theory": "Demo", "exists": True,
-             "error": None, "proof_status": "proved", "oracles": []},
+            {
+                "node_id": "a",
+                "fact": "Demo.a",
+                "theory": "Demo",
+                "exists": True,
+                "error": None,
+                "proof_status": "proved",
+                "oracles": [],
+            },
             node_hash="abc",
         ),
     }
@@ -231,8 +239,7 @@ def test_reusable_entry_skips_when_oracles_present():
 
 def test_reusable_entry_skips_when_proof_status_not_proved_and_required():
     assert (
-        check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=True)
-        is None
+        check_cache.reusable_entry(_entry(proof_status="found"), proof_status_required=True) is None
     )
     assert check_cache.reusable_entry(_entry(proof_status=None), proof_status_required=True) is None
 
@@ -262,10 +269,7 @@ def _fake_proof_status_run(*expected_node_ids: str):
 
     def fake_run(cmd, *, cwd=None, timeout=None, env=None):
         calls.append(list(cmd))
-        lines = [
-            f"ISABELLE_BLUEPRINT_FACT\t{nid}\tDemo.{nid}\tproved\t-"
-            for nid in expected
-        ]
+        lines = [f"ISABELLE_BLUEPRINT_FACT\t{nid}\tDemo.{nid}\tproved\t-" for nid in expected]
         return RunResult(args=list(cmd), returncode=0, stdout="\n".join(lines) + "\n", stderr="")
 
     return fake_run, calls

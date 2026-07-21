@@ -3,6 +3,7 @@
 Reads ``isabelle-blueprint.toml`` (if present) to discover blueprint sources,
 output paths, and Isabelle session names.
 """
+
 from __future__ import annotations
 
 import tomllib
@@ -128,9 +129,7 @@ def load_config(project_root: Path | None = None) -> BlueprintConfig:
         if isinstance(blueprints_setting, str):
             blueprints_setting = [blueprints_setting]
         if not isinstance(blueprints_setting, list) or not blueprints_setting:
-            raise ValueError(
-                "[project].blueprints must be a non-empty list of paths"
-            )
+            raise ValueError("[project].blueprints must be a non-empty list of paths")
         all_blueprints = [str(p) for p in blueprints_setting]
     else:
         all_blueprints = [blueprint_setting]

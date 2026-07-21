@@ -19,6 +19,7 @@ Everything else - blueprint/agent-only changes, forward progress such as
 ``named`` -> ``found`` -> ``proved``, or a problem status clearing up - counts
 as a non-regressing change.
 """
+
 from __future__ import annotations
 
 import json

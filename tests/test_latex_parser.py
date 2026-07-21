@@ -1,4 +1,5 @@
 """Tests for Lean Blueprint-style LaTeX parsing."""
+
 from __future__ import annotations
 
 import textwrap

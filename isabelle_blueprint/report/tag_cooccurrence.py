@@ -11,6 +11,7 @@ nodes with fewer than two tags add nothing. Repeated tags within a single node
 are de-duplicated so a pair is never double-counted from one node. No Isabelle
 invocation is required.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -91,9 +92,7 @@ def build_tag_cooccurrence_report(
         for pair, node_ids in members.items()
         if len(node_ids) >= threshold
     )
-    pairs = tuple(
-        sorted(pairs, key=lambda p: (-p.shared_count, p.tags))
-    )
+    pairs = tuple(sorted(pairs, key=lambda p: (-p.shared_count, p.tags)))
 
     return TagCooccurrenceReport(
         project=project.name,
@@ -108,10 +107,7 @@ def render_tag_cooccurrence_report(report: TagCooccurrenceReport) -> str:
     lines = [
         f"# {report.project} tag co-occurrence",
         "",
-        (
-            f"{len(report.pairs)} tag pair(s) sharing at least "
-            f"{report.min_shared} node(s)."
-        ),
+        (f"{len(report.pairs)} tag pair(s) sharing at least {report.min_shared} node(s)."),
         "",
     ]
     if not report.pairs:

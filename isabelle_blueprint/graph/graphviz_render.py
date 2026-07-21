@@ -1,4 +1,5 @@
 """Emit DOT/JSON/SVG renderings of the dependency graph."""
+
 from __future__ import annotations
 
 import json
@@ -70,9 +71,7 @@ def render_mermaid(project: BlueprintProject) -> str:
     for node_id in g.nodes:
         node = by_id[node_id]
         color = _color_for_node(node.status.formal, node.status.agent)
-        lines.append(
-            f"  style {_mermaid_id(node_id)} fill:{color},stroke:#1f2937,color:#111827"
-        )
+        lines.append(f"  style {_mermaid_id(node_id)} fill:{color},stroke:#1f2937,color:#111827")
     return "\n".join(lines) + "\n"
 
 
@@ -122,11 +121,7 @@ def render_json(project: BlueprintProject) -> str:
             }
             for node_id in g.nodes
         ],
-        "edges": [
-            {"source": src, "target": dep}
-            for src, deps in g.edges.items()
-            for dep in deps
-        ],
+        "edges": [{"source": src, "target": dep} for src, deps in g.edges.items() for dep in deps],
     }
     return json.dumps(data, indent=2)
 
@@ -173,16 +168,13 @@ def render_graphml(project: BlueprintProject) -> str:
         }
         lines.append(f"    <node id={_xml_attr(node_id)}>")
         for key_id, _ in _GRAPHML_NODE_KEYS:
-            lines.append(
-                f'      <data key="{key_id}">{_xml_escape(values[key_id])}</data>'
-            )
+            lines.append(f'      <data key="{key_id}">{_xml_escape(values[key_id])}</data>')
         lines.append("    </node>")
     edge_index = 0
     for src, deps in g.edges.items():
         for dep in deps:
             lines.append(
-                f'    <edge id="e{edge_index}" source={_xml_attr(src)} '
-                f"target={_xml_attr(dep)}/>"
+                f'    <edge id="e{edge_index}" source={_xml_attr(src)} target={_xml_attr(dep)}/>'
             )
             edge_index += 1
     lines.append("  </graph>")
@@ -283,11 +275,7 @@ def _mermaid_id(node_id: str) -> str:
 
 
 def _mermaid_label(text: str) -> str:
-    return (
-        text.replace("\\", "\\\\")
-        .replace('"', "&quot;")
-        .replace("\n", "<br/>")
-    )
+    return text.replace("\\", "\\\\").replace('"', "&quot;").replace("\n", "<br/>")
 
 
 def _d2_string(text: str) -> str:
@@ -302,8 +290,4 @@ def _d2_string(text: str) -> str:
 
 
 def _dot_escape(text: str) -> str:
-    return (
-        text.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-    )
+    return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")

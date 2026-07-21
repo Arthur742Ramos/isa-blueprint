@@ -13,6 +13,7 @@ Colour is *opt-in* and conservative:
   coloured.  Machine-readable output (JSON, SARIF, completion scripts) must
   never be routed through these helpers.
 """
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """Tests for the ``agent-run`` execution harness."""
+
 from __future__ import annotations
 
 import json
@@ -245,7 +246,7 @@ def test_cli_agent_run_failure_with_fail_on_failure_exits_5(tmp_path: Path, caps
             "agent-run",
             str(tmp_path),
             "--command",
-            f"{_py()} -c \"import sys; sys.exit(3)\" {{prompt_file}}",
+            f'{_py()} -c "import sys; sys.exit(3)" {{prompt_file}}',
             "--fail-on-failure",
             "--json",
         ]
@@ -264,7 +265,7 @@ def test_cli_agent_run_failure_outcome_override(tmp_path: Path, capsys) -> None:
             "agent-run",
             str(tmp_path),
             "--command",
-            f"{_py()} -c \"import sys; sys.exit(1)\" {{prompt_file}}",
+            f'{_py()} -c "import sys; sys.exit(1)" {{prompt_file}}',
             "--failure-outcome",
             "needs_human",
             "--json",
@@ -324,7 +325,7 @@ def test_cli_agent_run_no_record(tmp_path: Path, capsys) -> None:
             "agent-run",
             str(tmp_path),
             "--command",
-            f"{_py()} -c \"pass\" {{prompt_file}}",
+            f'{_py()} -c "pass" {{prompt_file}}',
             "--no-record",
             "--json",
         ]
@@ -375,7 +376,7 @@ def test_cli_agent_run_corrupt_memory_tolerated_with_no_record(tmp_path: Path, c
                 "agent-run",
                 str(tmp_path),
                 "--command",
-                f"{_py()} -c \"pass\" {{prompt_file}}",
+                f'{_py()} -c "pass" {{prompt_file}}',
                 "--no-record",
                 "--json",
             ]
@@ -408,9 +409,7 @@ def test_cli_agent_run_no_ready_task(tmp_path: Path, capsys) -> None:
         "::: lemma {#a}\ntitle: A\nisabelle: Demo.a\nstatus:\n  formal: proved\n\nA.\n:::\n",
         encoding="utf-8",
     )
-    code = cli_main(
-        ["agent-run", str(tmp_path), "--command", "solver {prompt_file}", "--json"]
-    )
+    code = cli_main(["agent-run", str(tmp_path), "--command", "solver {prompt_file}", "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["task"] is None
@@ -424,7 +423,7 @@ def test_cli_agent_run_timeout_records_failure(tmp_path: Path, capsys) -> None:
             "agent-run",
             str(tmp_path),
             "--command",
-            f"{_py()} -c \"import time; time.sleep(5)\" {{prompt_file}}",
+            f'{_py()} -c "import time; time.sleep(5)" {{prompt_file}}',
             "--timeout",
             "0.5",
             "--fail-on-failure",
@@ -470,7 +469,7 @@ def test_cli_agent_run_relative_output_resolves_against_project(tmp_path: Path, 
             "agent-run",
             str(tmp_path),
             "--command",
-            f"{_py()} -c \"pass\" {{prompt_file}}",
+            f'{_py()} -c "pass" {{prompt_file}}',
             "--output",
             "prompts/custom.md",
             "--json",

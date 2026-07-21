@@ -214,7 +214,6 @@ def test_markdown_flattens_newline_in_label() -> None:
     assert data_rows == ["| line1 line2 line3 line4 | 1 | 1 |"]
 
 
-
 _BODY = """# matrix-test
 
 ::: theorem {#big}

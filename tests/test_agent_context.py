@@ -69,14 +69,10 @@ def test_agent_context_schema_is_packaged(capsys) -> None:
     assert "agent-context" in capsys.readouterr().out
 
 
-def test_cli_agent_context_filters_embedded_ready_tasks(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_filters_embedded_ready_tasks(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
-    rc = cli_main(
-        ["agent-context", str(tmp_path), "--json", "--kind", "theorem"]
-    )
+    rc = cli_main(["agent-context", str(tmp_path), "--json", "--kind", "theorem"])
 
     assert rc == 0
     captured = capsys.readouterr()
@@ -91,14 +87,10 @@ def test_cli_agent_context_filters_embedded_ready_tasks(
     assert data["ready_tasks_truncated"] is False
 
 
-def test_cli_agent_context_filter_no_match_reports_excluded(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_filter_no_match_reports_excluded(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
-    rc = cli_main(
-        ["agent-context", str(tmp_path), "--json", "--difficulty", "low"]
-    )
+    rc = cli_main(["agent-context", str(tmp_path), "--json", "--difficulty", "low"])
 
     assert rc == 0
     captured = capsys.readouterr()
@@ -112,9 +104,7 @@ def test_cli_agent_context_filter_no_match_reports_excluded(
     assert "difficulty=low" in captured.err
 
 
-def test_cli_agent_context_filter_argv_propagates_into_commands(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_filter_argv_propagates_into_commands(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
     rc = cli_main(
@@ -146,9 +136,7 @@ def test_cli_agent_context_filter_argv_propagates_into_commands(
         assert "--exclude-node" not in argv
 
 
-def test_cli_agent_context_filter_markdown_render(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_filter_markdown_render(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
     rc = cli_main(["agent-context", str(tmp_path), "--kind", "theorem"])
@@ -168,9 +156,7 @@ def test_cli_agent_context_write_keeps_canonical_tasks_under_filters(
 ) -> None:
     _write_agent_context_project(tmp_path)
 
-    rc = cli_main(
-        ["agent-context", str(tmp_path), "--write", "--kind", "theorem"]
-    )
+    rc = cli_main(["agent-context", str(tmp_path), "--write", "--kind", "theorem"])
 
     assert rc == 0
 
@@ -186,9 +172,7 @@ def test_cli_agent_context_write_keeps_canonical_tasks_under_filters(
     assert roadmap_path.exists()
     roadmap_data = json.loads(roadmap_path.read_text(encoding="utf-8"))
     roadmap_task_ids = {
-        item["task_id"]
-        for stage in roadmap_data["stages"]
-        for item in stage["items"]
+        item["task_id"] for stage in roadmap_data["stages"] for item in stage["items"]
     }
     assert "task-main" in roadmap_task_ids
     assert "task-helper" in roadmap_task_ids
@@ -204,9 +188,7 @@ def test_cli_agent_context_write_keeps_canonical_tasks_under_filters(
     assert (tmp_path / "build" / "prompts" / "task-helper.md").exists()
 
 
-def test_cli_agent_context_without_filters_omits_filter_fields(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_without_filters_omits_filter_fields(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
     rc = cli_main(["agent-context", str(tmp_path), "--json"])
@@ -227,9 +209,7 @@ def test_cli_agent_context_without_filters_omits_filter_fields(
             assert token not in cmd["argv"]
 
 
-def test_cli_agent_context_markdown_stdout_writes_no_files(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_markdown_stdout_writes_no_files(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
     rc = cli_main(["agent-context", str(tmp_path), "--markdown", "--max-tasks", "1"])
@@ -245,9 +225,7 @@ def test_cli_agent_context_markdown_stdout_writes_no_files(
     assert not (tmp_path / "build").exists()
 
 
-def test_cli_agent_context_markdown_composes_with_filters(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_agent_context_markdown_composes_with_filters(tmp_path: Path, capsys) -> None:
     _write_agent_context_project(tmp_path)
 
     rc = cli_main(["agent-context", str(tmp_path), "--markdown", "--kind", "theorem"])

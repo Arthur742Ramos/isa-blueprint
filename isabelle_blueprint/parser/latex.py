@@ -8,6 +8,7 @@ LaTeX-specific macros such as ``\blueprintstatus{...}``,
 ``\formalstatus{...}``, and ``\agentstatus{...}`` expose the same status axes
 as Markdown metadata without requiring a LaTeX toolchain.
 """
+
 from __future__ import annotations
 
 import re

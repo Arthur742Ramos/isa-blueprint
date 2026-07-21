@@ -29,6 +29,7 @@ bucket among its causes.
 The JSON form carries a ``schema_version`` but, like the other analytics
 payloads, is not part of the frozen v1.0 contract surface and may grow.
 """
+
 from __future__ import annotations
 
 import csv
@@ -185,9 +186,7 @@ def _dependency_distances(graph: DependencyGraph, start: str) -> dict[str, int]:
     """
 
     distances: dict[str, int] = {}
-    queue: deque[tuple[str, int]] = deque(
-        (dep, 1) for dep in graph.edges.get(start, [])
-    )
+    queue: deque[tuple[str, int]] = deque((dep, 1) for dep in graph.edges.get(start, []))
     while queue:
         node_id, dist = queue.popleft()
         if node_id == start:
@@ -357,9 +356,7 @@ _SEVERITY_LABEL = {
 }
 
 
-def render_staleness_report(
-    report: StalenessReport, *, top: int = 10, max_causes: int = 5
-) -> str:
+def render_staleness_report(report: StalenessReport, *, top: int = 10, max_causes: int = 5) -> str:
     """Render the staleness scan as compact Markdown."""
 
     from isabelle_blueprint import console
@@ -451,8 +448,7 @@ def render_staleness_markdown(
 
     if report.stale_count == 0:
         lines.append(
-            f"All {report.trusted_count} trusted node(s) rest on trusted, "
-            "up-to-date dependencies."
+            f"All {report.trusted_count} trusted node(s) rest on trusted, up-to-date dependencies."
         )
         return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -497,9 +493,7 @@ def _csv_cause(cause: StaleCause) -> str:
     return f"{cause.dep_id} ({cause.reason}, {cause.formal_status}, d{cause.distance})"
 
 
-def render_staleness_csv(
-    report: StalenessReport, *, top: int = 10, max_causes: int = 5
-) -> str:
+def render_staleness_csv(report: StalenessReport, *, top: int = 10, max_causes: int = 5) -> str:
     """Render the staleness scan as CSV, one row per flagged trusted node.
 
     Columns: node id, severity bucket (problem/incomplete/outdated), the total

@@ -10,6 +10,7 @@ would regress if a hot path went back to doing repeated O(n) work:
     ``RecursionError`` on 1k/10k-node deep dependency chains and produce the
     exact expected (small, deterministic) output shape.
 """
+
 from __future__ import annotations
 
 from isabelle_blueprint.agents.tasks import generate_tasks

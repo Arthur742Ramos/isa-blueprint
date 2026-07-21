@@ -125,9 +125,7 @@ def test_single_point_is_insufficient() -> None:
 
 
 def test_beyond_horizon_for_tiny_velocity() -> None:
-    report = build_burndown_report(
-        _series([(1, 0, 1_000_000), (2, 1, 1_000_000)])
-    )
+    report = build_burndown_report(_series([(1, 0, 1_000_000), (2, 1, 1_000_000)]))
     assert report.status == "beyond_horizon"
     assert report.eta_date is None
     assert report.eta_days is not None and report.eta_days > 36500
@@ -168,9 +166,7 @@ def test_duplicate_timestamps_collapse_keeping_latest() -> None:
 
 
 def test_payload_limit_trims_points_not_velocity() -> None:
-    report = build_burndown_report(
-        _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10)])
-    )
+    report = build_burndown_report(_series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10)]))
     payload = burndown_payload(report, limit=2)
     assert len(payload["points"]) == 2
     # Velocity still derived from the full series.
@@ -180,9 +176,7 @@ def test_payload_limit_trims_points_not_velocity() -> None:
 
 
 def test_render_smoke() -> None:
-    report = build_burndown_report(
-        _series([(1, 0, 10), (2, 2, 10), (3, 4, 10)])
-    )
+    report = build_burndown_report(_series([(1, 0, 10), (2, 2, 10), (3, 4, 10)]))
     text = render_burndown_report(report)
     assert "Burndown forecast:" in text
     assert "ETA:" in text
@@ -214,16 +208,13 @@ def test_render_markdown_stalled_has_note() -> None:
     assert "**Note:**" in md
 
 
-
 # --------------------------------------------------------------------------- #
 # CLI integration
 
 
 def test_cli_burndown_json(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
-    _write_trends(
-        tmp_path, _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)])
-    )
+    _write_trends(tmp_path, _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)]))
 
     rc = cli_main(["burndown", str(tmp_path), "--json"])
 
@@ -256,9 +247,7 @@ def test_cli_burndown_fail_when_stalled(tmp_path: Path, capsys) -> None:
 
 def test_cli_burndown_markdown(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path)
-    _write_trends(
-        tmp_path, _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)])
-    )
+    _write_trends(tmp_path, _series([(1, 0, 10), (2, 2, 10), (3, 4, 10), (4, 6, 10), (5, 8, 10)]))
 
     rc = cli_main(["burndown", str(tmp_path), "--markdown"])
 

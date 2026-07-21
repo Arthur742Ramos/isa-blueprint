@@ -5,6 +5,7 @@ This module is tolerant of a missing ``isabelle`` binary: it always produces a
 attempted. That keeps the rest of the pipeline (graph colouring, web site, agent
 task generation) functional in dev environments without Isabelle installed.
 """
+
 from __future__ import annotations
 
 import json
@@ -92,10 +93,7 @@ class CheckResult:
         kwargs = {k: v for k, v in data.items() if k in known and k != "facts"}
         facts_raw = data.get("facts") or []
         fact_known = {f.name for f in dc_fields(FactCheck)}
-        facts = [
-            FactCheck(**{k: v for k, v in fc.items() if k in fact_known})
-            for fc in facts_raw
-        ]
+        facts = [FactCheck(**{k: v for k, v in fc.items() if k in fact_known}) for fc in facts_raw]
         result = cls(**kwargs)
         result.facts = facts
         return result

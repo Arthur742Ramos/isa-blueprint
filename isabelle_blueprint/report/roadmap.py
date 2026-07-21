@@ -1,4 +1,5 @@
 """Roadmap planning for staged proof work."""
+
 from __future__ import annotations
 
 import csv
@@ -292,9 +293,7 @@ def build_roadmap(project: BlueprintProject, ready_tasks: Sequence[AgentTask]) -
 ROADMAP_UNASSIGNED = "(unassigned)"
 
 
-def overlay_owners(
-    roadmap: RoadmapOverview, owners: Mapping[str, str]
-) -> RoadmapOverview:
+def overlay_owners(roadmap: RoadmapOverview, owners: Mapping[str, str]) -> RoadmapOverview:
     """Return a roadmap whose items carry OWNER assignments for display.
 
     ``owners`` maps node id to owner name (typically the ``assign``/``blame``
@@ -471,10 +470,10 @@ def render_roadmap_mermaid(
     visible_ids = {item.node_id for stage in rendered.stages for item in stage.items}
     lines = ["flowchart TB"]
     for stage in rendered.stages:
-        lines.append(f"  subgraph stage{stage.index}[\"Stage {stage.index}\"]")
+        lines.append(f'  subgraph stage{stage.index}["Stage {stage.index}"]')
         for item in stage.items:
             lines.append(
-                f'    {mermaid_node_id(item.node_id)}'
+                f"    {mermaid_node_id(item.node_id)}"
                 f'["{mermaid_label(item.node_id, escape_pipe=False)}"]'
             )
         lines.append("  end")
@@ -482,9 +481,7 @@ def render_roadmap_mermaid(
         for item in stage.items:
             for dep_id in item.uses:
                 if dep_id in visible_ids:
-                    lines.append(
-                        f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(item.node_id)}"
-                    )
+                    lines.append(f"  {mermaid_node_id(dep_id)} --> {mermaid_node_id(item.node_id)}")
     return "\n".join(lines) + "\n"
 
 
@@ -717,9 +714,7 @@ def roadmap_strict_failures(roadmap: RoadmapOverview) -> list[str]:
     failures: list[str] = []
     if roadmap.cycles:
         failures.append(f"[cycles] dependency cycles detected: {len(roadmap.cycles)}")
-    problem_nodes = [
-        item.node_id for item in _iter_items(roadmap) if item.status == "problem"
-    ]
+    problem_nodes = [item.node_id for item in _iter_items(roadmap) if item.status == "problem"]
     if problem_nodes:
         failures.append("[problem] problem nodes: " + ", ".join(problem_nodes))
     stale_nodes = [item.node_id for item in _iter_items(roadmap) if item.status == "stale"]

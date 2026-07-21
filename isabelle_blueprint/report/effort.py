@@ -11,6 +11,7 @@ the proved share of that target effort. Nodes without an explicit ``effort`` are
 treated as weight :data:`DEFAULT_EFFORT` so the figure stays meaningful while a
 project is still adopting effort estimates incrementally.
 """
+
 from __future__ import annotations
 
 import csv
@@ -253,9 +254,7 @@ def build_effort_gate(report: EffortReport, fail_under: float) -> dict[str, obje
     }
 
 
-def render_effort_report(
-    report: EffortReport, *, by_tag: bool = False, nodes: bool = False
-) -> str:
+def render_effort_report(report: EffortReport, *, by_tag: bool = False, nodes: bool = False) -> str:
     """Render ``report`` as a short Markdown summary.
 
     When ``by_tag`` is set, a per-tag effort table is appended beneath the
@@ -333,9 +332,7 @@ EFFORT_NODES_CSV_COLUMNS = (
 )
 
 
-def render_effort_csv(
-    report: EffortReport, *, by_tag: bool = False, nodes: bool = False
-) -> str:
+def render_effort_csv(report: EffortReport, *, by_tag: bool = False, nodes: bool = False) -> str:
     """Render ``report`` as CSV.
 
     Without ``by_tag`` a single summary row is emitted under
@@ -356,9 +353,7 @@ def render_effort_csv(
         writer.writerow(EFFORT_BY_TAG_CSV_COLUMNS)
         for t in report.by_tag:
             pct = "" if t.percent is None else t.percent
-            writer.writerow(
-                [t.tag, t.total_effort, t.proved_effort, t.remaining_effort, pct]
-            )
+            writer.writerow([t.tag, t.total_effort, t.proved_effort, t.remaining_effort, pct])
     else:
         writer.writerow(EFFORT_CSV_COLUMNS)
         coverage = "" if report.coverage_percent is None else report.coverage_percent

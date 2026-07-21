@@ -4,6 +4,7 @@ These small helpers are used by the several ``report`` renderers that emit
 Mermaid ``flowchart`` diagrams so the node-id escaping and label escaping stay
 identical across diagrams.
 """
+
 from __future__ import annotations
 
 

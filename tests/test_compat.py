@@ -1,4 +1,5 @@
 """Tests for Isabelle/AFP compatibility checks."""
+
 from __future__ import annotations
 
 import json
@@ -163,9 +164,7 @@ def test_cli_compat_json_matches_disk_report(tmp_path: Path, capsys) -> None:
 
     assert rc == 0
     stdout = json.loads(capsys.readouterr().out)
-    disk = json.loads(
-        (tmp_path / "build" / "compat_report.json").read_text(encoding="utf-8")
-    )
+    disk = json.loads((tmp_path / "build" / "compat_report.json").read_text(encoding="utf-8"))
     assert stdout == disk
 
 
@@ -178,4 +177,3 @@ def test_cli_compat_plain_output_unchanged(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "compat report ->" in out
     assert "{" not in out  # not JSON
-

@@ -101,10 +101,10 @@ def test_imported_facts_are_acyclic_and_ordered(tmp_path: Path) -> None:
 
 def test_import_cycle_flagged(tmp_path: Path) -> None:
     (tmp_path / "X.thy").write_text(
-        "theory X\nimports Y\nbegin\nlemma lx: \"True\" by simp\nend\n", encoding="utf-8"
+        'theory X\nimports Y\nbegin\nlemma lx: "True" by simp\nend\n', encoding="utf-8"
     )
     (tmp_path / "Y.thy").write_text(
-        "theory Y\nimports X\nbegin\nlemma ly: \"True\" by simp\nend\n", encoding="utf-8"
+        'theory Y\nimports X\nbegin\nlemma ly: "True" by simp\nend\n', encoding="utf-8"
     )
     index = build_index([tmp_path / "X.thy", tmp_path / "Y.thy"])
     assert index.has_import_cycle is True
@@ -131,8 +131,7 @@ def test_session_theory_files_single_session(tmp_path: Path) -> None:
 
 def test_session_theory_files_multi_session_requires_name(tmp_path: Path) -> None:
     (tmp_path / "ROOT").write_text(
-        "session One = HOL +\n  theories\n    A\n\n"
-        "session Two = HOL +\n  theories\n    B\n",
+        "session One = HOL +\n  theories\n    A\n\nsession Two = HOL +\n  theories\n    B\n",
         encoding="utf-8",
     )
     (tmp_path / "A.thy").write_text("theory A\nbegin\nend\n", encoding="utf-8")

@@ -16,6 +16,7 @@ Like :mod:`isabelle_blueprint.isabelle.checker`, this module is tolerant of a
 missing ``isabelle`` binary or unconfigured session: it always returns a
 :class:`ReconcileResult` describing what happened and never raises.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -233,8 +234,7 @@ def run_reconcile(
 
     if theory_text is None:
         result.error = (
-            "no PROVED-eligible nodes (none carry a resolvable Isabelle fact); "
-            "nothing to reconcile"
+            "no PROVED-eligible nodes (none carry a resolvable Isabelle fact); nothing to reconcile"
         )
         return result
 
@@ -306,13 +306,9 @@ def run_reconcile(
     if deps_path.exists():
         result.deps = parse_deps_tsv(deps_path.read_text(encoding="utf-8", errors="ignore"))
         if proc.returncode != 0 and not result.deps:
-            result.error = (
-                f"isabelle build returned {proc.returncode} (reconcile run failed)"
-            )
+            result.error = f"isabelle build returned {proc.returncode} (reconcile run failed)"
     else:
-        result.error = (
-            f"isabelle build returned {proc.returncode} without writing a deps file"
-        )
+        result.error = f"isabelle build returned {proc.returncode} without writing a deps file"
 
     return result
 

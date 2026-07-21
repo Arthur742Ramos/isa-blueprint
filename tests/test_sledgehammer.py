@@ -4,6 +4,7 @@ The mocked tests are CI-safe: they never invoke the real ``isabelle`` binary.
 One gated test runs the genuine end-to-end flow and is skipped unless an
 ``isabelle`` executable is on PATH.
 """
+
 from __future__ import annotations
 
 import json
@@ -177,9 +178,7 @@ def _fact_node(node_id: str, fact: str, *, uses=None) -> BlueprintNode:
 
 def test_generate_theory_goal_field_source() -> None:
     project = BlueprintProject.from_nodes("p", [_goal_node("g", "x + 0 = (x::nat)")])
-    text = generate_sledgehammer_theory(
-        project, node_id="g", result_file="R.tsv", timeout=10
-    )
+    text = generate_sledgehammer_theory(project, node_id="g", result_file="R.tsv", timeout=10)
     assert text is not None
     assert "theory Blueprint_Sledgehammer" in text
     assert 'Syntax.read_prop ctxt "x + 0 = (x::nat)"' in text
@@ -203,17 +202,11 @@ def test_thy_inner_string_normalizes_control_whitespace() -> None:
 
 def test_generate_theory_multiline_goal_is_single_line() -> None:
     """A goal carrying YAML newlines/tabs yields no raw newline in the ML string."""
-    project = BlueprintProject.from_nodes(
-        "p", [_goal_node("g", "\\<forall>x::nat.\n  x + 0\t= x")]
-    )
-    text = generate_sledgehammer_theory(
-        project, node_id="g", result_file="R.tsv", timeout=10
-    )
+    project = BlueprintProject.from_nodes("p", [_goal_node("g", "\\<forall>x::nat.\n  x + 0\t= x")])
+    text = generate_sledgehammer_theory(project, node_id="g", result_file="R.tsv", timeout=10)
     assert text is not None
     # Locate the read_prop line carrying the goal and ensure it is one physical line.
-    read_prop_lines = [
-        ln for ln in text.splitlines() if "Syntax.read_prop ctxt" in ln
-    ]
+    read_prop_lines = [ln for ln in text.splitlines() if "Syntax.read_prop ctxt" in ln]
     assert read_prop_lines, text
     line = read_prop_lines[0]
     assert "\\<forall>" in line
@@ -222,9 +215,7 @@ def test_generate_theory_multiline_goal_is_single_line() -> None:
 
 def test_generate_theory_reprove_source() -> None:
     project = BlueprintProject.from_nodes("p", [_fact_node("f", "Demo.thm")])
-    text = generate_sledgehammer_theory(
-        project, node_id="f", result_file="R.tsv", timeout=5
-    )
+    text = generate_sledgehammer_theory(project, node_id="f", result_file="R.tsv", timeout=5)
     assert text is not None
     assert 'Proof_Context.get_thm ctxt "Demo.thm"' in text
     assert "Syntax.read_prop" not in text
@@ -285,9 +276,7 @@ def test_run_sledgehammer_success(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         sh_module, "run_capture", _fake_run_factory("SOME\tsome\tTry this: by simp (0.0 ms)\n")
     )
-    result = run_sledgehammer(
-        _goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL"
-    )
+    result = run_sledgehammer(_goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL")
     assert result.ran is True
     assert result.found is True
     assert result.proof_line == "by simp"
@@ -298,9 +287,7 @@ def test_run_sledgehammer_success(tmp_path: Path, monkeypatch) -> None:
 def test_run_sledgehammer_no_proof(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
     monkeypatch.setattr(sh_module, "run_capture", _fake_run_factory("NONE\tnone\t\n"))
-    result = run_sledgehammer(
-        _goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL"
-    )
+    result = run_sledgehammer(_goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL")
     assert result.ran is True
     assert result.found is False
     assert result.proof_line is None
@@ -315,9 +302,7 @@ def test_run_sledgehammer_build_error_sets_error(tmp_path: Path, monkeypatch) ->
         return RunResult(args=cmd, returncode=1, stdout="", stderr="boom")
 
     monkeypatch.setattr(sh_module, "run_capture", fake_run)
-    result = run_sledgehammer(
-        _goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL"
-    )
+    result = run_sledgehammer(_goal_project(), node_id="g", build_dir=tmp_path, session_name="HOL")
     assert result.ran is True
     assert result.found is False
     assert "returned 1" in (result.error or "")
@@ -459,9 +444,7 @@ def test_cli_sledgehammer_run_build_error_is_blocked(tmp_path: Path, monkeypatch
 
 def test_cli_attempt_no_task_json_carries_null_sledgehammer(tmp_path: Path, capsys) -> None:
     """The no-ready-task --json payload keeps the ``sledgehammer`` key (null)."""
-    (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "Sh"\n', encoding="utf-8"
-    )
+    (tmp_path / "isabelle-blueprint.toml").write_text('[project]\nname = "Sh"\n', encoding="utf-8")
     (tmp_path / "blueprint.md").write_text(
         "# Sh\n\n::: theorem {#t1}\ntitle: T\nisabelle: Demo.t1\nstatus:\n"
         "  blueprint: reviewed\n  formal: proved\n  agent: solved\n:::\n\nStmt.\n:::\n",

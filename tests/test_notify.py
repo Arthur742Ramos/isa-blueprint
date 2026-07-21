@@ -103,9 +103,7 @@ def test_notify_send_success(tmp_path: Path, capsys, monkeypatch) -> None:
             seen["timeout"] = timeout
             return _FakeResponse()
 
-    monkeypatch.setattr(
-        notify_mod.urllib.request, "build_opener", lambda *a, **k: _FakeOpener()
-    )
+    monkeypatch.setattr(notify_mod.urllib.request, "build_opener", lambda *a, **k: _FakeOpener())
 
     rc = cli_main(
         [
@@ -166,9 +164,7 @@ def test_notify_markdown_send_is_rejected(tmp_path: Path, capsys) -> None:
 
 
 def test_render_markdown_body() -> None:
-    content = notify_mod.NotificationContent(
-        title="T", summary="S", lines=["one", "two"]
-    )
+    content = notify_mod.NotificationContent(title="T", summary="S", lines=["one", "two"])
     body = notify_mod.render_markdown(content)
     assert body.startswith("# T\n")
     assert "S" in body
@@ -178,9 +174,7 @@ def test_render_markdown_body() -> None:
 
 
 def test_render_payload_formats() -> None:
-    content = notify_mod.NotificationContent(
-        title="T", summary="S", lines=["one", "two"]
-    )
+    content = notify_mod.NotificationContent(title="T", summary="S", lines=["one", "two"])
     assert notify_mod.render_payload(content, "slack") == {"text": content.text}
     assert notify_mod.render_payload(content, "discord") == {"content": content.text}
     teams = notify_mod.render_payload(content, "teams")

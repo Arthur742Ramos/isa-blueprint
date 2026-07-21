@@ -18,6 +18,7 @@ This module deliberately avoids importing :mod:`isabelle_blueprint.isabelle.chec
 :class:`~isabelle_blueprint.isabelle.checker.FactCheck` shape and lets the
 checker handle the conversion.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -127,9 +128,7 @@ def save_cache(path: Path, entries: dict[str, dict[str, Any]]) -> None:
     tmp.replace(path)
 
 
-def reusable_entry(
-    entry: dict[str, Any], *, proof_status_required: bool
-) -> dict[str, Any] | None:
+def reusable_entry(entry: dict[str, Any], *, proof_status_required: bool) -> dict[str, Any] | None:
     """Return the cached ``fact_check`` dict if it's safe to reuse, else None.
 
     A cached fact is reusable when:

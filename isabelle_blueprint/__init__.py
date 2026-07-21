@@ -1,4 +1,5 @@
 """IsabelleBlueprint: planning, dependency tracking, and task orchestration for Isabelle."""
+
 from __future__ import annotations
 
 from importlib import metadata as _metadata
@@ -15,4 +16,3 @@ except _metadata.PackageNotFoundError:  # pragma: no cover - only when uninstall
     __version__ = _FALLBACK_VERSION
 
 __all__ = ["__version__"]
-

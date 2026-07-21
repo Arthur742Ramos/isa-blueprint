@@ -1,4 +1,5 @@
 """Smoke tests for the static site renderer."""
+
 from __future__ import annotations
 
 import json
@@ -193,7 +194,7 @@ def test_inline_dependency_graph_has_accessible_fallback(
         "isabelle_blueprint.render.site.render_svg",
         lambda *_args, **_kwargs: (
             '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">'
-            "<title>G</title><g class=\"node\"><title>def-a</title></g></svg>"
+            '<title>G</title><g class="node"><title>def-a</title></g></svg>'
         ),
     )
     render_site(_project(), tmp_path)
@@ -310,7 +311,7 @@ def test_render_site_renders_roadmap_page(tmp_path: Path):
 
     assert "Roadmap" in body
     assert "roadmap-swimlanes" in body
-    assert "data-filter-scope=\"roadmap\"" in body
+    assert 'data-filter-scope="roadmap"' in body
     assert "Copy handoff command" in body
 
 
@@ -642,8 +643,7 @@ def test_rendered_tables_have_captions_and_scoped_headers(tmp_path: Path):
 
     trends = (tmp_path / "trends.html").read_text(encoding="utf-8")
     assert (
-        '<caption class="sr-only">Blueprint coverage and problem history by recorded run.'
-        "</caption>"
+        '<caption class="sr-only">Blueprint coverage and problem history by recorded run.</caption>'
     ) in trends
     assert trends.count('scope="col"') == 7
     assert trends.count('scope="row"') == 1
@@ -651,9 +651,7 @@ def test_rendered_tables_have_captions_and_scoped_headers(tmp_path: Path):
 
 def test_base_layout_uses_pinned_mathjax_with_integrity(tmp_path: Path):
     source = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
-    integrity = (
-        "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei"
-    )
+    integrity = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei"
     render_site(_project(), tmp_path)
     for name in ("index.html", "nodes/" + node_filename("def-a")):
         body = (tmp_path / name).read_text(encoding="utf-8")

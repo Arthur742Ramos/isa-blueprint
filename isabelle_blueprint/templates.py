@@ -1,4 +1,5 @@
 """Project templates used by ``isabelle-blueprint init``."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

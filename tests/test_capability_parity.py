@@ -25,9 +25,7 @@ def _cli_surface(mapping: dict[str, list[str]]) -> set[str]:
 def _cli_commands_and_aliases() -> tuple[set[str], dict[str, str]]:
     parser = _build_parser()
     subparsers = next(
-        action
-        for action in parser._actions
-        if isinstance(action, argparse._SubParsersAction)
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
     )
     canonical_by_parser: dict[int, str] = {}
     aliases: dict[str, str] = {}
@@ -42,11 +40,7 @@ def _cli_commands_and_aliases() -> tuple[set[str], dict[str, str]]:
 def test_inventory_classifies_every_cli_command_and_alias() -> None:
     inventory = _inventory()
     commands, aliases = _cli_commands_and_aliases()
-    classified = {
-        command
-        for group in inventory["cli"]["omissions"].values()
-        for command in group
-    }
+    classified = {command for group in inventory["cli"]["omissions"].values() for command in group}
     for surface in ("mcp", "vscode", "action"):
         classified.update(inventory[surface]["cli"])
 
@@ -70,9 +64,7 @@ def test_vscode_contributions_registrations_and_cli_wiring_match_inventory() -> 
     package = json.loads((ROOT / "vscode" / "package.json").read_text(encoding="utf-8"))
     source = (ROOT / "vscode" / "src" / "extension.ts").read_text(encoding="utf-8")
     contributed = {item["command"] for item in package["contributes"]["commands"]}
-    registered = set(
-        re.findall(r'registerCommand\(\s*"([^"]+)"', source, flags=re.MULTILINE)
-    )
+    registered = set(re.findall(r'registerCommand\(\s*"([^"]+)"', source, flags=re.MULTILINE))
     expected_contributed = set(inventory["vscode"]["native_commands"])
     expected_contributed.update(_cli_surface(inventory["vscode"]["cli"]))
     expected_registered = expected_contributed | set(inventory["vscode"]["internal_commands"])

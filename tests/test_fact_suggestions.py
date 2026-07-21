@@ -62,4 +62,3 @@ def test_write_fact_suggestions(tmp_path: Path) -> None:
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["suggestions"][0]["target_fact"] == "Demo.add_commm"
-

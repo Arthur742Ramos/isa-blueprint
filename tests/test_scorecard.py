@@ -441,9 +441,7 @@ def test_cli_min_score_composes_with_min_grade(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
     # Grade gate is met (F), but score gate (100) is not -> overall failure.
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "100", "--json"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "100", "--json"])
 
     assert rc == 5
     gate = json.loads(capsys.readouterr().out)["gate"]
@@ -457,9 +455,7 @@ def test_cli_min_score_composes_with_min_grade(tmp_path: Path, capsys) -> None:
 def test_cli_min_score_composes_both_met(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY)
 
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "0"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--min-grade", "F", "--min-score", "0"])
 
     assert rc == 0
     assert "policy triggered" not in capsys.readouterr().err
@@ -475,7 +471,6 @@ def test_cli_min_grade_gate_byte_identical_without_min_score(tmp_path: Path, cap
     assert rc == 5
     gate = json.loads(capsys.readouterr().out)["gate"]
     assert list(gate.keys()) == ["min_grade", "score", "grade", "meets_min_grade"]
-
 
 
 def test_cli_markdown_writes_file(tmp_path: Path, capsys) -> None:
@@ -547,17 +542,13 @@ def test_cli_min_component_below_threshold_fails(tmp_path: Path, capsys) -> None
     assert "min-component policy triggered: coverage" in err
 
 
-def test_cli_min_component_raw_below_rounded_threshold_fails(
-    tmp_path: Path, capsys
-) -> None:
+def test_cli_min_component_raw_below_rounded_threshold_fails(tmp_path: Path, capsys) -> None:
     # Coverage is 2/3 = 66.67%, which ROUNDS to 67 for display. A gate at =67
     # must still trip on the raw ratio (66.67 < 67); a rounded comparison would
     # wrongly pass it.
     _write_project(tmp_path, _BODY_COV_NEAR)
 
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--min-component", "coverage=67", "--json"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=67", "--json"])
 
     assert rc == 5
     gate = json.loads(capsys.readouterr().out)["component_gates"][0]
@@ -577,15 +568,11 @@ def test_cli_min_component_met_passes(tmp_path: Path, capsys) -> None:
 def test_cli_min_component_json_gates(tmp_path: Path, capsys) -> None:
     _write_project(tmp_path, _BODY_COV)
 
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"])
 
     assert rc == 5
     gates = json.loads(capsys.readouterr().out)["component_gates"]
-    assert gates == [
-        {"component": "coverage", "threshold": 80, "score": 50, "meets": False}
-    ]
+    assert gates == [{"component": "coverage", "threshold": 80, "score": 50, "meets": False}]
 
 
 def test_cli_min_component_repeatable_and_composes(tmp_path: Path, capsys) -> None:
@@ -618,9 +605,7 @@ def test_cli_min_component_undefined_score_never_fails(tmp_path: Path, capsys) -
     # An empty project has no defined component scores, so the gate is inert.
     _write_project(tmp_path, "# empty project\n", name="empty")
 
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--min-component", "coverage=80", "--json"])
 
     assert rc == 0
     gate = json.loads(capsys.readouterr().out)["component_gates"][0]
@@ -844,9 +829,7 @@ def test_cli_since_markdown_records_delta(tmp_path: Path, capsys) -> None:
     baseline = _save_baseline(tmp_path, capsys)
 
     _write_project(tmp_path, _BODY_IMPROVED)
-    rc = cli_main(
-        ["scorecard", str(tmp_path), "--since", str(baseline), "--markdown"]
-    )
+    rc = cli_main(["scorecard", str(tmp_path), "--since", str(baseline), "--markdown"])
 
     assert rc == 0
     text = (tmp_path / "build" / "scorecard.md").read_text(encoding="utf-8")
@@ -942,4 +925,3 @@ def test_cli_since_schema_mismatch_names_path(tmp_path: Path, capsys) -> None:
     err = capsys.readouterr().err
     assert "schema_version" in err
     assert str(baseline) in err
-

@@ -1,4 +1,5 @@
 """Tests for the PR status comment poster."""
+
 from __future__ import annotations
 
 import json
@@ -40,7 +41,6 @@ def _write_cli_project(tmp_path: Path) -> None:
         "::: lemma {#a}\ntitle: A\nisabelle: Demo.a\nstatus: stub\n\nA statement.\n:::\n",
         encoding="utf-8",
     )
-
 
 
 def _project() -> BlueprintProject:

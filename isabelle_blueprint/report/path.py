@@ -13,6 +13,7 @@ each node's dependencies in sorted order. Missing-dependency edges are ignored
 (they are not real nodes); use ``lint``/``critical-path`` to surface those. No
 Isabelle invocation is required.
 """
+
 from __future__ import annotations
 
 from collections import deque
@@ -119,9 +120,7 @@ def render_path_report(report: PathReport) -> str:
 
     lines = [f"# {report.project} dependency path", ""]
     if not report.found:
-        lines.append(
-            f"`{report.source}` and `{report.target}` are not connected by dependencies."
-        )
+        lines.append(f"`{report.source}` and `{report.target}` are not connected by dependencies.")
         return "\n".join(lines) + "\n"
 
     if report.direction == DIRECTION_SELF:
@@ -136,9 +135,7 @@ def render_path_report(report: PathReport) -> str:
     if len(paths) > 1:
         lines.append(f"{summary} ({report.length} step(s), {len(paths)} shortest path(s)).")
         for index, chain in enumerate(paths, start=1):
-            lines.append(
-                f"Path {index}: " + " -> ".join(f"`{node_id}`" for node_id in chain)
-            )
+            lines.append(f"Path {index}: " + " -> ".join(f"`{node_id}`" for node_id in chain))
     else:
         lines.append(f"{summary} ({report.length} step(s)).")
         lines.append("Path: " + " -> ".join(f"`{node_id}`" for node_id in report.path))
@@ -168,9 +165,7 @@ def render_path_markdown(report: PathReport) -> str:
     if report.direction == DIRECTION_DEPENDS_ON:
         lines.append(f"**Direction:** {src} depends on {tgt} (`{DIRECTION_DEPENDS_ON}`).")
     else:
-        lines.append(
-            f"**Direction:** {tgt} depends on {src} (`{DIRECTION_DEPENDED_ON_BY}`)."
-        )
+        lines.append(f"**Direction:** {tgt} depends on {src} (`{DIRECTION_DEPENDED_ON_BY}`).")
     lines.append("")
 
     paths = report.paths or [report.path]
@@ -207,9 +202,7 @@ def _resolve_paths(
     return _all_shortest_paths(edges, start, goal)
 
 
-def _shortest_path(
-    edges: dict[str, list[str]], start: str, goal: str
-) -> list[str] | None:
+def _shortest_path(edges: dict[str, list[str]], start: str, goal: str) -> list[str] | None:
     """Breadth-first shortest path from ``start`` to ``goal`` along ``edges``.
 
     Neighbours are visited in sorted order so that, among equal-length paths,
@@ -232,9 +225,7 @@ def _shortest_path(
     return None
 
 
-def _all_shortest_paths(
-    edges: dict[str, list[str]], start: str, goal: str
-) -> list[list[str]]:
+def _all_shortest_paths(edges: dict[str, list[str]], start: str, goal: str) -> list[list[str]]:
     """Enumerate every shortest path from ``start`` to ``goal``.
 
     A breadth-first sweep records the minimal distance to each node and every

@@ -198,8 +198,7 @@ def test_mcp_diff_reads_only_project_local_baselines(tmp_path: Path) -> None:
     assert result["project"] == "mcp-test"
     assert result["has_regression"] is True
     assert any(
-        change["node_id"] == "main" and change["field"] == "formal"
-        for change in result["changes"]
+        change["node_id"] == "main" and change["field"] == "formal" for change in result["changes"]
     )
 
     with pytest.raises((BlueprintError, ToolError), match="within project root"):
@@ -366,9 +365,7 @@ def test_mcp_agent_run_plan_is_read_only(tmp_path: Path) -> None:
 
     # A command that omits {prompt_file} is permitted by the planner, but the
     # suggested cli_argv must stay runnable by mirroring --allow-missing-prompt.
-    missing_prompt = _direct_tool_result(
-        server, "agent_run_plan", {"command": "solver --quiet"}
-    )
+    missing_prompt = _direct_tool_result(server, "agent_run_plan", {"command": "solver --quiet"})
     assert missing_prompt["command_error"] is None
     assert missing_prompt["command_argv_preview"] == ["solver", "--quiet"]
     assert "--allow-missing-prompt" in missing_prompt["cli_argv"]
@@ -464,9 +461,7 @@ def test_mcp_history_and_fact_suggestion_resources(tmp_path: Path) -> None:
     history = json.loads(history_contents[0].content)
     assert history["entry_count"] == 0
 
-    facts_contents = list(
-        asyncio.run(server.read_resource(AnyUrl("blueprint://fact-suggestions")))
-    )
+    facts_contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://fact-suggestions"))))
     facts = json.loads(facts_contents[0].content)
     assert facts["count"] == len(facts["suggestions"])
 
@@ -536,9 +531,7 @@ def test_mcp_graph_focus_and_depth(tmp_path: Path) -> None:
     server = build_server(tmp_path)
 
     # depth 0 keeps only the focus node.
-    focused = _direct_tool_result(
-        server, "graph", {"format": "json", "focus": "base", "depth": 0}
-    )
+    focused = _direct_tool_result(server, "graph", {"format": "json", "focus": "base", "depth": 0})
     assert focused["format"] == "json"
     node_ids = {n["id"] for n in focused["graph"]["nodes"]}
     assert node_ids == {"base"}
@@ -597,15 +590,14 @@ def test_mcp_preview_rename_node_malformed_config_raises_blueprint_error(tmp_pat
     # a BlueprintError (the user-facing type) rather than leaking a raw
     # ValueError/OSError from load_config.
     (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "oops\n', encoding="utf-8"  # unterminated string
+        '[project]\nname = "oops\n',
+        encoding="utf-8",  # unterminated string
     )
     (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
     server = build_server(tmp_path)
 
     with pytest.raises((BlueprintError, ToolError)) as excinfo:
-        _direct_tool_result(
-            server, "preview_rename_node", {"old_id": "base", "new_id": "x"}
-        )
+        _direct_tool_result(server, "preview_rename_node", {"old_id": "base", "new_id": "x"})
     assert "could not load configuration" in str(excinfo.value)
 
 
@@ -615,7 +607,8 @@ def test_mcp_config_only_tools_wrap_malformed_config(tmp_path: Path, tool_name: 
     # work even when the blueprint can't parse). A malformed isabelle-blueprint.toml
     # must still surface as a BlueprintError, not a leaked ValueError/OSError.
     (tmp_path / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "oops\n', encoding="utf-8"  # unterminated string
+        '[project]\nname = "oops\n',
+        encoding="utf-8",  # unterminated string
     )
     server = build_server(tmp_path)
 
@@ -711,9 +704,7 @@ def test_mcp_portfolio_tool_and_resource(tmp_path: Path) -> None:
     _write_project(tmp_path)
     sub = tmp_path / "extra"
     sub.mkdir(parents=True, exist_ok=True)
-    (sub / "isabelle-blueprint.toml").write_text(
-        '[project]\nname = "extra"\n', encoding="utf-8"
-    )
+    (sub / "isabelle-blueprint.toml").write_text('[project]\nname = "extra"\n', encoding="utf-8")
     (sub / "blueprint.md").write_text(
         "# extra\n\n"
         "::: lemma {#solo}\n"
@@ -820,9 +811,7 @@ def test_mcp_assign_node_sets_and_clears_when_enabled(tmp_path: Path) -> None:
     store = json.loads((tmp_path / ".isabelle-blueprint" / "assignments.json").read_text())
     assert store["nodes"]["main"]["owner"] == "alice"
 
-    clear_result = _direct_tool_result(
-        server, "assign_node", {"node_id": "main", "clear": True}
-    )
+    clear_result = _direct_tool_result(server, "assign_node", {"node_id": "main", "clear": True})
     assert clear_result["changed"] is True
     assert clear_result["assignment"] is None
 
@@ -844,9 +833,7 @@ def test_mcp_assign_node_strips_owner_whitespace(tmp_path: Path) -> None:
     _write_project(tmp_path)
     server = build_server(tmp_path, allow_writes=True)
 
-    result = _direct_tool_result(
-        server, "assign_node", {"node_id": "main", "owner": "  bob  "}
-    )
+    result = _direct_tool_result(server, "assign_node", {"node_id": "main", "owner": "  bob  "})
     assert result["assignment"]["owner"] == "bob"
 
 
@@ -1020,11 +1007,7 @@ _THY_A = (
     'lemma base: "foo = 0" by (simp add: foo_def)\n'
     "end\n"
 )
-_THY_B = (
-    "theory B\nimports A\nbegin\n"
-    'lemma uses_base: "foo = 0" using base sorry\n'
-    "end\n"
-)
+_THY_B = 'theory B\nimports A\nbegin\nlemma uses_base: "foo = 0" using base sorry\nend\n'
 
 
 def _write_demo_session(directory: Path, *, session: str = "Demo") -> Path:
@@ -1121,8 +1104,7 @@ def test_mcp_theory_index_surfaces_ambiguous_session_error(tmp_path: Path) -> No
     )
     (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
     (tmp_path / "ROOT").write_text(
-        "session One = HOL +\n  theories\n    A\n\n"
-        "session Two = HOL +\n  theories\n    B\n",
+        "session One = HOL +\n  theories\n    A\n\nsession Two = HOL +\n  theories\n    B\n",
         encoding="utf-8",
     )
     (tmp_path / "A.thy").write_text(_THY_A, encoding="utf-8")
@@ -1181,8 +1163,7 @@ def test_mcp_theory_index_translates_cli_session_hint(tmp_path: Path) -> None:
     ambiguous = tmp_path / "ambig"
     ambiguous.mkdir()
     (ambiguous / "ROOT").write_text(
-        "session One = HOL +\n  theories\n    A\n\n"
-        "session Two = HOL +\n  theories\n    B\n",
+        "session One = HOL +\n  theories\n    A\n\nsession Two = HOL +\n  theories\n    B\n",
         encoding="utf-8",
     )
     server = build_server(tmp_path)
@@ -1200,16 +1181,12 @@ def test_mcp_theory_index_resources_are_json(tmp_path: Path) -> None:
     _write_demo_session(tmp_path / "alpha")
     server = build_server(tmp_path)
 
-    default_contents = list(
-        asyncio.run(server.read_resource(AnyUrl("blueprint://theory-index")))
-    )
+    default_contents = list(asyncio.run(server.read_resource(AnyUrl("blueprint://theory-index"))))
     default_index = json.loads(default_contents[0].content)
     assert {t["name"] for t in default_index["theories"]} == {"A", "B"}
 
     scoped_contents = list(
-        asyncio.run(
-            server.read_resource(AnyUrl("blueprint://projects/alpha/theory-index"))
-        )
+        asyncio.run(server.read_resource(AnyUrl("blueprint://projects/alpha/theory-index")))
     )
     scoped_index = json.loads(scoped_contents[0].content)
     assert {t["name"] for t in scoped_index["theories"]} == {"A", "B"}

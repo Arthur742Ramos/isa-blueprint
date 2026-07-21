@@ -1,4 +1,5 @@
 """Tests for agent-task generation."""
+
 from __future__ import annotations
 
 import json
@@ -181,16 +182,12 @@ def test_generate_tasks_picks_ready_nodes_only():
 
 
 def test_generate_tasks_skips_already_proved():
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
     assert generate_tasks(project) == []
 
 
 def test_generate_tasks_root_with_no_deps_is_ready():
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.MISSING)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.MISSING)])
     tasks = generate_tasks(project)
     assert len(tasks) == 1
     assert tasks[0].target_fact == "Demo.a"
@@ -330,9 +327,7 @@ def test_write_tasks_unsafe_ids_are_not_treated_as_stale_on_rewrite(tmp_path: Pa
 
 
 def test_write_tasks_no_ready_tasks_still_writes_index(tmp_path: Path):
-    project = BlueprintProject.from_nodes(
-        "p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)]
-    )
+    project = BlueprintProject.from_nodes("p", [_node("a", "Demo.a", formal=FormalStatus.PROVED)])
     paths = write_tasks(project, tmp_path)
     md_text = paths["md"].read_text(encoding="utf-8")
     assert "No ready tasks" in md_text
@@ -597,9 +592,7 @@ def test_cli_attempt_records_memory_when_requested(tmp_path: Path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["memory"]["outcome"] == "failed"
     memory = json.loads(
-        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(
-            encoding="utf-8"
-        )
+        (tmp_path / ".isabelle-blueprint" / "agent-memory.json").read_text(encoding="utf-8")
     )
     assert memory["nodes"]["main"]["attempts"][0]["summary"] == "simp looped"
 

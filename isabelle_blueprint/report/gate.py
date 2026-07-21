@@ -23,6 +23,7 @@ The checks are:
 The gate is pure: it never talks to Isabelle or the network. Feed it a project
 that already had any stored check report applied.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -96,8 +97,7 @@ def build_gate_report(
             detail=(
                 "no lint errors"
                 if lint.ok
-                else f"{lint.error_count} lint error(s) "
-                f"({lint.warning_count} warning(s))"
+                else f"{lint.error_count} lint error(s) ({lint.warning_count} warning(s))"
             ),
         )
     )
@@ -123,17 +123,14 @@ def build_gate_report(
             )
 
     if fail_on:
-        offenders = sorted(
-            node.id for node in project.nodes if node.status.formal.value in fail_on
-        )
+        offenders = sorted(node.id for node in project.nodes if node.status.formal.value in fail_on)
         selected = ", ".join(sorted(fail_on))
         if offenders:
             checks.append(
                 GateCheck(
                     name="fail-on",
                     ok=False,
-                    detail=f"{len(offenders)} node(s) match [{selected}]: "
-                    + ", ".join(offenders),
+                    detail=f"{len(offenders)} node(s) match [{selected}]: " + ", ".join(offenders),
                 )
             )
         else:
@@ -208,7 +205,5 @@ def render_gate_markdown(report: GateReport) -> str:
     ]
     for check in report.checks:
         ok_mark = "yes" if check.ok else "no"
-        lines.append(
-            f"| {_md_cell(check.name)} | {ok_mark} | {_md_cell(check.detail)} |"
-        )
+        lines.append(f"| {_md_cell(check.name)} | {ok_mark} | {_md_cell(check.detail)} |")
     return "\n".join(lines) + "\n"

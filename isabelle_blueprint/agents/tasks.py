@@ -10,6 +10,7 @@ includes the informal statement, the informal proof sketch, the names of any
 dependencies (with their Isabelle facts), and explicit acceptance criteria. See
 roadmap section 9.
 """
+
 from __future__ import annotations
 
 import json
@@ -113,9 +114,7 @@ def generate_tasks(
         ]
         criteria = _acceptance_criteria(node)
         suggested_facts = (
-            suggestion_index[node.id].suggestions
-            if node.id in suggestion_index
-            else []
+            suggestion_index[node.id].suggestions if node.id in suggestion_index else []
         )
         tasks.append(
             AgentTask(
@@ -282,8 +281,7 @@ def render_tasks_summary(tasks: list[AgentTask]) -> str:
 
     def _fmt(cols: tuple[str, str, str, str, str, str]) -> str:
         return "  ".join(
-            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i]
-            for i in range(len(cols))
+            cols[i].ljust(widths[i]) if i < len(cols) - 1 else cols[i] for i in range(len(cols))
         ).rstrip()
 
     lines = [_fmt(headers)]
@@ -367,10 +365,7 @@ def render_sledgehammer_appendix(task: AgentTask) -> str:
     parts: list[str] = []
     parts.append("## Sledgehammer-first strategy")
     parts.append("")
-    parts.append(
-        "Before writing a manual proof, let Isabelle's automation try to close "
-        "the goal:"
-    )
+    parts.append("Before writing a manual proof, let Isabelle's automation try to close the goal:")
     parts.append("")
     parts.append("1. State the lemma and replace the proof body with `sledgehammer`:")
     parts.append("")
@@ -387,13 +382,11 @@ def render_sledgehammer_appendix(task: AgentTask) -> str:
     if dep_facts:
         hint = " ".join(dep_facts)
         parts.append(
-            f"3. Seed the search with this node's dependencies: "
-            f"`sledgehammer (add: {hint})`."
+            f"3. Seed the search with this node's dependencies: `sledgehammer (add: {hint})`."
         )
     else:
         parts.append(
-            "3. Seed the search with nearby simp lemmas: "
-            "`sledgehammer (add: <relevant facts>)`."
+            "3. Seed the search with nearby simp lemmas: `sledgehammer (add: <relevant facts>)`."
         )
     parts.append(
         "4. On a timeout, widen the provers and budget: "

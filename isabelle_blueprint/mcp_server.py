@@ -1,4 +1,5 @@
 """Model Context Protocol server for IsabelleBlueprint projects."""
+
 from __future__ import annotations
 
 import argparse
@@ -522,9 +523,7 @@ def build_server(
                 report = build_impact_report(parsed, node)
             except UnknownNodeError:
                 known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-                raise BlueprintError(
-                    f"unknown node {node!r}; known node ids: {known}"
-                ) from None
+                raise BlueprintError(f"unknown node {node!r}; known node ids: {known}") from None
             return impact_report_payload(report)
         overview = build_impact_overview(parsed)
         return impact_overview_payload(overview, top=top_value)
@@ -686,9 +685,7 @@ def build_server(
                 parsed = focus_subproject(parsed, focus, depth)
             except GraphUnknownNodeError:
                 known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-                raise BlueprintError(
-                    f"unknown node {focus!r}; known node ids: {known}"
-                ) from None
+                raise BlueprintError(f"unknown node {focus!r}; known node ids: {known}") from None
         if format == "json":
             return {"format": "json", "graph": json.loads(render_json(parsed))}
         if format == "dot":
@@ -838,9 +835,7 @@ def build_server(
         except DependsUnknownNodeError as exc:
             unknown = exc.args[0] if exc.args else "?"
             known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {unknown!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
 
     @server.tool(name="path")
     def path_tool(
@@ -862,9 +857,7 @@ def build_server(
         except PathUnknownNodeError as exc:
             unknown = exc.args[0] if exc.args else "?"
             known = ", ".join(sorted(item.id for item in parsed.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {unknown!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
         return report.to_dict()
 
     @server.tool(name="schema")
@@ -1133,71 +1126,55 @@ def build_server(
         suggestions = [item.to_dict() for item in snapshot.fact_suggestions]
         return _json_resource({"suggestions": suggestions, "count": len(suggestions)})
 
-    @server.resource(
-        "blueprint://projects/{project}/theory-index", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/theory-index", mime_type="application/json")
     def project_scoped_theory_index_resource(project: str) -> str:
         """Source-only Isabelle ``.thy`` index for a selected project id."""
 
         return _json_resource(_theory_index_payload(catalog.resolve(project).root))
 
-    @server.resource(
-        "blueprint://projects/{project}/staleness", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/staleness", mime_type="application/json")
     def project_scoped_staleness_resource(project: str) -> str:
         """Trusted-node staleness audit for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(staleness_payload(build_staleness_report(parsed)))
 
-    @server.resource(
-        "blueprint://projects/{project}/critical-path", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/critical-path", mime_type="application/json")
     def project_scoped_critical_path_resource(project: str) -> str:
         """Longest remaining incomplete dependency chain for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(critical_path_payload(build_critical_path(parsed)))
 
-    @server.resource(
-        "blueprint://projects/{project}/kinds", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/kinds", mime_type="application/json")
     def project_scoped_kinds_resource(project: str) -> str:
         """Per-kind coverage roll-up for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_kind_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/proof-debt", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/proof-debt", mime_type="application/json")
     def project_scoped_proof_debt_resource(project: str) -> str:
         """Effort-weighted remaining proof work for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_proof_debt_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/fact-coverage", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/fact-coverage", mime_type="application/json")
     def project_scoped_fact_coverage_resource(project: str) -> str:
         """Per-theory Isabelle fact coverage for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_fact_coverage_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/levels", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/levels", mime_type="application/json")
     def project_scoped_levels_resource(project: str) -> str:
         """Dependency-depth layering for a selected project id."""
 
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_levels_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/orphans", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/orphans", mime_type="application/json")
     def project_scoped_orphans_resource(project: str) -> str:
         """Nodes unreachable from any goal for a selected project id."""
 
@@ -1213,9 +1190,7 @@ def build_server(
         _config, parsed = load_project_with_check(catalog.resolve(project).root)
         return _json_resource(build_tag_cooccurrence_report(parsed).to_dict())
 
-    @server.resource(
-        "blueprint://projects/{project}/assignments", mime_type="application/json"
-    )
+    @server.resource("blueprint://projects/{project}/assignments", mime_type="application/json")
     def project_scoped_assignments_resource(project: str) -> str:
         """Recorded node ownership for a selected project id."""
 
@@ -1447,9 +1422,7 @@ def _discover_project_roots(launch_root: Path) -> list[Path]:
     for current_raw, dirnames, filenames in os.walk(launch_root, followlinks=False):
         current = Path(current_raw)
         dirnames[:] = sorted(
-            dirname
-            for dirname in dirnames
-            if _should_descend_into(current / dirname)
+            dirname for dirname in dirnames if _should_descend_into(current / dirname)
         )
         if current == launch_root:
             continue
@@ -1853,6 +1826,7 @@ def _agent_run_plan_payload(
     plan["cli_argv"] = cli_argv
     return plan
 
+
 def _ready_filters(
     *,
     kind: list[str] | None = None,
@@ -1890,8 +1864,7 @@ def _roadmap_filters(
     unknown_kinds = [value for value in kinds if value not in valid_kinds]
     if unknown_kinds:
         raise BlueprintError(
-            f"unknown roadmap kind {unknown_kinds[0]!r}; choose one of: "
-            f"{', '.join(valid_kinds)}"
+            f"unknown roadmap kind {unknown_kinds[0]!r}; choose one of: {', '.join(valid_kinds)}"
         )
     stages = tuple(dict.fromkeys(stage or ()))
     for value in stages:

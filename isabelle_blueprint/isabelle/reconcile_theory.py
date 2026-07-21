@@ -11,6 +11,7 @@ checker and emit results to a file the Python side reads back.
 This module deliberately lives apart from :mod:`theory_gen` (which it imports
 from) so the two features never edit a shared generator.
 """
+
 from __future__ import annotations
 
 from isabelle_blueprint.isabelle.theory_gen import (

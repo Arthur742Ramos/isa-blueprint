@@ -5,6 +5,7 @@ format. We only need a narrow slice here: entity names in theory fact/thm files
 and oracle markers that identify skipped proofs or other trusted-code
 dependencies.
 """
+
 from __future__ import annotations
 
 import json
@@ -289,9 +290,7 @@ def _entity_records(text: str) -> list[tuple[dict[str, str], str]]:
 
 def _oracles_in_record(record: str) -> set[str]:
     names = {
-        match.group("value")
-        for match in _ATTR_RE.finditer(record)
-        if match.group("key") == "name"
+        match.group("value") for match in _ATTR_RE.finditer(record) if match.group("key") == "name"
     }
     taint = {name for name in names if name in _SKIP_PROOF_NAMES or name.endswith(".skip_proof")}
     if "Pure.skip_proof" in record:

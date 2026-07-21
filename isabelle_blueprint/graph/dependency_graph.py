@@ -1,4 +1,5 @@
 """Build an in-memory dependency graph from a :class:`BlueprintProject`."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -61,9 +62,7 @@ def roots_subproject(project: BlueprintProject) -> BlueprintProject:
     keep = {node_id for node_id in graph.nodes if not graph.reverse_edges.get(node_id)}
     kept_nodes = [node for node in project.nodes if node.id in keep]
     sources = [
-        src
-        for src in project.source_files
-        if any(node.source_file == src for node in kept_nodes)
+        src for src in project.source_files if any(node.source_file == src for node in kept_nodes)
     ]
     if not sources and not any(node.source_file for node in kept_nodes):
         sources = list(project.source_files)
@@ -86,9 +85,7 @@ def leaves_subproject(project: BlueprintProject) -> BlueprintProject:
     keep = {node_id for node_id in graph.nodes if not graph.edges.get(node_id)}
     kept_nodes = [node for node in project.nodes if node.id in keep]
     sources = [
-        src
-        for src in project.source_files
-        if any(node.source_file == src for node in kept_nodes)
+        src for src in project.source_files if any(node.source_file == src for node in kept_nodes)
     ]
     if not sources and not any(node.source_file for node in kept_nodes):
         sources = list(project.source_files)
@@ -109,9 +106,7 @@ def incomplete_subproject(project: BlueprintProject) -> BlueprintProject:
     complete = {FormalStatus.FOUND, FormalStatus.PROVED}
     kept_nodes = [node for node in project.nodes if node.status.formal not in complete]
     sources = [
-        src
-        for src in project.source_files
-        if any(node.source_file == src for node in kept_nodes)
+        src for src in project.source_files if any(node.source_file == src for node in kept_nodes)
     ]
     if not sources and not any(node.source_file for node in kept_nodes):
         sources = list(project.source_files)
@@ -141,9 +136,7 @@ def dependency_levels(project: BlueprintProject) -> list[list[str]]:
     return levels
 
 
-def neighbourhood(
-    project: BlueprintProject, focus: str, depth: int | None = None
-) -> list[str]:
+def neighbourhood(project: BlueprintProject, focus: str, depth: int | None = None) -> list[str]:
     """Return the ids within ``depth`` dependency hops of ``focus`` (inclusive).
 
     Proximity is measured treating the dependency graph as undirected, so the
@@ -193,9 +186,7 @@ def focus_subproject(
     keep = set(neighbourhood(project, focus, depth))
     kept_nodes = [node for node in project.nodes if node.id in keep]
     sources = [
-        src
-        for src in project.source_files
-        if any(node.source_file == src for node in kept_nodes)
+        src for src in project.source_files if any(node.source_file == src for node in kept_nodes)
     ]
     # When none of the kept nodes carry per-node source provenance, the filter
     # above erases every source file the caller supplied. Fall back to the

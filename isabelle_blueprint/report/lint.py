@@ -19,6 +19,7 @@ Findings carry a severity:
 The set of checks is deliberately conservative so the command stays useful as a
 CI gate via ``--strict`` (which fails when any ``error`` finding is present).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

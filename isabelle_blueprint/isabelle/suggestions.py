@@ -1,4 +1,5 @@
 """Fuzzy suggestions for missing Isabelle fact names."""
+
 from __future__ import annotations
 
 import difflib
@@ -79,9 +80,7 @@ def _candidate_facts(
         for node in project.nodes
         if node.isabelle.fact and node.status.formal in {FormalStatus.FOUND, FormalStatus.PROVED}
     }
-    candidates.update(
-        node.isabelle.fact for node in project.nodes if node.isabelle.fact
-    )
+    candidates.update(node.isabelle.fact for node in project.nodes if node.isabelle.fact)
     for node in project.nodes:
         inferred = suggest_fact(node.id)
         if node.isabelle.theory:
@@ -118,9 +117,7 @@ def _ranked_matches(target: str, candidates: list[str], *, limit: int) -> list[s
         return direct[:limit]
     target_tail = target.rsplit(".", 1)[-1]
     by_tail = {
-        candidate.rsplit(".", 1)[-1]: candidate
-        for candidate in candidates
-        if "." in candidate
+        candidate.rsplit(".", 1)[-1]: candidate for candidate in candidates if "." in candidate
     }
     tail_matches = difflib.get_close_matches(
         target_tail,
@@ -136,4 +133,3 @@ def _ranked_matches(target: str, candidates: list[str], *, limit: int) -> list[s
         if len(merged) == limit:
             break
     return merged
-

@@ -1,4 +1,5 @@
 """Command-line interface for IsabelleBlueprint."""
+
 from __future__ import annotations  # noqa: I001
 
 import argparse
@@ -434,9 +435,7 @@ def _fail_on_failures(project: BlueprintProject, statuses: set[str]) -> list[str
     """Return ids of nodes whose formal status is in ``statuses`` (sorted)."""
     if not statuses:
         return []
-    return sorted(
-        node.id for node in project.nodes if node.status.formal.value in statuses
-    )
+    return sorted(node.id for node in project.nodes if node.status.formal.value in statuses)
 
 
 def _report_fail_on(project: BlueprintProject, raw_statuses: list[str] | None) -> int:
@@ -450,8 +449,7 @@ def _report_fail_on(project: BlueprintProject, raw_statuses: list[str] | None) -
     if failures:
         selected = ", ".join(sorted(statuses))
         print(
-            f"fail-on policy triggered ({selected}): "
-            + ", ".join(failures),
+            f"fail-on policy triggered ({selected}): " + ", ".join(failures),
             file=sys.stderr,
         )
         return 5
@@ -506,9 +504,7 @@ def _min_component_arg(value: str) -> tuple[str, int]:
     name, sep, pct_text = value.partition("=")
     name = name.strip().lower()
     if not sep:
-        raise argparse.ArgumentTypeError(
-            f"invalid component gate {value!r}; expected NAME=PCT"
-        )
+        raise argparse.ArgumentTypeError(f"invalid component gate {value!r}; expected NAME=PCT")
     if name not in SCORE_COMPONENTS:
         raise argparse.ArgumentTypeError(
             f"invalid component {name!r}; choose one of {', '.join(SCORE_COMPONENTS)}"
@@ -535,9 +531,7 @@ def _label_arg(value: str) -> tuple[str, str]:
     """
     key, sep, label_value = value.partition("=")
     if not sep:
-        raise argparse.ArgumentTypeError(
-            f"invalid label {value!r}; expected key=value"
-        )
+        raise argparse.ArgumentTypeError(f"invalid label {value!r}; expected key=value")
     if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key):
         raise argparse.ArgumentTypeError(
             f"invalid label name {key!r}; must match [a-zA-Z_][a-zA-Z0-9_]*"
@@ -547,7 +541,6 @@ def _label_arg(value: str) -> tuple[str, str]:
             f"invalid label name {key!r}; names beginning with '__' are reserved by Prometheus"
         )
     return key, label_value
-
 
 
 def _add_watch_arguments(parser: argparse.ArgumentParser, *, action: str) -> None:
@@ -893,8 +886,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     unused = sum(len(d.declared_but_unused) for d in flagged)
     print("")
     print(
-        f"summary: {undeclared} undeclared edge(s), "
-        f"{unused} declared-but-unused edge(s) [advisory]"
+        f"summary: {undeclared} undeclared edge(s), {unused} declared-but-unused edge(s) [advisory]"
     )
     return 0
 
@@ -951,9 +943,7 @@ def cmd_graph(args: argparse.Namespace) -> int:
             project = focus_subproject(project, focus, depth)
         except GraphUnknownNodeError:
             known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {focus!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {focus!r}; known node ids: {known}") from None
     if getattr(args, "roots_only", False):
         project = roots_subproject(project)
     if getattr(args, "leaves_only", False):
@@ -984,9 +974,7 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
     )
 
     if getattr(args, "markdown", False):
-        md_path = write_scorecard_markdown(
-            card, config.build_dir / "scorecard.md", delta=delta
-        )
+        md_path = write_scorecard_markdown(card, config.build_dir / "scorecard.md", delta=delta)
         print(f"scorecard markdown -> {md_path}", file=sys.stderr)
 
     exit_code = 0
@@ -1064,8 +1052,7 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         if min_grade is not None:
             if meets_grade is None:
                 print(
-                    f"min-grade {min_grade} not enforced: project has no gradeable "
-                    "components yet.",
+                    f"min-grade {min_grade} not enforced: project has no gradeable components yet.",
                     file=sys.stderr,
                 )
             elif not meets_grade:
@@ -1077,20 +1064,17 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
         if min_score is not None:
             if meets_score is None:
                 print(
-                    f"min-score {min_score} not enforced: project has no gradeable "
-                    "components yet.",
+                    f"min-score {min_score} not enforced: project has no gradeable components yet.",
                     file=sys.stderr,
                 )
             elif not meets_score:
                 print(
-                    f"min-score policy triggered: {card.score}/100 "
-                    f"is below {min_score}.",
+                    f"min-score policy triggered: {card.score}/100 is below {min_score}.",
                     file=sys.stderr,
                 )
         for name, threshold, pct in failed_components:
             print(
-                f"min-component policy triggered: {name} {pct}% "
-                f"is below {threshold}%.",
+                f"min-component policy triggered: {name} {pct}% is below {threshold}%.",
                 file=sys.stderr,
             )
     return exit_code
@@ -1201,9 +1185,7 @@ def cmd_path(args: argparse.Namespace) -> int:
     except PathUnknownNodeError as exc:
         unknown = exc.args[0] if exc.args else "?"
         known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-        raise BlueprintError(
-            f"unknown node {unknown!r}; known node ids: {known}"
-        ) from None
+        raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     elif getattr(args, "markdown", False):
@@ -1222,9 +1204,7 @@ def cmd_depends(args: argparse.Namespace) -> int:
     except DependsUnknownNodeError as exc:
         unknown = exc.args[0] if exc.args else "?"
         known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-        raise BlueprintError(
-            f"unknown node {unknown!r}; known node ids: {known}"
-        ) from None
+        raise BlueprintError(f"unknown node {unknown!r}; known node ids: {known}") from None
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -1388,9 +1368,7 @@ def cmd_effort(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
-    report = build_effort_report(
-        project, include_by_tag=args.by_tag, include_nodes=args.nodes
-    )
+    report = build_effort_report(project, include_by_tag=args.by_tag, include_nodes=args.nodes)
     fail_under = getattr(args, "fail_under", None)
     gate = None if fail_under is None else build_effort_gate(report, fail_under)
     if args.json:
@@ -1416,9 +1394,7 @@ def cmd_effort(args: argparse.Namespace) -> int:
             )
         if gate is not None and not gate["meets"]:
             actual = (
-                "undefined"
-                if report.coverage_percent is None
-                else f"{report.coverage_percent}%"
+                "undefined" if report.coverage_percent is None else f"{report.coverage_percent}%"
             )
             print(
                 f"effort-weighted coverage {actual} is below {fail_under}%",
@@ -1570,9 +1546,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         print(
-            render_critical_path_csv(
-                overview, top=args.top, goal=goal, min_leverage=min_leverage
-            ),
+            render_critical_path_csv(overview, top=args.top, goal=goal, min_leverage=min_leverage),
             end="",
         )
     elif getattr(args, "markdown", False):
@@ -1589,9 +1563,7 @@ def cmd_critical_path(args: argparse.Namespace) -> int:
         print(markdown, end="")
     else:
         print(
-            render_critical_path(
-                overview, top=args.top, goal=goal, min_leverage=min_leverage
-            ),
+            render_critical_path(overview, top=args.top, goal=goal, min_leverage=min_leverage),
             end="",
         )
     if getattr(args, "write", False):
@@ -1620,9 +1592,7 @@ def cmd_impact(args: argparse.Namespace) -> int:
             report = build_impact_report(project, node)
         except UnknownNodeError:
             known = ", ".join(sorted(n.id for n in project.nodes)) or "(none)"
-            raise BlueprintError(
-                f"unknown node {node!r}; known node ids: {known}"
-            ) from None
+            raise BlueprintError(f"unknown node {node!r}; known node ids: {known}") from None
         if fmt == "dot":
             print(render_impact_dot(project, node), end="")
         elif fmt == "mermaid":
@@ -1654,9 +1624,7 @@ def _resolve_lint_format(args: argparse.Namespace) -> str:
     fmt = getattr(args, "format", None)
     if args.json:
         if fmt is not None and fmt != "json":
-            raise BlueprintError(
-                f"--json conflicts with --format {fmt}; use one or the other"
-            )
+            raise BlueprintError(f"--json conflicts with --format {fmt}; use one or the other")
         return "json"
     return fmt or "text"
 
@@ -1722,9 +1690,7 @@ def cmd_completion(args: argparse.Namespace) -> int:
     commands = _subcommand_names(parser)
     options = _subcommand_options(parser)
     if args.install or args.dest:
-        target, hint = install_completion(
-            args.shell, PROG_NAME, commands, options, dest=args.dest
-        )
+        target, hint = install_completion(args.shell, PROG_NAME, commands, options, dest=args.dest)
         print(f"Wrote {args.shell} completion to {target}")
         if hint:
             print(hint)
@@ -1780,8 +1746,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         elif not meets:
             assert raw_rate is not None
             print(
-                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% "
-                f"is below {min_rate:g}%.",
+                f"min-success-rate policy triggered: {raw_rate * 100:.2f}% is below {min_rate:g}%.",
                 file=sys.stderr,
             )
     return exit_code
@@ -1793,9 +1758,7 @@ def cmd_staleness(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     report = build_staleness_report(project)
     if args.json:
-        payload = staleness_payload(
-            report, top=args.top, max_causes=args.max_causes
-        )
+        payload = staleness_payload(report, top=args.top, max_causes=args.max_causes)
         print(json.dumps(payload, indent=2))
     elif args.markdown:
         print(
@@ -1815,8 +1778,7 @@ def cmd_staleness(args: argparse.Namespace) -> int:
     tripped = False
     if args.fail_on_problem and report.problem_count > 0:
         print(
-            f"{report.problem_count} trusted node(s) rest on broken/missing "
-            "dependencies",
+            f"{report.problem_count} trusted node(s) rest on broken/missing dependencies",
             file=sys.stderr,
         )
         tripped = True
@@ -1898,12 +1860,17 @@ def cmd_burndown(args: argparse.Namespace) -> int:
     else:
         limit = args.limit if args.limit is not None else 10
         print(render_burndown_report(report, limit=limit), end="")
-    if args.fail_when_stalled and report.remaining and report.status in {
-        "stalled",
-        "regressing",
-        "scope_growing",
-        "beyond_horizon",
-    }:
+    if (
+        args.fail_when_stalled
+        and report.remaining
+        and report.status
+        in {
+            "stalled",
+            "regressing",
+            "scope_growing",
+            "beyond_horizon",
+        }
+    ):
         return 5
     return 0
 
@@ -2405,9 +2372,7 @@ def cmd_roadmap(args: argparse.Namespace) -> int:
         raise BlueprintError("roadmap --mermaid and --json are mutually exclusive")
     output_flags = [name for name in ("mermaid", "json", "csv", "markdown") if getattr(args, name)]
     if len(output_flags) > 1:
-        raise BlueprintError(
-            "roadmap --mermaid, --json, and --csv are mutually exclusive"
-        )
+        raise BlueprintError("roadmap --mermaid, --json, and --csv are mutually exclusive")
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
     _try_apply_check(project, config)
@@ -2732,8 +2697,10 @@ def _run_attempt_sledgehammer(
         mem_summary = f"sledgehammer found no proof for {node_id}"
         details = result.outcome_tag or ""
     elif not result.ran:
-        reason = "Isabelle unavailable" if not result.isabelle_available else (
-            result.error or "unavailable"
+        reason = (
+            "Isabelle unavailable"
+            if not result.isabelle_available
+            else (result.error or "unavailable")
         )
         summary_line = f"sledgehammer: skipped ({reason})"
         outcome = "blocked"
@@ -2790,13 +2757,14 @@ def _agent_run_command_tokens(args: argparse.Namespace) -> list[str]:
     if args.command:
         return split_command_string(args.command)
     raise BlueprintError(
-        "agent-run requires a solver command: pass --command \"<template>\" or "
+        'agent-run requires a solver command: pass --command "<template>" or '
         "--exec PROGRAM [--arg ARG ...]"
     )
 
 
-def _agent_run_prompt_path(args: argparse.Namespace, config: BlueprintConfig,
-                           project_dir: Path, task_id: str) -> Path:
+def _agent_run_prompt_path(
+    args: argparse.Namespace, config: BlueprintConfig, project_dir: Path, task_id: str
+) -> Path:
     if args.output:
         path = Path(args.output)
         if not path.is_absolute():
@@ -2912,9 +2880,7 @@ def cmd_agent_run(args: argparse.Namespace) -> int:
     )
     outcome = classify_run_outcome(result, failure_outcome=args.failure_outcome)
     summary = (
-        args.summary.strip()
-        if args.summary
-        else default_run_summary(command, result, outcome)
+        args.summary.strip() if args.summary else default_run_summary(command, result, outcome)
     )
     stdout_tail = tail(result.stdout)
     stderr_tail = tail(result.stderr)
@@ -2983,8 +2949,7 @@ def _completed_node_ids(project: BlueprintProject) -> set[str]:
     return {
         node.id
         for node in project.nodes
-        if node.status.formal in COMPLETE_FORMAL_STATUSES
-        or node.status.agent is AgentStatus.SOLVED
+        if node.status.formal in COMPLETE_FORMAL_STATUSES or node.status.agent is AgentStatus.SOLVED
     }
 
 
@@ -3103,10 +3068,7 @@ def cmd_memory(args: argparse.Namespace) -> int:
         print("No agent memory recorded yet.")
     else:
         for row in rows:
-            print(
-                f"{row['node_id']} {row['timestamp']} {row['outcome']}: "
-                f"{row['summary']}"
-            )
+            print(f"{row['node_id']} {row['timestamp']} {row['outcome']}: {row['summary']}")
             if row.get("next_step"):
                 print(f"  next: {row['next_step']}")
     return 0
@@ -3351,11 +3313,7 @@ def cmd_search_facts(args: argparse.Namespace) -> int:
     _try_apply_check(project, config)
     matches = match_missing_facts(project, index, limit=args.limit)
     if args.json:
-        print(
-            json.dumps(
-                {"matches": [match.to_dict() for match in matches]}, indent=2
-            )
-        )
+        print(json.dumps({"matches": [match.to_dict() for match in matches]}, indent=2))
     elif args.markdown:
         print(render_matches_markdown(matches), end="")
     else:
@@ -3408,16 +3366,35 @@ _COMMAND_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "explore",
         "graph, catalogs, and dependency/coverage queries",
         (
-            "graph", "scorecard", "kinds", "matrix", "tags", "tag-cooccurrence",
-            "path", "depends", "orphans", "levels", "fact-coverage",
+            "graph",
+            "scorecard",
+            "kinds",
+            "matrix",
+            "tags",
+            "tag-cooccurrence",
+            "path",
+            "depends",
+            "orphans",
+            "levels",
+            "fact-coverage",
         ),
     ),
     (
         "quality",
         "gates, risk, and staleness signals",
         (
-            "lint", "gate", "prometheus", "effort", "proof-debt", "hooks",
-            "notify", "blame", "critical-path", "impact", "stats", "staleness",
+            "lint",
+            "gate",
+            "prometheus",
+            "effort",
+            "proof-debt",
+            "hooks",
+            "notify",
+            "blame",
+            "critical-path",
+            "impact",
+            "stats",
+            "staleness",
         ),
     ),
     (
@@ -3472,7 +3449,7 @@ def _render_command_groups() -> str:
     return "\n".join(lines)
 
 
-_TOP_LEVEL_EPILOG = f'''{_render_command_groups()}
+_TOP_LEVEL_EPILOG = f"""{_render_command_groups()}
 
 common workflows:
   isabelle-blueprint init my-formalization --template agent-ready
@@ -3480,7 +3457,7 @@ common workflows:
   isabelle-blueprint roadmap . --write
   isabelle-blueprint web . --serve
 
-Run `isabelle-blueprint init --list-templates` to inspect scaffold choices.'''
+Run `isabelle-blueprint init --list-templates` to inspect scaffold choices."""
 
 
 def _register_project_commands(sub: argparse._SubParsersAction) -> None:
@@ -3565,8 +3542,7 @@ def _register_project_commands(sub: argparse._SubParsersAction) -> None:
     p_reconcile.add_argument(
         "--session",
         default=None,
-        help="override the Isabelle session to build against "
-        "(default: [isabelle].session)",
+        help="override the Isabelle session to build against (default: [isabelle].session)",
     )
     p_reconcile.add_argument(
         "--timeout",
@@ -3642,9 +3618,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
         help="grade overall project health as one weighted 0-100 score (A+...F)",
     )
     p_scorecard.add_argument("project_dir", nargs="?", default=".")
-    p_scorecard.add_argument(
-        "--json", action="store_true", help="emit the scorecard as JSON"
-    )
+    p_scorecard.add_argument("--json", action="store_true", help="emit the scorecard as JSON")
     p_scorecard.add_argument(
         "--markdown",
         action="store_true",
@@ -3707,9 +3681,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
         help="roll up node counts and coverage per blueprint node kind",
     )
     p_kinds.add_argument("project_dir", nargs="?", default=".")
-    p_kinds.add_argument(
-        "--json", action="store_true", help="emit the kind roll-up as JSON"
-    )
+    p_kinds.add_argument("--json", action="store_true", help="emit the kind roll-up as JSON")
     p_kinds.set_defaults(func=cmd_kinds)
 
     p_matrix = sub.add_parser(
@@ -3730,9 +3702,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
         help="dimension for the matrix columns (default: kind)",
     )
     p_matrix_format = p_matrix.add_mutually_exclusive_group()
-    p_matrix_format.add_argument(
-        "--json", action="store_true", help="emit the matrix as JSON"
-    )
+    p_matrix_format.add_argument("--json", action="store_true", help="emit the matrix as JSON")
     p_matrix_format.add_argument(
         "--csv",
         action="store_true",
@@ -3746,9 +3716,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
     )
     p_tags.add_argument("project_dir", nargs="?", default=".")
     p_tags_format = p_tags.add_mutually_exclusive_group()
-    p_tags_format.add_argument(
-        "--json", action="store_true", help="emit the tag roll-up as JSON"
-    )
+    p_tags_format.add_argument("--json", action="store_true", help="emit the tag roll-up as JSON")
     p_tags_format.add_argument(
         "--markdown",
         action="store_true",
@@ -3802,10 +3770,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
         type=_positive_int,
         default=1,
         metavar="N",
-        help=(
-            "only report tag pairs shared by at least N nodes (an integer >= 1; "
-            "default 1)"
-        ),
+        help=("only report tag pairs shared by at least N nodes (an integer >= 1; default 1)"),
     )
     p_tag_cooccurrence.set_defaults(func=cmd_tag_cooccurrence)
 
@@ -3817,9 +3782,7 @@ def _register_explore_commands(sub: argparse._SubParsersAction) -> None:
     p_path.add_argument("target", help="target node id")
     p_path.add_argument("project_dir", nargs="?", default=".")
     p_path_format = p_path.add_mutually_exclusive_group()
-    p_path_format.add_argument(
-        "--json", action="store_true", help="emit the path report as JSON"
-    )
+    p_path_format.add_argument("--json", action="store_true", help="emit the path report as JSON")
     p_path_format.add_argument(
         "--markdown",
         action="store_true",
@@ -3952,9 +3915,7 @@ def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
     )
     p_gate.add_argument("project_dir", nargs="?", default=".")
     p_gate_format = p_gate.add_mutually_exclusive_group()
-    p_gate_format.add_argument(
-        "--json", action="store_true", help="emit the gate result as JSON"
-    )
+    p_gate_format.add_argument("--json", action="store_true", help="emit the gate result as JSON")
     p_gate_format.add_argument(
         "--markdown",
         action="store_true",
@@ -4051,8 +4012,7 @@ def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
         default=None,
         metavar="PCT",
         help=(
-            "fail (exit 5) when effort-weighted coverage is below PCT percent "
-            "(0-100), or undefined"
+            "fail (exit 5) when effort-weighted coverage is below PCT percent (0-100), or undefined"
         ),
     )
     p_effort.set_defaults(func=cmd_effort)
@@ -4149,9 +4109,7 @@ def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
         help="restrict output to a single node id (default: all nodes)",
     )
     p_blame_format = p_blame.add_mutually_exclusive_group()
-    p_blame_format.add_argument(
-        "--json", action="store_true", help="emit provenance as JSON"
-    )
+    p_blame_format.add_argument("--json", action="store_true", help="emit provenance as JSON")
     p_blame_format.add_argument(
         "--table",
         action="store_true",
@@ -4281,9 +4239,7 @@ def _register_quality_commands(sub: argparse._SubParsersAction) -> None:
     )
     p_staleness.add_argument("project_dir", nargs="?", default=".")
     p_staleness_format = p_staleness.add_mutually_exclusive_group()
-    p_staleness_format.add_argument(
-        "--json", action="store_true", help="emit the analysis as JSON"
-    )
+    p_staleness_format.add_argument("--json", action="store_true", help="emit the analysis as JSON")
     p_staleness_format.add_argument(
         "--markdown",
         action="store_true",
@@ -4377,9 +4333,7 @@ def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
     p_history = sub.add_parser("history", help="summarize trends.json coverage history")
     p_history.add_argument("project_dir", nargs="?", default=".")
     p_history_format = p_history.add_mutually_exclusive_group()
-    p_history_format.add_argument(
-        "--json", action="store_true", help="emit the summary as JSON"
-    )
+    p_history_format.add_argument("--json", action="store_true", help="emit the summary as JSON")
     p_history_format.add_argument(
         "--csv", action="store_true", help="emit the trend snapshots as CSV"
     )
@@ -4403,9 +4357,7 @@ def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
     )
     p_burndown.add_argument("project_dir", nargs="?", default=".")
     p_burndown_format = p_burndown.add_mutually_exclusive_group()
-    p_burndown_format.add_argument(
-        "--json", action="store_true", help="emit the forecast as JSON"
-    )
+    p_burndown_format.add_argument("--json", action="store_true", help="emit the forecast as JSON")
     p_burndown_format.add_argument(
         "--markdown",
         action="store_true",
@@ -4443,9 +4395,7 @@ def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
         help="directory tree to scan for blueprint projects (default: .)",
     )
     p_portfolio_format = p_portfolio.add_mutually_exclusive_group()
-    p_portfolio_format.add_argument(
-        "--json", action="store_true", help="emit the roll-up as JSON"
-    )
+    p_portfolio_format.add_argument("--json", action="store_true", help="emit the roll-up as JSON")
     p_portfolio_format.add_argument(
         "--csv",
         action="store_true",
@@ -4460,8 +4410,7 @@ def _register_meta_commands(sub: argparse._SubParsersAction) -> None:
         "--fail-on-problem",
         action="store_true",
         help=(
-            "exit non-zero (5) when any project has problems, dependency "
-            "cycles, or fails to load"
+            "exit non-zero (5) when any project has problems, dependency cycles, or fails to load"
         ),
     )
     p_portfolio.add_argument(
@@ -4552,8 +4501,7 @@ def _register_manage_commands(sub: argparse._SubParsersAction) -> None:
         type=float,
         default=None,
         help=(
-            "max seconds to wait for `isabelle dump` before aborting "
-            "(overrides [isabelle].timeout)"
+            "max seconds to wait for `isabelle dump` before aborting (overrides [isabelle].timeout)"
         ),
     )
     p_dump.add_argument(
@@ -4598,12 +4546,8 @@ def _register_site_commands(sub: argparse._SubParsersAction) -> None:
     p_web.add_argument(
         "--serve", action="store_true", help="serve the rendered site while watching"
     )
-    p_web.add_argument(
-        "--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)"
-    )
-    p_web.add_argument(
-        "--port", type=int, default=8000, help="port for --serve (default: 8000)"
-    )
+    p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
+    p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
     p_web.add_argument(
         "--interval", type=float, default=1.0, help="watch polling interval in seconds"
     )
@@ -4676,8 +4620,7 @@ def _register_agent_commands(sub: argparse._SubParsersAction) -> None:
         action="append",
         default=None,
         help=(
-            "GitHub username to assign to generated issue drafts; repeat to add "
-            "multiple assignees"
+            "GitHub username to assign to generated issue drafts; repeat to add multiple assignees"
         ),
     )
     p_tasks.add_argument(
@@ -4703,8 +4646,7 @@ def _register_agent_commands(sub: argparse._SubParsersAction) -> None:
         default=None,
         metavar="NODE_OR_TASK",
         help=(
-            "print the ready prompt for this node id or task id instead of the "
-            "suggested next task"
+            "print the ready prompt for this node id or task id instead of the suggested next task"
         ),
     )
     p_next.add_argument("--json", action="store_true", help="emit task metadata and prompt JSON")
@@ -4782,9 +4724,7 @@ def _register_agent_commands(sub: argparse._SubParsersAction) -> None:
     p_attempt.add_argument("--next-step", default=None, help="recommended next action for memory")
     p_attempt.add_argument("--actor", default=None, help="person or agent that made the attempt")
     p_attempt.add_argument("--tool", default=None, help="tool/model used for the attempt")
-    p_attempt.add_argument(
-        "--max-attempts", type=int, default=20, help="attempts to keep per node"
-    )
+    p_attempt.add_argument("--max-attempts", type=int, default=20, help="attempts to keep per node")
     p_attempt.set_defaults(func=cmd_attempt)
 
     p_agent_run = sub.add_parser(
@@ -5289,9 +5229,7 @@ def _register_scaffold_commands(sub: argparse._SubParsersAction) -> None:
     p_new.add_argument(
         "project_dir", nargs="?", default=".", help="project dir (used with --append)"
     )
-    p_new.add_argument(
-        "--title", default=None, help="explicit title (default: humanised from id)"
-    )
+    p_new.add_argument("--title", default=None, help="explicit title (default: humanised from id)")
     p_new.add_argument(
         "--fact", default=None, help="Isabelle fact name (default: suggested from id)"
     )
@@ -5384,7 +5322,6 @@ def _build_parser() -> argparse.ArgumentParser:
         )
 
     return parser
-
 
 
 def _render_web_once(project_dir: Path) -> Path:
