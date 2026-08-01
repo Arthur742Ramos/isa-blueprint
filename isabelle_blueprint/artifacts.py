@@ -65,19 +65,32 @@ def publish_staged(
         old_paths.remove(MANIFEST_NAME)
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    targets: list[tuple[str, Path, Path]] = []
     for relative in sorted(new_paths):
         source = _safe_staging_path(staging_dir, relative)
         target = _safe_output_path(output_dir, relative)
         _ensure_safe_parent(output_dir, relative)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(source, target)
+        if target.exists() and target.is_dir() and not target.is_symlink():
+            raise ValueError(f"artifact target is a directory: {target}")
+        targets.append((relative, source, target))
 
+    stale_targets: list[Path] = []
     for relative in sorted(old_paths - new_paths, reverse=True):
         target = _safe_output_path(output_dir, relative)
         if target.exists() or target.is_symlink():
             if target.is_dir() and not target.is_symlink():
                 raise ValueError(f"refusing to remove generated directory: {target}")
-            target.unlink()
+            stale_targets.append(target)
+
+    # Resolve every parent before replacing any file. A malformed tree must
+    # fail as a whole rather than leaving a partially published site.
+    for _, _, target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    for _, source, target in targets:
+        os.replace(source, target)
+
+    for target in stale_targets:
+        target.unlink()
 
     manifest = {
         "version": MANIFEST_VERSION,
@@ -168,6 +181,8 @@ def _ensure_safe_parent(output_dir: Path, relative: str) -> None:
         current /= part
         if current.is_symlink():
             raise ValueError(f"refusing to publish through symlink: {current}")
+        if current.exists() and not current.is_dir():
+            raise ValueError(f"artifact parent is not a directory: {current}")
 
 
 __all__ = [

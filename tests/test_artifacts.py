@@ -93,3 +93,20 @@ def test_publish_refuses_symlinked_output_subdirectory(tmp_path: Path):
     finally:
         discard_staging_dir(staging)
     assert not (outside / "node.html").exists()
+
+
+def test_publish_preflights_all_parents_before_replacing_files(tmp_path: Path):
+    output = tmp_path / "site"
+    output.mkdir()
+    (output / "index.html").write_text("old", encoding="utf-8")
+    (output / "nodes").write_text("not a directory", encoding="utf-8")
+    staging = create_staging_dir(output)
+    try:
+        (staging / "index.html").write_text("new", encoding="utf-8")
+        (staging / "nodes").mkdir()
+        (staging / "nodes" / "node.html").write_text("node", encoding="utf-8")
+        with pytest.raises(ValueError, match="not a directory"):
+            publish_staged(output, staging, [Path("index.html"), Path("nodes/node.html")])
+    finally:
+        discard_staging_dir(staging)
+    assert (output / "index.html").read_text(encoding="utf-8") == "old"
