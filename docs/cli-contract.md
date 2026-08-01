@@ -457,6 +457,12 @@ filter over the dependency-levels listing; critical-path nodes are flagged with 
 assignments the owner filter is omitted, and an all-proved project shows an
 empty-state callout instead of a chain.
 
+Each successful render is reconciled against the previous generated site.
+Pages for removed nodes and optional artifacts that are no longer produced are
+deleted, while unrelated files in `site/` (for example, a `CNAME`) are
+preserved. Rendering is staged first, so a template or graph-generation failure
+does not replace the last successfully published site.
+
 ### `serve`
 
 ```text
@@ -750,6 +756,10 @@ Writes the machine-readable status payload:
   targets, when suggestions are available (added in v1.1)
 - `build/plugin-annotations.json` — status-provider annotations, when plugins
   emit any (wired into report in v1.2)
+
+The optional `fact-suggestions.json` and `plugin-annotations.json` files are
+removed on a later successful `report` run when the current project produces
+no corresponding entries, so they cannot describe an older run.
 
 v1.2 also invokes experimental report-renderer plugins from the
 `isabelle_blueprint.report_renderers` entry-point group. Renderers receive
