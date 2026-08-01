@@ -106,9 +106,7 @@ def render_site(
             assignments=assignments,
         )
         managed_paths = [
-            path.relative_to(staging_dir)
-            for path in staging_dir.rglob("*")
-            if path.is_file()
+            path.relative_to(staging_dir) for path in staging_dir.rglob("*") if path.is_file()
         ]
         publish_staged(
             output_dir,

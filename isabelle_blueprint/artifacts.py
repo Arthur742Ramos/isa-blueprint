@@ -5,6 +5,7 @@ file-by-file only after rendering succeeds.  A small manifest lets later runs
 remove files that the current run no longer emits without touching unrelated
 user files in the output directory.
 """
+
 from __future__ import annotations
 
 import json

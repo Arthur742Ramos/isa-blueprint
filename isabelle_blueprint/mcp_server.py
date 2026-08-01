@@ -13,7 +13,7 @@ import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from isabelle_blueprint import __version__
 from isabelle_blueprint.agents.assignments import (
@@ -1954,7 +1954,7 @@ def _require_fastmcp() -> type[Any]:
             "MCP support requires the optional dependency group. "
             "Install it with `pip install 'isabelle-blueprint[mcp]'`."
         ) from exc
-    return FastMCP
+    return cast(type[Any], FastMCP)
 
 
 def _build_parser() -> argparse.ArgumentParser:

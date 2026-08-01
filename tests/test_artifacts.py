@@ -1,4 +1,5 @@
 """Tests for generated-artifact staging and reconciliation."""
+
 from __future__ import annotations
 
 from pathlib import Path

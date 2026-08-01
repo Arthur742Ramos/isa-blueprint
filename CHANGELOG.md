@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `plugin-annotations.json` files when the current run has no corresponding
   entries.
 
+### Fixed
+
+- Constrain the optional MCP dependency to the supported FastMCP 1.x API until
+  MCP 2.x support is implemented, and make the optional FastMCP import type-safe.
+
 ## [1.17.0] - 2026-06-19
 
 ### Added
