@@ -16,6 +16,11 @@ from isabelle_blueprint.agents.assignments import AssignmentStore
 from isabelle_blueprint.agents.memory import AgentMemory, summaries_by_node
 from isabelle_blueprint.agents.runner import safe_prompt_filename
 from isabelle_blueprint.agents.tasks import generate_tasks
+from isabelle_blueprint.artifacts import (
+    create_staging_dir,
+    discard_staging_dir,
+    publish_staged,
+)
 from isabelle_blueprint.graph.graphviz_render import (
     render_dot,
     render_json,
@@ -67,6 +72,56 @@ def _make_env() -> Environment:
 
 
 def render_site(
+    project: BlueprintProject,
+    output_dir: Path,
+    *,
+    graphviz_executable: str = "dot",
+    trends: list[dict[str, Any]] | None = None,
+    fact_suggestions: list[FactSuggestion] | None = None,
+    memory: AgentMemory | None = None,
+    assignments: AssignmentStore | None = None,
+) -> Path:
+    """Render and safely publish the project as a static HTML site.
+
+    Rendering happens in a temporary sibling directory.  A successful render
+    is then reconciled into ``output_dir`` using a generated-file manifest;
+    unrelated files in the site directory are preserved.
+    """
+
+    if output_dir.is_symlink():
+        raise ValueError(f"refusing to render through symlink: {output_dir}")
+    node_dir = output_dir / "nodes"
+    if node_dir.is_symlink():
+        raise ValueError(f"refusing to render: {node_dir} is a symlink")
+
+    staging_dir = create_staging_dir(output_dir)
+    try:
+        _render_site_to_dir(
+            project,
+            staging_dir,
+            graphviz_executable=graphviz_executable,
+            trends=trends,
+            fact_suggestions=fact_suggestions,
+            memory=memory,
+            assignments=assignments,
+        )
+        managed_paths = [
+            path.relative_to(staging_dir)
+            for path in staging_dir.rglob("*")
+            if path.is_file()
+        ]
+        publish_staged(
+            output_dir,
+            staging_dir,
+            managed_paths,
+            legacy_paths=_legacy_site_paths(output_dir),
+        )
+    finally:
+        discard_staging_dir(staging_dir)
+    return output_dir / "index.html"
+
+
+def _render_site_to_dir(
     project: BlueprintProject,
     output_dir: Path,
     *,
@@ -325,6 +380,45 @@ def _write_static(output_dir: Path) -> None:
                 shutil.copytree(entry, target)
             else:
                 shutil.copyfile(entry, target)
+
+
+def _legacy_site_paths(output_dir: Path) -> set[Path]:
+    """Return known generated paths for sites created before manifests."""
+
+    paths = {
+        Path(name)
+        for name in (
+            "graph.dot",
+            "graph.json",
+            "graph.svg",
+            "trends.json",
+            "index.html",
+            "graph.html",
+            "status.html",
+            "tasks.html",
+            "trends.html",
+            "roadmap.html",
+            "project.json",
+            "tasks.json",
+            "roadmap.json",
+            "critical-path.json",
+            "fact-suggestions.json",
+            "badge.json",
+            "badge.svg",
+        )
+    }
+    project_json = output_dir / "project.json"
+    if project_json.exists() and not project_json.is_symlink():
+        try:
+            payload = json.loads(project_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = None
+        nodes = payload.get("nodes") if isinstance(payload, dict) else None
+        if isinstance(nodes, list):
+            for node in nodes:
+                if isinstance(node, dict) and isinstance(node.get("id"), str):
+                    paths.add(Path("nodes") / node_filename(node["id"]))
+    return paths
 
 
 def _count_breakdown(

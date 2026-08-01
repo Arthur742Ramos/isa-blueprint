@@ -162,3 +162,20 @@ def test_check_omits_build_status_when_no_session(
     # With no session configured, check skips the build; no status line should print.
     assert "building session" not in captured.err
     assert "building session" not in captured.out
+
+
+def test_report_removes_stale_optional_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import isabelle_blueprint.cli as cli
+
+    (tmp_path / "blueprint.md").write_text(_BLUEPRINT, encoding="utf-8")
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "fact-suggestions.json").write_text("stale", encoding="utf-8")
+    (tmp_path / "build" / "plugin-annotations.json").write_text("stale", encoding="utf-8")
+    monkeypatch.setattr(cli, "suggest_missing_facts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli, "run_status_providers", lambda project: [])
+
+    assert cli_main(["report", str(tmp_path)]) == 0
+    assert not (tmp_path / "build" / "fact-suggestions.json").exists()
+    assert not (tmp_path / "build" / "plugin-annotations.json").exists()

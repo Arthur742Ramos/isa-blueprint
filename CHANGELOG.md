@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Static-site generation now stages and reconciles its built-in artifacts. A
+  successful render removes pages for deleted nodes and optional outputs that
+  disappeared, preserves unrelated files such as `CNAME`, and leaves the last
+  successful site intact when rendering fails.
+- `report` removes stale `fact-suggestions.json` and
+  `plugin-annotations.json` files when the current run has no corresponding
+  entries.
+
 ## [1.17.0] - 2026-06-19
 
 ### Added

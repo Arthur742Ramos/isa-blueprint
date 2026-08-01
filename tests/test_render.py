@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import isabelle_blueprint.render.site as site_mod
 from isabelle_blueprint.agents.assignments import AssignmentStore, set_assignment
 from isabelle_blueprint.agents.memory import AgentMemory, AgentMemoryAttempt, add_memory_attempt
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
@@ -55,6 +56,7 @@ def test_render_site_produces_expected_pages(tmp_path: Path):
     # DOT + JSON graph artifacts.
     assert (tmp_path / "graph.dot").exists()
     assert (tmp_path / "graph.json").exists()
+    assert (tmp_path / ".isabelle-blueprint-manifest.json").exists()
     # Static assets copied through.
     assert (tmp_path / "static" / "style.css").exists()
 
@@ -148,6 +150,52 @@ def test_render_site_emits_badge_artifacts(tmp_path: Path):
     svg_text = badge_svg.read_text(encoding="utf-8")
     assert svg_text.startswith("<svg")
     assert svg_text.rstrip().endswith("</svg>")
+
+
+def test_render_site_reconciles_removed_nodes_and_preserves_unmanaged_files(tmp_path: Path):
+    render_site(_project(), tmp_path)
+    removed_page = tmp_path / "nodes" / node_filename("lem-b")
+    assert removed_page.exists()
+    cname = tmp_path / "CNAME"
+    cname.write_text("example.test\n", encoding="utf-8")
+
+    original = _project()
+    smaller = BlueprintProject.from_nodes("smoke", [original.nodes[0]], sources=["smoke.md"])
+    render_site(smaller, tmp_path)
+
+    assert not removed_page.exists()
+    assert cname.read_text(encoding="utf-8") == "example.test\n"
+    assert (tmp_path / "nodes" / node_filename("def-a")).exists()
+
+
+def test_render_site_removes_optional_artifacts_that_disappear(tmp_path: Path, monkeypatch):
+    render_site(_project(), tmp_path)
+    stale_svg = tmp_path / "graph.svg"
+    stale_svg.write_text("old svg", encoding="utf-8")
+    manifest_path = tmp_path / ".isabelle-blueprint-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"].append("graph.svg")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.setattr(site_mod, "render_svg", lambda *args, **kwargs: None)
+    render_site(_project(), tmp_path)
+
+    assert not stale_svg.exists()
+
+
+def test_render_site_failure_keeps_previous_published_site(tmp_path: Path, monkeypatch):
+    render_site(_project(), tmp_path)
+    before = (tmp_path / "index.html").read_text(encoding="utf-8")
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("template failure")
+
+    monkeypatch.setattr(site_mod, "_render_page", fail)
+    with pytest.raises(RuntimeError, match="template failure"):
+        render_site(_project(), tmp_path)
+
+    assert (tmp_path / "index.html").read_text(encoding="utf-8") == before
+    assert not list(tmp_path.parent.glob(f".{tmp_path.name}.*"))
 
 
 def test_render_site_ships_filters_js_static_asset(tmp_path: Path):

@@ -195,6 +195,18 @@ def test_report_writes_all_artifacts(agent_project: Path) -> None:
     assert_conforms(read_json(build / "project.json"), "project")
 
 
+def test_report_removes_optional_artifacts_from_previous_runs(fresh_project: Path) -> None:
+    build = fresh_project / "build"
+    build.mkdir(exist_ok=True)
+    (build / "fact-suggestions.json").write_text('{"suggestions": []}\n', encoding="utf-8")
+    (build / "plugin-annotations.json").write_text('{"annotations": []}\n', encoding="utf-8")
+
+    run("report", ".", cwd=fresh_project, expect_code=0)
+
+    assert not (build / "fact-suggestions.json").exists()
+    assert not (build / "plugin-annotations.json").exists()
+
+
 def test_status_json_conforms_and_agrees_with_report(agent_project: Path) -> None:
     run("report", ".", cwd=agent_project, expect_code=0)
     status = stdout_json(run("status", ".", "--json", cwd=agent_project, expect_code=0))

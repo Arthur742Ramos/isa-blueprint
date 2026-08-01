@@ -78,6 +78,7 @@ from isabelle_blueprint.agents.tracker_export import (
     SUPPORTED_TRACKERS as TRACKER_EXPORTS,
     render_tracker_csv,
 )
+from isabelle_blueprint.artifacts import remove_generated_file
 from isabelle_blueprint.completion import (
     SUPPORTED_SHELLS,
     install_completion,
@@ -2292,6 +2293,8 @@ def _run_report_once(args: argparse.Namespace) -> int:
             fact_suggestions, config.build_dir / "fact-suggestions.json"
         )
         print(f"fact suggestions -> {suggestions_path}")
+    else:
+        remove_generated_file(config.build_dir / "fact-suggestions.json")
     plugin_annotations = run_status_providers(project)
     if plugin_annotations:
         plugin_path = config.build_dir / "plugin-annotations.json"
@@ -2299,6 +2302,8 @@ def _run_report_once(args: argparse.Namespace) -> int:
             json.dumps({"annotations": plugin_annotations}, indent=2), encoding="utf-8"
         )
         print(f"plugin annotations -> {plugin_path}")
+    else:
+        remove_generated_file(config.build_dir / "plugin-annotations.json")
     for artifact in run_report_renderers(project, config.build_dir):
         if "path" in artifact:
             print(f"plugin renderer {artifact['plugin']} -> {artifact['path']}")
