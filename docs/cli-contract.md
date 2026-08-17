@@ -436,6 +436,7 @@ per-issue lines.
 isabelle-blueprint web [project_dir]
                     [--watch]
                     [--serve]
+                    [--offline]
                     [--host HOST]
                     [--port PORT]
                     [--interval SECONDS]
@@ -447,6 +448,11 @@ graph viewer, status table, tasks view, roadmap page, roadmap JSON, and trend
 chart. `--watch` (added in v1.1) re-renders when blueprint/check/report inputs
 change. `--serve` also starts a local HTTP server on `127.0.0.1:8000` by
 default.
+
+`--offline` omits the optional MathJax CDN script. Graph and trend data are
+embedded in their pages, so navigation, filtering, graph focus, theme switching,
+and trend rendering continue to work when the site is opened directly from
+disk or published without network access.
 
 The graph page also surfaces a **critical-path panel** (the longest remaining
 dependency chain to a goal, plus the highest-leverage bottlenecks) and, when an
@@ -470,10 +476,12 @@ isabelle-blueprint serve [project_dir]
                          [--host HOST]
                          [--port PORT]
                          [--interval SECONDS]
+                         [--offline]
                          [--allow-ci]
 ```
 
 Equivalent to `web --watch --serve`, but clearer for local live-preview use.
+Pass `--offline` to keep the live-rebuilt site free of the MathJax CDN.
 
 ### `tasks`
 

@@ -3,47 +3,63 @@
 <h1>Dependency graph</h1>
 
 <p class="lede">
-  Each node is colour-coded by its current formal status. Arrows go from a result to the lemmas it depends on.
+  Each node is labelled by its current formal status. Arrows go from a result
+  to the lemmas it depends on. Select a node to inspect its local neighborhood.
 </p>
 
-{% if has_svg %}
-  <div class="graph-toolbar" data-graph-filters>
-    <span class="graph-toolbar-label">Show formal status:</span>
-    {% for value in formal_status_values %}
-      <label class="graph-filter-pill">
-        <input
-          type="checkbox"
-          data-graph-formal="{{ value }}"
-          checked
-        />
-        <span class="graph-filter-swatch" style="background: {{ status_colors.get(value, '#9ca3af') }};" aria-hidden="true"></span>
-        <span>{{ value }}</span>
-      </label>
-    {% endfor %}
-    <button type="button" class="graph-filter-reset" data-graph-filters-reset>Reset</button>
-    <span class="graph-filter-count" data-graph-filters-count aria-live="polite"></span>
-  </div>
-  <figure class="graph-frame" data-graph-host aria-labelledby="dependency-graph-caption">
-    <figcaption id="dependency-graph-caption" class="sr-only">
-      Dependency graph for {{ project.name }} with {{ project.nodes|length }} node{{ '' if project.nodes|length == 1 else 's' }}.
-      Arrows point from each result to its dependencies. The dependency levels and links below
-      provide the same information without relying on the diagram.
-    </figcaption>
-    {{ svg_source|safe }}
-  </figure>
-  <p class="graph-download">
-    <a href="graph.svg">Download SVG</a>
-    &middot; <a href="graph.dot">graph.dot</a>
-    &middot; <a href="graph.json">graph.json</a>
-  </p>
-{% else %}
-  <div class="graph-frame">
-    <div class="callout warning">
-      <p><strong>Graphviz is not installed.</strong> Showing raw DOT instead. Install <code>graphviz</code> on PATH to get an inline diagram.</p>
-      <pre><code>{{ dot_source }}</code></pre>
+<div class="graph-toolbar" data-graph-filters aria-label="Graph controls">
+  <fieldset class="graph-filter-set">
+    <legend class="graph-toolbar-label">Show formal status</legend>
+    <div class="graph-filter-options">
+      {% for value in formal_status_values %}
+        <label class="graph-filter-pill">
+          <input
+            type="checkbox"
+            data-graph-formal="{{ value }}"
+            checked
+          />
+          <span class="graph-filter-swatch" style="background: {{ status_colors.get(value, '#9ca3af') }};" aria-hidden="true"></span>
+          <span>{{ value }}</span>
+        </label>
+      {% endfor %}
     </div>
+  </fieldset>
+  <button type="button" class="button button-secondary graph-filter-reset" data-graph-filters-reset>Reset filters</button>
+  <span class="graph-filter-count" data-graph-filters-count aria-live="polite"></span>
+</div>
+<div class="graph-focus" data-graph-focus aria-live="polite" hidden>
+  <div>
+    <span class="eyebrow">Selected node</span>
+    <strong data-graph-focus-title></strong>
+    <p data-graph-focus-summary></p>
   </div>
-{% endif %}
+  <a class="button button-secondary" data-graph-focus-link href="#">Open node</a>
+  <button type="button" class="button button-quiet" data-graph-focus-clear>Clear selection</button>
+</div>
+<p class="graph-help">Tip: click or focus a node to highlight its direct dependencies and dependents. The text lanes below remain the accessible full view.</p>
+<script type="application/json" id="graph-data">{{ graph_data|tojson }}</script>
+<figure class="graph-frame" data-graph-host tabindex="0" aria-labelledby="dependency-graph-caption">
+  <figcaption id="dependency-graph-caption" class="sr-only">
+    Dependency graph for {{ project.name }} with {{ project.nodes|length }} node{{ '' if project.nodes|length == 1 else 's' }}.
+    Arrows point from each result to its dependencies. The dependency levels and links below
+    provide the same information without relying on the diagram.
+  </figcaption>
+  {% if has_svg %}
+    {{ svg_source|safe }}
+  {% else %}
+    <div class="graph-fallback" data-graph-fallback>
+      <div class="callout warning graph-fallback-note">
+        <p><strong>Graphviz is not installed.</strong> Using the built-in dependency layout. Install <code>graphviz</code> when you need the canonical exported SVG.</p>
+      </div>
+      <svg class="graph-svg graph-fallback-svg" data-graph-fallback-svg role="img" aria-labelledby="dependency-graph-caption"></svg>
+    </div>
+  {% endif %}
+</figure>
+<p class="graph-download">
+  {% if has_svg %}<a href="graph.svg" download>Download SVG</a> &middot; {% endif %}
+  <a href="graph.dot">graph.dot</a>
+  &middot; <a href="graph.json">graph.json</a>
+</p>
 
 <section class="critical-path-panel">
   <h2>Critical path</h2>

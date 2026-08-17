@@ -12,6 +12,7 @@ interface NodeStatus {
   blueprint: string;
   formal: string;
   agent: string;
+  last_checked?: string | null;
   check_error?: string | null;
 }
 
@@ -33,7 +34,17 @@ interface BlueprintNode {
 
 interface BlueprintProject {
   name: string;
+  source_files?: string[];
   nodes: BlueprintNode[];
+}
+
+interface ProjectMetrics {
+  nodeCount: number;
+  targetCount: number;
+  provedCount: number;
+  problemCount: number;
+  readyCount: number;
+  coveragePercent: number | null;
 }
 
 interface LoadedProject {
@@ -41,6 +52,8 @@ interface LoadedProject {
   jsonPath: string;
   project: BlueprintProject;
   owners: Map<string, string>;
+  stale: boolean;
+  metrics: ProjectMetrics;
 }
 
 interface NextTaskPayload {
@@ -75,9 +88,12 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   private projects: LoadedProject[] = [];
 
+  constructor(readonly statusBar: vscode.StatusBarItem) {}
+
   setProjects(projects: LoadedProject[]): void {
     this.projects = projects;
     this.changeEmitter.fire();
+    this.updateStatusBar();
   }
 
   getTreeItem(element: TreeItem): vscode.TreeItem {
@@ -115,6 +131,31 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
     return undefined;
   }
+
+  private updateStatusBar(): void {
+    if (this.projects.length === 0) {
+      this.statusBar.hide();
+      return;
+    }
+    const primary = this.projects[0];
+    const metrics = this.projects.reduce(
+      (total, loaded) => combineMetrics(total, loaded.metrics),
+      emptyMetrics(),
+    );
+    const coverage = metrics.coveragePercent === null ? "n/a" : `${metrics.coveragePercent}%`;
+    const stale = this.projects.some((loaded) => loaded.stale) ? " · stale report" : "";
+    const problemLabel = metrics.problemCount === 1 ? "problem" : "problems";
+    const readyLabel = "ready";
+    this.statusBar.text = `$(pulse) ${primary.project.name}: ${coverage} · ${metrics.readyCount} ${readyLabel} · ${metrics.problemCount} ${problemLabel}${stale}`;
+    this.statusBar.tooltip = new vscode.MarkdownString(
+      `**IsabelleBlueprint**\n\n` +
+      `${metrics.provedCount}/${metrics.targetCount || 0} formal targets proved\n\n` +
+      `${metrics.readyCount} ready task(s), ${metrics.problemCount} problem(s)` +
+      `${stale ? "\n\nThe generated report is older than a blueprint source." : ""}`,
+    );
+    this.statusBar.command = "isabelleBlueprint.openDashboard";
+    this.statusBar.show();
+  }
 }
 
 type TreeItem = ProjectItem | GroupItem | NodeItem | DependencyItem;
@@ -129,7 +170,11 @@ interface NodeGroup {
 class ProjectItem extends vscode.TreeItem {
   constructor(readonly loaded: LoadedProject) {
     super(loaded.project.name, vscode.TreeItemCollapsibleState.Expanded);
-    this.description = path.relative(loaded.folder.uri.fsPath, loaded.jsonPath) || loaded.jsonPath;
+    const reportPath = path.relative(loaded.folder.uri.fsPath, loaded.jsonPath) || loaded.jsonPath;
+    this.description = loaded.stale ? `${reportPath} · report stale` : reportPath;
+    this.tooltip = loaded.stale
+      ? `${loaded.project.name}\nThe generated report is older than a blueprint source. Run Report to refresh it.`
+      : `${loaded.project.name}\nGenerated report is current.`;
     this.iconPath = new vscode.ThemeIcon("symbol-namespace");
     this.contextValue = "isabelleBlueprintProject";
   }
@@ -330,6 +375,71 @@ class BlueprintDefinitionProvider implements vscode.DefinitionProvider {
   }
 }
 
+class BlueprintHoverProvider implements vscode.HoverProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Hover | undefined {
+    const range = document.getWordRangeAtPosition(position, /[\w.\-/:]+/);
+    if (!range) return undefined;
+    const word = document.getText(range);
+    const found = this.provider.findNode(word);
+    if (!found) return undefined;
+    const { node } = found;
+    const markdown = new vscode.MarkdownString();
+    markdown.isTrusted = false;
+    markdown.appendMarkdown(`**${escapeMarkdown(node.title)}**  \n`);
+    markdown.appendMarkdown(
+      "`" + escapeMarkdown(node.id) + "` · " + node.kind +
+      " · formal **" + node.status.formal + "** · agent **" + node.status.agent + "**",
+    );
+    if (node.isabelle?.fact) {
+      markdown.appendMarkdown("  \nFact: `" + escapeMarkdown(node.isabelle.fact) + "`");
+    }
+    if (node.uses?.length) {
+      markdown.appendMarkdown(
+        "  \nUses: " + node.uses.map((id) => "`" + escapeMarkdown(id) + "`").join(", "),
+      );
+    }
+    return new vscode.Hover(markdown, range);
+  }
+}
+
+class BlueprintCodeLensProvider implements vscode.CodeLensProvider {
+  constructor(private readonly provider: BlueprintTreeProvider) {}
+
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const filePath = path.resolve(document.uri.fsPath);
+    const lenses: vscode.CodeLens[] = [];
+    for (const loaded of this.provider.loadedProjects()) {
+      for (const node of loaded.project.nodes) {
+        if (!node.source?.file || !node.source.line) continue;
+        const sourcePath = path.isAbsolute(node.source.file)
+          ? path.resolve(node.source.file)
+          : path.resolve(loaded.folder.uri.fsPath, node.source.file);
+        if (sourcePath !== filePath) continue;
+        const line = Math.max(0, node.source.line - 1);
+        const range = new vscode.Range(line, 0, line, 0);
+        lenses.push(
+          new vscode.CodeLens(range, {
+            title: `$(pulse) ${node.status.formal} · Open proof dossier`,
+            command: "isabelleBlueprint.openNode",
+            arguments: [loaded, node],
+          }),
+          new vscode.CodeLens(range, {
+            title: "Explain status",
+            command: "isabelleBlueprint.explainNode",
+            arguments: [loaded, node],
+          }),
+        );
+      }
+    }
+    return lenses;
+  }
+}
+
 class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
   constructor(private readonly provider: BlueprintTreeProvider) {}
 
@@ -392,7 +502,9 @@ class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
-  const provider = new BlueprintTreeProvider();
+  const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 20);
+  statusBar.name = "IsabelleBlueprint";
+  const provider = new BlueprintTreeProvider(statusBar);
   const output = vscode.window.createOutputChannel("IsabelleBlueprint");
   const running = new Set<string>();
   const blueprintDocuments: vscode.DocumentSelector = [
@@ -401,6 +513,7 @@ export function activate(context: vscode.ExtensionContext): void {
   ];
 
   context.subscriptions.push(diagnostics);
+  context.subscriptions.push(statusBar);
   context.subscriptions.push(output);
   context.subscriptions.push(vscode.window.registerTreeDataProvider("isabelleBlueprint.nodes", provider));
   context.subscriptions.push(
@@ -411,6 +524,16 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("isabelleBlueprint.openNode", async (loaded: LoadedProject, node: BlueprintNode) => {
       await openNode(loaded, node);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.goToNode", async () => {
+      await goToNode(provider);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("isabelleBlueprint.openDashboard", async () => {
+      await openDashboard(output, running);
     }),
   );
   context.subscriptions.push(
@@ -536,6 +659,12 @@ export function activate(context: vscode.ExtensionContext): void {
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
     ),
   );
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(blueprintDocuments, new BlueprintHoverProvider(provider)),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(blueprintDocuments, new BlueprintCodeLensProvider(provider)),
+  );
 
   const watcher = vscode.workspace.createFileSystemWatcher("**/project.json");
   context.subscriptions.push(watcher);
@@ -557,6 +686,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(assignmentsWatcher.onDidDelete(async () => refresh(provider, diagnostics)));
   context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(async () => refresh(provider, diagnostics)));
 
+  for (const pattern of ["**/blueprint.md", "**/blueprint.tex", "**/isabelle-blueprint.toml"]) {
+    const sourceWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+    context.subscriptions.push(sourceWatcher);
+    context.subscriptions.push(sourceWatcher.onDidChange(async () => refresh(provider, diagnostics)));
+    context.subscriptions.push(sourceWatcher.onDidCreate(async () => refresh(provider, diagnostics)));
+    context.subscriptions.push(sourceWatcher.onDidDelete(async () => refresh(provider, diagnostics)));
+  }
+
   void refresh(provider, diagnostics);
 }
 
@@ -577,7 +714,10 @@ async function refresh(
     const project = await readProject(jsonPath);
     if (project) {
       const owners = await readAssignments(folder);
-      projects.push({ folder, jsonPath, project, owners });
+      const stale = await isReportStale(folder, jsonPath, project);
+      const loaded = { folder, jsonPath, project, owners, stale, metrics: emptyMetrics() };
+      loaded.metrics = metricsForProject(loaded);
+      projects.push(loaded);
     }
   }
   provider.setProjects(projects);
@@ -691,6 +831,50 @@ async function openNextTaskPrompt(
     void vscode.window.showErrorMessage("IsabelleBlueprint next task failed. See output for details.");
   } finally {
     running.delete(key);
+  }
+}
+
+async function goToNode(provider: BlueprintTreeProvider): Promise<void> {
+  const target = await pickNodeTarget(undefined, undefined, provider, "Go to Blueprint node");
+  if (!target) return;
+  await openNode(target.loaded, target.node);
+}
+
+async function openDashboard(output: vscode.OutputChannel, running: Set<string>): Promise<void> {
+  const folder = await pickWorkspaceFolder();
+  if (!folder) return;
+  const config = vscode.workspace.getConfiguration("isabelleBlueprint", folder.uri);
+  const sitePath = config.get<string>("sitePath", "site/index.html");
+  const indexPath = path.isAbsolute(sitePath) ? sitePath : path.resolve(folder.uri.fsPath, sitePath);
+  const cliPath = config.get<string>("cliPath", "isabelle-blueprint");
+  try {
+    await fs.access(indexPath);
+  } catch {
+    const key = `${folder.uri.fsPath}:web`;
+    if (running.has(key)) {
+      void vscode.window.showInformationMessage("IsabelleBlueprint dashboard generation is already running.");
+      return;
+    }
+    running.add(key);
+    output.show(true);
+    output.appendLine(`> ${cliPath} web ${folder.uri.fsPath}`);
+    try {
+      const { stdout, stderr } = await execFilePromise(cliPath, ["web", folder.uri.fsPath], folder.uri.fsPath);
+      if (stdout.trim()) output.appendLine(stdout.trimEnd());
+      if (stderr.trim()) output.appendLine(stderr.trimEnd());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      output.appendLine(message);
+      void vscode.window.showErrorMessage("Could not generate the IsabelleBlueprint dashboard. See output for details.");
+      return;
+    } finally {
+      running.delete(key);
+    }
+  }
+  try {
+    await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(indexPath));
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not open IsabelleBlueprint dashboard: ${String(error)}`);
   }
 }
 
@@ -865,6 +1049,10 @@ function sanitizeOwner(raw: string | null | undefined): string {
   return (raw ?? "").trim().replace(/\s+/g, " ");
 }
 
+function escapeMarkdown(value: string): string {
+  return value.replace(/[\\`*_{}\[\]()#+\-.!|>]/g, "\\$&");
+}
+
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text;
 }
@@ -907,6 +1095,7 @@ async function readProject(jsonPath: string): Promise<BlueprintProject | undefin
     const parsed = JSON.parse(raw) as BlueprintProject;
     return {
       name: parsed.name || "IsabelleBlueprint",
+      source_files: Array.isArray(parsed.source_files) ? parsed.source_files : [],
       nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
     };
   } catch (error) {
@@ -915,6 +1104,79 @@ async function readProject(jsonPath: string): Promise<BlueprintProject | undefin
     }
     return undefined;
   }
+}
+
+const PROBLEM_FORMAL_STATUSES = new Set(["not_found", "broken", "failed_check", "tainted"]);
+
+function emptyMetrics(): ProjectMetrics {
+  return {
+    nodeCount: 0,
+    targetCount: 0,
+    provedCount: 0,
+    problemCount: 0,
+    readyCount: 0,
+    coveragePercent: null,
+  };
+}
+
+function metricsForProject(loaded: LoadedProject): ProjectMetrics {
+  const metrics = emptyMetrics();
+  metrics.nodeCount = loaded.project.nodes.length;
+  for (const node of loaded.project.nodes) {
+    if (node.status.formal !== "missing") metrics.targetCount += 1;
+    if (node.status.formal === "proved") metrics.provedCount += 1;
+    if (PROBLEM_FORMAL_STATUSES.has(node.status.formal)) metrics.problemCount += 1;
+    if (isReadyForTask(loaded, node)) metrics.readyCount += 1;
+  }
+  metrics.coveragePercent = coveragePercent(metrics.provedCount, metrics.targetCount);
+  return metrics;
+}
+
+function combineMetrics(left: ProjectMetrics, right: ProjectMetrics): ProjectMetrics {
+  const combined: ProjectMetrics = {
+    nodeCount: left.nodeCount + right.nodeCount,
+    targetCount: left.targetCount + right.targetCount,
+    provedCount: left.provedCount + right.provedCount,
+    problemCount: left.problemCount + right.problemCount,
+    readyCount: left.readyCount + right.readyCount,
+    coveragePercent: null,
+  };
+  combined.coveragePercent = coveragePercent(combined.provedCount, combined.targetCount);
+  return combined;
+}
+
+function coveragePercent(proved: number, target: number): number | null {
+  if (target <= 0) return null;
+  const value = Math.floor((proved * 100) / target);
+  return value === 0 && proved > 0 ? 1 : value;
+}
+
+async function isReportStale(
+  folder: vscode.WorkspaceFolder,
+  jsonPath: string,
+  project: BlueprintProject,
+): Promise<boolean> {
+  let report: { mtimeMs: number };
+  try {
+    report = await fs.stat(jsonPath);
+  } catch {
+    return true;
+  }
+  const files = new Set<string>(project.source_files ?? []);
+  for (const node of project.nodes) {
+    if (node.source?.file) files.add(node.source.file);
+  }
+  for (const source of files) {
+    const sourcePath = path.isAbsolute(source) ? source : path.resolve(folder.uri.fsPath, source);
+    try {
+      const sourceStat = await fs.stat(sourcePath);
+      if (sourceStat.mtimeMs > report.mtimeMs) return true;
+    } catch {
+      // A deleted source will be surfaced by the next report/lint run; do not
+      // turn a missing optional source into a repeated notification here.
+    }
+  }
+  return false;
 }
 
 function parseStatusDiagnosticCode(code: string): { nodeId: string; status: string } | undefined {

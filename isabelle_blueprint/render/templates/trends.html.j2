@@ -5,12 +5,24 @@
 <p class="lede">
   Coverage and problem counts across recent runs of <code>isabelle-blueprint report</code>.
   History is appended to <code>build/trends.json</code> (and shipped as
-  <code>trends.json</code> alongside the site) and capped to the most recent
-  500 entries.
+  <code>trends.json</code> alongside the site and capped to the most recent
+  500 entries. The chart also embeds its data so the static site remains useful
+  when opened directly from disk.
 </p>
 
 {% if trends %}
+  <script type="application/json" id="trend-data">{{ trend_data|tojson }}</script>
+  <section class="trend-summary" aria-label="Latest trend snapshot">
+    <div><span>Latest coverage</span><strong>{{ trends[-1].coverage_percent if trends[-1].coverage_percent is not none else 'n/a' }}{% if trends[-1].coverage_percent is not none %}%{% endif %}</strong></div>
+    <div><span>Latest problems</span><strong>{{ trends[-1].problem_count }}</strong></div>
+    <div><span>Recorded runs</span><strong>{{ trends|length }}</strong></div>
+    {% if trend_delta %}<div><span>Coverage change</span><strong class="{{ 'delta-positive' if (trend_delta.coverage_percent or 0) > 0 else 'delta-negative' if (trend_delta.coverage_percent or 0) < 0 else '' }}">{{ '%+d'|format(trend_delta.coverage_percent) if trend_delta.coverage_percent is not none else 'n/a' }}{% if trend_delta.coverage_percent is not none %} pp{% endif %}</strong></div>{% endif %}
+  </section>
   <section class="trend-chart" data-trend-chart>
+    <div class="section-heading">
+      <div><p class="eyebrow">Project momentum</p><h2>Coverage and problems over time</h2></div>
+      <span class="chart-note">Hover points for exact values</span>
+    </div>
     <div class="trend-chart-host" data-trend-chart-host>
       <p class="trend-chart-empty">Loading chart&hellip;</p>
     </div>

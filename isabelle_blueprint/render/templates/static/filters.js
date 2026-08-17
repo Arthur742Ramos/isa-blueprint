@@ -1,16 +1,8 @@
-/* IsabelleBlueprint - status table filtering.
+/* IsabelleBlueprint filtering and copy affordances.
  *
- * Loaded on every page from base.html.j2 (so per-node pages don't 404 on it),
- * but only does anything when the page contains both:
- *   - a `.filters` block with `[data-filter-dim][data-filter-value]` buttons
- *   - a `.status-table` whose <tr>s carry matching `data-{dim}` attributes.
- *
- * Behaviour:
- *   - Click a pill to toggle it; multiple selections within the same dimension
- *     are OR'd together; selections across dimensions are AND'd together.
- *   - The "Clear" button resets everything.
- *   - Hidden rows get the `.is-hidden` class so we can lean on a single CSS rule
- *     instead of fighting jinja for inline `display:` overrides.
+ * The site is intentionally static, so filters use the URL hash rather than
+ * a framework router. The same state can be bookmarked, shared, or opened
+ * directly from disk.
  */
 (function () {
   "use strict";
@@ -37,8 +29,19 @@
     var matchCount = filters.querySelector("[data-filter-count]");
     var totalCount = rows.length;
     var scope = filters.getAttribute("data-filter-scope") || location.pathname.split("/").pop() || "filters";
-
     var active = Object.create(null);
+    var empty = filters.parentNode.querySelector("[data-filter-empty]");
+    if (!empty) {
+      empty = document.createElement("p");
+      empty.className = "filter-empty empty-state";
+      empty.setAttribute("data-filter-empty", "");
+      empty.setAttribute("role", "status");
+      empty.hidden = true;
+      empty.textContent = "No nodes match these filters. Clear a filter or try a broader search.";
+      filters.parentNode.appendChild(empty);
+    }
+    var announcement = filters.querySelector("[data-filter-announcement]");
+
     restoreState();
 
     function apply() {
@@ -61,11 +64,17 @@
         row.classList.toggle("is-hidden", !visible);
       });
 
+      var shown = rows.filter(function (row) {
+        return !row.classList.contains("is-hidden");
+      }).length;
       if (matchCount) {
-        var shown = rows.filter(function (row) {
-          return !row.classList.contains("is-hidden");
-        }).length;
         matchCount.textContent = shown + " / " + totalCount;
+      }
+      if (empty) {
+        empty.hidden = shown !== 0;
+      }
+      if (announcement) {
+        announcement.textContent = shown + " of " + totalCount + " nodes shown";
       }
       persistState();
 
@@ -104,6 +113,9 @@
           searchInput.value = "";
         }
         apply();
+        if (searchInput) {
+          searchInput.focus();
+        }
       });
     }
 
@@ -160,19 +172,34 @@
   function initCopyButtons() {
     var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-copy-text]"));
     buttons.forEach(function (button) {
+      var original = button.textContent || "Copy";
+      button.setAttribute("data-copy-label", original);
       button.addEventListener("click", function () {
-        var text = button.getAttribute("data-copy-text") || "";
-        if (!text) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function () {
-            button.textContent = "Copied";
-            window.setTimeout(function () {
-              button.textContent = "Copy handoff command";
-            }, 1500);
-          });
-        }
+        var value = button.getAttribute("data-copy-text") || "";
+        if (!value || button.disabled) return;
+        button.disabled = true;
+        copyText(value).then(function () {
+          button.textContent = button.getAttribute("data-copy-success") || "Copied";
+          button.setAttribute("aria-label", "Copied");
+        }).catch(function () {
+          button.textContent = "Copy unavailable";
+          button.setAttribute("aria-label", "Copy unavailable");
+        }).then(function () {
+          window.setTimeout(function () {
+            button.textContent = button.getAttribute("data-copy-label") || original;
+            button.removeAttribute("aria-label");
+            button.disabled = false;
+          }, 1600);
+        });
       });
     });
+  }
+
+  function copyText(value) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(value);
+    }
+    return Promise.reject(new Error("Clipboard API unavailable"));
   }
 
   if (document.readyState === "loading") {

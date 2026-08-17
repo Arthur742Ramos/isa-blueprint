@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Proof cockpit static site.** The generated dashboard now leads with project
+  health, next action, trust signals, dependency depth, trends, and a compact
+  node queue. Node pages are proof dossiers with dependency/downstream context;
+  the graph supports status filters, keyboard focus, neighbor highlighting, and
+  direct node links. `web` and `serve` accept `--offline` to embed graph/trend
+  data and omit the MathJax CDN for portable file-based previews.
+- **VS Code cockpit affordances.** The extension adds a coverage/ready/problem
+  status bar with stale-report detection, node hover summaries, CodeLens links,
+  **Go to Blueprint Node**, and **Open Dashboard**.
+
 ### Changed
 
 - Static-site generation now stages and reconciles its built-in artifacts. A
