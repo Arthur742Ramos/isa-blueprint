@@ -37,13 +37,13 @@ dev = [
   "pytest-cov>=4.0",
   "ruff>=0.6",
   "mypy>=1.10",
-  "mcp>=1.12.4,<2.0",
+  "mcp>=1.12.4,<3.0",
   "jsonschema>=4.18",
   "types-PyYAML",
   "build",
 ]
 mcp = [
-  "mcp>=1.12.4,<2.0",
+  "mcp>=1.12.4,<3.0",
   "typing-extensions>=4.7",
 ]
 
