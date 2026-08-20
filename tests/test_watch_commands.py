@@ -178,6 +178,20 @@ def test_web_single_shot_renders_site(tmp_path: Path, capsys) -> None:
     assert (site_dir / "status.html").exists()
 
 
+def test_web_offline_embeds_runtime_data_and_omits_mathjax(tmp_path: Path, capsys) -> None:
+    _write_project(tmp_path)
+
+    rc = cli_main(["web", str(tmp_path), "--offline"])
+
+    assert rc == 0
+    capsys.readouterr()
+    index = (tmp_path / "site" / "index.html").read_text(encoding="utf-8")
+    graph = (tmp_path / "site" / "graph.html").read_text(encoding="utf-8")
+    assert "cdn.jsdelivr.net/npm/mathjax" not in index
+    assert 'id="graph-data"' in graph
+    assert "data-offline" in index
+
+
 def test_start_site_server_serves_files_then_shuts_down(tmp_path: Path) -> None:
     # `_start_site_server` binds a real ThreadingHTTPServer in a background
     # thread. We bind to 127.0.0.1 on an ephemeral port (0), make a single

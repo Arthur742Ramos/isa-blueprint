@@ -27,6 +27,11 @@ isabelle-blueprint-mcp --project-dir .
 The default transport is `stdio`, which is what most desktop and local-agent MCP
 clients expect.
 
+The server targets the FastMCP 1.x line (`mcp>=1.12.4,<2.0`). It publishes
+tool titles and behavioral hints, typed output schemas for the core handoff
+tools, resource audience/priority annotations, and completion support when the
+installed SDK exposes that capability.
+
 ## Client configuration
 
 Point your MCP client at either a project root containing `isabelle-blueprint.toml`
@@ -89,18 +94,34 @@ isabelle-blueprint-mcp \
   --path /mcp
 ```
 
+Non-loopback HTTP hosts are refused by default because Streamable HTTP does not
+provide authentication by itself. If an authenticated, access-controlled proxy
+is already in front of the process, explicitly opt in:
+
+```bash
+isabelle-blueprint-mcp \
+  --project-dir /path/to/formalization \
+  --transport streamable-http \
+  --host 0.0.0.0 \
+  --allow-insecure-http
+```
+
+For clients with a small context window, add `--max-result-bytes BYTES`. Any
+tool or resource response above that UTF-8 byte limit is rejected with a
+narrowing hint rather than silently truncated.
+
 ## Tools
 
 Read tools are always registered:
 
 | Tool | Purpose |
 | --- | --- |
-| `version` | Package version, schema names, launch/default project directories, and write-mode status. |
-| `list_projects` | Discovered project catalog with ids, names, paths, and the default project if one is unambiguous. |
+| `version` | Package/MCP API version, SDK version, schema names, launch/default project directories, transport settings, catalog generation, and write-mode status. |
+| `list_projects` | Discovered project catalog with ids, names, paths, generation/refresh time, and the default project if one is unambiguous. Pass `refresh=false` to reuse the current catalog snapshot. |
 | `status` | Same project health shape as `isabelle-blueprint status --json`; supports ready-task filters and `top_tasks`. |
 | `roadmap` | Staged proof-work roadmap; supports `status`, `stage`, and `kind` filters. |
-| `list_tasks` | Ready proof tasks using the same ordering and filters as the CLI. |
-| `next_task` | Selected ready task plus the rendered Markdown proof prompt. |
+| `list_tasks` | Ready proof tasks using the same ordering and filters as the CLI; `limit` bounds the returned task list while preserving the untruncated selection count. |
+| `next_task` | Selected ready task plus the rendered Markdown proof prompt and snapshot provenance. |
 | `agent_run_plan` | Plans an `agent-run` invocation for the next ready task: returns the selected task, the resolved `command_argv_preview` (placeholders substituted), the `prompt_path`, the exact `cli_argv` to run locally, and the outcome mapping. **Never executes the command or writes the prompt** — it is a read-only planner. Supply `command` to preview substitution; an invalid template is reported in `command_error` rather than raising. |
 | `agent_context` | Compact handoff bundle matching `agent-context --json`. |
 | `explain_node` | Status/blocker explanations for one node or all nodes. |
@@ -148,6 +169,13 @@ Write tools are launch-gated rather than tool-parameter gated: without
 `--allow-writes`, they do not appear in `tools/list`. The server serializes write
 tool calls inside one process to avoid overlapping load/modify/write operations.
 
+Every status/task handoff that uses cached project analysis includes a `snapshot`
+object with the project root, generation time, input signature, and check-report
+path. The cache is invalidated when the project configuration, blueprint sources,
+stored check/dump reports, or agent memory changes. Project discovery is also
+refreshed automatically when a selector misses, so a long-lived server can see
+new project directories without restarting.
+
 Running a solver is deliberately **not** an MCP tool. Spawning arbitrary local
 processes is a different trust boundary from the server's read/append-JSON
 surface, so `agent_run_plan` only *plans* the invocation and hands back the exact
@@ -163,6 +191,10 @@ and intentional omissions are tracked in
 [`capability-parity.toml`](capability-parity.toml).
 
 ## Resources
+
+Resources advertise `audience=assistant` and a priority (the project catalog and
+project graph are highest priority). Resource templates use the same annotations
+so clients can rank context deliberately.
 
 | URI | Content |
 | --- | --- |
@@ -217,7 +249,11 @@ partial checkouts and when the blueprint fails to load.
 `prove_task` returns the rendered proof prompt for the suggested ready task, or
 for a selected node/task id when the optional `node` argument is supplied. In
 multi-project servers, pass the optional `project` argument just like `next_task`.
-It uses the same task selection and diagnostics as `next_task`.
+It uses the same task selection and diagnostics as `next_task`. Its optional
+`kind`, `priority`, `difficulty`, `memory_state`, `last_outcome`, and
+`exclude_node` arguments accept comma-separated values, matching the tool
+filters. Prompt and resource-template arguments receive project, node, and
+schema-name completions when the client requests them.
 
 ## Typical agent loop
 

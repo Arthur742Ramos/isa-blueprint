@@ -1,109 +1,175 @@
 {% extends "base.html.j2" %}
 {% block content %}
-<h1>{{ project.name }}</h1>
+<section class="hero-grid">
+  <div class="hero-copy">
+    <p class="eyebrow">Proof cockpit</p>
+    <h1>{{ project.name }}</h1>
+    <p class="lede hero-lede">
+      A live map of what is planned, what Isabelle can justify, and the safest
+      proof work to pick up next.
+    </p>
+    <div class="hero-actions" aria-label="Primary actions">
+      <a class="button button-primary" href="tasks.html">Open ready tasks</a>
+      <a class="button button-secondary" href="status.html">Review status</a>
+    </div>
+    <p class="context-line">
+      {% if latest_check %}
+        Last checked <time datetime="{{ latest_check }}">{{ latest_check }}</time>
+      {% else %}
+        No Isabelle check timestamp recorded yet
+      {% endif %}
+      <span aria-hidden="true">·</span>
+      {{ project.source_files|length }} source file{{ '' if project.source_files|length == 1 else 's' }}
+    </p>
+  </div>
 
-<p class="lede">
-  This blueprint tracks <strong>{{ project.nodes|length }}</strong> node{{ '' if project.nodes|length == 1 else 's' }}.
-  Use the graph to see dependencies, the status table to spot gaps, and the tasks page for what an agent can attempt next.
-</p>
+  <aside class="health-panel" aria-labelledby="health-heading">
+    <div class="health-panel-heading">
+      <div>
+        <p class="eyebrow">Project health</p>
+        <h2 id="health-heading">{{ metrics.coverage_percent if metrics.coverage_percent is not none else 'n/a' }}<span>{% if metrics.coverage_percent is not none %}%{% endif %}</span></h2>
+      </div>
+      <span class="health-status {{ 'health-status-problem' if metrics.problem_count or metrics.has_cycles else 'health-status-clear' }}">
+        {{ 'Needs attention' if metrics.problem_count or metrics.has_cycles else 'On track' }}
+      </span>
+    </div>
+    <p class="health-caption">proved coverage across {{ metrics.formal_target_count }} formal target{{ '' if metrics.formal_target_count == 1 else 's' }}</p>
+    <dl class="health-stats">
+      <div><dt>Proved</dt><dd>{{ metrics.proved_count }}</dd></div>
+      <div><dt>Found</dt><dd>{{ metrics.found_count }}</dd></div>
+      <div><dt>Ready</dt><dd>{{ tasks|length }}</dd></div>
+      <div><dt>Problems</dt><dd>{{ metrics.problem_count }}</dd></div>
+    </dl>
+  </aside>
+</section>
 
-<section>
-  <h2>Formal status</h2>
-  <div class="status-bar" aria-label="Formal status distribution">
+<section aria-labelledby="trust-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Evidence at a glance</p>
+      <h2 id="trust-heading">Trust snapshot</h2>
+    </div>
+    <a class="section-link" href="status.html">View all statuses <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="status-bar" role="img" aria-label="Formal status distribution">
     {% for item in formal_breakdown if item.count %}
-      <span style="width: {{ item.percent }}%; background: {{ item.color }};" title="{{ item.label }}: {{ item.count }}"></span>
+      <span style="width: {{ item.percent }}%; background: {{ item.color }};" title="{{ item.label }}: {{ item.count }}" aria-label="{{ item.label }}: {{ item.count }}"></span>
     {% endfor %}
   </div>
   <div class="status-grid">
     {% for item in formal_breakdown if item.count %}
-      <div class="status-card" style="border-left: 6px solid {{ item.color }};">
+      <div class="status-card" data-status="{{ item.label }}" style="--status-color: {{ item.color }};">
+        <div class="status-card-heading">
+          <span class="status-swatch" style="background: {{ item.color }};" aria-hidden="true"></span>
+          <span class="status-card-label">{{ item.label }}</span>
+        </div>
         <div class="status-card-count">{{ item.count }}</div>
-        <div class="status-card-label">{{ item.label }}</div>
-        <div class="status-card-percent">{{ item.percent }}%</div>
+        <div class="status-card-percent">{{ item.percent }}% of nodes</div>
       </div>
     {% endfor %}
   </div>
-</section>
-
-<section>
-  <h2>Dependency depth</h2>
-  <div class="status-grid">
-    <div class="status-card">
-      <div class="status-card-count">{{ dependency_stats.max_level + 1 if project.nodes else 0 }}</div>
-      <div class="status-card-label">level{{ '' if dependency_stats.max_level == 0 else 's' }}</div>
-    </div>
-    <div class="status-card">
-      <div class="status-card-count">{{ dependency_stats.cycle_count }}</div>
-      <div class="status-card-label">cycle-blocked node{{ '' if dependency_stats.cycle_count == 1 else 's' }}</div>
-    </div>
-    <div class="status-card">
-      <div class="status-card-count">{{ dependency_stats.missing_dependency_count }}</div>
-      <div class="status-card-label">missing dep{{ '' if dependency_stats.missing_dependency_count == 1 else 's' }}</div>
-    </div>
+  <div class="status-legend" aria-label="Formal status meaning">
+    <span><strong>Proved</strong> trusted by the checker</span>
+    <span><strong>Found</strong> fact exists, trust still depends on context</span>
+    <span><strong>Stale</strong> dependencies changed since the check</span>
+    <span><strong>Problem</strong> broken, missing, failed, or tainted</span>
   </div>
 </section>
 
-<section>
-  <h2>Next action</h2>
+<section aria-labelledby="depth-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Structure</p>
+      <h2 id="depth-heading">Dependency depth</h2>
+    </div>
+    <a class="section-link" href="graph.html">Explore the graph <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="status-grid depth-grid">
+    <div class="status-card"><div class="status-card-count">{{ dependency_stats.max_level + 1 if project.nodes else 0 }}</div><div class="status-card-label">dependency level{{ '' if dependency_stats.max_level == 0 else 's' }}</div><p class="card-note">Longest distance from a foundation.</p></div>
+    <div class="status-card"><div class="status-card-count">{{ dependency_stats.cycle_count }}</div><div class="status-card-label">cycle-blocked node{{ '' if dependency_stats.cycle_count == 1 else 's' }}</div><p class="card-note">Work that cannot be ordered yet.</p></div>
+    <div class="status-card"><div class="status-card-count">{{ dependency_stats.missing_dependency_count }}</div><div class="status-card-label">missing dep{{ '' if dependency_stats.missing_dependency_count == 1 else 's' }}</div><p class="card-note">References that need a blueprint node.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="next-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Make progress</p>
+      <h2 id="next-heading">Next action</h2>
+    </div>
+    <a class="section-link" href="roadmap.html">See the full roadmap <span aria-hidden="true">→</span></a>
+  </div>
   {% if suggested_next_task %}
-    <div class="callout">
-      <strong>Smallest high-value unblocked task:</strong>
-      <a href="nodes/{{ node_filename(suggested_next_task.node_id) }}">{{ suggested_next_task.title }}</a>
-      (<code>{{ suggested_next_task.node_id }}</code>)
-      {% if suggested_next_task.metadata %}
-        — priority <code>{{ suggested_next_task.metadata.priority }}</code>,
-        difficulty <code>{{ suggested_next_task.metadata.difficulty }}</code>.
-      {% endif %}
+    <div class="callout success next-action">
+      <div>
+        <strong>{{ suggested_next_task.title }}</strong>
+        <p><code>{{ suggested_next_task.node_id }}</code>{% if suggested_next_task.target_fact %} · <code>{{ suggested_next_task.target_fact }}</code>{% endif %}</p>
+        {% if suggested_next_task.metadata %}<p class="callout-meta">{{ suggested_next_task.metadata.priority }} priority · {{ suggested_next_task.metadata.difficulty }} difficulty · blocks {{ suggested_next_task.metadata.blocking_count }} downstream task{{ '' if suggested_next_task.metadata.blocking_count == 1 else 's' }}</p>{% endif %}
+      </div>
+      <a class="button button-primary" href="nodes/{{ node_filename(suggested_next_task.node_id) }}">Open node</a>
     </div>
   {% else %}
-    <p class="lede">No unblocked agent task is available right now.</p>
+    <div class="callout">
+      <strong>No ready task is available right now.</strong>
+      <p>Every unfinished node is blocked, or the project is already fully formalised. Use the roadmap to see what is holding the next wave.</p>
+    </div>
   {% endif %}
 </section>
 
 {% if trend_delta %}
-<section>
-  <h2>Changed since last report</h2>
-  <div class="status-grid">
-    <div class="status-card">
-      <div class="status-card-count">{{ trend_delta.coverage_percent if trend_delta.coverage_percent is not none else 'n/a' }}</div>
-      <div class="status-card-label">coverage delta</div>
+<section aria-labelledby="trend-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Momentum</p>
+      <h2 id="trend-heading">Changed since last report</h2>
     </div>
-    <div class="status-card">
-      <div class="status-card-count">{{ trend_delta.proved_count if trend_delta.proved_count is not none else 'n/a' }}</div>
-      <div class="status-card-label">proved delta</div>
-    </div>
-    <div class="status-card">
-      <div class="status-card-count">{{ trend_delta.problem_count if trend_delta.problem_count is not none else 'n/a' }}</div>
-      <div class="status-card-label">problem delta</div>
-    </div>
-    <div class="status-card">
-      <div class="status-card-count">{{ trend_delta.node_count if trend_delta.node_count is not none else 'n/a' }}</div>
-      <div class="status-card-label">node delta</div>
-    </div>
+    <a class="section-link" href="trends.html">Open trends <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="delta-grid">
+    <div><span>coverage delta</span><strong class="{{ 'delta-positive' if (trend_delta.coverage_percent or 0) > 0 else 'delta-negative' if (trend_delta.coverage_percent or 0) < 0 else '' }}">{{ '%+d'|format(trend_delta.coverage_percent) if trend_delta.coverage_percent is not none else 'n/a' }}{% if trend_delta.coverage_percent is not none %} pp{% endif %}</strong></div>
+    <div><span>Proved</span><strong class="delta-positive">{{ '%+d'|format(trend_delta.proved_count) if trend_delta.proved_count is not none else 'n/a' }}</strong></div>
+    <div><span>Problems</span><strong class="{{ 'delta-negative' if (trend_delta.problem_count or 0) > 0 else 'delta-positive' if (trend_delta.problem_count or 0) < 0 else '' }}">{{ '%+d'|format(trend_delta.problem_count) if trend_delta.problem_count is not none else 'n/a' }}</strong></div>
+    <div><span>Nodes</span><strong>{{ '%+d'|format(trend_delta.node_count) if trend_delta.node_count is not none else 'n/a' }}</strong></div>
   </div>
 </section>
 {% endif %}
 
-<section>
-  <h2>Recent nodes</h2>
-  <ul class="node-list">
-    {% for node in project.nodes %}
-      <li>
-        <a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a>
-        &mdash; <span class="node-kind">{{ node.kind.value }}</span>
-        &mdash; {{ node.title }}
-        <span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span>
-      </li>
-    {% endfor %}
-  </ul>
+<section aria-labelledby="nodes-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Browse the plan</p>
+      <h2 id="nodes-heading">Blueprint nodes</h2>
+    </div>
+    <a class="section-link" href="status.html">Search every node <span aria-hidden="true">→</span></a>
+  </div>
+  {% if overview_nodes %}
+    <ul class="node-list">
+      {% for node in overview_nodes %}
+        <li>
+          <div>
+            <a href="nodes/{{ node_filename(node.id) }}"><code>{{ node.id }}</code></a>
+            <span class="node-kind">{{ node.kind.value }}</span>
+            <strong>{{ node.title }}</strong>
+          </div>
+          <span class="status-label"><span class="status-swatch" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};" aria-hidden="true"></span>{{ node.status.formal.value }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty-state">
+      <strong>This blueprint has no nodes yet.</strong>
+      <p>Run <code>isabelle-blueprint new theorem your-first-result --append</code> to create the first planning unit.</p>
+    </div>
+  {% endif %}
 </section>
 
-<section>
-  <h2>Reminder</h2>
+<section class="trust-note" aria-labelledby="meaning-heading">
+  <h2 id="meaning-heading">Read the colors as evidence, not celebration</h2>
   <p>
-    IsabelleBlueprint deliberately distinguishes <em>"a fact with this name exists"</em>
-    from <em>"the proof is trusted"</em>. The colour next to each node reports only the
-    coarser "exists / does not exist" signal from <code>isabelle build</code>.
+    IsabelleBlueprint deliberately distinguishes <em>a fact with this name exists</em>
+    from <em>the proof is trusted</em>. Every status on this site is paired with
+    text so the project remains understandable in grayscale, on a screen reader,
+    and when Isabelle is unavailable.
   </p>
 </section>
 {% endblock %}

@@ -2,66 +2,85 @@
 {% set static_prefix = '../static/' %}
 {% set home_prefix = '../' %}
 {% block content %}
-<p><a href="../index.html">&larr; back to overview</a></p>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <a href="../index.html">Overview</a><span aria-hidden="true">/</span><a href="../status.html">Nodes</a><span aria-hidden="true">/</span><span aria-current="page">{{ node.id }}</span>
+</nav>
 
-<h1>
-  <span class="node-kind">{{ node.kind.value }}</span>
-  {{ node.title }}
-</h1>
+<section class="node-hero">
+  <div>
+    <p class="eyebrow">{{ node.kind.value }} · proof dossier</p>
+    <h1>{{ node.title }}</h1>
+    <p class="node-id"><code>{{ node.id }}</code></p>
+  </div>
+  <div class="node-hero-actions" aria-label="Node actions">
+    <button type="button" class="button button-secondary" data-copy-text="isabelle-blueprint explain . --node {{ node.id }}" data-copy-status>Copy explain command</button>
+    {% if node.status.agent == 'ready' %}<button type="button" class="button button-primary" data-copy-text="isabelle-blueprint next . --node {{ node.id }}" data-copy-status>Copy next command</button>{% endif %}
+  </div>
+</section>
 
-<dl class="meta">
-  <dt>ID</dt><dd><code>{{ node.id }}</code></dd>
-  {% if node.isabelle.fact %}<dt>Isabelle fact</dt><dd><code>{{ node.isabelle.fact }}</code></dd>{% endif %}
+<div class="node-status-strip" aria-label="Node status summary">
+  <span class="status-label"><span class="status-swatch" aria-hidden="true"></span><strong>Blueprint</strong> {{ node.status.blueprint.value }}</span>
+  <span class="status-label"><span class="status-swatch" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};" aria-hidden="true"></span><strong>Formal</strong> {{ node.status.formal.value }}</span>
+  <span class="status-label"><span class="status-swatch" style="background: #8b5cf6;" aria-hidden="true"></span><strong>Agent</strong> {{ node.status.agent.value }}</span>
+  {% if node.status.last_checked %}<span class="status-label"><strong>Checked</strong> <time datetime="{{ node.status.last_checked }}">{{ node.status.last_checked }}</time></span>{% endif %}
+</div>
+
+<dl class="meta node-meta">
+  <dt>Isabelle fact</dt><dd>{% if node.isabelle.fact %}<code>{{ node.isabelle.fact }}</code>{% else %}<span class="muted-value">No fact attached</span>{% endif %}</dd>
   {% if node.isabelle.theory %}<dt>Theory</dt><dd><code>{{ node.isabelle.theory }}</code></dd>{% endif %}
   {% if node.isabelle.session %}<dt>Session</dt><dd><code>{{ node.isabelle.session }}</code></dd>{% endif %}
-  <dt>Blueprint status</dt><dd>{{ node.status.blueprint.value }}</dd>
-  <dt>Formal status</dt><dd><span class="status-pill" style="background: {{ status_colors.get(node.status.formal.value, '#9ca3af') }};">{{ node.status.formal.value }}</span></dd>
-  <dt>Agent status</dt><dd>{{ node.status.agent.value }}</dd>
-  {% if owners_by_node.get(node.id) %}<dt>Owner</dt><dd><span class="owner-badge" data-owner="{{ owners_by_node[node.id] }}">{{ owners_by_node[node.id] }}</span></dd>{% endif %}
+  {% if node.goal %}<dt>Formal goal</dt><dd><pre class="inline-code"><code>{{ node.goal }}</code></pre></dd>{% endif %}
+  {% if node.source_file %}<dt>Source</dt><dd>{% if node.source_line and is_relative_source_path(node.source_file) %}<a href="../{{ node.source_file }}#L{{ node.source_line }}"><code>{{ node.source_file }}:{{ node.source_line }}</code></a>{% else %}<code>{{ node.source_file }}{% if node.source_line %}:{{ node.source_line }}{% endif %}</code>{% endif %}</dd>{% endif %}
+  {% if node.effort %}<dt>Effort</dt><dd>{{ node.effort }}</dd>{% endif %}
+  {% if node.tags %}<dt>Tags</dt><dd><div class="tag-list">{% for t in node.tags %}<span class="tag">{{ t }}</span>{% endfor %}</div></dd>{% endif %}
+  {% if owners_by_node.get(node.id) %}<dt>Owner</dt><dd><span class="owner-badge">{{ owners_by_node[node.id] }}</span></dd>{% endif %}
   {% if node.id in critical_path_set %}<dt>Critical path</dt><dd><span class="critical-marker">★</span> on the critical path</dd>{% endif %}
-  {% if node.tags %}<dt>Tags</dt><dd>{% for t in node.tags %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 </dl>
 
-{% if node.statement %}
-  <h2>Statement</h2>
-  <div class="prose"><p>{{ node.statement|replace('\n\n', '</p><p>'|safe) }}</p></div>
+{% if node.status.check_error %}
+  <div class="callout warning" role="alert">
+    <strong>Last check reported an error</strong>
+    <pre>{{ node.status.check_error }}</pre>
+  </div>
 {% endif %}
+
+<section class="node-section" aria-labelledby="statement-heading">
+  <div class="section-heading"><div><p class="eyebrow">The claim</p><h2 id="statement-heading">Statement</h2></div></div>
+  {% if node.statement %}<div class="prose"><p>{{ node.statement|replace('\n\n', '</p><p>'|safe) }}</p></div>{% else %}<div class="empty-state"><strong>No statement written yet.</strong><p>Add the informal mathematical claim to make this node useful to collaborators and agents.</p></div>{% endif %}
+</section>
 
 {% if node.informal_proof %}
-  <h2>Informal proof</h2>
+<section class="node-section" aria-labelledby="proof-heading">
+  <div class="section-heading"><div><p class="eyebrow">The plan</p><h2 id="proof-heading">Informal proof</h2></div></div>
   <div class="prose"><p>{{ node.informal_proof|replace('\n\n', '</p><p>'|safe) }}</p></div>
+</section>
 {% endif %}
 
-{% if dependencies %}
-  <h2>Depends on</h2>
-  <ul>
-    {% for dep in dependencies %}
-      <li><a href="{{ node_filename(dep.id) }}"><code>{{ dep.id }}</code></a> &mdash; {{ dep.title }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
+<div class="node-columns">
+  <section class="node-section" aria-labelledby="depends-heading">
+    <div class="section-heading"><div><p class="eyebrow">Inputs</p><h2 id="depends-heading">Depends on <span class="heading-count">{{ dependencies|length }}</span></h2></div></div>
+    {% if dependencies %}
+      <ul class="related-node-list">
+        {% for dep in dependencies %}<li><a href="{{ node_filename(dep.id) }}"><code>{{ dep.id }}</code><strong>{{ dep.title }}</strong></a><span class="status-label"><span class="status-swatch" style="background: {{ status_colors.get(dep.status.formal.value, '#9ca3af') }};" aria-hidden="true"></span>{{ dep.status.formal.value }}</span></li>{% endfor %}
+      </ul>
+    {% else %}<p class="empty-state compact-empty">This node has no declared dependencies.</p>{% endif %}
+  </section>
 
-{% if downstream %}
-  <h2>Used by</h2>
-  <ul>
-    {% for d in downstream %}
-      <li><a href="{{ node_filename(d.id) }}"><code>{{ d.id }}</code></a> &mdash; {{ d.title }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
-
-{% if node.status.check_error %}
-  <h2>Last check error</h2>
-  <pre>{{ node.status.check_error }}</pre>
-{% endif %}
+  <section class="node-section" aria-labelledby="downstream-heading">
+    <div class="section-heading"><div><p class="eyebrow">Impact</p><h2 id="downstream-heading">Used by <span class="heading-count">{{ downstream|length }}</span></h2></div></div>
+    {% if downstream %}
+      <ul class="related-node-list">
+        {% for d in downstream %}<li><a href="{{ node_filename(d.id) }}"><code>{{ d.id }}</code><strong>{{ d.title }}</strong></a><span class="status-label"><span class="status-swatch" style="background: {{ status_colors.get(d.status.formal.value, '#9ca3af') }};" aria-hidden="true"></span>{{ d.status.formal.value }}</span></li>{% endfor %}
+      </ul>
+    {% else %}<p class="empty-state compact-empty">No downstream node depends on this one yet.</p>{% endif %}
+  </section>
+</div>
 
 {% if fact_suggestions_by_node.get(node.id) %}
-  <h2>Nearby Isabelle facts</h2>
-  <p>These fact names are similar to <code>{{ fact_suggestions_by_node[node.id].target_fact }}</code>:</p>
-  <ul>
-    {% for fact in fact_suggestions_by_node[node.id].suggestions %}
-      <li><code>{{ fact }}</code></li>
-    {% endfor %}
-  </ul>
+  <section class="node-section" aria-labelledby="facts-heading">
+    <div class="section-heading"><div><p class="eyebrow">Search nearby</p><h2 id="facts-heading">Nearby Isabelle facts</h2></div></div>
+    <p>These fact names are similar to <code>{{ fact_suggestions_by_node[node.id].target_fact }}</code>:</p>
+    <ul class="fact-list">{% for fact in fact_suggestions_by_node[node.id].suggestions %}<li><code>{{ fact }}</code><button type="button" class="button button-quiet" data-copy-text="{{ fact }}" data-copy-status>Copy</button></li>{% endfor %}</ul>
+  </section>
 {% endif %}
 {% endblock %}

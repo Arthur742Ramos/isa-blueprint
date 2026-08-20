@@ -254,6 +254,21 @@ def test_inline_dependency_graph_has_accessible_fallback(
     assert "The dependency levels and links below" in body
     assert '<svg aria-hidden="true" focusable="false"' in body
     assert 'data-graph-filters-count aria-live="polite"' in body
+    assert 'id="graph-data"' in body
+    assert '"href": "nodes/' in body
+
+
+def test_graph_page_has_builtin_layout_when_graphviz_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("isabelle_blueprint.render.site.render_svg", lambda *_args, **_kwargs: None)
+    render_site(_project(), tmp_path)
+    body = (tmp_path / "graph.html").read_text(encoding="utf-8")
+
+    assert "data-graph-fallback-svg" in body
+    assert "Using the built-in dependency layout" in body
+    graph_js = (tmp_path / "static" / "graph.js").read_text(encoding="utf-8")
+    assert "renderFallback" in graph_js
 
 
 def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
@@ -267,6 +282,7 @@ def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
     trends_text = trends_js.read_text(encoding="utf-8")
     assert "data-graph-formal" in graph_text
     assert "is-dimmed" in graph_text
+    assert "try {" in graph_text
     assert "data-trend-chart-host" in trends_text
 
 
@@ -275,6 +291,49 @@ def test_base_layout_loads_graph_and_trend_scripts(tmp_path: Path):
     body = (tmp_path / "graph.html").read_text(encoding="utf-8")
     assert 'src="static/graph.js"' in body
     assert 'src="static/trends.js"' in body
+    assert 'src="static/theme.js"' in body
+
+
+def test_render_site_offline_mode_embeds_local_data_and_omits_mathjax(tmp_path: Path):
+    render_site(
+        _project(),
+        tmp_path,
+        offline=True,
+        trends=[{"timestamp": "2025-01-01T00:00:00Z", "coverage_percent": 0, "problem_count": 1}],
+    )
+    graph = (tmp_path / "graph.html").read_text(encoding="utf-8")
+    trends = (tmp_path / "trends.html").read_text(encoding="utf-8")
+    assert 'name="isabelle-blueprint-offline"' in graph
+    assert "cdn.jsdelivr.net" not in graph
+    assert 'id="trend-data"' in trends
+    assert (tmp_path / "static" / "theme.js").exists()
+
+
+def test_node_page_renders_proof_dossier_context(tmp_path: Path):
+    project = _project()
+    project.nodes[0].source_file = "blueprint.md"
+    project.nodes[0].source_line = 7
+    project.nodes[0].status.last_checked = "2026-08-17T12:00:00Z"
+    render_site(project, tmp_path)
+    text = (tmp_path / "nodes" / node_filename("def-a")).read_text(encoding="utf-8")
+    assert "proof dossier" in text
+    assert "Copy explain command" in text
+    assert "blueprint.md:7" in text
+    assert "2026-08-17T12:00:00Z" in text
+
+
+def test_latest_check_compares_timestamp_instants():
+    project = _project()
+    project.nodes[0].status.last_checked = "2026-08-17T12:00:00Z"
+    project.nodes[1].status.last_checked = "2026-08-17T08:01:00-04:00"
+
+    assert site_mod._latest_check(project) == "2026-08-17T08:01:00-04:00"
+
+
+def test_source_path_helper_rejects_windows_absolute_paths():
+    assert site_mod.is_relative_source_path("blueprint.md")
+    assert not site_mod.is_relative_source_path("C:\\work\\blueprint.md")
+    assert not site_mod.is_relative_source_path("\\\\server\\share\\blueprint.md")
 
 
 def test_render_site_writes_trends_json_with_supplied_entries(tmp_path: Path):

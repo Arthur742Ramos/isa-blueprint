@@ -86,3 +86,17 @@ def test_vscode_extension_contributes_roadmap_command():
     assert "onCommand:isabelleBlueprint.runRoadmap" in package["activationEvents"]
     assert "isabelleBlueprint.runRoadmap" in commands
     assert 'registerCommand("isabelleBlueprint.runRoadmap"' in extension_source
+
+
+def test_vscode_extension_contributes_cockpit_commands_and_site_setting():
+    root = Path(__file__).resolve().parents[1]
+    package = json.loads((root / "vscode" / "package.json").read_text(encoding="utf-8"))
+    commands = {command["command"] for command in package["contributes"]["commands"]}
+    properties = package["contributes"]["configuration"]["properties"]
+    extension_source = (root / "vscode" / "src" / "extension.ts").read_text(encoding="utf-8")
+
+    assert "isabelleBlueprint.goToNode" in commands
+    assert "isabelleBlueprint.openDashboard" in commands
+    assert properties["isabelleBlueprint.sitePath"]["default"] == "site/index.html"
+    assert 'registerCommand("isabelleBlueprint.goToNode"' in extension_source
+    assert 'registerCommand("isabelleBlueprint.openDashboard"' in extension_source

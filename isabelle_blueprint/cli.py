@@ -2135,7 +2135,7 @@ def cmd_web(args: argparse.Namespace) -> int:
     if args.watch or args.serve:
         return _watch_web(args)
     project_dir = Path(args.project_dir).resolve()
-    index = _render_web_once(project_dir)
+    index = _render_web_once(project_dir, offline=args.offline)
     print(f"site -> {index}")
     return 0
 
@@ -4551,6 +4551,11 @@ def _register_site_commands(sub: argparse._SubParsersAction) -> None:
     p_web.add_argument(
         "--serve", action="store_true", help="serve the rendered site while watching"
     )
+    p_web.add_argument(
+        "--offline",
+        action="store_true",
+        help="omit the MathJax CDN so the generated site has no network dependency",
+    )
     p_web.add_argument("--host", default="127.0.0.1", help="host for --serve (default: 127.0.0.1)")
     p_web.add_argument("--port", type=int, default=8000, help="port for --serve (default: 8000)")
     p_web.add_argument(
@@ -4565,6 +4570,11 @@ def _register_site_commands(sub: argparse._SubParsersAction) -> None:
     p_serve.add_argument("--port", type=int, default=8000, help="port to bind (default: 8000)")
     p_serve.add_argument(
         "--interval", type=float, default=1.0, help="watch polling interval in seconds"
+    )
+    p_serve.add_argument(
+        "--offline",
+        action="store_true",
+        help="omit the MathJax CDN so the generated site has no network dependency",
     )
     p_serve.add_argument("--allow-ci", action="store_true", help="allow serving when CI=true")
     p_serve.set_defaults(func=cmd_serve)
@@ -5329,7 +5339,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _render_web_once(project_dir: Path) -> Path:
+def _render_web_once(project_dir: Path, *, offline: bool = False) -> Path:
     config, project = _load(project_dir)
     _try_apply_check(project, config)
     trends = load_trends(config.trends_path)
@@ -5339,6 +5349,7 @@ def _render_web_once(project_dir: Path) -> Path:
     return render_site(
         project,
         config.site_dir,
+        offline=offline,
         trends=trends,
         fact_suggestions=fact_suggestions,
         memory=memory,
@@ -5351,7 +5362,7 @@ def _watch_web(args: argparse.Namespace) -> int:
     if args.serve and os.environ.get("CI", "").lower() == "true" and not args.allow_ci:
         print("refusing to serve in CI; pass --allow-ci to override", file=sys.stderr)
         return 8
-    index = _render_web_once(project_dir)
+    index = _render_web_once(project_dir, offline=args.offline)
     print(f"site -> {index}")
     server = _start_site_server(index.parent, args.host, args.port) if args.serve else None
     if server is not None:
@@ -5363,7 +5374,7 @@ def _watch_web(args: argparse.Namespace) -> int:
             paths = _watch_paths(project_dir)
             current = _snapshot(paths)
             if current != snapshot:
-                index = _render_web_once(project_dir)
+                index = _render_web_once(project_dir, offline=args.offline)
                 print(f"updated -> {index}")
                 snapshot = current
     except KeyboardInterrupt:

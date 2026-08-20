@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 from collections import Counter, deque
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
@@ -37,6 +38,7 @@ from isabelle_blueprint.model.status import (
 )
 from isabelle_blueprint.report.badge import write_badge_endpoint, write_badge_svg
 from isabelle_blueprint.report.critical_path import build_critical_path
+from isabelle_blueprint.report.metrics import build_status_metrics
 from isabelle_blueprint.report.roadmap import build_roadmap, roadmap_payload
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -68,7 +70,18 @@ def _make_env() -> Environment:
         lstrip_blocks=True,
     )
     env.globals["node_filename"] = node_filename
+    env.globals["is_relative_source_path"] = is_relative_source_path
     return env
+
+
+def is_relative_source_path(source_file: str) -> bool:
+    """Return whether a source path can be linked relative to the site."""
+
+    return not (
+        Path(source_file).is_absolute()
+        or bool(re.match(r"^[A-Za-z]:[\\/]", source_file))
+        or source_file.startswith(("\\\\", "//"))
+    )
 
 
 def render_site(
@@ -76,6 +89,7 @@ def render_site(
     output_dir: Path,
     *,
     graphviz_executable: str = "dot",
+    offline: bool = False,
     trends: list[dict[str, Any]] | None = None,
     fact_suggestions: list[FactSuggestion] | None = None,
     memory: AgentMemory | None = None,
@@ -100,6 +114,7 @@ def render_site(
             project,
             staging_dir,
             graphviz_executable=graphviz_executable,
+            offline=offline,
             trends=trends,
             fact_suggestions=fact_suggestions,
             memory=memory,
@@ -124,6 +139,7 @@ def _render_site_to_dir(
     output_dir: Path,
     *,
     graphviz_executable: str = "dot",
+    offline: bool = False,
     trends: list[dict[str, Any]] | None = None,
     fact_suggestions: list[FactSuggestion] | None = None,
     memory: AgentMemory | None = None,
@@ -152,6 +168,10 @@ def _render_site_to_dir(
 
     dot_source = render_dot(project)
     graph_json = render_json(project)
+    graph_data = json.loads(graph_json)
+    for graph_node in graph_data.get("nodes", []):
+        if isinstance(graph_node, dict) and isinstance(graph_node.get("id"), str):
+            graph_node["href"] = f"nodes/{node_filename(graph_node['id'])}"
     svg = render_svg(dot_source, executable=graphviz_executable)
     (output_dir / "graph.dot").write_text(dot_source, encoding="utf-8")
     (output_dir / "graph.json").write_text(graph_json, encoding="utf-8")
@@ -171,6 +191,9 @@ def _render_site_to_dir(
     critical = build_critical_path(project)
     critical_path_ids = list(critical.longest.path) if critical.longest else []
     critical_path_set = set(critical_path_ids)
+    metrics = build_status_metrics(project)
+    overview_nodes = list(project.nodes[:8])
+    latest_check = _latest_check(project)
 
     project_ids = {node.id for node in project.nodes}
     owners_by_node: dict[str, str] = {}
@@ -195,6 +218,11 @@ def _render_site_to_dir(
 
     common = {
         "project": project,
+        "offline": offline,
+        "metrics": metrics,
+        "overview_nodes": overview_nodes,
+        "latest_check": latest_check,
+        "graph_data": graph_data,
         "status_colors": STATUS_COLORS,
         "formal_counts": dict(formal_counts),
         "blueprint_counts": dict(blueprint_counts),
@@ -221,6 +249,7 @@ def _render_site_to_dir(
         "dot_source": dot_source,
         "formal_status_values": [s.value for s in FormalStatus],
         "trends": trends_data,
+        "trend_data": {"entries": trends_data},
         "trend_delta": _trend_delta(trends_data),
         "fact_suggestions_by_node": fact_suggestions_by_node,
         "roadmap": roadmap,
@@ -538,3 +567,24 @@ def _trend_delta(entries: list[dict[str, Any]]) -> dict[str, object] | None:
         "proved_count": delta("proved_count"),
         "node_count": delta("node_count"),
     }
+
+
+def _latest_check(project: BlueprintProject) -> str | None:
+    """Return the newest node check timestamp for the site context bar."""
+
+    timestamps = [node.status.last_checked for node in project.nodes if node.status.last_checked]
+    if not timestamps:
+        return None
+
+    def timestamp_key(value: str) -> tuple[int, datetime | str]:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return (0, value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return (1, parsed)
+
+    return max(timestamps, key=timestamp_key)

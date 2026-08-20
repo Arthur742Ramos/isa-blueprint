@@ -11,7 +11,13 @@ Features:
   proof work.
 - Inline diagnostics on source lines for missing, stale, broken, or tainted nodes.
 - Refresh command and file watcher for `build/project.json`.
+- A status bar cockpit showing coverage, ready/problem counts, stale-report state,
+  and a shortcut to the generated dashboard.
 - One-click navigation from the tree to the node source.
+- **Go to Blueprint Node** and **Open Dashboard** commands, including a guarded
+  dashboard render when the configured site is missing.
+- Hover summaries and CodeLens affordances in Markdown/LaTeX blueprints for
+  opening the matching proof dossier or explaining a node.
 - Commands to run `isabelle-blueprint report`, `check`, `lint`, `gate`, `tasks`,
   `roadmap`, and `agent-context` from the active workspace.
 - Proof-analytics commands that surface read-only insight in the output panel:
@@ -35,7 +41,8 @@ Configuration:
 ```json
 {
   "isabelleBlueprint.projectJson": "build/project.json",
-  "isabelleBlueprint.cliPath": "isabelle-blueprint"
+  "isabelleBlueprint.cliPath": "isabelle-blueprint",
+  "isabelleBlueprint.sitePath": "site/index.html"
 }
 ```
 

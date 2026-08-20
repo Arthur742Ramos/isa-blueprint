@@ -95,9 +95,12 @@ isabelle-blueprint graph
 isabelle-blueprint tasks
 isabelle-blueprint agent-context --write
 
-# 5. Publish a local HTML dashboard.
+# 5. Publish a local HTML proof cockpit.
 isabelle-blueprint web
 isabelle-blueprint serve
+
+# For a self-contained site that can be opened directly from disk.
+isabelle-blueprint web --offline
 ```
 
 Prefer LaTeX? Use the same templates with `--format latex`; `new --append`
@@ -284,7 +287,7 @@ already justify.
 | `roadmap` | Staged terminal/JSON plan, optional `roadmap.json` / `roadmap.md` | Parallel proof waves, blockers, and handoff plans. |
 | `agent-context` | `agent-context.json`, `agent-context.md`, refreshed prompts/roadmap | One-shot AI-agent handoff bundles. |
 | `graph` | `build/graph.dot`, `build/graph.json`, `build/graph.svg`, `build/graph.mmd`, `build/graph.graphml` | Dependency visualization and tooling. `--focus NODE [--depth N]` prunes to a neighbourhood; `--format graphml` exports for Gephi/Cytoscape/yEd. |
-| `web` / `serve` | Static HTML site plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, roadmap boards, critical-path + owner overlays, and local preview. |
+| `web` / `serve` | Static HTML proof cockpit plus `site/roadmap.json` and `site/critical-path.json` | Public progress pages, proof dossiers, focusable dependency graph, trend review, roadmap boards, critical-path + owner overlays, and local preview. `--offline` embeds graph/trend data and omits the MathJax CDN. |
 | `tasks` | `tasks.json`, `tasks.md`, per-task prompts, optional Jira/Linear CSV export | Human/AI proof-work queues. |
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
@@ -803,6 +806,9 @@ and adds:
   blocked, and complete work,
 - inline diagnostics for missing/stale/broken/tainted nodes,
 - source navigation,
+- a dashboard status bar with coverage, ready/problem counts, stale-report warnings,
+- hover summaries and CodeLens links from blueprint nodes to their proof dossiers,
+- commands to jump to a blueprint node and open the generated dashboard,
 - refresh/watch support,
 - dependency navigation, status quick fixes, and node explanations,
 - commands to run `report`, `check`, `lint`, `gate`, `tasks`, `roadmap`, and
@@ -819,7 +825,7 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.17.0 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.18.0 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
 output, static site, live preview, task packs, project templates, fact
 suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,
@@ -831,6 +837,11 @@ memory-aware and exclusion-filtered direct `next` / `attempt` handoffs, one-shot
 `diff`, `history`, `assign`, `rename`, `stats`, `version`, and `completion`
 commands with shared `--fail-on` policy, `--watch` modes, `--color` output, and
 the optional MCP server entry point.
+
+The v1.18 MCP server publishes typed handoff outputs, tool/resource metadata,
+prompt completions, refresh-aware project discovery, snapshot provenance, and
+loopback-safe Streamable HTTP. See [`docs/mcp.md`](docs/mcp.md) for the HTTP
+security and result-size controls.
 
 Community docs:
 

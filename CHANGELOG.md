@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [1.18.0] - 2026-08-20
+
+### Added
+
+- **MCP protocol contracts.** MCP tools now publish human-readable titles,
+  read-only/idempotence/destructive-operation hints, typed output schemas,
+  resource audience/priority annotations, prompt argument parity, and dynamic
+  project/schema completions. A real stdio and Streamable HTTP contract test
+  covers the transport surface.
+
+- **Proof cockpit static site.** The generated dashboard now leads with project
+  health, next action, trust signals, dependency depth, trends, and a compact
+  node queue. Node pages are proof dossiers with dependency/downstream context;
+  the graph supports status filters, keyboard focus, neighbor highlighting, and
+  direct node links. `web` and `serve` accept `--offline` to embed graph/trend
+  data and omit the MathJax CDN for portable file-based previews.
+- **VS Code cockpit affordances.** The extension adds a coverage/ready/problem
+  status bar with stale-report detection, node hover summaries, CodeLens links,
+  **Go to Blueprint Node**, and **Open Dashboard**.
+
 ### Changed
+
+- **MCP freshness and safety.** Long-lived servers refresh project discovery,
+  invalidate cached analyses when blueprint/check/memory inputs change, and
+  include snapshot provenance in status/task handoffs. Streamable HTTP binds to
+  loopback by default, while `--allow-insecure-http` is an explicit escape hatch
+  for an authenticated proxy. `--max-result-bytes` provides an opt-in response
+  bound for tools and resources.
 
 - Static-site generation now stages and reconciles its built-in artifacts. A
   successful render removes pages for deleted nodes and optional outputs that
@@ -19,8 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Constrain the optional MCP dependency to the supported FastMCP 1.x API until
-  MCP 2.x support is implemented, and make the optional FastMCP import type-safe.
+- **MCP minimum-version compatibility.** The server evaluates postponed Python
+  annotations for FastMCP 1.12.4 and keeps the optional dependency constrained
+  to the supported FastMCP 1.x API; CI now exercises the minimum SDK directly.
 
 ## [1.17.0] - 2026-06-19
 
@@ -1468,7 +1498,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.17.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.14.0...v1.15.0

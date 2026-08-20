@@ -62,7 +62,12 @@ tasks = ["list_tasks"]
 version = ["version"]
 
 [vscode]
-native_commands = ["isabelleBlueprint.openNode", "isabelleBlueprint.refresh"]
+native_commands = [
+  "isabelleBlueprint.openNode",
+  "isabelleBlueprint.refresh",
+  "isabelleBlueprint.goToNode",
+  "isabelleBlueprint.openDashboard",
+]
 internal_commands = ["isabelleBlueprint.createMissingDependency"]
 
 # Values are contributed VS Code command identifiers. Commands run the CLI with
