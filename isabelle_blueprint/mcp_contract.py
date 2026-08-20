@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Literal, NotRequired
 
-from typing_extensions import TypedDict
+try:
+    from typing_extensions import TypedDict
+except ImportError:  # The optional MCP extra is not installed.
+    from typing import TypedDict
 
 GraphFormatValue = Literal["json", "dot", "mermaid", "graphml", "d2"]
 

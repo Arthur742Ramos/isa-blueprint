@@ -871,6 +871,12 @@ async function openDashboard(output: vscode.OutputChannel, running: Set<string>)
   try {
     await fs.access(indexPath);
   } catch {
+    if (!vscode.workspace.isTrusted) {
+      void vscode.window.showWarningMessage(
+        "IsabelleBlueprint needs a trusted workspace before it can generate the dashboard.",
+      );
+      return;
+    }
     const key = `${folder.uri.fsPath}:web`;
     if (running.has(key)) {
       void vscode.window.showInformationMessage("IsabelleBlueprint dashboard generation is already running.");
