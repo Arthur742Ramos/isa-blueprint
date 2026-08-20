@@ -53,6 +53,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install "mcp==1.12.4"
+          pip install "pytest>=7.0"
 
       - name: Run MCP contract tests
         run: python -m pytest tests/test_mcp_server.py tests/test_capability_parity.py -q

@@ -2302,11 +2302,13 @@ def _resource_decorator(
 def _fastmcp_decorator(factory: Any, kwargs: dict[str, object]) -> Any:
     """Call a FastMCP decorator factory across supported SDK minor versions."""
 
-    candidates = [kwargs]
+    candidates: list[dict[str, object]] = [kwargs]
     without_annotations = {key: value for key, value in kwargs.items() if key != "annotations"}
     if without_annotations != kwargs:
         candidates.append(without_annotations)
-    minimal = {key: kwargs[key] for key in ("name", "mime_type") if key in kwargs}
+    minimal: dict[str, object] = {
+        key: kwargs[key] for key in ("name", "mime_type") if key in kwargs
+    }
     if minimal not in candidates:
         candidates.append(minimal)
     if "mime_type" in kwargs:
