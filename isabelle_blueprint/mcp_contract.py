@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired
+
+from typing_extensions import TypedDict
 
 GraphFormatValue = Literal["json", "dot", "mermaid", "graphml", "d2"]
 

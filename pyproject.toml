@@ -44,6 +44,7 @@ dev = [
 ]
 mcp = [
   "mcp>=1.12.4,<2.0",
+  "typing-extensions>=4.7",
 ]
 
 [project.scripts]
