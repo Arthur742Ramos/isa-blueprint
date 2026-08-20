@@ -1824,7 +1824,7 @@ def _snapshot(project_dir: Path) -> _ProjectSnapshot:
 
 
 def _project_input_signature(config: Any) -> str:
-    """Hash the files whose changes can alter project status or ready tasks."""
+    """Fingerprint files whose changes can alter project status or ready tasks."""
 
     paths = [
         config.project_root / DEFAULT_CONFIG_NAME,
@@ -1838,11 +1838,11 @@ def _project_input_signature(config: Any) -> str:
         digest.update(str(path).encode("utf-8"))
         digest.update(b"\0")
         try:
-            data = path.read_bytes()
+            stat = path.stat()
         except OSError:
             digest.update(b"<missing>\0")
         else:
-            digest.update(hashlib.sha256(data).digest())
+            digest.update(f"{stat.st_mtime_ns}:{stat.st_size}:{stat.st_ino}".encode("ascii"))
             digest.update(b"\0")
     return digest.hexdigest()
 

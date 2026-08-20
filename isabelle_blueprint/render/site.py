@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 from collections import Counter, deque
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
@@ -69,7 +70,18 @@ def _make_env() -> Environment:
         lstrip_blocks=True,
     )
     env.globals["node_filename"] = node_filename
+    env.globals["is_relative_source_path"] = is_relative_source_path
     return env
+
+
+def is_relative_source_path(source_file: str) -> bool:
+    """Return whether a source path can be linked relative to the site."""
+
+    return not (
+        Path(source_file).is_absolute()
+        or bool(re.match(r"^[A-Za-z]:[\\/]", source_file))
+        or source_file.startswith(("\\\\", "//"))
+    )
 
 
 def render_site(
@@ -561,4 +573,18 @@ def _latest_check(project: BlueprintProject) -> str | None:
     """Return the newest node check timestamp for the site context bar."""
 
     timestamps = [node.status.last_checked for node in project.nodes if node.status.last_checked]
-    return max(timestamps) if timestamps else None
+    if not timestamps:
+        return None
+
+    def timestamp_key(value: str) -> tuple[int, datetime | str]:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return (0, value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return (1, parsed)
+
+    return max(timestamps, key=timestamp_key)

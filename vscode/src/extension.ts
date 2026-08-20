@@ -73,6 +73,14 @@ interface RunCommandOptions {
   refreshAfter?: boolean;
 }
 
+function sourcePathForNode(loaded: LoadedProject, node: BlueprintNode): string {
+  const sourceFile = node.source?.file;
+  if (!sourceFile) return "";
+  return path.isAbsolute(sourceFile)
+    ? path.resolve(sourceFile)
+    : path.resolve(loaded.folder.uri.fsPath, sourceFile);
+}
+
 /** On-disk shape of `.isabelle-blueprint/assignments.json` (only fields we read). */
 interface AssignmentsFile {
   schema_version?: number;
@@ -87,11 +95,22 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   readonly onDidChangeTreeData = this.changeEmitter.event;
 
   private projects: LoadedProject[] = [];
+  private nodesBySourcePath = new Map<string, Array<{ loaded: LoadedProject; node: BlueprintNode }>>();
 
   constructor(readonly statusBar: vscode.StatusBarItem) {}
 
   setProjects(projects: LoadedProject[]): void {
     this.projects = projects;
+    this.nodesBySourcePath = new Map();
+    for (const loaded of projects) {
+      for (const node of loaded.project.nodes) {
+        if (!node.source?.file || !node.source.line) continue;
+        const sourcePath = sourcePathForNode(loaded, node);
+        const matches = this.nodesBySourcePath.get(sourcePath) ?? [];
+        matches.push({ loaded, node });
+        this.nodesBySourcePath.set(sourcePath, matches);
+      }
+    }
     this.changeEmitter.fire();
     this.updateStatusBar();
   }
@@ -120,6 +139,10 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   loadedProjects(): LoadedProject[] {
     return this.projects;
+  }
+
+  nodesForSourcePath(sourcePath: string): Array<{ loaded: LoadedProject; node: BlueprintNode }> {
+    return this.nodesBySourcePath.get(path.resolve(sourcePath)) ?? [];
   }
 
   findNode(id: string): { loaded: LoadedProject; node: BlueprintNode } | undefined {
@@ -244,20 +267,25 @@ function proofCockpitGroups(loaded: LoadedProject): NodeGroup[] {
     { id: "complete", title: "Complete", icon: "verified", nodes: [] },
   ];
   const byId = new Map(groups.map((group) => [group.id, group]));
+  const nodeById = new Map(loaded.project.nodes.map((node) => [node.id, node]));
   for (const node of loaded.project.nodes) {
-    byId.get(groupIdForNode(loaded, node))?.nodes.push(node);
+    byId.get(groupIdForNode(loaded, node, nodeById))?.nodes.push(node);
   }
   return groups.filter((group) => group.nodes.length > 0);
 }
 
-function groupIdForNode(loaded: LoadedProject, node: BlueprintNode): string {
+function groupIdForNode(
+  loaded: LoadedProject,
+  node: BlueprintNode,
+  nodeById = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate])),
+): string {
   if (node.status.formal === "proved" || node.status.formal === "found") {
     return "complete";
   }
   if (["not_found", "broken", "failed_check", "tainted"].includes(node.status.formal)) {
     return "problem";
   }
-  if (isReadyForTask(loaded, node)) {
+  if (isReadyForTask(loaded, node, nodeById)) {
     return "ready";
   }
   if (node.status.formal === "stale" || node.status.formal === "named") {
@@ -413,28 +441,21 @@ class BlueprintCodeLensProvider implements vscode.CodeLensProvider {
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const filePath = path.resolve(document.uri.fsPath);
     const lenses: vscode.CodeLens[] = [];
-    for (const loaded of this.provider.loadedProjects()) {
-      for (const node of loaded.project.nodes) {
-        if (!node.source?.file || !node.source.line) continue;
-        const sourcePath = path.isAbsolute(node.source.file)
-          ? path.resolve(node.source.file)
-          : path.resolve(loaded.folder.uri.fsPath, node.source.file);
-        if (sourcePath !== filePath) continue;
-        const line = Math.max(0, node.source.line - 1);
-        const range = new vscode.Range(line, 0, line, 0);
-        lenses.push(
-          new vscode.CodeLens(range, {
-            title: `$(pulse) ${node.status.formal} · Open proof dossier`,
-            command: "isabelleBlueprint.openNode",
-            arguments: [loaded, node],
-          }),
-          new vscode.CodeLens(range, {
-            title: "Explain status",
-            command: "isabelleBlueprint.explainNode",
-            arguments: [loaded, node],
-          }),
-        );
-      }
+    for (const { loaded, node } of this.provider.nodesForSourcePath(filePath)) {
+      const line = Math.max(0, (node.source?.line ?? 1) - 1);
+      const range = new vscode.Range(line, 0, line, 0);
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: `$(pulse) ${node.status.formal} · Open proof dossier`,
+          command: "isabelleBlueprint.openNode",
+          arguments: [loaded, node],
+        }),
+        new vscode.CodeLens(range, {
+          title: "Explain status",
+          command: "isabelleBlueprint.explainNode",
+          arguments: [loaded, node],
+        }),
+      );
     }
     return lenses;
   }
@@ -1122,11 +1143,12 @@ function emptyMetrics(): ProjectMetrics {
 function metricsForProject(loaded: LoadedProject): ProjectMetrics {
   const metrics = emptyMetrics();
   metrics.nodeCount = loaded.project.nodes.length;
+  const byId = new Map(loaded.project.nodes.map((node) => [node.id, node]));
   for (const node of loaded.project.nodes) {
     if (node.status.formal !== "missing") metrics.targetCount += 1;
     if (node.status.formal === "proved") metrics.provedCount += 1;
     if (PROBLEM_FORMAL_STATUSES.has(node.status.formal)) metrics.problemCount += 1;
-    if (isReadyForTask(loaded, node)) metrics.readyCount += 1;
+    if (isReadyForTask(loaded, node, byId)) metrics.readyCount += 1;
   }
   metrics.coveragePercent = coveragePercent(metrics.provedCount, metrics.targetCount);
   return metrics;
@@ -1316,12 +1338,15 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function isReadyForTask(loaded: LoadedProject, node: BlueprintNode): boolean {
+function isReadyForTask(
+  loaded: LoadedProject,
+  node: BlueprintNode,
+  byId = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate])),
+): boolean {
   const completeStatuses = new Set(["found", "proved"]);
   if (completeStatuses.has(node.status.formal)) {
     return false;
   }
-  const byId = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate]));
   return (node.uses ?? []).every((depId) => {
     const dependency = byId.get(depId);
     return dependency ? completeStatuses.has(dependency.status.formal) : false;

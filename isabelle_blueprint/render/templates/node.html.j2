@@ -30,7 +30,7 @@
   {% if node.isabelle.theory %}<dt>Theory</dt><dd><code>{{ node.isabelle.theory }}</code></dd>{% endif %}
   {% if node.isabelle.session %}<dt>Session</dt><dd><code>{{ node.isabelle.session }}</code></dd>{% endif %}
   {% if node.goal %}<dt>Formal goal</dt><dd><pre class="inline-code"><code>{{ node.goal }}</code></pre></dd>{% endif %}
-  {% if node.source_file %}<dt>Source</dt><dd>{% if node.source_line and not node.source_file.startswith('/') %}<a href="../{{ node.source_file }}#L{{ node.source_line }}"><code>{{ node.source_file }}:{{ node.source_line }}</code></a>{% else %}<code>{{ node.source_file }}{% if node.source_line %}:{{ node.source_line }}{% endif %}</code>{% endif %}</dd>{% endif %}
+  {% if node.source_file %}<dt>Source</dt><dd>{% if node.source_line and is_relative_source_path(node.source_file) %}<a href="../{{ node.source_file }}#L{{ node.source_line }}"><code>{{ node.source_file }}:{{ node.source_line }}</code></a>{% else %}<code>{{ node.source_file }}{% if node.source_line %}:{{ node.source_line }}{% endif %}</code>{% endif %}</dd>{% endif %}
   {% if node.effort %}<dt>Effort</dt><dd>{{ node.effort }}</dd>{% endif %}
   {% if node.tags %}<dt>Tags</dt><dd><div class="tag-list">{% for t in node.tags %}<span class="tag">{{ t }}</span>{% endfor %}</div></dd>{% endif %}
   {% if owners_by_node.get(node.id) %}<dt>Owner</dt><dd><span class="owner-badge">{{ owners_by_node[node.id] }}</span></dd>{% endif %}

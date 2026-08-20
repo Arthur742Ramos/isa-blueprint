@@ -348,7 +348,12 @@
     function restoreFilterState(items) {
       const prefix = "#graph-status=";
       if (!location.hash.startsWith(prefix)) return;
-      const raw = decodeURIComponent(location.hash.slice(prefix.length));
+      let raw;
+      try {
+        raw = decodeURIComponent(location.hash.slice(prefix.length));
+      } catch (_error) {
+        return;
+      }
       const enabled = new Set(raw.split(","));
       items.forEach((checkbox) => { checkbox.checked = enabled.has(checkbox.dataset.graphFormal); });
     }

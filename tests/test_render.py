@@ -282,6 +282,7 @@ def test_render_site_emits_graph_and_trend_scripts(tmp_path: Path):
     trends_text = trends_js.read_text(encoding="utf-8")
     assert "data-graph-formal" in graph_text
     assert "is-dimmed" in graph_text
+    assert "try {" in graph_text
     assert "data-trend-chart-host" in trends_text
 
 
@@ -319,6 +320,20 @@ def test_node_page_renders_proof_dossier_context(tmp_path: Path):
     assert "Copy explain command" in text
     assert "blueprint.md:7" in text
     assert "2026-08-17T12:00:00Z" in text
+
+
+def test_latest_check_compares_timestamp_instants():
+    project = _project()
+    project.nodes[0].status.last_checked = "2026-08-17T12:00:00Z"
+    project.nodes[1].status.last_checked = "2026-08-17T08:01:00-04:00"
+
+    assert site_mod._latest_check(project) == "2026-08-17T08:01:00-04:00"
+
+
+def test_source_path_helper_rejects_windows_absolute_paths():
+    assert site_mod.is_relative_source_path("blueprint.md")
+    assert not site_mod.is_relative_source_path("C:\\work\\blueprint.md")
+    assert not site_mod.is_relative_source_path("\\\\server\\share\\blueprint.md")
 
 
 def test_render_site_writes_trends_json_with_supplied_entries(tmp_path: Path):
