@@ -14,10 +14,14 @@ pytest.importorskip("mcp")
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.lowlevel import NotificationOptions
 from mcp.types import AnyUrl, PromptReference
+
+try:
+    from mcp.client.streamable_http import streamable_http_client
+except ImportError:  # MCP 1.12.4 predates the Streamable HTTP client helper.
+    streamable_http_client = None
 
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.mcp_server import _roadmap_filters, build_server
@@ -1074,6 +1078,8 @@ def test_mcp_stdio_client_can_list_tools_and_call_status(tmp_path: Path) -> None
 
 
 def test_mcp_streamable_http_transport_round_trip(tmp_path: Path) -> None:
+    if streamable_http_client is None:
+        pytest.skip("installed MCP SDK does not expose the Streamable HTTP client helper")
     pytest.importorskip("uvicorn")
     import uvicorn
 
