@@ -265,7 +265,7 @@ def test_graph_page_has_builtin_layout_when_graphviz_is_missing(
     render_site(_project(), tmp_path)
     body = (tmp_path / "graph.html").read_text(encoding="utf-8")
 
-    assert 'data-graph-fallback-svg' in body
+    assert "data-graph-fallback-svg" in body
     assert "Using the built-in dependency layout" in body
     graph_js = (tmp_path / "static" / "graph.js").read_text(encoding="utf-8")
     assert "renderFallback" in graph_js

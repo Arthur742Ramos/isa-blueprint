@@ -560,9 +560,5 @@ def _trend_delta(entries: list[dict[str, Any]]) -> dict[str, object] | None:
 def _latest_check(project: BlueprintProject) -> str | None:
     """Return the newest node check timestamp for the site context bar."""
 
-    timestamps = [
-        node.status.last_checked
-        for node in project.nodes
-        if node.status.last_checked
-    ]
+    timestamps = [node.status.last_checked for node in project.nodes if node.status.last_checked]
     return max(timestamps) if timestamps else None

@@ -1,7 +1,7 @@
 # CLI contract
 
 This document is the **frozen public surface** of the `isabelle-blueprint`
-command-line tool as of v1.17.0. Subcommand names, flag names, default values,
+command-line tool as of v1.18.0. Subcommand names, flag names, default values,
 and exit-code semantics listed here will not change without a major version
 bump. New flags and subcommands may be added in backward-compatible releases
 provided the existing ones keep behaving the same way.
@@ -46,6 +46,8 @@ isabelle-blueprint-mcp [--project-dir DIR]
                        [--host HOST]
                        [--port PORT]
                        [--path PATH]
+                       [--allow-insecure-http]
+                       [--max-result-bytes BYTES]
                        [--allow-writes]
 ```
 
@@ -57,7 +59,10 @@ serves one configured blueprint project, or a repository containing multiple
 project subdirectories, over MCP. The default transport is `stdio`;
 `streamable-http` uses
 `--host` (default `127.0.0.1`), `--port` (default `8000`), and `--path` (default
-`/mcp`).
+`/mcp`). Non-loopback HTTP hosts are rejected by default; use
+`--allow-insecure-http` only when a separately authenticated proxy protects the
+endpoint. `--max-result-bytes` optionally rejects oversized tool/resource
+responses.
 
 Read tools are always registered: `version`, `list_projects`, `status`,
 `roadmap`, `list_tasks`, `next_task`, `agent_run_plan`, `agent_context`,
@@ -84,6 +89,11 @@ the same optional `project` selector.
 
 `--allow-writes` registers only the low-risk write tools `record_attempt` and
 `assign_node`. Without the flag, write tools are omitted from `tools/list`.
+The server publishes tool/resource metadata and completion capability when
+supported by the installed FastMCP 1.x SDK. Status and task handoffs include
+snapshot provenance; project discovery refreshes after selector misses. The
+optional `--max-result-bytes` limit rejects oversized responses rather than
+truncating them.
 Destructive source rewrites are not exposed; `preview_rename_node` is always
 dry-run only. See [`docs/mcp.md`](mcp.md) for the MCP-specific contract and
 client configuration examples, and

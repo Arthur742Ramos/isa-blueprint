@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -11,8 +14,10 @@ pytest.importorskip("mcp")
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import AnyUrl
+from mcp.server.lowlevel import NotificationOptions
+from mcp.types import AnyUrl, PromptReference
 
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.mcp_server import _roadmap_filters, build_server
@@ -90,6 +95,87 @@ def test_mcp_new_analysis_tools_publish_typed_input_schemas(tmp_path: Path) -> N
     assert (
         deps["properties"]["actual_dependencies"]["additionalProperties"]["items"]["type"]
         == "string"
+    )
+
+
+def test_mcp_tools_publish_titles_annotations_and_output_schemas(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+
+    status = tools["status"]
+    assert status.title == "Inspect project health"
+    assert status.annotations is not None
+    assert status.annotations.readOnlyHint is True
+    assert status.annotations.idempotentHint is True
+    assert "snapshot" in status.outputSchema["required"]
+    assert "metrics" in status.outputSchema["required"]
+
+    writable = build_server(tmp_path, allow_writes=True)
+    write_tools = {tool.name: tool for tool in asyncio.run(writable.list_tools())}
+    record = write_tools["record_attempt"]
+    assert record.annotations is not None
+    assert record.annotations.readOnlyHint is False
+    assert record.annotations.idempotentHint is False
+
+
+def test_mcp_resource_annotations_and_completion_capability(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    server = build_server(tmp_path)
+
+    resources = {str(resource.uri): resource for resource in asyncio.run(server.list_resources())}
+    assert resources["blueprint://projects"].title == "Project catalog"
+    assert resources["blueprint://projects"].annotations is not None
+    assert resources["blueprint://projects"].annotations.priority == 1.0
+    assert resources["blueprint://projects"].annotations.audience == ["assistant"]
+
+    prompts = asyncio.run(server.list_prompts())
+    prove_task = next(prompt for prompt in prompts if prompt.name == "prove_task")
+    assert {argument.name for argument in prove_task.arguments or []} >= {
+        "kind",
+        "priority",
+        "memory_state",
+        "last_outcome",
+    }
+    capabilities = server._mcp_server.get_capabilities(NotificationOptions(), {})
+    assert capabilities.completions is not None
+
+
+def test_mcp_catalog_refreshes_and_snapshot_invalidates(tmp_path: Path) -> None:
+    _write_project(tmp_path, name="root-project")
+    server = build_server(tmp_path, allow_writes=True)
+
+    first = _direct_tool_result(server, "list_projects", {})
+    first_status = _direct_tool_result(server, "status", {})
+    _write_project(tmp_path / "child", name="child-project")
+    second = _direct_tool_result(server, "list_projects", {})
+    assert [project["id"] for project in second["projects"]] == ["root", "child"]
+    assert second["generation"] > first["generation"]
+
+    _direct_tool_result(
+        server,
+        "record_attempt",
+        {"node_id": "main", "outcome": "failed", "summary": "refresh test"},
+    )
+    second_status = _direct_tool_result(server, "status", {})
+    assert (
+        second_status["snapshot"]["input_signature"] != first_status["snapshot"]["input_signature"]
+    )
+
+
+def test_mcp_result_limit_and_http_binding_guard(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    limited = build_server(tmp_path, max_result_bytes=1)
+    with pytest.raises((BlueprintError, ToolError), match="max_result_bytes"):
+        _direct_tool_result(limited, "version", {})
+
+    with pytest.raises(BlueprintError, match="restricted to loopback"):
+        build_server(tmp_path, transport="streamable-http", host="0.0.0.0")
+    assert build_server(
+        tmp_path,
+        transport="streamable-http",
+        host="0.0.0.0",
+        allow_insecure_http=True,
     )
 
 
@@ -985,6 +1071,68 @@ def test_mcp_stdio_client_can_list_tools_and_call_status(tmp_path: Path) -> None
     assert "next_task" in tool_names
     assert status["health"] == "ready"
     assert status["next_task"]["node_id"] == "main"
+
+
+def test_mcp_streamable_http_transport_round_trip(tmp_path: Path) -> None:
+    pytest.importorskip("uvicorn")
+    import uvicorn
+
+    _write_project(tmp_path)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server = build_server(tmp_path, transport="streamable-http", port=port)
+    http_server = uvicorn.Server(
+        uvicorn.Config(
+            server.streamable_http_app(),
+            host="127.0.0.1",
+            port=port,
+            log_level="error",
+            lifespan="on",
+        )
+    )
+    thread = threading.Thread(target=http_server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        http_server.should_exit = True
+        thread.join(timeout=5)
+        pytest.fail("streamable HTTP server did not start")
+
+    async def run_client() -> tuple[set[str], str, list[str]]:
+        async with streamable_http_client(f"http://127.0.0.1:{port}/mcp") as (
+            read,
+            write,
+            _,
+        ):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                result = await session.call_tool("status", arguments={"top_tasks": 1})
+                completion = await session.complete(
+                    PromptReference(type="ref/prompt", name="prove_task"),
+                    {"name": "project", "value": "m"},
+                )
+                return (
+                    {tool.name for tool in tools.tools},
+                    result.structuredContent["health"],
+                    completion.completion.values,
+                )
+
+    try:
+        tool_names, health, project_values = asyncio.run(run_client())
+    finally:
+        http_server.should_exit = True
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert "status" in tool_names
+    assert health == "ready"
+    assert "mcp-test" in project_values
 
 
 def _write_project(tmp_path: Path, *, name: str = "mcp-test") -> None:

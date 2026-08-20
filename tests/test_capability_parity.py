@@ -52,7 +52,7 @@ def test_inventory_classifies_every_cli_command_and_alias() -> None:
 def test_mcp_tool_registrations_match_inventory() -> None:
     inventory = _inventory()
     source = (ROOT / "isabelle_blueprint" / "mcp_server.py").read_text(encoding="utf-8")
-    registered = set(re.findall(r'@server\.tool\(name="([^"]+)"\)', source))
+    registered = set(re.findall(r'@(?:mcp_tool|server\.tool)\(\s*name="([^"]+)"', source))
     expected = set(inventory["mcp"]["native_tools"])
     expected.update(_cli_surface(inventory["mcp"]["cli"]))
 

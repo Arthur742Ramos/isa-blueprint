@@ -825,7 +825,7 @@ IsabelleBlueprint is in the stable v1 line. The CLI surface, JSON file shapes,
 and GitHub Action outputs are frozen for minor releases; breaking changes belong
 in a future 2.0.
 
-The current v1.17.0 release includes the Markdown and LaTeX parsers, Isabelle
+The current v1.18.0 release includes the Markdown and LaTeX parsers, Isabelle
 checker, PIDE dump support, AFP compatibility checks, Graphviz and Mermaid
 output, static site, live preview, task packs, project templates, fact
 suggestions, JSON Schemas, plugin API, PR comments, GitHub Release automation,
@@ -837,6 +837,11 @@ memory-aware and exclusion-filtered direct `next` / `attempt` handoffs, one-shot
 `diff`, `history`, `assign`, `rename`, `stats`, `version`, and `completion`
 commands with shared `--fail-on` policy, `--watch` modes, `--color` output, and
 the optional MCP server entry point.
+
+The v1.18 MCP server publishes typed handoff outputs, tool/resource metadata,
+prompt completions, refresh-aware project discovery, snapshot provenance, and
+loopback-safe Streamable HTTP. See [`docs/mcp.md`](docs/mcp.md) for the HTTP
+security and result-size controls.
 
 Community docs:
 
