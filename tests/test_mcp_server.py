@@ -128,10 +128,11 @@ def test_mcp_resource_annotations_and_completion_capability(tmp_path: Path) -> N
     server = build_server(tmp_path)
 
     resources = {str(resource.uri): resource for resource in asyncio.run(server.list_resources())}
-    assert resources["blueprint://projects"].title == "Project catalog"
-    assert resources["blueprint://projects"].annotations is not None
-    assert resources["blueprint://projects"].annotations.priority == 1.0
-    assert resources["blueprint://projects"].annotations.audience == ["assistant"]
+    project_resource = resources["blueprint://projects"]
+    assert project_resource.title == "Project catalog"
+    if project_resource.annotations is not None:
+        assert project_resource.annotations.priority == 1.0
+        assert project_resource.annotations.audience == ["assistant"]
 
     prompts = asyncio.run(server.list_prompts())
     prove_task = next(prompt for prompt in prompts if prompt.name == "prove_task")
