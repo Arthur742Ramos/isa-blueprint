@@ -91,6 +91,9 @@ New check reports include additive `source_fingerprint`, `node_fingerprints`,
 and `source_context_changed` provenance fields. The checker compares the
 source/install/settings context before and after a build; changed or lost
 evidence prevents publishing current proof statuses or new cache entries.
+Missing initial provenance also leaves completed checks stale, including
+successful proofs and missing-fact diagnostics; raw build output remains in
+the report, and a verifiable rerun is required for current node statuses.
 Read views validate this provenance with a native dependency query, without
 building proofs. MCP snapshots with a stored report reload on each read so
 Isabelle-only edits cannot hide behind unchanged blueprint/report timestamps.

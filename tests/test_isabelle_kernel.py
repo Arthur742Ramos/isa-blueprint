@@ -255,3 +255,21 @@ def test_kernel_saved_report_freshness_and_obsolete_diagnostics(
     apply_stored_check_report(restored, config)
     assert restored.nodes[0].status.formal == FormalStatus.PROVED
     assert restored.nodes[0].status.check_error is None
+
+
+@pytest.mark.parametrize("fact,returncode", [("clean", 0), ("absent", 1)])
+def test_kernel_missing_initial_provenance_cannot_publish_current_status(
+    kernel_project, tmp_path, monkeypatch, fact, returncode
+):
+    monkeypatch.setattr(check_context, "project_fingerprint", lambda *a, **k: None)
+    project = _project(fact)
+    result = _check(project, kernel_project, tmp_path)
+    assert result.ran and result.return_code == returncode, result.to_dict()
+    assert result.source_context_changed and not result.proof_checked
+    assert project.nodes[0].status.formal == FormalStatus.STALE
+    assert "unverifiable" in project.nodes[0].status.check_error
+    config = _config(kernel_project, tmp_path)
+    checker.write_report(result, config.check_report_path)
+    restored = _project(fact)
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.STALE

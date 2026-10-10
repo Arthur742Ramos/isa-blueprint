@@ -457,7 +457,7 @@ def run_check(
 
     # A build can finish after files/settings changed. Neither a saved report
     # nor the incremental cache may claim current proof evidence in that case.
-    if source_fingerprint is not None and (
+    if source_fingerprint is None or (
         check_context.project_fingerprint(project, **context_options) != source_fingerprint
     ):
         result.source_context_changed = True
