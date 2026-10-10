@@ -45,6 +45,33 @@ cd vscode
 npm run compile
 ```
 
+## Isabelle verification coverage
+
+The package CI runs unit tests, a built-wheel CLI suite, and example smoke checks.
+It does not install Isabelle: the smoke `check` and `compat` commands exercise
+graceful degradation when the executable is missing. Passing package CI does
+not certify any example or downstream formalization with Isabelle's kernel.
+
+For a real verification run, install the project's configured Isabelle release
+and session dependencies, then run:
+
+```bash
+isabelle-blueprint compat PATH_TO_PROJECT
+isabelle-blueprint check PATH_TO_PROJECT
+```
+
+Inspect `build/check_report.json`: a fresh successful build has `ran: true`,
+`isabelle_available: true`, `return_code: 0`, and a populated `invoked_command`.
+With proof-status checking enabled, each trusted fact must also have
+`proof_status: "proved"` and no oracles. Use a non-incremental run for fresh
+evidence; `--incremental` may reuse earlier proof records without a new build.
+A failed build leaves facts whose existence was not determined `named`; only
+explicit missing-fact diagnostics justify `not_found`.
+
+This wrapper verifies blueprint fact references. AFP readiness additionally
+requires building the complete entry, including its document, with the target
+Isabelle/AFP release and checking AFP packaging requirements.
+
 ## Releases
 
 To publish a new release, update both version declarations in the same commit:
