@@ -135,9 +135,9 @@ def test_kernel_export_failure_cannot_reuse_previous_proof(
         text = original(*args, **kwargs)
         export = 'File.write (Path.explode "Blueprint_Proof_Status.tsv")'
         replacement = (
-            '(fn _ => fn _ => error "fixture extraction failure")'
+            '(fn _ => error "fixture extraction failure")'
             if mode == "ml_error"
-            else "(fn _ => fn _ => ())"
+            else "(fn _ => ())"
         )
         assert export in text
         return text.replace(export, replacement)
