@@ -273,9 +273,7 @@ def run_check(
         emit_proof_status=proof_status,
         default_import_session=session_name,
         proof_status_file=proof_status_path.name,
-        generation_nonce=(
-            check_timestamp if proof_status and not proof_status_path.exists() else None
-        ),
+        generation_nonce=check_timestamp if proof_status else None,
         include_node_ids=include_filter,
     )
     theory_path = build_dir / "Blueprint_Check.thy"
@@ -361,6 +359,17 @@ def run_check(
     cmd.append(wrapper_session)
     result.invoked_command = cmd
 
+    # A successful cached Isabelle build need not rerun File.write. Remove old
+    # evidence and change the wrapper nonce so each actual proof-status check
+    # exports fresh records. Fully validated Python cache hits return above.
+    if proof_status:
+        try:
+            proof_status_path.unlink(missing_ok=True)
+        except OSError as exc:
+            result.error = f"cannot clear previous proof-status evidence: {exc}"
+            _merge_cache_hits_into(result, cached_hits)
+            return result
+
     start = time.monotonic()
     try:
         proc = run_capture(
@@ -395,7 +404,7 @@ def run_check(
     result.stderr = proc.stderr
 
     proof_status_text = ""
-    if proof_status_path.exists():
+    if proof_status and proof_status_path.exists():
         proof_status_text = proof_status_path.read_text(encoding="utf-8", errors="ignore")
     proof_markers = _extract_proof_status(
         proc.stdout + "\n" + proc.stderr + "\n" + proof_status_text
@@ -487,17 +496,25 @@ def _extract_bad_facts(stderr_text: str) -> dict[str, str]:
 
 def _extract_proof_status(output_text: str) -> dict[tuple[str, str], _ProofMarker]:
     statuses: dict[tuple[str, str], _ProofMarker] = {}
+    rejected: set[tuple[str, str]] = set()
     for line in output_text.splitlines():
         if _PROOF_STATUS_PREFIX not in line:
             continue
         _, payload = line.split(_PROOF_STATUS_PREFIX, 1)
         parts = payload.split("\t")
-        if len(parts) < 4:
+        if len(parts) < 2:
             continue
-        node_id, fact, status, oracle_text = parts[:4]
+        key = (parts[0], parts[1])
+        if len(parts) != 4 or parts[2] not in {"proved", "tainted"}:
+            rejected.add(key)
+            continue
+        node_id, fact, status, oracle_text = parts
         oracles = [] if oracle_text in {"", "-"} else [o for o in oracle_text.split(",") if o]
-        statuses[(node_id, fact)] = {"status": status, "oracles": oracles}
-    return statuses
+        marker: _ProofMarker = {"status": status, "oracles": oracles}
+        if key in statuses and statuses[key] != marker:
+            rejected.add(key)
+        statuses[key] = marker
+    return {key: marker for key, marker in statuses.items() if key not in rejected}
 
 
 # Re-export for convenience.

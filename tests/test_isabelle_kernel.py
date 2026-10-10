@@ -8,9 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from isabelle_blueprint.isabelle import check_context
+from isabelle_blueprint.isabelle import check_context, checker
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.check_context import session_fingerprint
+from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind
+from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import FormalStatus
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("ISABELLE_BLUEPRINT_KERNEL_TESTS") != "1",
@@ -65,3 +68,107 @@ def test_native_fingerprint_tracks_theory_ml_root_and_settings(kernel_project, m
         assert fingerprint() == original
     monkeypatch.setenv("ISABELLE_BUILD_OPTIONS", "threads=1")
     assert fingerprint() != original
+
+
+def _project(*facts):
+    return BlueprintProject.from_nodes(
+        "kernel",
+        [
+            BlueprintNode(
+                id=fact,
+                kind=NodeKind.LEMMA,
+                title=fact,
+                isabelle=IsabelleRef(fact=f"Kernel_Fixture.{fact}"),
+            )
+            for fact in facts
+        ],
+    )
+
+
+def _check(project, kernel_project, tmp_path, **kwargs):
+    executable, root = kernel_project
+    result = checker.run_check(
+        project,
+        build_dir=tmp_path / "check",
+        session_name="Blueprint_Kernel_Fixture",
+        isabelle_executable=executable,
+        project_root=root,
+        timeout=300,
+        jobs=1,
+        **kwargs,
+    )
+    checker.apply_check_report(project, result)
+    return result
+
+
+def test_kernel_distinguishes_complete_proof_and_sorry(kernel_project, tmp_path):
+    project = _project("clean", "admitted")
+    result = _check(project, kernel_project, tmp_path)
+    assert result.ran and result.return_code == 0, result.to_dict()
+    assert result.proof_checked, result.to_dict()
+    assert project.by_id()["clean"].status.formal == FormalStatus.PROVED
+    assert project.by_id()["admitted"].status.formal == FormalStatus.TAINTED
+    assert any(
+        "skip_proof" in oracle for oracle in result.facts[0].oracles + result.facts[1].oracles
+    )
+
+
+def test_kernel_missing_fact_does_not_mark_other_facts_missing(kernel_project, tmp_path):
+    project = _project("clean", "missing_fact")
+    result = _check(project, kernel_project, tmp_path)
+    assert result.ran and result.return_code != 0, result.to_dict()
+    assert project.by_id()["missing_fact"].status.formal == FormalStatus.NOT_FOUND
+    assert project.by_id()["clean"].status.formal == FormalStatus.NAMED
+    assert not result.proof_checked
+
+
+@pytest.mark.parametrize("mode", ["ml_error", "no_export"])
+def test_kernel_export_failure_cannot_reuse_previous_proof(
+    kernel_project, tmp_path, monkeypatch, mode
+):
+    project = _project("clean")
+    initial = _check(project, kernel_project, tmp_path)
+    assert initial.proof_checked and project.nodes[0].status.formal == FormalStatus.PROVED
+    original = checker.generate_check_theory
+
+    def broken_export(*args, **kwargs):
+        text = original(*args, **kwargs)
+        export = 'File.write (Path.explode "Blueprint_Proof_Status.tsv")'
+        replacement = (
+            '(fn _ => fn _ => error "fixture extraction failure")'
+            if mode == "ml_error"
+            else "(fn _ => fn _ => ())"
+        )
+        assert export in text
+        return text.replace(export, replacement)
+
+    monkeypatch.setattr(checker, "generate_check_theory", broken_export)
+    result = _check(project, kernel_project, tmp_path)
+    assert result.ran, result.to_dict()
+    assert not result.proof_checked and result.facts[0].proof_status is None, result.to_dict()
+    assert project.nodes[0].status.formal == (
+        FormalStatus.NAMED if mode == "ml_error" else FormalStatus.FOUND
+    ), result.to_dict()
+
+
+def test_kernel_incremental_cache_rechecks_externally_rebuilt_source(kernel_project, tmp_path):
+    executable, root = kernel_project
+    project = _project("clean")
+    options = dict(incremental=True, cache_path=tmp_path / "cache.json")
+    initial = _check(project, kernel_project, tmp_path, **options)
+    assert initial.proof_checked and project.nodes[0].status.formal == FormalStatus.PROVED
+    hit = _check(project, kernel_project, tmp_path, **options)
+    assert hit.ran and hit.invoked_command == [], hit.to_dict()
+    source = root / "Kernel_Fixture.thy"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace("by simp", "sorry"), encoding="utf-8"
+    )
+    # Rebuild the user's heap independently, so build freshness alone is not
+    # sufficient evidence for the Python cache to reuse the previous record.
+    rebuilt = run_capture(
+        [executable, "build", "-b", "-d", str(root), "Blueprint_Kernel_Fixture"], timeout=300
+    )
+    assert rebuilt.returncode == 0, rebuilt.stdout + rebuilt.stderr
+    changed = _check(project, kernel_project, tmp_path, **options)
+    assert changed.invoked_command and changed.return_code == 0, changed.to_dict()
+    assert project.nodes[0].status.formal == FormalStatus.TAINTED, changed.to_dict()

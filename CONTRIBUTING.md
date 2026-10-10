@@ -52,6 +52,14 @@ It does not install Isabelle: the smoke `check` and `compat` commands exercise
 graceful degradation when the executable is missing. Passing package CI does
 not certify any example or downstream formalization with Isabelle's kernel.
 
+The separate `Isabelle kernel` job installs checksum-pinned Isabelle2025-2 on
+a hosted Linux runner. Its small fixture checks a complete proof (`proved`),
+`sorry` (`tainted`), a missing fact (`not_found`, with other facts unverified),
+and failed/missing status exports. It also edits source, ML, ROOT metadata,
+and settings to exercise cache invalidation, including a source edit followed
+by an independent session rebuild. These fixtures validate the integration;
+each downstream project still needs its own successful build.
+
 For a real verification run, install the project's configured Isabelle release
 and session dependencies, then run:
 
@@ -70,6 +78,9 @@ matching source/configuration digests for all referenced sessions and their
 imports, plus installation/settings identity. A missing executable or failed
 query disables Python cache reuse. On unsupported Isabelle Scala APIs the
 normal check still runs, using Isabelle's own build cache.
+Each uncached proof-status check refreshes the wrapper and removes the previous
+TSV before building. Missing or contradictory export records never justify
+`proved`; a successful existence check without valid proof evidence is `found`.
 A failed build leaves facts whose existence was not determined `named`; only
 explicit missing-fact diagnostics justify `not_found`.
 
