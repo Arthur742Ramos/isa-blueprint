@@ -97,7 +97,7 @@ def load_cache(path: Path) -> dict[str, dict[str, Any]]:
     try:
         raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return {}
     if not isinstance(data, dict):
         return {}
@@ -144,10 +144,17 @@ def reusable_entry(entry: dict[str, Any], *, proof_status_required: bool) -> dic
     fc_raw = entry.get("fact_check")
     if not isinstance(fc_raw, dict):
         return None
-    if not fc_raw.get("exists"):
+    if not all(isinstance(fc_raw.get(key), str) and fc_raw[key] for key in ("node_id", "fact")):
         return None
-    oracles = fc_raw.get("oracles") or []
-    if oracles:
+    if fc_raw.get("theory") is not None and not isinstance(fc_raw["theory"], str):
+        return None
+    if fc_raw.get("exists") is not True or fc_raw.get("error") is not None:
+        return None
+    oracles = fc_raw.get("oracles")
+    if oracles is not None and oracles != []:
+        return None
+    status = fc_raw.get("proof_status")
+    if status is not None and status not in ("found", "proved"):
         return None
     if proof_status_required and fc_raw.get("proof_status") != "proved":
         return None
