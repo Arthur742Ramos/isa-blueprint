@@ -1,0 +1,3 @@
+session "Blueprint_Kernel_Fixture" = "HOL" +
+  theories
+    Kernel_Fixture

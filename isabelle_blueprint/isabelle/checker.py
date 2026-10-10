@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from isabelle_blueprint.errors import CheckerError
-from isabelle_blueprint.isabelle import check_cache
+from isabelle_blueprint.isabelle import check_cache, check_context
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.theory_gen import (
     generate_check_root,
@@ -208,8 +208,20 @@ def run_check(
     proof_status_path = build_dir / "Blueprint_Proof_Status.tsv"
     check_timestamp = datetime.now(UTC).isoformat()
 
+    resolved_isabelle = shutil.which(isabelle_executable)
     # === Incremental cache: partition nodes into cache_hits vs to_check ===
     use_cache = bool(incremental and cache_path is not None)
+    session_fingerprint = None
+    if use_cache and resolved_isabelle and session_name:
+        sessions = sorted(
+            {session_name}
+            | {n.isabelle.session for n in project.nodes if n.isabelle.session and n.isabelle.fact}
+        )
+        directories = ([project_root] if project_root is not None else []) + (extra_dirs or [])
+        session_fingerprint = check_context.session_fingerprint(
+            resolved_isabelle, sessions=sessions, directories=directories, timeout=timeout
+        )
+    use_cache = use_cache and session_fingerprint is not None
     cache_entries: dict[str, dict] = {}
     node_hashes: dict[str, str] = {}
     cached_hits: dict[str, FactCheck] = {}
@@ -221,6 +233,7 @@ def run_check(
             extra_dirs=extra_dirs,
             project_root=project_root,
             proof_status=proof_status,
+            session_fingerprint=session_fingerprint,
         )
         for node in project.nodes:
             if not node.isabelle.fact:
@@ -276,7 +289,6 @@ def run_check(
         for ref in theory_refs
     ]
 
-    resolved_isabelle = shutil.which(isabelle_executable)
     isabelle_available = resolved_isabelle is not None
     result = CheckResult(
         ran=False,

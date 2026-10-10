@@ -29,7 +29,7 @@ from typing import Any
 
 from isabelle_blueprint.model.node import BlueprintNode
 
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
 
 # Marker stored at the top of the on-disk cache so future format changes can be
 # detected and the entire cache discarded automatically.
@@ -44,14 +44,14 @@ def compute_context_fingerprint(
     extra_dirs: Iterable[Path] | None,
     project_root: Path | None,
     proof_status: bool,
+    session_fingerprint: str | None = None,
 ) -> str:
     """Stable identifier for the global checker context.
 
-    Any change here invalidates *all* cache entries for the current run. We
-    deliberately use the *configured* ``isabelle_executable`` string rather
-    than the resolved absolute path so that a user moving their Isabelle
-    install (but keeping ``isabelle`` on PATH) doesn't pointlessly invalidate
-    everything. If the executable changes name, the cache invalidates.
+    Any change here invalidates *all* cache entries for the current run. The
+    checker supplies native source/configuration digests and the resolved
+    Isabelle installation identity in ``session_fingerprint``. A missing probe
+    disables reuse in the checker rather than establishing trusted cache hits.
     """
     payload = {
         "schema": CACHE_SCHEMA_VERSION,
@@ -60,6 +60,7 @@ def compute_context_fingerprint(
         "extra_dirs": sorted(str(d) for d in (extra_dirs or [])),
         "project_root": str(project_root) if project_root is not None else None,
         "proof_status": bool(proof_status),
+        "session_fingerprint": session_fingerprint,
     }
     serialised = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialised.encode("utf-8")).hexdigest()
