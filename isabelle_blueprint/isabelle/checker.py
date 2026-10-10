@@ -112,6 +112,7 @@ _FACT_ERROR_PATTERNS = [
 ]
 
 _PROOF_STATUS_PREFIX = "ISABELLE_BLUEPRINT_FACT\t"
+_UNKNOWN_EXISTENCE_ERROR = "build failed; existence unknown"
 
 
 def write_report(result: CheckResult, path: Path) -> None:
@@ -130,7 +131,7 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
     failed build that explicitly named the fact flips a node to
     :attr:`FormalStatus.NOT_FOUND`.
     """
-    by_fact = {fc.fact: fc for fc in result.facts}
+    by_reference = {(fc.node_id, fc.fact): fc for fc in result.facts}
     for node in project.nodes:
         fact = node.isabelle.fact
         if not fact:
@@ -143,8 +144,10 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
             node.status.formal = FormalStatus.NAMED
             node.status.check_error = result.error
             continue
-        record = by_fact.get(fact)
-        if record is None:
+        record = by_reference.get((node.id, fact))
+        if record is None or (
+            node.isabelle.theory is not None and record.theory != node.isabelle.theory
+        ):
             node.status.formal = FormalStatus.NAMED
             node.status.check_error = result.error
             continue
@@ -161,6 +164,9 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
             else:
                 node.status.formal = FormalStatus.FOUND
                 node.status.check_error = None
+        elif record.error == _UNKNOWN_EXISTENCE_ERROR:
+            node.status.formal = FormalStatus.NAMED
+            node.status.check_error = record.error
         else:
             node.status.formal = FormalStatus.NOT_FOUND
             node.status.check_error = record.error
@@ -394,7 +400,7 @@ def run_check(
                 # If the build failed but this particular fact wasn't named in
                 # the error, we can't tell whether it existed. Mark unknown.
                 fc.exists = False
-                fc.error = "build failed; existence unknown"
+                fc.error = _UNKNOWN_EXISTENCE_ERROR
         if not bad_facts:
             result.error = (
                 f"isabelle build returned {proc.returncode} with no recognised fact errors"

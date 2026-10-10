@@ -190,6 +190,57 @@ def test_apply_check_report_named_when_record_missing_after_run():
     assert project.by_id()["a"].status.formal == FormalStatus.NAMED
 
 
+def test_apply_check_report_keeps_duplicate_fact_nodes_separate():
+    project = _proj(_node("a", "Demo.shared"), _node("b", "Demo.shared"))
+    result = CheckResult(
+        ran=True,
+        return_code=0,
+        proof_checked=True,
+        facts=[
+            FactCheck("a", "Demo.shared", "Demo", exists=True, proof_status="proved"),
+            FactCheck("b", "Demo.shared", "Demo", exists=True, proof_status="tainted"),
+        ],
+    )
+    apply_check_report(project, result)
+    assert project.by_id()["a"].status.formal == FormalStatus.PROVED
+    assert project.by_id()["b"].status.formal == FormalStatus.TAINTED
+
+
+def test_apply_check_report_ignores_obsolete_node_and_theory_references():
+    project = _proj(_node("renamed", "Demo.a"), _node("b", "shared"))
+    project.by_id()["b"].isabelle.theory = "New_Theory"
+    result = CheckResult(
+        ran=True,
+        return_code=0,
+        proof_checked=True,
+        facts=[
+            FactCheck("old", "Demo.a", "Demo", exists=True, proof_status="proved"),
+            FactCheck("b", "shared", "Old_Theory", exists=True, proof_status="proved"),
+        ],
+    )
+    apply_check_report(project, result)
+    assert all(node.status.formal == FormalStatus.NAMED for node in project.nodes)
+
+
+def test_failed_build_only_marks_explicitly_missing_facts_not_found(tmp_path, monkeypatch):
+    from isabelle_blueprint.isabelle import checker as checker_module
+
+    monkeypatch.setattr(checker_module.shutil, "which", lambda _: "/fake/isabelle")
+    monkeypatch.setattr(
+        checker_module,
+        "run_capture",
+        lambda *args, **kwargs: RunResult(
+            args=args[0], returncode=1, stdout="", stderr='*** Undefined fact: "Demo.a"'
+        ),
+    )
+    project = _proj(_node("a", "Demo.a"), _node("b", "Demo.b"))
+    result = run_check(project, build_dir=tmp_path, session_name="Demo")
+    apply_check_report(project, result)
+    assert project.by_id()["a"].status.formal == FormalStatus.NOT_FOUND
+    assert project.by_id()["b"].status.formal == FormalStatus.NAMED
+    assert project.by_id()["b"].status.check_error == "build failed; existence unknown"
+
+
 # ---------------------------------------------------------------------------
 # CheckResult round-trip
 # ---------------------------------------------------------------------------
