@@ -304,6 +304,9 @@ def _fake_proof_status_run(*expected_node_ids: str):
 
 def _fake_isabelle(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+    monkeypatch.setattr(
+        checker_module.check_context, "session_fingerprint", lambda *a, **k: "native"
+    )
 
 
 @pytest.mark.parametrize(
@@ -362,7 +365,7 @@ def test_run_check_incremental_populates_cache_on_first_run(tmp_path: Path, monk
 
 
 def test_run_check_incremental_second_pass_short_circuits(tmp_path: Path, monkeypatch):
-    """Second run with no changes must not invoke isabelle."""
+    """Second run with matching native evidence must not invoke a build."""
     project = _proj(_node("a", "Demo.a"), _node("b", "Demo.b"))
     _fake_isabelle(monkeypatch)
     fake_run, calls = _fake_proof_status_run("a", "b")
@@ -573,7 +576,7 @@ def test_run_check_incremental_oracle_tainted_not_cached(tmp_path: Path, monkeyp
     assert "a" not in cache
 
 
-def test_run_check_incremental_skips_when_isabelle_missing_but_still_reports_cached_hits(
+def test_run_check_incremental_missing_isabelle_leaves_cached_proofs_unverified(
     tmp_path: Path, monkeypatch
 ):
     """Cache hits should still surface even when isabelle disappears later."""
@@ -593,8 +596,8 @@ def test_run_check_incremental_skips_when_isabelle_missing_but_still_reports_cac
         cache_path=cache_path,
     )
 
-    # Second run: isabelle vanished from PATH. We can short-circuit entirely
-    # because the cache covers every node.
+    # Without Isabelle we cannot verify that its source/installation context
+    # still matches the cached proof, even if every node was cached.
     monkeypatch.setattr(shutil, "which", lambda _x: None)
     result = run_check(
         project,
@@ -603,7 +606,59 @@ def test_run_check_incremental_skips_when_isabelle_missing_but_still_reports_cac
         incremental=True,
         cache_path=cache_path,
     )
-    # We DO have a cache hit, so the run "succeeded" without needing isabelle.
-    assert result.ran is True
+    assert result.ran is False
     assert {fc.node_id for fc in result.facts} == {"a"}
-    assert result.facts[0].proof_status == "proved"
+    assert result.facts[0].proof_status is None
+
+
+@pytest.mark.parametrize("changed_context", ["edited-theory", "new-isabelle", None])
+def test_run_check_rechecks_when_native_context_changes(tmp_path, monkeypatch, changed_context):
+    _fake_isabelle(monkeypatch)
+    fake_run, calls = _fake_proof_status_run("a")
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
+    project = _proj(_node("a", "Demo.a"))
+    options = dict(
+        build_dir=tmp_path / "build",
+        session_name="My_Session",
+        incremental=True,
+        cache_path=tmp_path / "cache.json",
+    )
+    run_check(project, **options)
+    monkeypatch.setattr(
+        checker_module.check_context, "session_fingerprint", lambda *a, **k: changed_context
+    )
+    run_check(project, **options)
+    assert len(calls) == 2
+
+
+def test_native_context_includes_every_referenced_session_and_directory(tmp_path, monkeypatch):
+    _fake_isabelle(monkeypatch)
+    seen = []
+
+    def fingerprint(executable, **kwargs):
+        seen.append((executable, kwargs))
+        return "native"
+
+    monkeypatch.setattr(checker_module.check_context, "session_fingerprint", fingerprint)
+    fake_run, _ = _fake_proof_status_run("a", "b")
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
+    run_check(
+        _proj(_node("a", "Demo.a"), _node("b", "Demo.b", session="Other")),
+        build_dir=tmp_path / "build",
+        session_name="My_Session",
+        project_root=tmp_path,
+        extra_dirs=[tmp_path / "afp"],
+        incremental=True,
+        cache_path=tmp_path / "cache.json",
+        timeout=12,
+    )
+    assert seen == [
+        (
+            "/fake/isabelle",
+            dict(
+                sessions=["My_Session", "Other"],
+                directories=[tmp_path, tmp_path / "afp"],
+                timeout=12,
+            ),
+        )
+    ]

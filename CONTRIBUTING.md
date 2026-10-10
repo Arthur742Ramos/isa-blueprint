@@ -65,6 +65,11 @@ Inspect `build/check_report.json`: a fresh successful build has `ran: true`,
 With proof-status checking enabled, each trusted fact must also have
 `proof_status: "proved"` and no oracles. Use a non-incremental run for fresh
 evidence; `--incremental` may reuse earlier proof records without a new build.
+Incremental reuse requires a successful native Isabelle dependency query and
+matching source/configuration digests for all referenced sessions and their
+imports, plus installation/settings identity. A missing executable or failed
+query disables Python cache reuse. On unsupported Isabelle Scala APIs the
+normal check still runs, using Isabelle's own build cache.
 A failed build leaves facts whose existence was not determined `named`; only
 explicit missing-fact diagnostics justify `not_found`.
 
