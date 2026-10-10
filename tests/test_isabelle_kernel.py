@@ -60,7 +60,9 @@ def test_native_fingerprint_tracks_theory_ml_root_and_settings(kernel_project, m
         path = root / name
         text = path.read_text(encoding="utf-8")
         changed = (
-            text.replace("  theories", change + "  theories") if name == "ROOT" else text + change
+            text.replace("quick_and_dirty = true", "quick_and_dirty = true, threads = 1")
+            if name == "ROOT"
+            else text + change
         )
         path.write_text(changed, encoding="utf-8")
         assert fingerprint() != original, name
