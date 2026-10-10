@@ -169,6 +169,12 @@ def test_load_cache_corrupt_file_returns_empty(tmp_path: Path):
     assert check_cache.load_cache(path) == {}
 
 
+def test_load_cache_invalid_utf8_returns_empty(tmp_path: Path):
+    path = tmp_path / "cache.json"
+    path.write_bytes(b"\xff\xfe")
+    assert check_cache.load_cache(path) == {}
+
+
 def test_load_cache_filters_malformed_entries(tmp_path: Path):
     path = tmp_path / "cache.json"
     path.write_text(
@@ -257,6 +263,27 @@ def test_reusable_entry_missing_fact_check_returns_none():
     assert check_cache.reusable_entry({"hash": "h"}, proof_status_required=True) is None
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"node_id": None},
+        {"fact": ""},
+        {"theory": []},
+        {"exists": "false"},
+        {"exists": 1},
+        {"error": "build failed"},
+        {"proof_status": "tainted"},
+        {"proof_status": []},
+        {"oracles": ""},
+        {"oracles": {}},
+    ],
+)
+def test_reusable_entry_rejects_malformed_or_contradictory_records(fields):
+    entry = _entry(**fields)
+    assert check_cache.reusable_entry(entry, proof_status_required=False) is None
+    assert check_cache.reusable_entry(entry, proof_status_required=True) is None
+
+
 # ---------------------------------------------------------------------------
 # End-to-end integration with run_check (fake isabelle binary)
 # ---------------------------------------------------------------------------
@@ -277,6 +304,34 @@ def _fake_proof_status_run(*expected_node_ids: str):
 
 def _fake_isabelle(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _x: "/fake/isabelle")
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"node_id": "other"}, {"fact": "Demo.other"}, {"theory": "Other"}, {"fact": None}],
+)
+def test_run_check_rebuilds_when_cache_record_does_not_match_node(tmp_path, monkeypatch, fields):
+    project = _proj(_node("a", "Demo.a"))
+    _fake_isabelle(monkeypatch)
+    fake_run, calls = _fake_proof_status_run("a")
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
+    cache_path = tmp_path / "cache.json"
+    options = dict(
+        build_dir=tmp_path / "build",
+        session_name="My_Session",
+        incremental=True,
+        cache_path=cache_path,
+    )
+    run_check(project, **options)
+    entries = check_cache.load_cache(cache_path)
+    entries["a"]["fact_check"].update(fields)
+    check_cache.save_cache(cache_path, entries)
+
+    result = run_check(project, **options)
+    assert len(calls) == 2
+    assert result.facts[0].node_id == "a"
+    assert result.facts[0].fact == "Demo.a"
+    assert result.facts[0].proof_status == "proved"
 
 
 def test_run_check_incremental_populates_cache_on_first_run(tmp_path: Path, monkeypatch):

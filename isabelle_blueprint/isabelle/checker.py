@@ -233,6 +233,12 @@ def run_check(
             fc_dict = check_cache.reusable_entry(entry, proof_status_required=proof_status)
             if fc_dict is None:
                 continue
+            if (
+                fc_dict["node_id"] != node.id
+                or fc_dict["fact"] != node.isabelle.fact
+                or fc_dict.get("theory") != node.isabelle.theory
+            ):
+                continue
             cached_hits[node.id] = FactCheck(
                 node_id=fc_dict["node_id"],
                 fact=fc_dict["fact"],
