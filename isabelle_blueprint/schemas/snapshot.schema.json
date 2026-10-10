@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Arthur742Ramos.github.io/isa-blueprint/schemas/snapshot.schema.json",
+  "title": "IsabelleBlueprint canonical evidence snapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "observed_at",
+    "project_root",
+    "project",
+    "metrics",
+    "ready_task_ids",
+    "evidence",
+    "node_evidence",
+    "inputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project_root": {
+      "type": "string"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name",
+        "source_files",
+        "nodes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "node_count",
+        "formal_target_count",
+        "proved_count",
+        "found_count",
+        "problem_count",
+        "stale_count",
+        "has_cycles",
+        "coverage_percent"
+      ],
+      "properties": {
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "formal_target_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "proved_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "found_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problem_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stale_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "has_cycles": {
+          "type": "boolean"
+        },
+        "coverage_percent": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "ready_task_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "origin",
+        "state",
+        "reason",
+        "report_path",
+        "attempted_at",
+        "checked_at"
+      ],
+      "properties": {
+        "origin": {
+          "enum": [
+            "authored",
+            "check",
+            "dump"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "malformed",
+            "legacy",
+            "source_changed",
+            "probe_unavailable",
+            "node_changed",
+            "current",
+            "incomplete",
+            "offline",
+            "no_target"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempted_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checked_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "node_evidence": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "authored_formal_claim",
+          "origin",
+          "state",
+          "reason",
+          "checked_at"
+        ],
+        "properties": {
+          "authored_formal_claim": {
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "authored",
+              "check",
+              "dump"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "absent",
+              "malformed",
+              "legacy",
+              "source_changed",
+              "probe_unavailable",
+              "node_changed",
+              "current",
+              "incomplete",
+              "offline",
+              "no_target"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "config_path",
+        "blueprint_paths",
+        "check_report_path",
+        "dump_report_path",
+        "isabelle_dirs"
+      ],
+      "properties": {
+        "config_path": {
+          "type": "string"
+        },
+        "check_report_path": {
+          "type": "string"
+        },
+        "dump_report_path": {
+          "type": "string"
+        },
+        "blueprint_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isabelle_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "statement",
+        "informal_proof",
+        "uses",
+        "isabelle",
+        "status",
+        "tags",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "statement": {
+          "type": "string"
+        },
+        "informal_proof": {
+          "type": "string"
+        },
+        "goal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isabelle": {
+          "$ref": "#/$defs/isabelle_ref"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effort": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "line": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "isabelle_ref": {
+      "type": "object",
+      "required": [
+        "fact",
+        "theory",
+        "session"
+      ],
+      "properties": {
+        "fact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "theory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "blueprint",
+        "formal",
+        "agent",
+        "last_checked",
+        "check_error"
+      ],
+      "properties": {
+        "blueprint": {
+          "type": "string"
+        },
+        "formal": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "last_checked": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

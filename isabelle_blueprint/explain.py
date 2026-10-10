@@ -214,9 +214,15 @@ def _explain_node(
         severity = "error"
     elif status == FormalStatus.STALE:
         reasons.append(
-            "The blueprint inputs or dependencies changed after the last successful check."
+            node.status.check_error
+            or ("The blueprint inputs or dependencies changed after the last successful check.")
         )
-        next_steps.append("Rerun `isabelle-blueprint check --incremental` to refresh stale facts.")
+        if node.status.check_error and any(
+            part in node.status.check_error
+            for part in ("probe unavailable", "not found on PATH", "No Isabelle session configured")
+        ):
+            next_steps.append("Check the Isabelle executable, session and configured directories.")
+        next_steps.append("Rerun `isabelle-blueprint check --proof-status` to refresh stale facts.")
         summary = "Cached proof status is stale."
         severity = "warning"
     elif status in {FormalStatus.BROKEN, FormalStatus.FAILED_CHECK}:
@@ -233,6 +239,12 @@ def _explain_node(
         summary = "Status is not recognized by this version."
         severity = "warning"
 
+    if node.status.check_error and node.status.check_error not in reasons:
+        reasons.append(node.status.check_error)
+    if status == FormalStatus.NAMED and node.status.check_error:
+        next_steps.append(
+            "Inspect the latest check report and fix the reported build/configuration error."
+        )
     _add_dependency_provenance(project, node, status, reasons, next_steps)
 
     return NodeExplanation(

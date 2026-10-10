@@ -53,7 +53,7 @@ def load_project(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:
     return config, project
 
 
-def latest_evidence(config: BlueprintConfig) -> tuple[str, Path, object] | None:
+def latest_evidence(config: BlueprintConfig) -> tuple[str, Path, object, str | None] | None:
     """Select the latest completed report write; check wins equal write times.
 
     A malformed latest artifact still supersedes older evidence. Reads never
@@ -68,38 +68,72 @@ def latest_evidence(config: BlueprintConfig) -> tuple[str, Path, object] | None:
     if not candidates:
         return None
     _, _, origin, path = max(candidates)
+    error = None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         data = None
-    return origin, path, data
+        error = str(exc)
+    return origin, path, data, error
 
 
 def apply_stored_check_report(project: BlueprintProject, config: BlueprintConfig) -> None:
     """Restore the latest check or dump through the same canonical read path."""
+    restore_evidence(project, config)
+
+
+def restore_evidence(project: BlueprintProject, config: BlueprintConfig) -> dict:
+    """Restore evidence once and return the reason used by canonical read views."""
     selected = latest_evidence(config)
+    metadata = {
+        "origin": "authored",
+        "state": "absent",
+        "reason": "No saved native evidence; statuses are blueprint claims.",
+        "report_path": None,
+        "attempted_at": None,
+        "checked_at": None,
+    }
     if selected is None:
-        return
-    origin, _, data = selected
+        return metadata
+    origin, path, data, read_error = selected
+    metadata.update(origin=origin, report_path=str(path))
+    if isinstance(data, dict) and isinstance(data.get("timestamp"), str):
+        metadata["attempted_at"] = data["timestamp"]
     if origin == "dump":
         dumped = parse_dump_report(data)
         if dumped is None:
             _invalidate_report(project)
-            return
+            metadata.update(
+                state="malformed", reason=read_error or "Invalid dump evidence fields; rerun check."
+            )
+            return metadata
         verified = parse_check_report(dumped.verification)
         if dumped.ran and dumped.return_code == 0 and not dumped.error and verified is not None:
-            _restore_check(project, config, verified, dumped.verification or {})
+            metadata.update(_restore_check(project, config, verified, dumped.verification or {}))
             if not verified.ran:
                 for node in project.nodes:
                     node.status.last_checked = dumped.previous_checked.get(node.id)
         else:
             apply_dump_report(project, dumped)
-        return
+            metadata.update(
+                state="incomplete" if dumped.ran or dumped.error else "offline",
+                reason=dumped.error
+                or dumped.evidence_reason
+                or "Raw dump has no native proof evidence; run check.",
+            )
+            metadata["checked_at"] = max(
+                (time for time in dumped.previous_checked.values() if time), default=None
+            )
+        return metadata
     result = parse_check_report(data)
     if result is None:
         _invalidate_report(project)
-        return
-    _restore_check(project, config, result, data if isinstance(data, dict) else {})
+        metadata.update(
+            state="malformed", reason=read_error or "Invalid check evidence fields; rerun check."
+        )
+        return metadata
+    metadata.update(_restore_check(project, config, result, data if isinstance(data, dict) else {}))
+    return metadata
 
 
 def _invalidate_report(project: BlueprintProject) -> None:
@@ -115,14 +149,17 @@ def _invalidate_report(project: BlueprintProject) -> None:
 
 def _restore_check(
     project: BlueprintProject, config: BlueprintConfig, result: CheckResult, data: dict
-) -> None:
+) -> dict:
     reason = None
+    state = "current"
     if result.source_context_changed:
         reason = result.error or "source context changed during check; rerun check"
+        state = "source_changed"
     elif not result.source_fingerprint:
-        reason = "stored report has no source provenance; rerun check"
-    elif (
-        check_context.project_fingerprint(
+        reason = result.error or "stored report has no source provenance; rerun check"
+        state = "incomplete" if not result.ran and result.error else "legacy"
+    else:
+        current = check_context.project_fingerprint(
             project,
             session_name=config.isabelle_session,
             isabelle_executable=config.isabelle_executable,
@@ -130,13 +167,24 @@ def _restore_check(
             project_root=config.project_root,
             timeout=config.isabelle_timeout,
         )
-        != result.source_fingerprint
-    ):
-        reason = "stored report source context changed or is unverifiable; rerun check"
+        if current is None:
+            state = "probe_unavailable"
+            reason = (
+                "stored report source context changed or is unverifiable; native provenance probe "
+                "unavailable; check Isabelle/session configuration and rerun check"
+            )
+        elif current != result.source_fingerprint:
+            state = "source_changed"
+            reason = (
+                "stored report source context changed or is unverifiable; "
+                "sources changed; rerun check"
+            )
     stored_timestamp = data.get("timestamp")
     if not isinstance(stored_timestamp, str):
         stored_timestamp = None
         reason = reason or "stored report timestamp is unavailable; rerun check"
+        if state == "current":
+            state = "legacy"
     by_reference = {(fc.node_id, fc.fact, fc.theory): fc for fc in result.facts}
     stale_nodes = []
     for node in project.nodes:
@@ -157,6 +205,17 @@ def _restore_check(
         node.status.last_checked = stored_timestamp if matched else None
         node.status.check_error = message
     project.recompute_agent_status()
+    if state == "current" and stale_nodes:
+        state = "node_changed"
+        reason = "stored report node inputs changed; rerun check"
+    if state == "current" and (not result.ran or result.error):
+        state = "incomplete"
+        reason = result.error or "Latest check did not run; rerun check"
+    return {
+        "state": state,
+        "reason": reason,
+        "checked_at": stored_timestamp if result.ran else None,
+    }
 
 
 def load_project_with_check(project_dir: Path) -> tuple[BlueprintConfig, BlueprintProject]:

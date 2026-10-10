@@ -97,6 +97,20 @@ class MCPStatusPayload(TypedDict):
     snapshot: NotRequired[dict[str, Any]]
 
 
+class MCPEvidenceSnapshot(TypedDict):
+    """Read-only canonical proof evidence and planning state."""
+
+    schema_version: int
+    observed_at: str
+    project_root: str
+    project: dict[str, Any]
+    metrics: MCPStatusMetrics
+    ready_task_ids: list[str]
+    evidence: dict[str, Any]
+    node_evidence: dict[str, dict[str, Any]]
+    inputs: dict[str, Any]
+
+
 class MCPTaskDependency(TypedDict):
     """A dependency attached to a ready task."""
 

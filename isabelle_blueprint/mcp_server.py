@@ -59,6 +59,7 @@ from isabelle_blueprint.agents.tasks import generate_tasks, render_task_prompt
 from isabelle_blueprint.config import DEFAULT_BLUEPRINT_NAME, DEFAULT_CONFIG_NAME
 from isabelle_blueprint.doctor import run_doctor
 from isabelle_blueprint.errors import BlueprintError
+from isabelle_blueprint.evidence import read_evidence_snapshot
 from isabelle_blueprint.explain import explain_project
 from isabelle_blueprint.graph.dependency_graph import (
     UnknownNodeError as GraphUnknownNodeError,
@@ -79,6 +80,7 @@ from isabelle_blueprint.isabelle.source_index import build_index, session_theory
 from isabelle_blueprint.isabelle.suggestions import suggest_missing_facts
 from isabelle_blueprint.mcp_contract import (
     MCPAgentContextPayload,
+    MCPEvidenceSnapshot,
     MCPGraphPayload,
     MCPListTasksPayload,
     MCPNextTaskPayload,
@@ -286,6 +288,11 @@ def build_server(
         if refresh:
             catalog.refresh()
         return cast(MCPProjectCatalog, catalog.to_dict())
+
+    @mcp_tool(name="evidence_snapshot", title="Read canonical proof evidence")
+    def evidence_snapshot(project: str | None = None) -> MCPEvidenceSnapshot:
+        """Read current evidence and planning state without builds or artifact writes."""
+        return cast(MCPEvidenceSnapshot, read_evidence_snapshot(catalog.resolve(project).root))
 
     @mcp_tool(name="status", title="Inspect project health")
     def status(
@@ -1032,6 +1039,10 @@ def build_server(
 
         catalog.refresh()
         return _json_resource(catalog.to_dict())
+
+    @mcp_resource("blueprint://evidence", title="Canonical proof evidence", priority=1.0)
+    def evidence_resource() -> str:
+        return _json_resource(read_evidence_snapshot(catalog.resolve(None).root))
 
     @mcp_resource("blueprint://project", title="Project graph", priority=1.0)
     def project_resource() -> str:

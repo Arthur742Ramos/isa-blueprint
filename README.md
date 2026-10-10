@@ -125,6 +125,7 @@ When Isabelle is available, add the real proof checks:
 isabelle-blueprint compat      # version/session/AFP pin diagnostics
 isabelle-blueprint check       # build wrapper session and stamp proof status
 isabelle-blueprint dump        # fresh PIDE observations plus native proof verification
+isabelle-blueprint snapshot --json  # current evidence, reasons, metrics and ready tasks
 ```
 
 ## See it on real examples
