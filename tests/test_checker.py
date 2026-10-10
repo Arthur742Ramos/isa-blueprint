@@ -27,6 +27,14 @@ from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 
 
+@pytest.fixture(autouse=True)
+def fake_native_metadata(monkeypatch):
+    """Fake builds in this module have a stable, verifiable source context."""
+    from isabelle_blueprint.isabelle import check_context
+
+    monkeypatch.setattr(check_context, "session_fingerprint", lambda *a, **k: "native")
+
+
 def _node(node_id: str, fact: str | None, *, uses=None, session: str | None = None):
     return BlueprintNode(
         id=node_id,

@@ -695,3 +695,39 @@ def test_changed_or_lost_context_during_build_does_not_publish_current_proof(
     assert not result.proof_checked and result.facts[0].proof_status is None
     assert project.nodes[0].status.formal == FormalStatus.STALE
     assert not check_cache.load_cache(cache_path)
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_missing_initial_context_cannot_publish_proof_or_missing_fact(
+    tmp_path, monkeypatch, returncode
+):
+    _fake_isabelle(monkeypatch)
+    monkeypatch.setattr(checker_module.check_context, "session_fingerprint", lambda *a, **k: None)
+    fake_run, calls = _fake_proof_status_run("a")
+
+    def build(cmd, **kwargs):
+        completed = fake_run(cmd, **kwargs)
+        return RunResult(
+            cmd,
+            returncode,
+            completed.stdout,
+            '*** Undefined fact: "Demo.a"' if returncode else "",
+        )
+
+    monkeypatch.setattr(checker_module, "run_capture", build)
+    project = _proj(_node("a", "Demo.a"))
+    cache_path = tmp_path / "cache.json"
+    result = run_check(
+        project,
+        build_dir=tmp_path / "build",
+        session_name="My_Session",
+        incremental=True,
+        cache_path=cache_path,
+    )
+    apply_check_report(project, result)
+    assert len(calls) == 1 and result.ran and result.return_code == returncode
+    assert result.source_context_changed and result.source_fingerprint is None
+    assert not result.proof_checked and result.facts[0].proof_status is None
+    assert project.nodes[0].status.formal == FormalStatus.STALE
+    assert "unverifiable" in project.nodes[0].status.check_error
+    assert not check_cache.load_cache(cache_path)
