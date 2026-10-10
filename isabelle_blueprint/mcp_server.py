@@ -1812,7 +1812,14 @@ class _SnapshotCache:
             config = load_config_checked(project_dir)
             signature = _project_input_signature(config)
             cached = self._entries.get(config.project_root)
-            if cached is not None and cached[0] == signature:
+            # Isabelle-only edits do not change these file timestamps. Reports
+            # need a fresh native context query on every read, so rebuild their
+            # analysis instead of returning an in-memory proof/diagnostic claim.
+            if (
+                cached is not None
+                and cached[0] == signature
+                and not config.check_report_path.exists()
+            ):
                 return cached[1]
             snapshot = _ProjectSnapshot(config.project_root)
             self._entries[config.project_root] = (signature, snapshot)

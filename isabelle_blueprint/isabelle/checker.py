@@ -73,6 +73,9 @@ class CheckResult:
     proof_checked: bool = False
     proof_status_path: str | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    source_fingerprint: str | None = None
+    node_fingerprints: dict[str, str] = field(default_factory=dict)
+    source_context_changed: bool = False
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -134,10 +137,16 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
     by_reference = {(fc.node_id, fc.fact): fc for fc in result.facts}
     for node in project.nodes:
         fact = node.isabelle.fact
+        node.status.check_error = None
         if not fact:
             node.status.formal = FormalStatus.MISSING
+            node.status.last_checked = None
             continue
         node.status.last_checked = result.timestamp
+        if result.source_context_changed:
+            node.status.formal = FormalStatus.STALE
+            node.status.check_error = result.error
+            continue
         if not result.ran:
             # We never actually invoked the build; treat all named facts as
             # claimed-but-unverified regardless of any default record content.
@@ -149,7 +158,7 @@ def apply_check_report(project: BlueprintProject, result: CheckResult) -> None:
             node.isabelle.theory is not None and record.theory != node.isabelle.theory
         ):
             node.status.formal = FormalStatus.NAMED
-            node.status.check_error = result.error
+            node.status.last_checked = None
             continue
         if record.exists:
             if record.tainted:
@@ -211,17 +220,15 @@ def run_check(
     resolved_isabelle = shutil.which(isabelle_executable)
     # === Incremental cache: partition nodes into cache_hits vs to_check ===
     use_cache = bool(incremental and cache_path is not None)
-    session_fingerprint = None
-    if use_cache and resolved_isabelle and session_name:
-        sessions = sorted(
-            {session_name}
-            | {n.isabelle.session for n in project.nodes if n.isabelle.session and n.isabelle.fact}
-        )
-        directories = ([project_root] if project_root is not None else []) + (extra_dirs or [])
-        session_fingerprint = check_context.session_fingerprint(
-            resolved_isabelle, sessions=sessions, directories=directories, timeout=timeout
-        )
-    use_cache = use_cache and session_fingerprint is not None
+    context_options: check_context.ContextOptions = dict(
+        session_name=session_name,
+        isabelle_executable=isabelle_executable,
+        extra_dirs=extra_dirs,
+        project_root=project_root,
+        timeout=timeout,
+    )
+    source_fingerprint = check_context.project_fingerprint(project, **context_options)
+    use_cache = use_cache and source_fingerprint is not None
     cache_entries: dict[str, dict] = {}
     node_hashes: dict[str, str] = {}
     cached_hits: dict[str, FactCheck] = {}
@@ -233,7 +240,7 @@ def run_check(
             extra_dirs=extra_dirs,
             project_root=project_root,
             proof_status=proof_status,
-            session_fingerprint=session_fingerprint,
+            session_fingerprint=source_fingerprint,
         )
         for node in project.nodes:
             if not node.isabelle.fact:
@@ -294,6 +301,12 @@ def run_check(
         generated_theory_path=str(theory_path),
         proof_status_path=str(proof_status_path),
         facts=references,
+        source_fingerprint=source_fingerprint,
+        node_fingerprints={
+            node.id: check_cache.compute_node_hash(node, context=source_fingerprint)
+            for node in project.nodes
+            if node.isabelle.fact and source_fingerprint is not None
+        },
     )
 
     # Fast path: every reference is a cache hit, so don't invoke isabelle.
@@ -441,6 +454,23 @@ def run_check(
         _merge_cache_hits_into(result, cached_hits)
         if proof_status:
             result.proof_checked = True
+
+    # A build can finish after files/settings changed. Neither a saved report
+    # nor the incremental cache may claim current proof evidence in that case.
+    if source_fingerprint is not None and (
+        check_context.project_fingerprint(project, **context_options) != source_fingerprint
+    ):
+        result.source_context_changed = True
+        result.source_fingerprint = None
+        result.node_fingerprints = {}
+        result.proof_checked = False
+        result.error = "source context changed or became unverifiable during check; rerun check"
+        for fc in result.facts:
+            fc.exists = False
+            fc.proof_status = None
+            fc.oracles = []
+            fc.error = result.error
+        use_cache = False
 
     # Persist the updated cache: keep the cache hits as-is and refresh entries
     # for newly-verified facts. Skip anything that wasn't conclusively proved.

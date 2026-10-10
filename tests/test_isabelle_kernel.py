@@ -8,12 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from isabelle_blueprint.config import BlueprintConfig
 from isabelle_blueprint.isabelle import check_context, checker
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.check_context import session_fingerprint
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
+from isabelle_blueprint.project_io import apply_stored_check_report
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("ISABELLE_BLUEPRINT_KERNEL_TESTS") != "1",
@@ -116,6 +118,19 @@ def _check(project, kernel_project, tmp_path, **kwargs):
     return result
 
 
+def _config(kernel_project, tmp_path):
+    executable, root = kernel_project
+    return BlueprintConfig(
+        project_root=root,
+        blueprint_path=root / "blueprint.md",
+        build_dir=tmp_path / "check",
+        site_dir=tmp_path / "site",
+        isabelle_session="Blueprint_Kernel_Fixture",
+        isabelle_executable=executable,
+        isabelle_timeout=300,
+    )
+
+
 def test_kernel_distinguishes_complete_proof_and_sorry(kernel_project, tmp_path):
     project = _project("clean", "admitted")
     result = _check(project, kernel_project, tmp_path)
@@ -162,6 +177,12 @@ def test_kernel_export_failure_cannot_reuse_previous_proof(
     assert project.nodes[0].status.formal == (
         FormalStatus.NAMED if mode == "ml_error" else FormalStatus.FOUND
     ), result.to_dict()
+    config = _config(kernel_project, tmp_path)
+    checker.write_report(result, config.check_report_path)
+    restored = _project("clean")
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == project.nodes[0].status.formal
+    assert restored.nodes[0].status.formal != FormalStatus.PROVED
 
 
 def test_kernel_incremental_cache_rechecks_externally_rebuilt_source(kernel_project, tmp_path):
@@ -185,3 +206,52 @@ def test_kernel_incremental_cache_rechecks_externally_rebuilt_source(kernel_proj
     changed = _check(project, kernel_project, tmp_path, **options)
     assert changed.invoked_command and changed.return_code == 0, changed.to_dict()
     assert project.nodes[0].status.formal == FormalStatus.TAINTED, changed.to_dict()
+
+
+def test_kernel_saved_report_freshness_and_obsolete_diagnostics(
+    kernel_project, tmp_path, monkeypatch
+):
+    from isabelle_blueprint import mcp_server
+
+    _, root = kernel_project
+    config = _config(kernel_project, tmp_path)
+    project = _project("clean")
+    initial = _check(project, kernel_project, tmp_path)
+    assert initial.source_fingerprint is not None, initial.to_dict()
+    checker.write_report(initial, config.check_report_path)
+    restored = _project("clean")
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.PROVED
+
+    def load_snapshot(_directory):
+        loaded = _project("clean")
+        apply_stored_check_report(loaded, config)
+        return config, loaded
+
+    monkeypatch.setattr(mcp_server, "load_config_checked", lambda _directory: config)
+    monkeypatch.setattr(mcp_server, "load_project_with_check", load_snapshot)
+    cache = mcp_server._SnapshotCache()
+    first = cache.get(root)
+    assert first.project.nodes[0].status.formal == FormalStatus.PROVED
+    source = root / "Kernel_Fixture.thy"
+    original = source.read_text(encoding="utf-8")
+    source.write_text(original.replace("lemma clean:", "lemma renamed:"), encoding="utf-8")
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.STALE
+    reloaded = cache.get(root)
+    assert reloaded is not first
+    assert reloaded.project.nodes[0].status.formal == FormalStatus.STALE
+    failed = _check(_project("clean"), kernel_project, tmp_path)
+    assert failed.return_code != 0, failed.to_dict()
+    checker.write_report(failed, config.check_report_path)
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.NOT_FOUND
+    source.write_text(original, encoding="utf-8")
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.STALE
+    assert "Undefined fact" not in restored.nodes[0].status.check_error
+    successful = _check(restored, kernel_project, tmp_path)
+    checker.write_report(successful, config.check_report_path)
+    apply_stored_check_report(restored, config)
+    assert restored.nodes[0].status.formal == FormalStatus.PROVED
+    assert restored.nodes[0].status.check_error is None

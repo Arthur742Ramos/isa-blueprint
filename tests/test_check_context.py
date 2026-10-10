@@ -8,6 +8,7 @@ import pytest
 
 from isabelle_blueprint.isabelle import check_context
 from isabelle_blueprint.isabelle._run import RunResult
+from isabelle_blueprint.model.project import BlueprintProject
 
 
 @pytest.fixture
@@ -81,3 +82,24 @@ def test_missing_executable_disables_reuse(probe):
     executable.unlink()
     assert run() is None
     assert calls == []
+
+
+def test_report_provenance_includes_configured_session_and_directories(tmp_path, monkeypatch):
+    monkeypatch.setattr(check_context.shutil, "which", lambda _: "/fake/isabelle")
+    monkeypatch.setattr(check_context, "session_fingerprint", lambda *a, **k: "native")
+    project = BlueprintProject.from_nodes("p", [])
+    options = dict(
+        session_name="Demo",
+        isabelle_executable="isabelle",
+        extra_dirs=[],
+        project_root=tmp_path,
+    )
+    original = check_context.project_fingerprint(project, **options)
+    assert original is not None
+    for changes in [
+        {"session_name": "Other"},
+        {"extra_dirs": [tmp_path / "afp"]},
+        {"project_root": tmp_path / "other"},
+        {"isabelle_executable": "other-isabelle"},
+    ]:
+        assert check_context.project_fingerprint(project, **(options | changes)) != original
