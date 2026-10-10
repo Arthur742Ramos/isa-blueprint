@@ -34,7 +34,7 @@ def session_fingerprint(
     """
     names = ", ".join(json.dumps(name) for name in sorted(set(sessions)))
     dirs = ", ".join(f"Path.explode({json.dumps(str(p.resolve()))})" for p in directories)
-    script = f"""
+    script = f"""{{
 import isabelle._
 val options = Options.init()
 val structure = Sessions.load_structure(options, dirs = List({dirs}))
@@ -46,6 +46,7 @@ val settings = List("ISABELLE_HOME", "ISABELLE_IDENTIFIER", "ML_HOME", "ML_PLATF
   "ML_OPTIONS", "ISABELLE_BUILD_OPTIONS").map(name =>
     name + "=" + Isabelle_System.getenv(name))
 println("{_PREFIX}" + SHA1.digest((sources ::: settings).mkString("\\n")))
+}}
 """
     try:
         executable_path = Path(executable).resolve()

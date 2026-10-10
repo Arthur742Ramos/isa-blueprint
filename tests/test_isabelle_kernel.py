@@ -52,7 +52,7 @@ def test_native_fingerprint_tracks_theory_ml_root_and_settings(kernel_project, m
     for name, change in [
         ("Kernel_Fixture.thy", "\n(* changed source *)\n"),
         ("fixture_aux.ML", "\nval blueprint_extra_value = 2;\n"),
-        ("ROOT", '\n  description "changed session metadata"\n'),
+        ("ROOT", "\n  options [threads = 1]\n"),
     ]:
         path = root / name
         text = path.read_text(encoding="utf-8")
