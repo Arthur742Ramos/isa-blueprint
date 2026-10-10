@@ -32,7 +32,17 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
-from typing import Any, BinaryIO
+from typing import Any, Protocol
+
+
+class _CapturedStream(Protocol):
+    """Operations shared by binary files and Windows temporary-file wrappers."""
+
+    def seek(self, offset: int, whence: int = 0, /) -> int: ...
+
+    def tell(self) -> int: ...
+
+    def read(self, /) -> bytes: ...
 
 
 class OutputLimitExceeded(subprocess.SubprocessError):
@@ -160,7 +170,7 @@ def run_capture(
             # between polls, so reading the whole temp file back would allocate
             # an unbounded string and defeat the cap. The tail holds the most
             # recent (and usually most diagnostic) output.
-            def _read(stream: BinaryIO) -> str:
+            def _read(stream: _CapturedStream) -> str:
                 stream.seek(0, os.SEEK_END)
                 size = stream.tell()
                 if cap is not None and size > cap:
