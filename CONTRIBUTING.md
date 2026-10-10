@@ -92,7 +92,9 @@ and `source_context_changed` provenance fields. The checker compares the
 source/install/settings context before and after a build; changed or lost
 evidence prevents publishing current proof statuses or new cache entries.
 Read views validate this provenance with a native dependency query, without
-building proofs. A source/configuration change, unavailable runtime, or legacy
+building proofs. MCP snapshots with a stored report reload on each read so
+Isabelle-only edits cannot hide behind unchanged blueprint/report timestamps.
+A source/configuration change, unavailable runtime, or legacy
 report without provenance leaves matching historical records `stale` with a
 rerun diagnostic. Changed references remain `named` without inheriting the
 previous fact's check timestamp or error. A fresh failed/incomplete check

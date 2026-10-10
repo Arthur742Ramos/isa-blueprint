@@ -100,6 +100,22 @@ def test_legacy_report_is_historical_evidence_not_current_proof(tmp_path, monkey
     assert "no source provenance" in project.nodes[0].status.check_error
 
 
+@pytest.mark.parametrize("current", ["b" * 64, None])
+def test_mcp_snapshot_cannot_hide_source_context_changes(tmp_path, monkeypatch, current):
+    from isabelle_blueprint.mcp_server import _SnapshotCache
+
+    _stored_report(tmp_path, monkeypatch)
+    cache = _SnapshotCache()
+    first = cache.get(tmp_path)
+    assert first.project.nodes[0].status.formal == FormalStatus.PROVED
+    # No blueprint/report timestamps changed: only the native context did.
+    monkeypatch.setattr(check_context, "project_fingerprint", lambda *a, **k: current)
+    second = cache.get(tmp_path)
+    assert second is not first
+    assert second.project.nodes[0].status.formal == FormalStatus.STALE
+    assert "rerun check" in second.project.nodes[0].status.check_error
+
+
 def test_changed_blueprint_dependencies_make_matching_fact_stale(tmp_path, monkeypatch):
     _stored_report(tmp_path, monkeypatch)
     path = tmp_path / "blueprint.md"

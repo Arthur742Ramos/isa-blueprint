@@ -208,7 +208,11 @@ def test_kernel_incremental_cache_rechecks_externally_rebuilt_source(kernel_proj
     assert project.nodes[0].status.formal == FormalStatus.TAINTED, changed.to_dict()
 
 
-def test_kernel_saved_report_freshness_and_obsolete_diagnostics(kernel_project, tmp_path):
+def test_kernel_saved_report_freshness_and_obsolete_diagnostics(
+    kernel_project, tmp_path, monkeypatch
+):
+    from isabelle_blueprint import mcp_server
+
     _, root = kernel_project
     config = _config(kernel_project, tmp_path)
     project = _project("clean")
@@ -218,11 +222,25 @@ def test_kernel_saved_report_freshness_and_obsolete_diagnostics(kernel_project, 
     restored = _project("clean")
     apply_stored_check_report(restored, config)
     assert restored.nodes[0].status.formal == FormalStatus.PROVED
+
+    def load_snapshot(_directory):
+        loaded = _project("clean")
+        apply_stored_check_report(loaded, config)
+        return config, loaded
+
+    monkeypatch.setattr(mcp_server, "load_config_checked", lambda _directory: config)
+    monkeypatch.setattr(mcp_server, "load_project_with_check", load_snapshot)
+    cache = mcp_server._SnapshotCache()
+    first = cache.get(root)
+    assert first.project.nodes[0].status.formal == FormalStatus.PROVED
     source = root / "Kernel_Fixture.thy"
     original = source.read_text(encoding="utf-8")
     source.write_text(original.replace("lemma clean:", "lemma renamed:"), encoding="utf-8")
     apply_stored_check_report(restored, config)
     assert restored.nodes[0].status.formal == FormalStatus.STALE
+    reloaded = cache.get(root)
+    assert reloaded is not first
+    assert reloaded.project.nodes[0].status.formal == FormalStatus.STALE
     failed = _check(_project("clean"), kernel_project, tmp_path)
     assert failed.return_code != 0, failed.to_dict()
     checker.write_report(failed, config.check_report_path)
