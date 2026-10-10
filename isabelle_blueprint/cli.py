@@ -155,6 +155,7 @@ from isabelle_blueprint.project_io import (
     load_config_checked,
     load_project,
 )
+from isabelle_blueprint.evidence import read_evidence_snapshot
 from isabelle_blueprint.refactor import rename_node
 from isabelle_blueprint.refactor.format import format_blueprint_paths
 from isabelle_blueprint.refactor.hooks import (
@@ -2059,6 +2060,19 @@ def cmd_fmt(args: argparse.Namespace) -> int:
             print("All Markdown blueprints are already canonical.")
     if (args.check or diff) and result.would_change:
         return 10
+    return 0
+
+
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    payload = read_evidence_snapshot(Path(args.project_dir).resolve())
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        evidence = payload["evidence"]
+        print(f"{payload['project']['name']}: {evidence['state']} ({evidence['origin']})")
+        if evidence["reason"]:
+            print(evidence["reason"])
+        print(f"{len(payload['ready_task_ids'])} ready task(s)")
     return 0
 
 
@@ -4850,6 +4864,13 @@ def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
     _add_fail_on_argument(p_report)
     _add_watch_arguments(p_report, action="report")
     p_report.set_defaults(func=cmd_report)
+
+    p_snapshot = sub.add_parser("snapshot", help="read canonical evidence without writing reports")
+    p_snapshot.add_argument("project_dir", nargs="?", default=".")
+    p_snapshot.add_argument(
+        "--json", action="store_true", help="emit the canonical evidence snapshot"
+    )
+    p_snapshot.set_defaults(func=cmd_snapshot)
 
     p_status = sub.add_parser("status", help="print a concise project health summary")
     p_status.add_argument("project_dir", nargs="?", default=".")

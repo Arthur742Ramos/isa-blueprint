@@ -30,6 +30,7 @@ SCHEMA_NAMES = (
     "kinds",
     "critical-path",
     "matrix",
+    "snapshot",
 )
 
 

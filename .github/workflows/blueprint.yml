@@ -56,7 +56,7 @@ jobs:
           pip install "pytest>=7.0"
 
       - name: Run MCP contract tests
-        run: python -m pytest tests/test_mcp_server.py tests/test_capability_parity.py -q
+        run: python -m pytest tests/test_mcp_server.py tests/test_capability_parity.py tests/test_evidence_snapshot.py -q
 
   smoke:
     name: end-to-end smoke on the minimal example

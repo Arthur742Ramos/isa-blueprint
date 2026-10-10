@@ -1121,6 +1121,12 @@ def test_mcp_streamable_http_transport_round_trip(tmp_path: Path) -> None:
                 await session.initialize()
                 tools = await session.list_tools()
                 result = await session.call_tool("status", arguments={"top_tasks": 1})
+                evidence = await session.call_tool("evidence_snapshot", arguments={})
+                assert not evidence.isError
+                assert evidence.structuredContent["schema_version"] == 1
+                assert evidence.structuredContent["evidence"]["state"] == "absent"
+                assert evidence.structuredContent["metrics"] == result.structuredContent["metrics"]
+                assert evidence.structuredContent["ready_task_ids"] == ["main"]
                 completion = await session.complete(
                     PromptReference(type="ref/prompt", name="prove_task"),
                     {"name": "project", "value": "m"},
