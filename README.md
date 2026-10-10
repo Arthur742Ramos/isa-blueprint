@@ -124,7 +124,7 @@ When Isabelle is available, add the real proof checks:
 ```bash
 isabelle-blueprint compat      # version/session/AFP pin diagnostics
 isabelle-blueprint check       # build wrapper session and stamp proof status
-isabelle-blueprint dump        # optional PIDE-level proof-status inspection
+isabelle-blueprint dump        # fresh PIDE observations plus native proof verification
 ```
 
 ## See it on real examples
@@ -292,7 +292,7 @@ already justify.
 | `memory` | `.isabelle-blueprint/agent-memory.json` | Durable proof-attempt notes and handoffs. |
 | `check` | Isabelle wrapper theory + proof-status TSV | Fact existence and clean-proof verification. |
 | `reconcile` (`deps-audit`) | Per-node `uses`-vs-kernel dependency diff (`--json` schema dict) | Find missing `uses` edges (and advisory unused ones) against Isabelle's real proof deps. |
-| `dump` | PIDE-derived status | Deeper proof inspection from Isabelle dump output. |
+| `dump` | PIDE observations and proof evidence | Fresh dumps delegate proof trust to the native checker; offline imports retain historical observations. |
 | `compat` | Isabelle/AFP diagnostics | Reproducible session and version setup. |
 | `comment` | Idempotent PR status comments | Pull-request automation. |
 | `explain` / `import-theory` | Status explanations and starter blueprints from `.thy` files (`import-theory --root` imports a whole session) | Debugging and onboarding existing Isabelle projects. |
