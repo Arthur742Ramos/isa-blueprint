@@ -46,6 +46,7 @@ val settings = List("ISABELLE_HOME", "ISABELLE_IDENTIFIER", "ML_HOME", "ML_PLATF
   "ML_OPTIONS", "ISABELLE_BUILD_OPTIONS").map(name =>
     name + "=" + Isabelle_System.getenv(name))
 println("{_PREFIX}" + SHA1.digest((sources ::: settings).mkString("\\n")))
+System.exit(0)
 }}
 """
     try:
