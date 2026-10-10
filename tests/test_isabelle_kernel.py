@@ -19,11 +19,20 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def kernel_project(tmp_path):
+def kernel_project(tmp_path, monkeypatch):
     executable = shutil.which("isabelle")
     assert executable is not None, "kernel fixture requested but Isabelle is missing"
     version = run_capture([executable, "version"], timeout=30)
     assert version.returncode == 0 and version.stdout.strip() == "Isabelle2025-2"
+    user_home = tmp_path / "isabelle-user"
+    monkeypatch.setenv("USER_HOME", str(user_home))
+    home = run_capture([executable, "getenv", "-b", "ISABELLE_HOME_USER"], timeout=30)
+    assert home.returncode == 0, home.stderr
+    settings_home = Path(home.stdout.strip())
+    assert settings_home.is_relative_to(user_home)
+    settings = settings_home / "etc" / "settings"
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text('ISABELLE_BUILD_OPTIONS="threads=2"\n', encoding="utf-8")
     root = tmp_path / "session"
     shutil.copytree(Path(__file__).parent / "fixtures" / "kernel", root)
     return executable, root
@@ -63,5 +72,9 @@ def test_native_fingerprint_tracks_theory_ml_root_and_settings(kernel_project, m
         assert fingerprint() != original, name
         path.write_text(text, encoding="utf-8")
         assert fingerprint() == original
-    monkeypatch.setenv("ISABELLE_BUILD_OPTIONS", "threads=1")
+    home = run_capture([executable, "getenv", "-b", "ISABELLE_HOME_USER"], timeout=30)
+    assert home.returncode == 0, home.stderr
+    (Path(home.stdout.strip()) / "etc" / "settings").write_text(
+        'ISABELLE_BUILD_OPTIONS="threads=1"\n', encoding="utf-8"
+    )
     assert fingerprint() != original
