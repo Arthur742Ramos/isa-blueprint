@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from isabelle_blueprint.isabelle import check_context
 from isabelle_blueprint.isabelle._run import run_capture
 from isabelle_blueprint.isabelle.check_context import session_fingerprint
 
@@ -30,12 +31,20 @@ def kernel_project(tmp_path):
 
 def test_native_fingerprint_tracks_theory_ml_root_and_settings(kernel_project, monkeypatch):
     executable, root = kernel_project
+    probes = []
+
+    def capture(*args, **kwargs):
+        result = run_capture(*args, **kwargs)
+        probes.append(result)
+        return result
+
+    monkeypatch.setattr(check_context, "run_capture", capture)
 
     def fingerprint():
         value = session_fingerprint(
             executable, sessions=["Blueprint_Kernel_Fixture"], directories=[root], timeout=30
         )
-        assert value is not None, "native source probe failed on the pinned supported release"
+        assert value is not None, [(p.returncode, p.stdout, p.stderr) for p in probes]
         return value
 
     original = fingerprint()

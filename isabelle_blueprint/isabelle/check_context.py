@@ -41,7 +41,7 @@ val structure = Sessions.load_structure(options, dirs = List({dirs}))
 val selected = structure.selection(Sessions.Selection(sessions = List({names})))
 val deps = Sessions.deps(selected, inlined_files = true).check_errors
 val sources = selected.imports_topological_order.sorted.map(name =>
-  name + "\\n" + deps.sources_shasum(name).print())
+  name + "\\n" + deps.sources_shasum(name).toString)
 val settings = List("ISABELLE_HOME", "ISABELLE_IDENTIFIER", "ML_HOME", "ML_PLATFORM",
   "ML_OPTIONS", "ISABELLE_BUILD_OPTIONS").map(name =>
     name + "=" + Isabelle_System.getenv(name))
