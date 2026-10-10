@@ -6,6 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from isabelle_blueprint.isabelle._run import RunResult
 from isabelle_blueprint.isabelle.checker import (
     CheckResult,
@@ -312,17 +314,8 @@ def test_run_check_writes_theory_and_returns_skipped_result(tmp_path: Path):
     assert (tmp_path / "Blueprint_Check.thy").exists()
 
 
-def test_run_check_proof_status_nonce_only_when_tsv_absent(tmp_path: Path):
-    """The generated theory only carries a freshness nonce while the status file
-    is absent.
-
-    This is the mechanism that keeps ``Blueprint_Proof_Status.tsv`` honest: the
-    first proof-status check (no TSV yet) injects a unique nonce comment so
-    Isabelle is forced to re-run the export, while a follow-up check (TSV
-    present) omits the nonce so an *unchanged* theory can reuse Isabelle's cached
-    build and the still-valid status file. Deleting the TSV before every run
-    would defeat that reuse and force a rebuild each time.
-    """
+def test_run_check_proof_status_nonce_changes_even_when_tsv_exists(tmp_path: Path):
+    """Each uncached proof check forces Isabelle to rerun the status export."""
     project = _proj(_node("a", "Demo.a"))
     build_dir = tmp_path / "build"
     unavailable = "definitely-not-installed-isabelle-xyz"
@@ -348,7 +341,8 @@ def test_run_check_proof_status_nonce_only_when_tsv_absent(tmp_path: Path):
         proof_status=True,
     )
     second = (build_dir / "Blueprint_Check.thy").read_text(encoding="utf-8")
-    assert "Check nonce:" not in second
+    assert "Check nonce:" in second
+    assert first != second
 
 
 def test_run_check_no_session_skips_build(tmp_path: Path, monkeypatch):
@@ -437,6 +431,58 @@ def test_extract_proof_status_markers_from_isabelle_output():
     assert statuses[("a", "Demo.a")]["oracles"] == []
     assert statuses[("b", "Demo.b")]["status"] == "tainted"
     assert statuses[("b", "Demo.b")]["oracles"] == ["Pure.skip_proof", "Code_Generator.holds"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["tainted\tPure.skip_proof", "unknown\t-", "proved", "proved\t-\textra"],
+)
+def test_conflicting_or_malformed_proof_records_are_not_trusted(extra):
+    prefix = "ISABELLE_BLUEPRINT_FACT\ta\tDemo.a\t"
+    assert _extract_proof_status(prefix + "proved\t-\n" + prefix + extra) == {}
+    assert _extract_proof_status(prefix + extra + "\n" + prefix + "proved\t-") == {}
+
+
+def test_identical_repeated_proof_records_are_accepted():
+    line = "ISABELLE_BLUEPRINT_FACT\ta\tDemo.a\tproved\t-"
+    assert _extract_proof_status(line + "\n" + line)[("a", "Demo.a")]["status"] == "proved"
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_old_tsv_cannot_promote_new_check_without_export(tmp_path, monkeypatch, returncode):
+    from isabelle_blueprint.isabelle import checker as checker_module
+
+    monkeypatch.setattr(checker_module.shutil, "which", lambda _: "/fake/isabelle")
+    path = tmp_path / "Blueprint_Proof_Status.tsv"
+    path.write_text("ISABELLE_BLUEPRINT_FACT\ta\tDemo.a\tproved\t-\n", encoding="utf-8")
+
+    def capture(cmd, **kwargs):
+        assert not path.exists(), "previous run's evidence must be cleared before the build"
+        return RunResult(cmd, returncode, "", "ML extraction failed" if returncode else "")
+
+    monkeypatch.setattr(checker_module, "run_capture", capture)
+    project = _proj(_node("a", "Demo.a"))
+    result = run_check(project, build_dir=tmp_path, session_name="Demo")
+    apply_check_report(project, result)
+    assert not result.proof_checked
+    assert result.facts[0].proof_status is None
+    assert project.nodes[0].status.formal == (
+        FormalStatus.FOUND if returncode == 0 else FormalStatus.NAMED
+    )
+
+
+def test_unclearable_evidence_prevents_build_and_proof_promotion(tmp_path, monkeypatch):
+    from isabelle_blueprint.isabelle import checker as checker_module
+
+    monkeypatch.setattr(checker_module.shutil, "which", lambda _: "/fake/isabelle")
+    # A directory occupying the export file causes unlink to fail portably.
+    (tmp_path / "Blueprint_Proof_Status.tsv").mkdir()
+    project = _proj(_node("a", "Demo.a"))
+    result = run_check(project, build_dir=tmp_path, session_name="Demo")
+    apply_check_report(project, result)
+    assert not result.ran and not result.proof_checked
+    assert "cannot clear" in result.error
+    assert project.nodes[0].status.formal == FormalStatus.NAMED
 
 
 def test_check_jobs_rejects_non_positive():
