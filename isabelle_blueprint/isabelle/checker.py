@@ -102,6 +102,71 @@ class CheckResult:
         return result
 
 
+def parse_check_report(data: object) -> CheckResult | None:
+    """Read persisted proof evidence without accepting malformed status fields."""
+    if not isinstance(data, dict):
+        return None
+    raw_facts = data.get("facts")
+    if raw_facts is not None and (
+        not isinstance(raw_facts, list) or any(not isinstance(item, dict) for item in raw_facts)
+    ):
+        return None
+    try:
+        result = CheckResult.from_dict(data)
+    except (TypeError, ValueError):
+        return None
+    if any(
+        type(value) is not bool
+        for value in (
+            result.ran,
+            result.isabelle_available,
+            result.proof_checked,
+            result.source_context_changed,
+        )
+    ):
+        return None
+    if not isinstance(result.timestamp, str) or (
+        result.error is not None and not isinstance(result.error, str)
+    ):
+        return None
+    if result.ran and type(result.return_code) is not int:
+        return None
+
+    def fingerprint(value: object) -> bool:
+        return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+    if result.source_fingerprint is not None and not fingerprint(result.source_fingerprint):
+        return None
+    if not isinstance(result.node_fingerprints, dict) or any(
+        not isinstance(key, str) or not fingerprint(value)
+        for key, value in result.node_fingerprints.items()
+    ):
+        return None
+    seen: dict[tuple[str, str, str | None], FactCheck] = {}
+    for fact in result.facts:
+        if (
+            not isinstance(fact.node_id, str)
+            or not fact.node_id
+            or not isinstance(fact.fact, str)
+            or not fact.fact
+            or (fact.theory is not None and not isinstance(fact.theory, str))
+            or type(fact.exists) is not bool
+            or (fact.error is not None and not isinstance(fact.error, str))
+            or (fact.exists and fact.error is not None)
+            or (not fact.exists and fact.proof_status is not None)
+            or (fact.proof_status is not None and not isinstance(fact.proof_status, str))
+            or fact.proof_status not in {None, "proved", "tainted"}
+            or not isinstance(fact.oracles, list)
+            or any(not isinstance(oracle, str) for oracle in fact.oracles)
+        ):
+            return None
+        key = (fact.node_id, fact.fact, fact.theory)
+        if key in seen and seen[key] != fact:
+            return None
+        seen[key] = fact
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Pattern to recognise unresolved @{thm ...} errors.
 # Examples from Isabelle stderr:

@@ -273,3 +273,50 @@ def test_kernel_missing_initial_provenance_cannot_publish_current_status(
     restored = _project(fact)
     apply_stored_check_report(restored, config)
     assert restored.nodes[0].status.formal == FormalStatus.STALE
+
+
+def test_kernel_dump_delegates_proof_trust_and_restores_same_evidence(
+    kernel_project, tmp_path, monkeypatch
+):
+    import subprocess
+
+    from isabelle_blueprint.isabelle import dump
+
+    executable, root = kernel_project
+    project = _project("clean", "admitted")
+
+    def dump_observations(command, **kwargs):
+        # Only PIDE observation collection is simulated. Native fingerprints and
+        # checker.run_check still run the pinned Isabelle kernel for both proofs.
+        assert command[1] == "dump"
+        directory = Path(command[command.index("-O") + 1])
+        (directory / "thms").write_text(
+            "\x05\x06entity\x06name=Kernel_Fixture.clean\x05"
+            "\x05\x06entity\x06name=Kernel_Fixture.admitted\x05",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(dump, "run_capture", dump_observations)
+    result = dump.run_dump(
+        project,
+        output_dir=tmp_path / "dump",
+        session_name="Blueprint_Kernel_Fixture",
+        isabelle_executable=executable,
+        project_root=root,
+        timeout=300,
+    )
+    assert result.ran and result.return_code == 0, result.to_dict()
+    assert result.proof_metadata_complete, result.to_dict()
+    dump.apply_dump_report(project, result)
+    assert project.by_id()["clean"].status.formal == FormalStatus.PROVED
+    assert project.by_id()["admitted"].status.formal == FormalStatus.TAINTED
+    config = _config(kernel_project, tmp_path)
+    dump.write_dump_report(result, config.dump_report_path)
+    restored = _project("clean", "admitted")
+    apply_stored_check_report(restored, config)
+    assert restored.to_dict() == project.to_dict()
+    source = root / "Kernel_Fixture.thy"
+    source.write_text(source.read_text(encoding="utf-8") + "\n(* changed *)\n", encoding="utf-8")
+    apply_stored_check_report(restored, config)
+    assert all(node.status.formal == FormalStatus.STALE for node in restored.nodes)

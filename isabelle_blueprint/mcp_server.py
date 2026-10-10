@@ -1819,6 +1819,7 @@ class _SnapshotCache:
                 cached is not None
                 and cached[0] == signature
                 and not config.check_report_path.exists()
+                and not config.dump_report_path.exists()
             ):
                 return cached[1]
             snapshot = _ProjectSnapshot(config.project_root)

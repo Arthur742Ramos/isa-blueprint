@@ -33,7 +33,7 @@ def _project() -> BlueprintProject:
     )
 
 
-def test_inspect_dump_dir_marks_proved_and_tainted_facts(tmp_path: Path):
+def test_inspect_dump_dir_retains_observations_without_proof_trust(tmp_path: Path):
     theory_dir = tmp_path / "Demo.Demo" / "theory"
     theory_dir.mkdir(parents=True)
     theory_dir.joinpath("thms").write_text(
@@ -46,7 +46,7 @@ def test_inspect_dump_dir_marks_proved_and_tainted_facts(tmp_path: Path):
     result = inspect_dump_dir(_project(), tmp_path)
     by_fact = {fact.fact: fact for fact in result.facts}
     assert by_fact["Demo.clean"].exists is True
-    assert by_fact["Demo.clean"].proof_status == "proved"
+    assert by_fact["Demo.clean"].proof_status is None
     assert by_fact["Demo.tainted"].proof_status == "tainted"
     assert by_fact["Demo.tainted"].oracles == ["Pure.skip_proof"]
     assert by_fact["Demo.missing"].exists is False
@@ -63,8 +63,8 @@ def test_apply_dump_report_updates_project_status(tmp_path: Path):
     result = inspect_dump_dir(project, tmp_path)
     apply_dump_report(project, result)
     by_id = project.by_id()
-    assert by_id["clean"].status.formal == FormalStatus.PROVED
-    assert by_id["missing"].status.formal == FormalStatus.NOT_FOUND
+    assert by_id["clean"].status.formal == FormalStatus.STALE
+    assert by_id["missing"].status.formal == FormalStatus.NAMED
 
 
 def test_apply_dump_report_preserves_status_when_report_failed(tmp_path: Path):
@@ -77,8 +77,8 @@ def test_apply_dump_report_preserves_status_when_report_failed(tmp_path: Path):
     result = inspect_dump_dir(project, tmp_path / "does-not-exist")
     apply_dump_report(project, result)
 
-    assert by_id["clean"].status.formal == FormalStatus.PROVED
-    assert by_id["tainted"].status.formal == FormalStatus.FOUND
+    assert by_id["clean"].status.formal == FormalStatus.STALE
+    assert by_id["tainted"].status.formal == FormalStatus.STALE
     assert by_id["missing"].status.formal == FormalStatus.NAMED
     assert by_id["clean"].status.check_error == result.error
 
@@ -109,6 +109,7 @@ def test_run_dump_timeout_is_graceful(tmp_path: Path, monkeypatch):
     def fake_run(cmd, *, cwd=None, timeout=None, encoding="utf-8"):
         raise subprocess.TimeoutExpired(cmd, timeout)
 
+    monkeypatch.setattr(dump_module.check_context, "project_fingerprint", lambda *a, **k: None)
     monkeypatch.setattr(dump_module, "run_capture", fake_run)
     project = _project()
     result = dump_module.run_dump(

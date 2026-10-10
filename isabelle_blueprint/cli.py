@@ -2065,6 +2065,7 @@ def cmd_fmt(args: argparse.Namespace) -> int:
 def cmd_dump(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     config, project = _load(project_dir)
+    apply_stored_check_report(project, config)
     try:
         project.validate().raise_if_failed()
     except ValidationError as exc:
