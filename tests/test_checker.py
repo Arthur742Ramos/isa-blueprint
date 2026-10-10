@@ -243,6 +243,16 @@ def test_failed_build_only_marks_explicitly_missing_facts_not_found(tmp_path, mo
     assert project.by_id()["b"].status.check_error == "build failed; existence unknown"
 
 
+def test_removed_reference_clears_obsolete_check_diagnostics():
+    project = _proj(_node("a", None))
+    project.nodes[0].status.check_error = "old oracle taint"
+    project.nodes[0].status.last_checked = "old timestamp"
+    apply_check_report(project, CheckResult(ran=False, error="build timed out"))
+    assert project.nodes[0].status.formal == FormalStatus.MISSING
+    assert project.nodes[0].status.check_error is None
+    assert project.nodes[0].status.last_checked is None
+
+
 # ---------------------------------------------------------------------------
 # CheckResult round-trip
 # ---------------------------------------------------------------------------

@@ -59,6 +59,9 @@ and failed/missing status exports. It also edits source, ML, ROOT metadata,
 and settings to exercise cache invalidation, including a source edit followed
 by an independent session rebuild. These fixtures validate the integration;
 each downstream project still needs its own successful build.
+The saved-report fixture also reloads a proof, edits its theory, records a
+missing-fact failure, restores the source, and verifies that the obsolete
+diagnostic expires before a new successful check.
 
 For a real verification run, install the project's configured Isabelle release
 and session dependencies, then run:
@@ -83,6 +86,17 @@ TSV before building. Missing or contradictory export records never justify
 `proved`; a successful existence check without valid proof evidence is `found`.
 A failed build leaves facts whose existence was not determined `named`; only
 explicit missing-fact diagnostics justify `not_found`.
+
+New check reports include additive `source_fingerprint`, `node_fingerprints`,
+and `source_context_changed` provenance fields. The checker compares the
+source/install/settings context before and after a build; changed or lost
+evidence prevents publishing current proof statuses or new cache entries.
+Read views validate this provenance with a native dependency query, without
+building proofs. A source/configuration change, unavailable runtime, or legacy
+report without provenance leaves matching historical records `stale` with a
+rerun diagnostic. Changed references remain `named` without inheriting the
+previous fact's check timestamp or error. A fresh failed/incomplete check
+replaces the earlier result; removed references clear their obsolete diagnostics.
 
 This wrapper verifies blueprint fact references. AFP readiness additionally
 requires building the complete entry, including its document, with the target

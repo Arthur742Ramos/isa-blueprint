@@ -1,4 +1,4 @@
-"""Read native Isabelle source/configuration digests for incremental checks.
+"""Read native Isabelle source/configuration digests for proof evidence.
 
 This query reads session dependencies; it does not build a session or run proofs.
 Unsupported Scala APIs, missing inputs and failed probes disable Python cache
@@ -10,12 +10,63 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 from isabelle_blueprint.isabelle._run import run_capture
+from isabelle_blueprint.isabelle.check_cache import compute_context_fingerprint
+from isabelle_blueprint.model.project import BlueprintProject
 
 _PREFIX = "ISABELLE_BLUEPRINT_CONTEXT\t"
+
+
+class ContextOptions(TypedDict):
+    session_name: str | None
+    isabelle_executable: str
+    extra_dirs: list[Path] | None
+    project_root: Path | None
+    timeout: float | None
+
+
+def project_fingerprint(
+    project: BlueprintProject,
+    *,
+    session_name: str | None,
+    isabelle_executable: str,
+    extra_dirs: list[Path] | None,
+    project_root: Path | None,
+    timeout: float | None = None,
+) -> str | None:
+    """Identify current source/install/settings and configured session inputs.
+
+    This provenance is independent of whether proof-status export was requested:
+    the report's per-fact evidence determines which statuses may be restored.
+    """
+    executable = shutil.which(isabelle_executable)
+    if not executable or not session_name:
+        return None
+    sessions = sorted(
+        {session_name}
+        | {n.isabelle.session for n in project.nodes if n.isabelle.session and n.isabelle.fact}
+    )
+    native = session_fingerprint(
+        executable,
+        sessions=sessions,
+        directories=([project_root] if project_root is not None else []) + (extra_dirs or []),
+        timeout=timeout,
+    )
+    if native is None:
+        return None
+    return compute_context_fingerprint(
+        session_name=session_name,
+        isabelle_executable=isabelle_executable,
+        extra_dirs=extra_dirs,
+        project_root=project_root,
+        proof_status=False,
+        session_fingerprint=native,
+    )
 
 
 def session_fingerprint(

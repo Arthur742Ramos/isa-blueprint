@@ -11,9 +11,10 @@ import pytest
 from isabelle_blueprint.isabelle import check_cache
 from isabelle_blueprint.isabelle import checker as checker_module
 from isabelle_blueprint.isabelle._run import RunResult
-from isabelle_blueprint.isabelle.checker import run_check
+from isabelle_blueprint.isabelle.checker import apply_check_report, run_check
 from isabelle_blueprint.model.node import BlueprintNode, IsabelleRef, NodeKind, NodeStatus
 from isabelle_blueprint.model.project import BlueprintProject
+from isabelle_blueprint.model.status import FormalStatus
 
 # ---------------------------------------------------------------------------
 # helpers (mirror tests/test_checker.py style)
@@ -652,13 +653,45 @@ def test_native_context_includes_every_referenced_session_and_directory(tmp_path
         cache_path=tmp_path / "cache.json",
         timeout=12,
     )
-    assert seen == [
-        (
-            "/fake/isabelle",
-            dict(
-                sessions=["My_Session", "Other"],
-                directories=[tmp_path, tmp_path / "afp"],
-                timeout=12,
-            ),
-        )
-    ]
+    assert (
+        seen
+        == [
+            (
+                "/fake/isabelle",
+                dict(
+                    sessions=["My_Session", "Other"],
+                    directories=[tmp_path, tmp_path / "afp"],
+                    timeout=12,
+                ),
+            )
+        ]
+        * 2
+    )
+
+
+@pytest.mark.parametrize("after", ["edited-during-build", None])
+def test_changed_or_lost_context_during_build_does_not_publish_current_proof(
+    tmp_path, monkeypatch, after
+):
+    _fake_isabelle(monkeypatch)
+    contexts = iter(["native", after])
+    monkeypatch.setattr(
+        checker_module.check_context, "session_fingerprint", lambda *a, **k: next(contexts)
+    )
+    fake_run, _ = _fake_proof_status_run("a")
+    monkeypatch.setattr(checker_module, "run_capture", fake_run)
+    project = _proj(_node("a", "Demo.a"))
+    cache_path = tmp_path / "cache.json"
+    result = run_check(
+        project,
+        build_dir=tmp_path / "build",
+        session_name="My_Session",
+        incremental=True,
+        cache_path=cache_path,
+    )
+    apply_check_report(project, result)
+    assert result.source_context_changed
+    assert result.source_fingerprint is None and result.node_fingerprints == {}
+    assert not result.proof_checked and result.facts[0].proof_status is None
+    assert project.nodes[0].status.formal == FormalStatus.STALE
+    assert not check_cache.load_cache(cache_path)
