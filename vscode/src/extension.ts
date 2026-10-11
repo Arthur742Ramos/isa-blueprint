@@ -130,7 +130,8 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       emptyMetrics(),
     );
     const coverage = metrics.coveragePercent === null ? "n/a" : `${metrics.coveragePercent}%`;
-    const states = [...new Set(this.projects.map((loaded) => loaded.evidenceState))];
+    const states = [...new Set(this.projects.map((loaded) =>
+      loaded.evidenceState === "absent" ? "authored claims" : loaded.evidenceState))];
     const stale = states.every((state) => state === "current") ? "" : ` | evidence: ${states.join(", ")}`;
     const problemLabel = metrics.problemCount === 1 ? "problem" : "problems";
     const readyLabel = "ready";
@@ -139,7 +140,8 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       `**IsabelleBlueprint**\n\n` +
       `${metrics.provedCount}/${metrics.targetCount || 0} formal targets proved\n\n` +
       `${metrics.readyCount} ready task(s), ${metrics.problemCount} problem(s)` +
-      `${stale ? "\n\nEvidence is historical, unavailable, or pending revalidation." : ""}`,
+      `${stale ? "\n\n" + this.projects.filter((loaded) => loaded.evidenceState !== "current")
+        .map((loaded) => escapeMarkdown(`${loaded.project.name}: ${loaded.evidenceReason ?? loaded.evidenceState}`)).join("\n\n") : ""}`,
     );
     this.statusBar.command = "isabelleBlueprint.openDashboard";
     this.statusBar.show();
