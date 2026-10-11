@@ -46,6 +46,9 @@ Features:
 
 Configuration:
 
+These settings support workspace-folder overrides, so each root can select its
+CLI executable and artifact paths independently.
+
 ```json
 {
   "isabelleBlueprint.projectJson": "build/project.json",

@@ -159,16 +159,19 @@
       "properties": {
         "isabelleBlueprint.projectJson": {
           "type": "string",
+          "scope": "resource",
           "default": "build/project.json",
           "description": "Path to the generated IsabelleBlueprint project JSON, relative to each workspace folder."
         },
         "isabelleBlueprint.cliPath": {
           "type": "string",
+          "scope": "resource",
           "default": "isabelle-blueprint",
-          "description": "Path to the IsabelleBlueprint CLI executable used by Run Report/Check/Tasks commands."
+          "description": "Path to the IsabelleBlueprint CLI executable used by snapshot refresh and commands in this workspace folder."
         },
         "isabelleBlueprint.sitePath": {
           "type": "string",
+          "scope": "resource",
           "default": "site/index.html",
           "description": "Path to the generated static dashboard, relative to each workspace folder. Open Dashboard generates it when missing."
         }

@@ -97,6 +97,8 @@ export async function run(): Promise<void> {
   assert.equal(view(first).state, "historical", "unavailable/old CLI never makes raw reports current");
   assert.equal(view(first).metrics.provedCount, 0);
   assert.deepEqual(view(first).readyTaskIds, []);
+  assert.equal(view(second).state, "absent", "folder-specific CLI settings leave other roots canonical");
+  assert.deepEqual(view(second).readyTaskIds, ["other"]);
   const report = path.join(first, "build/project.json");
   const savedReport = await fs.readFile(report, "utf8");
   await fs.writeFile(report, "{malformed");
