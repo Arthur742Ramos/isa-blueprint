@@ -112,7 +112,8 @@ Isabelle/AFP release and checking AFP packaging requirements.
 To publish a new release, update both version declarations in the same commit:
 
 - `pyproject.toml` `[project].version`
-- `isabelle_blueprint/__init__.py` `__version__`
+- `isabelle_blueprint/__init__.py` `_FALLBACK_VERSION` (the source-tree fallback;
+  installed `__version__` comes from distribution metadata)
 
 When that commit reaches `main`, the `publish` workflow detects the
 `pyproject.toml` version change, runs the release quality gates, creates the

@@ -2,7 +2,7 @@
   "name": "isabelle-blueprint-vscode",
   "displayName": "IsabelleBlueprint",
   "description": "Surface IsabelleBlueprint project status in VS Code.",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "publisher": "isabelle-blueprint",
   "license": "MIT",
   "homepage": "https://github.com/Arthur742Ramos/isa-blueprint#readme",
@@ -189,7 +189,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
-    "@types/vscode": "1.120.0",
+    "@types/vscode": "1.90.0",
     "@vscode/test-electron": "3.1.0",
     "typescript": "^6.0.3"
   }
