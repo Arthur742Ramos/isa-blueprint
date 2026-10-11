@@ -43,7 +43,7 @@ Existing planning metric definitions and the `found` dependency-completion
 policy are preserved. A `proved` authored claim can contribute to those metrics
 when evidence is absent; `origin: authored` and `authored_formal_claim` make that
 distinction explicit. Clients should show evidence state alongside coverage and
-ready counts. Run `isabelle-blueprint check --proof-status` to establish or renew
+ready counts. Run `isabelle-blueprint check` to establish or renew
 native proof evidence.
 
 The packaged `snapshot.schema.json` describes the payload. Existing CLI/Action

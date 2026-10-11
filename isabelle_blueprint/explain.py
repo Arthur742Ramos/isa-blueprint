@@ -222,7 +222,7 @@ def _explain_node(
             for part in ("probe unavailable", "not found on PATH", "No Isabelle session configured")
         ):
             next_steps.append("Check the Isabelle executable, session and configured directories.")
-        next_steps.append("Rerun `isabelle-blueprint check --proof-status` to refresh stale facts.")
+        next_steps.append("Rerun `isabelle-blueprint check` to refresh stale facts.")
         summary = "Cached proof status is stale."
         severity = "warning"
     elif status in {FormalStatus.BROKEN, FormalStatus.FAILED_CHECK}:

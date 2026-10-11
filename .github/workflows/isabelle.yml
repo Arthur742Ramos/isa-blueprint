@@ -26,7 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/Isabelle2025-2_linux.tar.gz"
-          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' \
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            --max-time 600 --proto '=https' --proto-redir '=https' \
             'https://dist.isabelle.cit.tum.de/dist/Isabelle2025-2_linux.tar.gz?token=Isabelle' \
             --output "$archive"
           echo "a20a507bc7c1270d8be96a9f3fbec06345387789d2dc2c4d3df6260d47bfb33c  $archive" \
@@ -34,6 +35,20 @@ jobs:
           tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/Isabelle2025-2/bin" >> "$GITHUB_PATH"
       - name: Install package and fixture test dependencies
-        run: python -m pip install -e . pytest
+        run: python -m pip install -e ".[mcp]" pytest
       - name: Verify kernel proof classifications and fresh cache evidence
         run: python -m pytest tests/test_isabelle_kernel.py -v -ra
+      - name: Set up Node for real editor kernel lifecycle
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - name: Compile extension and run behavior tests
+        run: npm ci && npm test
+        working-directory: vscode
+      - name: Verify CLI, MCP and real editor against the pinned kernel
+        run: xvfb-run -a npm run test:host
+        working-directory: vscode
+        env:
+          ISABELLE_BLUEPRINT_EDITOR_KERNEL_TESTS: '1'

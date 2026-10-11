@@ -1,18 +1,26 @@
 # IsabelleBlueprint VS Code Extension
 
-This extension surfaces the generated IsabelleBlueprint status file in VS Code.
-Run `isabelle-blueprint check` or `isabelle-blueprint report` first so
-`build/project.json` exists, then use the proof-cockpit **Blueprint Nodes**
-explorer view.
+This extension reads the canonical `isabelle-blueprint snapshot --json` view in
+trusted workspaces. Open a configured blueprint project and use the **Blueprint
+Nodes** explorer view. Coverage, ready tasks, node statuses and evidence reasons
+come from the same read-only service used by the CLI and MCP.
+
+Run `isabelle-blueprint check` to establish native proof evidence.
+An `absent` evidence state displays authored claims explicitly; it does not
+certify them. If the CLI lacks snapshot support, is unavailable, or the workspace
+is untrusted, an existing `build/project.json` supplies historical navigation
+only. Historical views have zero proved/ready counts and retain the error reason.
 
 Features:
 
 - Explorer tree grouped into ready, problem, stale/named, blocked, and complete
   proof work.
 - Inline diagnostics on source lines for missing, stale, broken, or tainted nodes.
-- Refresh command and file watcher for `build/project.json`.
+- Refresh command and watchers for configured blueprint/check/dump paths,
+  Isabelle theories, ML files, `ROOT`, `ROOTS`, configuration and assignments.
 - A status bar cockpit showing coverage, ready/problem counts, stale-report state,
-  and a shortcut to the generated dashboard.
+  and a shortcut to the generated dashboard. Project and node tooltips explain
+  evidence origin and the actual source, provenance or CLI failure.
 - One-click navigation from the tree to the node source.
 - **Go to Blueprint Node** and **Open Dashboard** commands, including a guarded
   dashboard render when the configured site is missing.
@@ -46,8 +54,25 @@ Configuration:
 }
 ```
 
+Source changes immediately clear proof and ready claims while evidence is
+pending. Unsaved relevant documents stay pending until saved. Requests coalesce
+per workspace root, with one snapshot process at a time; obsolete responses are
+discarded. Refresh, focus, configuration and trust changes revalidate evidence.
+External settings or installations that have no file watcher are rechecked on
+focus or manual refresh. No refresh starts a proof build.
+
 **Run Lint** and **Run Gate** use the same shell-free `execFile` path as the
 other CLI commands. Their stdout/stderr and gate failure details appear in the
 `IsabelleBlueprint` output channel. Both analyses are read-only, so they leave
 the current editor diagnostics in place; run **Check** or **Report** to
-regenerate `build/project.json` and refresh diagnostics from new project state.
+refresh canonical evidence after an explicit check or source correction.
+
+For contributors, Node 22 is used in CI. `npm ci && npm test` compiles and runs
+behavior tests for decoding, invalidation, source paths and refresh scheduling.
+With the Python CLI and MCP extra installed, `npm run test:host` launches an
+isolated VS Code 1.90.2 development host and exercises actual editor events and
+CLI/MCP parity. On Linux use `xvfb-run -a npm run test:host`.
+`ISABELLE_BLUEPRINT_EDITOR_KERNEL_TESTS=1` additionally builds an isolated native
+fixture, changes a theory in the editor, checks stale evidence across all three
+surfaces, and explicitly rechecks to restore current proof evidence. The pinned
+Isabelle CI job runs this mode; ordinary local tests do not build Isabelle.

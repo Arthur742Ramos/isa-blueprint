@@ -179,11 +179,15 @@
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
     "package": "npm run compile",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "test:unit": "node --test out/test/unit/evidence.test.js",
+    "test:host": "node out/test/runHost.js",
+    "test": "npm run compile && npm run test:unit"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "@types/vscode": "1.120.0",
+    "@vscode/test-electron": "3.1.0",
     "typescript": "^6.0.3"
   }
 }
