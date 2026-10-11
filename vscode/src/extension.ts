@@ -695,14 +695,24 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCodeLensProvider(blueprintDocuments, new BlueprintCodeLensProvider(provider)),
   );
 
+  const reloadOwners = async (folder: vscode.WorkspaceFolder) => {
+    const owners = await readAssignments(folder);
+    const current = provider.loadedProjects().find((p) => p.folder.uri.fsPath === folder.uri.fsPath);
+    if (current) replace(folder.uri.fsPath, { ...current, owners });
+  };
   const changed = (uri?: vscode.Uri) => {
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      if (uri && path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, "/") === ".isabelle-blueprint/assignments.json") {
+        void reloadOwners(folder);
+        continue;
+      }
       const old = provider.loadedProjects().find((p) => p.folder.uri.fsPath === folder.uri.fsPath);
       if (!uri || affectsProject(uri.fsPath, folder, old)) void activeQueue?.request(folder.uri.fsPath, 250);
     }
   };
-  // Filter after receipt so custom paths are covered during initial discovery.
-  for (const pattern of ["**/*"]) {
+  // Bootstrap known names/native files; canonical metadata adds exact custom paths.
+  // loadEvidence also checks fresh metadata against dirty documents before applying.
+  for (const pattern of ["**/{*.thy,*.ML,ROOT,ROOTS,blueprint.md,blueprint.tex,isabelle-blueprint.toml,project.json,check_report.json,dump_report.json}", "**/.isabelle-blueprint/assignments.json"]) {
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
     context.subscriptions.push(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed));
   }
@@ -728,7 +738,7 @@ export function activate(context: vscode.ExtensionContext) {
   return { snapshotState: () => provider.loadedProjects().map((loaded) => ({
     projectRoot: loaded.folder.uri.fsPath, state: loaded.evidenceState,
     reason: loaded.evidenceReason, metrics: { ...loaded.metrics },
-    readyTaskIds: [...loaded.readyTaskIds], project: JSON.parse(JSON.stringify(loaded.project)),
+    readyTaskIds: [...loaded.readyTaskIds], project: JSON.parse(JSON.stringify(loaded.project)), owners: Object.fromEntries(loaded.owners),
   })) };
 }
 

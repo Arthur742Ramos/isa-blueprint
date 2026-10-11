@@ -110,9 +110,9 @@ export function pendingMetrics(metrics: ProjectMetrics): ProjectMetrics {
 }
 
 export function sourceInputPaths(root: string, project?: BlueprintProject, inputs?: EvidenceSnapshot["inputs"], report?: string): string[] {
-  return [path.join(root, "isabelle-blueprint.toml"), report, ...inputs?.blueprint_paths ?? [],
+  return [path.join(root, "isabelle-blueprint.toml"), inputs?.config_path, report, ...inputs?.blueprint_paths ?? [],
     inputs?.check_report_path, inputs?.dump_report_path, ...project?.source_files ?? [],
-    ...project?.nodes.map((node) => node.source?.file) ?? [], path.join(root, ".isabelle-blueprint/assignments.json")]
+    ...project?.nodes.map((node) => node.source?.file) ?? []]
     .filter((file): file is string => typeof file === "string")
     .map((file) => path.resolve(root, file));
 }
@@ -124,8 +124,6 @@ export function affectsSourcePath(root: string, file: string, project?: Blueprin
     const relative = path.relative(directory, file);
     return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
   };
-  // Configured blueprint paths are unknown until the first canonical read.
-  if (!inputs && inside(root)) return true;
   const native = /\.(thy|ML)$/i.test(file) || ["ROOT", "ROOTS"].includes(path.basename(file));
   if (native && [root, ...inputs?.isabelle_dirs ?? []].some(inside)) return true;
   return inside(root) && ["blueprint.md", "blueprint.tex", "project.json", "check_report.json", "dump_report.json"].includes(path.basename(file));

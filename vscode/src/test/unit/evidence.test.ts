@@ -44,12 +44,20 @@ test("configured multi-source and external session paths are watched independent
   assert.ok(sourceInputPaths(root, value.project, value.inputs).includes(path.join(root, "chapters/details.tex")));
 });
 
-test("custom blueprint edits are relevant before initial input discovery", () => {
+test("bootstrap ignores unrelated paths; fresh metadata guards dirty custom sources", () => {
   const root = path.resolve("project");
-  assert.equal(affectsSourcePath(root, path.join(root, "chapters/main.md")), true);
+  assert.equal(affectsSourcePath(root, path.join(root, "chapters/main.md")), false);
   assert.equal(affectsSourcePath(path.resolve("other"), path.join(root, "chapters/main.md")), false);
   const value = fixture();
+  assert.equal(hasDirtySnapshotInputs(root, value, [path.join(root, "chapters/main.md")]), true);
+  assert.equal(affectsSourcePath(root, path.join(root, "notes.md")), false);
   assert.equal(affectsSourcePath(root, path.join(root, "notes.md"), value.project, value.inputs), false);
+});
+
+test("ownership changes never count as proof inputs", () => {
+  const value = fixture(); const file = path.join(value.project_root, ".isabelle-blueprint/assignments.json");
+  assert.equal(affectsSourcePath(value.project_root, file), false);
+  assert.equal(hasDirtySnapshotInputs(value.project_root, value, [file]), false);
 });
 
 test("new snapshot metadata detects already dirty external configured sources", () => {

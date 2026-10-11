@@ -53,6 +53,20 @@ export async function run(): Promise<void> {
   assert.equal(view(first).metrics.provedCount, 1);
   assert.deepEqual(view(second).readyTaskIds, ["other"]);
 
+  const assignments = path.join(first, ".isabelle-blueprint/assignments.json");
+  await fs.mkdir(path.dirname(assignments), { recursive: true });
+  await fs.writeFile(assignments, JSON.stringify({ schema_version: 1, nodes: { clean: { owner: "Ada" } } }));
+  await waitFor(() => view(first).owners.clean === "Ada", "ownership refresh without proof invalidation");
+  const ownershipDocument = await vscode.workspace.openTextDocument(assignments);
+  const ownershipEditor = await vscode.window.showTextDocument(ownershipDocument);
+  await ownershipEditor.edit((builder) => builder.insert(new vscode.Position(0, 0), " "));
+  assert.equal(view(first).state, kernel ? "current" : "absent");
+  assert.equal(view(first).metrics.provedCount, 1);
+  await vscode.commands.executeCommand("isabelleBlueprint.refresh");
+  await waitFor(() => view(first).state === (kernel ? "current" : "absent"), "dirty ownership retains canonical evidence");
+  assert.equal(view(first).metrics.provedCount, 1);
+  await ownershipDocument.save();
+
   const source = path.join(first, "Kernel_Fixture.thy");
   const document = await vscode.workspace.openTextDocument(source);
   const editor = await vscode.window.showTextDocument(document);
