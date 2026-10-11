@@ -9,7 +9,12 @@ from isabelle_blueprint.config import BlueprintConfig, load_config
 from isabelle_blueprint.errors import BlueprintError
 from isabelle_blueprint.isabelle import check_cache, check_context
 from isabelle_blueprint.isabelle.checker import CheckResult, apply_check_report, parse_check_report
-from isabelle_blueprint.isabelle.dump import apply_dump_report, parse_dump_report
+from isabelle_blueprint.isabelle.dump import (
+    apply_dump_report,
+    parse_dump_report,
+    restore_dump_history,
+    verification_succeeded,
+)
 from isabelle_blueprint.model.project import BlueprintProject
 from isabelle_blueprint.model.status import FormalStatus
 from isabelle_blueprint.parser import parse_blueprint, parse_blueprint_file
@@ -110,9 +115,21 @@ def restore_evidence(project: BlueprintProject, config: BlueprintConfig) -> dict
         verified = parse_check_report(dumped.verification)
         if dumped.ran and dumped.return_code == 0 and not dumped.error and verified is not None:
             metadata.update(_restore_check(project, config, verified, dumped.verification or {}))
-            if not verified.ran:
-                for node in project.nodes:
-                    node.status.last_checked = dumped.previous_checked.get(node.id)
+            if not verification_succeeded(verified):
+                restore_dump_history(project, dumped)
+                metadata["checked_at"] = max(
+                    (
+                        node.status.last_checked
+                        for node in project.nodes
+                        if node.status.last_checked
+                    ),
+                    default=None,
+                )
+                if metadata["state"] == "current":
+                    metadata.update(
+                        state="incomplete",
+                        reason=verified.error or "Dump verification did not complete; rerun check.",
+                    )
         else:
             apply_dump_report(project, dumped)
             metadata.update(
@@ -122,7 +139,8 @@ def restore_evidence(project: BlueprintProject, config: BlueprintConfig) -> dict
                 or "Raw dump has no native proof evidence; run check.",
             )
             metadata["checked_at"] = max(
-                (time for time in dumped.previous_checked.values() if time), default=None
+                (node.status.last_checked for node in project.nodes if node.status.last_checked),
+                default=None,
             )
         return metadata
     result = parse_check_report(data)

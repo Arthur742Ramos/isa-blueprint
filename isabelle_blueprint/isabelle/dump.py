@@ -385,8 +385,8 @@ def apply_dump_report(project: BlueprintProject, result: DumpResult) -> None:
                 node.status.check_error = (
                     "dump verification inputs are unverifiable or changed; run check"
                 )
-            elif not verified.ran:
-                node.status.last_checked = result.previous_checked.get(node.id)
+        if not verification_succeeded(verified):
+            restore_dump_history(project, result)
         project.recompute_agent_status()
         return
 
@@ -419,6 +419,34 @@ def apply_dump_report(project: BlueprintProject, result: DumpResult) -> None:
             or ("dump has no current native proof evidence; run isabelle-blueprint check")
         )
     project.recompute_agent_status()
+
+
+def verification_succeeded(result: checker.CheckResult) -> bool:
+    """An attempt time is evidence time only after a successful native check."""
+    return bool(
+        result.ran
+        and result.return_code == 0
+        and not result.error
+        and not result.source_context_changed
+        and result.source_fingerprint
+    )
+
+
+def restore_dump_history(project: BlueprintProject, result: DumpResult) -> None:
+    """Restore historical times only for unchanged node/fact/theory/session references."""
+    references = {(fact.node_id, fact.fact, fact.theory, fact.session) for fact in result.facts}
+    for node in project.nodes:
+        matched = (
+            node.isabelle.fact
+            and (
+                node.id,
+                node.isabelle.fact,
+                node.isabelle.theory,
+                node.isabelle.session,
+            )
+            in references
+        )
+        node.status.last_checked = result.previous_checked.get(node.id) if matched else None
 
 
 def _new_result(project: BlueprintProject, **kwargs) -> DumpResult:
