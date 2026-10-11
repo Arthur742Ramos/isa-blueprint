@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes yet.
 
+## [1.19.0] - 2026-10-11
+
+### Added
+
+- A read-only canonical evidence snapshot through `snapshot --json`, the MCP
+  `evidence_snapshot` tool and `blueprint://evidence` resource. CLI, MCP and the
+  editor share proof statuses, coverage, ready task IDs, evidence origin,
+  historical check times and the reason evidence cannot be treated as current.
+- VS Code extension 1.11.0 consumes canonical snapshots, explains authored and
+  historical claims, and clears proof/ready claims immediately on relevant
+  source edits. Refreshes coalesce per workspace root, discard obsolete results
+  and support independent folder settings. Ownership edits reload labels without
+  invalidating proof evidence. The GitHub release includes an installable VSIX.
+- Hosted checksum-pinned Isabelle2025-2 fixtures cover complete and admitted
+  proofs, missing facts, failed exports, source/settings/cache invalidation and
+  dump verification. Real VS Code 1.90.2 host tests verify CLI/MCP/editor agreement,
+  unsaved edits, diagnostics, deleted sources and recovery after a fresh check.
+
+### Fixed
+
+- Incremental checks require complete native source/configuration and
+  installation/settings provenance before reusing proof evidence. Malformed,
+  contradictory or mismatched cache records cannot restore proof claims.
+- Saved reports apply only to matching node/fact/theory/session references.
+  Source changes, unavailable probes and missing provenance invalidate old
+  statuses and diagnostics; long-lived MCP reads revalidate stored evidence.
+- Generated dump runs use fresh isolated output directories and delegate proof
+  verification to the native checker. Raw, incomplete or offline dumps remain
+  observations rather than proof certificates. Newer failed/incomplete attempts
+  cannot resurrect older successes. Failed verification retains historical times
+  only for exact matching references, immediately and after reload.
+- Missing or contradictory proof exports no longer reuse old metadata. Only
+  explicit missing-fact diagnostics mark a fact `not_found`; other unverified
+  facts remain `named`. Deliberately admitted fixture proofs remain `tainted`.
+- Recovery guidance uses the supported `check` command. Minimum MCP 1.12.4
+  remains supported with compatible Pydantic dependencies.
+- Extension development types now match the declared VS Code 1.90 minimum,
+  allowing the verified extension to be packaged as a VSIX with its MIT license.
+
+Existing v1 CLI flags, report JSON contracts and GitHub Action outputs remain
+compatible. These tests verify the tool's integration; downstream formalizations
+still require their own complete Isabelle/AFP session and document builds.
+
 ## [1.18.0] - 2026-08-20
 
 ### Added
@@ -1498,7 +1541,8 @@ agent task generation, and the VS Code extension surface.
 See the [Status — v0.5](README.md#status--v05) section of the README for the
 full feature list.
 
-[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.19.0...HEAD
+[1.19.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/Arthur742Ramos/isa-blueprint/compare/v1.15.0...v1.16.0

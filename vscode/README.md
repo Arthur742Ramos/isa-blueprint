@@ -6,6 +6,23 @@ Nodes** explorer view. Coverage, ready tasks, node statuses and evidence reasons
 come from the same read-only service used by the CLI and MCP.
 
 Run `isabelle-blueprint check` to establish native proof evidence.
+
+## Install version 1.11.0
+
+Install Python CLI 1.19.0 or newer with `python -m pip install -U isabelle-blueprint`.
+Download `isabelle-blueprint-vscode-1.11.0.vsix` from the
+[v1.19.0 release](https://github.com/Arthur742Ramos/isa-blueprint/releases/tag/v1.19.0),
+then choose **Extensions: Install from VSIX** in VS Code, or run:
+
+```bash
+code --install-extension isabelle-blueprint-vscode-1.11.0.vsix
+```
+
+Python and extension versions are independent. The VSIX uses the existing
+`isabelle-blueprint.isabelle-blueprint-vscode` extension identifier.
+
+## Evidence and features
+
 An `absent` evidence state displays authored claims explicitly; it does not
 certify them. If the CLI lacks snapshot support, is unavailable, or the workspace
 is untrusted, an existing `build/project.json` supplies historical navigation

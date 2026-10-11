@@ -99,7 +99,7 @@ Free to change (not contract): exact Markdown/HTML of `report.md`/`pr-comment.md
 Only relevant if your change ships a release. Bump **both** version literals in the **same commit**:
 
 1. `pyproject.toml` → `[project].version`
-2. `isabelle_blueprint/__init__.py` → `_FALLBACK_VERSION` (currently `"1.17.0"`)
+2. `isabelle_blueprint/__init__.py` → `_FALLBACK_VERSION` (currently `"1.19.0"`)
 
 `tests/test_packaging.py` enforces that they match. The `vscode/package.json` version is independent and is NOT one of these two. On push to `main`, `.github/workflows/publish.yml` detects the bump, re-runs the gates, auto-creates/pushes the `vX.Y.Z` tag, and publishes to PyPI via trusted publishing; a `github-release` job pulls notes from `CHANGELOG.md` (`## [X.Y.Z]`).
 
