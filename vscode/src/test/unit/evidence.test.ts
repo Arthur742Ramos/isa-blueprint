@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as path from "path";
-import { EvidenceSnapshot, RefreshQueue, affectsSourcePath, decodeSnapshot, invalidateProject, pendingMetrics, snapshotMetrics, sourceInputPaths } from "../../evidence";
+import { EvidenceSnapshot, RefreshQueue, affectsSourcePath, decodeSnapshot, invalidateProject, pendingMetrics, snapshotMetrics, sourceInputPaths, hasDirtySnapshotInputs } from "../../evidence";
 
 function fixture(): EvidenceSnapshot {
   return { schema_version: 1, observed_at: "2026-10-10T00:00:00Z", project_root: path.resolve("project"),
@@ -42,6 +42,21 @@ test("configured multi-source and external session paths are watched independent
   assert.equal(affectsSourcePath(path.resolve("other"), path.join(root, "src/Demo.thy")), false);
   assert.equal(affectsSourcePath(root, path.join(root, "notes.md"), value.project, value.inputs), false);
   assert.ok(sourceInputPaths(root, value.project, value.inputs).includes(path.join(root, "chapters/details.tex")));
+});
+
+test("custom blueprint edits are relevant before initial input discovery", () => {
+  const root = path.resolve("project");
+  assert.equal(affectsSourcePath(root, path.join(root, "chapters/main.md")), true);
+  assert.equal(affectsSourcePath(path.resolve("other"), path.join(root, "chapters/main.md")), false);
+  const value = fixture();
+  assert.equal(affectsSourcePath(root, path.join(root, "notes.md"), value.project, value.inputs), false);
+});
+
+test("new snapshot metadata detects already dirty external configured sources", () => {
+  const value = fixture(); const external = path.resolve("external-blueprints/main.md");
+  value.inputs.blueprint_paths.push(external);
+  assert.equal(hasDirtySnapshotInputs(value.project_root, value, [external]), true);
+  assert.equal(hasDirtySnapshotInputs(value.project_root, value, [path.join(value.project_root, "notes.md")]), false);
 });
 
 test("malformed, old, and incomplete CLI outputs cannot become current evidence", () => {

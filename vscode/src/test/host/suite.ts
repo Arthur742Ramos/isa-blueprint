@@ -94,6 +94,7 @@ export async function run(): Promise<void> {
   const config = vscode.workspace.getConfiguration("isabelleBlueprint", vscode.Uri.file(first));
   await config.update("cliPath", "missing-blueprint-cli", vscode.ConfigurationTarget.WorkspaceFolder);
   await vscode.commands.executeCommand("isabelleBlueprint.refresh");
+  await waitFor(() => view(first).state === "historical", "unavailable CLI historical fallback");
   assert.equal(view(first).state, "historical", "unavailable/old CLI never makes raw reports current");
   assert.equal(view(first).metrics.provedCount, 0);
   assert.deepEqual(view(first).readyTaskIds, []);
@@ -103,11 +104,14 @@ export async function run(): Promise<void> {
   const savedReport = await fs.readFile(report, "utf8");
   await fs.writeFile(report, "{malformed");
   await vscode.commands.executeCommand("isabelleBlueprint.refresh");
+  await waitFor(() => view(first).state === "unavailable", "malformed report failure after watcher refresh");
   assert.equal(view(first).state, "unavailable", "malformed historical report cannot restore proof claims");
   assert.equal(view(first).metrics.provedCount, 0);
+  assert.match(view(first).reason, /JSON|malformed|property/i);
   await fs.writeFile(report, savedReport);
   await config.update("cliPath", undefined, vscode.ConfigurationTarget.WorkspaceFolder);
   await vscode.commands.executeCommand("isabelleBlueprint.refresh");
+  await waitFor(() => view(first).state === (kernel ? "current" : "absent"), "restored CLI evidence");
   assert.equal(view(first).state, kernel ? "current" : "absent");
   console.log(`Real extension-host lifecycle passed (kernel=${kernel}).`);
 }

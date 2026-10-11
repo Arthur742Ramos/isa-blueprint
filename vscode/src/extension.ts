@@ -4,7 +4,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 import { BlueprintNode, BlueprintProject, ProjectMetrics, EvidenceSnapshot,
-  decodeSnapshot, snapshotMetrics, validProject, invalidateProject, pendingMetrics, RefreshQueue, affectsSourcePath, sourceInputPaths } from "./evidence";
+  decodeSnapshot, snapshotMetrics, validProject, invalidateProject, pendingMetrics, RefreshQueue, affectsSourcePath, sourceInputPaths, hasDirtySnapshotInputs } from "./evidence";
 
 interface LoadedProject {
   folder: vscode.WorkspaceFolder;
@@ -701,9 +701,8 @@ export function activate(context: vscode.ExtensionContext) {
       if (!uri || affectsProject(uri.fsPath, folder, old)) void activeQueue?.request(folder.uri.fsPath, 250);
     }
   };
-  for (const pattern of ["**/project.json", "**/check_report.json", "**/dump_report.json",
-    "**/.isabelle-blueprint/assignments.json", "**/blueprint.md", "**/blueprint.tex",
-    "**/isabelle-blueprint.toml", "**/*.thy", "**/*.ML", "**/ROOT", "**/ROOTS"]) {
+  // Filter after receipt so custom paths are covered during initial discovery.
+  for (const pattern of ["**/*"]) {
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
     context.subscriptions.push(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed));
   }
@@ -755,10 +754,13 @@ async function loadEvidence(folder: vscode.WorkspaceFolder, old: LoadedProject |
     try {
       const result = await execFilePromise(cliPath, ["snapshot", folder.uri.fsPath, "--json"], folder.uri.fsPath, 45000);
       const snapshot = decodeSnapshot(result.stdout);
-      return { folder, jsonPath, project: snapshot.project, owners, snapshot, inputs: snapshot.inputs,
+      const loaded: LoadedProject = { folder, jsonPath, project: snapshot.project, owners, snapshot, inputs: snapshot.inputs,
         stale: snapshot.evidence.state !== "current", metrics: snapshotMetrics(snapshot),
         evidenceState: snapshot.evidence.state, evidenceReason: snapshot.evidence.reason,
         readyTaskIds: new Set(snapshot.ready_task_ids) };
+      const dirtyFiles = vscode.workspace.textDocuments.filter((doc) => doc.isDirty).map((doc) => doc.uri.fsPath);
+      return hasDirtySnapshotInputs(folder.uri.fsPath, snapshot, dirtyFiles)
+        ? invalidated(loaded, "Unsaved source changes; save the file, then refresh evidence.") : loaded;
     } catch (error) {
       const detail = (error instanceof Error ? error.message : String(error)).slice(0, 800);
       reason = `Canonical evidence unavailable: ${detail}. Fix the reported source/configuration error, or check cliPath and CLI snapshot support, then refresh. Historical report only.`;

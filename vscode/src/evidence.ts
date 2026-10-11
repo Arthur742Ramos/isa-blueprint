@@ -124,9 +124,15 @@ export function affectsSourcePath(root: string, file: string, project?: Blueprin
     const relative = path.relative(directory, file);
     return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
   };
+  // Configured blueprint paths are unknown until the first canonical read.
+  if (!inputs && inside(root)) return true;
   const native = /\.(thy|ML)$/i.test(file) || ["ROOT", "ROOTS"].includes(path.basename(file));
   if (native && [root, ...inputs?.isabelle_dirs ?? []].some(inside)) return true;
   return inside(root) && ["blueprint.md", "blueprint.tex", "project.json", "check_report.json", "dump_report.json"].includes(path.basename(file));
+}
+
+export function hasDirtySnapshotInputs(root: string, snapshot: EvidenceSnapshot, files: string[]): boolean {
+  return files.some((file) => affectsSourcePath(root, file, snapshot.project, snapshot.inputs));
 }
 
 interface Slot {
