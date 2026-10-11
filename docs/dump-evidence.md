@@ -17,7 +17,7 @@ Bare entity names, truncated records and absence of oracle text do not establish
 proof completeness. These imports retain observations and oracle markers for
 inspection, but their effective statuses are historical (`stale`) or unknown
 (`named`). Missing records in an incomplete import do not establish `not_found`.
-Run `isabelle-blueprint check --proof-status` to obtain current native evidence.
+Run `isabelle-blueprint check` to obtain current native proof evidence.
 This intentionally corrects earlier false proof promotions from offline dumps.
 
 CLI reports and MCP reads restore whichever of `check_report.json` and

@@ -256,3 +256,57 @@ def test_mcp_revalidates_dump_only_proof_on_each_read(project, monkeypatch):
     second = cache.get(config.project_root)
     assert second is not first
     assert second.project.nodes[0].status.formal is FormalStatus.STALE
+
+
+@pytest.mark.parametrize("outcome", ["not_run", "failed", "invalidated", "missing_context"])
+@pytest.mark.parametrize("changed", [None, "node_id", "fact", "theory", "session"])
+def test_unsuccessful_verification_keeps_only_exact_reference_history(project, outcome, changed):
+    from isabelle_blueprint.evidence import read_evidence_snapshot
+
+    config, parsed = project
+    result = _raw(config, parsed)
+    result.ran = True
+    result.return_code = 0
+    historical = "2020-01-01T00:00:00+00:00"
+    result.previous_checked = {"a": historical}
+    verified = _verified(parsed)
+    verified.error = "verification did not complete"
+    verified.facts[0].exists = False
+    verified.facts[0].proof_status = None
+    if outcome == "not_run":
+        verified.ran = False
+        verified.return_code = None
+    elif outcome == "failed":
+        verified.return_code = 1
+    elif outcome == "invalidated":
+        verified.source_context_changed = True
+        verified.source_fingerprint = None
+    else:
+        verified.source_fingerprint = None
+    result.verification = verified.to_dict()
+    if changed:
+        result.facts[0] = replace(result.facts[0], **{changed: "other"})
+    expected = None if changed else historical
+    dump.apply_dump_report(parsed, result)
+    assert parsed.nodes[0].status.last_checked == expected
+    dump.write_dump_report(result, config.dump_report_path)
+    _, restored = load_project_with_check(config.project_root)
+    assert restored.nodes[0].status.last_checked == expected
+    snapshot = read_evidence_snapshot(config.project_root)
+    assert snapshot["evidence"]["checked_at"] == expected
+    assert snapshot["evidence"]["state"] != "current"
+
+
+@pytest.mark.parametrize("changed", [None, "node_id", "fact", "theory", "session"])
+def test_offline_snapshot_time_uses_only_matching_references(project, changed):
+    from isabelle_blueprint.evidence import read_evidence_snapshot
+
+    config, parsed = project
+    result = _raw(config, parsed)
+    historical = "2020-01-01T00:00:00+00:00"
+    result.previous_checked = {"a": historical}
+    if changed:
+        result.facts[0] = replace(result.facts[0], **{changed: "other"})
+    dump.write_dump_report(result, config.dump_report_path)
+    snapshot = read_evidence_snapshot(config.project_root)
+    assert snapshot["evidence"]["checked_at"] == (None if changed else historical)

@@ -159,16 +159,19 @@
       "properties": {
         "isabelleBlueprint.projectJson": {
           "type": "string",
+          "scope": "resource",
           "default": "build/project.json",
           "description": "Path to the generated IsabelleBlueprint project JSON, relative to each workspace folder."
         },
         "isabelleBlueprint.cliPath": {
           "type": "string",
+          "scope": "resource",
           "default": "isabelle-blueprint",
-          "description": "Path to the IsabelleBlueprint CLI executable used by Run Report/Check/Tasks commands."
+          "description": "Path to the IsabelleBlueprint CLI executable used by snapshot refresh and commands in this workspace folder."
         },
         "isabelleBlueprint.sitePath": {
           "type": "string",
+          "scope": "resource",
           "default": "site/index.html",
           "description": "Path to the generated static dashboard, relative to each workspace folder. Open Dashboard generates it when missing."
         }
@@ -179,11 +182,15 @@
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
     "package": "npm run compile",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "test:unit": "node --test out/test/unit/evidence.test.js",
+    "test:host": "node out/test/runHost.js",
+    "test": "npm run compile && npm run test:unit"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "@types/vscode": "1.120.0",
+    "@vscode/test-electron": "3.1.0",
     "typescript": "^6.0.3"
   }
 }

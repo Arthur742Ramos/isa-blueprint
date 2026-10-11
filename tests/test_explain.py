@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,19 @@ def test_explain_broken_uses_check_error_when_present():
     node = _node("n", FormalStatus.BROKEN, error="theorem foo failed")
     explanation = explain_project(BlueprintProject.from_nodes("p", [node]))[0]
     assert any("theorem foo failed" in reason for reason in explanation.reasons)
+
+
+def test_stale_recovery_command_is_accepted_by_cli(capsys):
+    project = BlueprintProject.from_nodes("p", [_node("n", FormalStatus.STALE)])
+    explanation = explain_project(project)[0]
+    step = next(step for step in explanation.next_steps if step.startswith("Rerun `"))
+    command = step.split("`")[1]
+    args = shlex.split(command)
+    assert args[0] == "isabelle-blueprint"
+    with pytest.raises(SystemExit) as exit_info:
+        cli_main([*args[1:], "--help"])
+    assert exit_info.value.code == 0
+    assert "--jobs" in capsys.readouterr().out
 
 
 def test_explain_reports_dependency_cycle():

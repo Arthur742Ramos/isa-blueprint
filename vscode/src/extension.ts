@@ -3,49 +3,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as vscode from "vscode";
 
-interface ProjectSource {
-  file?: string | null;
-  line?: number | null;
-}
-
-interface NodeStatus {
-  blueprint: string;
-  formal: string;
-  agent: string;
-  last_checked?: string | null;
-  check_error?: string | null;
-}
-
-interface IsabelleRef {
-  fact?: string | null;
-  theory?: string | null;
-  session?: string | null;
-}
-
-interface BlueprintNode {
-  id: string;
-  kind: string;
-  title: string;
-  uses: string[];
-  isabelle: IsabelleRef;
-  status: NodeStatus;
-  source?: ProjectSource;
-}
-
-interface BlueprintProject {
-  name: string;
-  source_files?: string[];
-  nodes: BlueprintNode[];
-}
-
-interface ProjectMetrics {
-  nodeCount: number;
-  targetCount: number;
-  provedCount: number;
-  problemCount: number;
-  readyCount: number;
-  coveragePercent: number | null;
-}
+import { BlueprintNode, BlueprintProject, ProjectMetrics, EvidenceSnapshot,
+  decodeSnapshot, snapshotMetrics, validProject, invalidateProject, pendingMetrics, RefreshQueue, affectsSourcePath, sourceInputPaths, hasDirtySnapshotInputs } from "./evidence";
 
 interface LoadedProject {
   folder: vscode.WorkspaceFolder;
@@ -54,6 +13,11 @@ interface LoadedProject {
   owners: Map<string, string>;
   stale: boolean;
   metrics: ProjectMetrics;
+  evidenceState: string;
+  evidenceReason: string | null;
+  readyTaskIds: Set<string>;
+  snapshot?: EvidenceSnapshot;
+  inputs?: EvidenceSnapshot["inputs"];
 }
 
 interface NextTaskPayload {
@@ -69,7 +33,7 @@ interface PreviewTarget {
 }
 
 interface RunCommandOptions {
-  /** Re-read project.json + diagnostics after the command. Defaults to true. */
+  /** Revalidate canonical evidence after the command. Defaults to true. */
   refreshAfter?: boolean;
 }
 
@@ -166,7 +130,9 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       emptyMetrics(),
     );
     const coverage = metrics.coveragePercent === null ? "n/a" : `${metrics.coveragePercent}%`;
-    const stale = this.projects.some((loaded) => loaded.stale) ? " · stale report" : "";
+    const states = [...new Set(this.projects.map((loaded) =>
+      loaded.evidenceState === "absent" ? "authored claims" : loaded.evidenceState))];
+    const stale = states.every((state) => state === "current") ? "" : ` | evidence: ${states.join(", ")}`;
     const problemLabel = metrics.problemCount === 1 ? "problem" : "problems";
     const readyLabel = "ready";
     this.statusBar.text = `$(pulse) ${primary.project.name}: ${coverage} · ${metrics.readyCount} ${readyLabel} · ${metrics.problemCount} ${problemLabel}${stale}`;
@@ -174,7 +140,8 @@ class BlueprintTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       `**IsabelleBlueprint**\n\n` +
       `${metrics.provedCount}/${metrics.targetCount || 0} formal targets proved\n\n` +
       `${metrics.readyCount} ready task(s), ${metrics.problemCount} problem(s)` +
-      `${stale ? "\n\nThe generated report is older than a blueprint source." : ""}`,
+      `${stale ? "\n\n" + this.projects.filter((loaded) => loaded.evidenceState !== "current")
+        .map((loaded) => escapeMarkdown(`${loaded.project.name}: ${loaded.evidenceReason ?? loaded.evidenceState}`)).join("\n\n") : ""}`,
     );
     this.statusBar.command = "isabelleBlueprint.openDashboard";
     this.statusBar.show();
@@ -194,10 +161,8 @@ class ProjectItem extends vscode.TreeItem {
   constructor(readonly loaded: LoadedProject) {
     super(loaded.project.name, vscode.TreeItemCollapsibleState.Expanded);
     const reportPath = path.relative(loaded.folder.uri.fsPath, loaded.jsonPath) || loaded.jsonPath;
-    this.description = loaded.stale ? `${reportPath} · report stale` : reportPath;
-    this.tooltip = loaded.stale
-      ? `${loaded.project.name}\nThe generated report is older than a blueprint source. Run Report to refresh it.`
-      : `${loaded.project.name}\nGenerated report is current.`;
+    this.description = `${reportPath} | ${loaded.evidenceState === "absent" ? "authored claims" : loaded.evidenceState}`;
+    this.tooltip = `${loaded.project.name}\nEvidence: ${loaded.evidenceState}\n${loaded.evidenceReason ?? "Canonical evidence revalidated."}`;
     this.iconPath = new vscode.ThemeIcon("symbol-namespace");
     this.contextValue = "isabelleBlueprintProject";
   }
@@ -221,9 +186,14 @@ class NodeItem extends vscode.TreeItem {
   ) {
     super(`${node.id}: ${node.title}`, vscode.TreeItemCollapsibleState.Collapsed);
     const owner = sanitizeOwner(loaded.owners.get(node.id));
-    const base = `${node.kind} | ${node.status.formal} | ${node.status.agent}`;
+    const evidence = loaded.snapshot?.node_evidence[node.id];
+    const state = evidence?.state ?? loaded.evidenceState;
+    const base = `${node.kind} | ${node.status.formal} | ${node.status.agent} | ${state}`;
     this.description = owner ? `${base} | @${truncate(owner, OWNER_DESCRIPTION_MAX)}` : base;
     this.tooltip = owner ? `${tooltipForNode(node)}\nOwner: ${owner}` : tooltipForNode(node);
+    this.tooltip += `\nEvidence: ${state} (${evidence?.origin ?? "historical"})`;
+    if (evidence?.state === "absent") this.tooltip += `\nAuthored claim: ${evidence.authored_formal_claim}`;
+    if (loaded.evidenceReason) this.tooltip += `\n${loaded.evidenceReason}`;
     this.iconPath = new vscode.ThemeIcon(iconForStatus(node.status.formal));
     this.contextValue = "isabelleBlueprintNode";
     this.command = {
@@ -267,9 +237,8 @@ function proofCockpitGroups(loaded: LoadedProject): NodeGroup[] {
     { id: "complete", title: "Complete", icon: "verified", nodes: [] },
   ];
   const byId = new Map(groups.map((group) => [group.id, group]));
-  const nodeById = new Map(loaded.project.nodes.map((node) => [node.id, node]));
   for (const node of loaded.project.nodes) {
-    byId.get(groupIdForNode(loaded, node, nodeById))?.nodes.push(node);
+    byId.get(groupIdForNode(loaded, node))?.nodes.push(node);
   }
   return groups.filter((group) => group.nodes.length > 0);
 }
@@ -277,7 +246,6 @@ function proofCockpitGroups(loaded: LoadedProject): NodeGroup[] {
 function groupIdForNode(
   loaded: LoadedProject,
   node: BlueprintNode,
-  nodeById = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate])),
 ): string {
   if (node.status.formal === "proved" || node.status.formal === "found") {
     return "complete";
@@ -285,7 +253,7 @@ function groupIdForNode(
   if (["not_found", "broken", "failed_check", "tainted"].includes(node.status.formal)) {
     return "problem";
   }
-  if (isReadyForTask(loaded, node, nodeById)) {
+  if (isReadyForTask(loaded, node)) {
     return "ready";
   }
   if (node.status.formal === "stale" || node.status.formal === "named") {
@@ -521,13 +489,53 @@ class BlueprintCodeActionProvider implements vscode.CodeActionProvider {
   }
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+let activeQueue: RefreshQueue<LoadedProject | undefined> | undefined;
+const inputWatchers = new Map<string, vscode.Disposable[]>();
+
+export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection("isabelle-blueprint");
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 20);
   statusBar.name = "IsabelleBlueprint";
   const provider = new BlueprintTreeProvider(statusBar);
   const output = vscode.window.createOutputChannel("IsabelleBlueprint");
   const running = new Set<string>();
+  const render = () => {
+    diagnostics.clear();
+    for (const loaded of provider.loadedProjects()) applyDiagnostics(loaded, diagnostics);
+  };
+  const replace = (root: string, loaded: LoadedProject | undefined) => {
+    const projects = provider.loadedProjects().filter((p) => p.folder.uri.fsPath !== root);
+    if (loaded) projects.push(loaded);
+    const order = new Map((vscode.workspace.workspaceFolders ?? []).map((f, i) => [f.uri.fsPath, i]));
+    provider.setProjects(projects.sort((a, b) => (order.get(a.folder.uri.fsPath) ?? 0) - (order.get(b.folder.uri.fsPath) ?? 0)));
+    render();
+  };
+  activeQueue = new RefreshQueue(
+    async (root) => {
+      const folder = vscode.workspace.workspaceFolders?.find((f) => f.uri.fsPath === root);
+      if (!folder) return undefined;
+      const old = provider.loadedProjects().find((p) => p.folder.uri.fsPath === root);
+      const dirty = vscode.workspace.textDocuments.some((doc) => doc.isDirty && affectsProject(doc.uri.fsPath, folder, old));
+      return loadEvidence(folder, old, dirty);
+    },
+    (root, loaded) => { replace(root, loaded); if (loaded) watchInputs(loaded); },
+    (root) => {
+      const old = provider.loadedProjects().find((p) => p.folder.uri.fsPath === root);
+      if (old) replace(root, invalidated(old, "Inputs changed or refresh requested; evidence is being revalidated."));
+    },
+    (root, error) => {
+      const old = provider.loadedProjects().find((p) => p.folder.uri.fsPath === root);
+      const reason = `Could not refresh canonical evidence: ${String(error)}. Fix the reported input or CLI error, then refresh.`;
+      if (old) replace(root, { ...invalidated(old, reason), evidenceState: "unavailable" });
+      output.appendLine(reason);
+    },
+  );
+  context.subscriptions.push({ dispose: () => {
+    activeQueue?.dispose(); activeQueue = undefined;
+    for (const watchers of inputWatchers.values()) watchers.forEach((w) => w.dispose());
+    inputWatchers.clear();
+    watchSignatures.clear();
+  } });
   const blueprintDocuments: vscode.DocumentSelector = [
     { language: "markdown", scheme: "file" },
     { language: "latex", scheme: "file" },
@@ -687,65 +695,129 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerCodeLensProvider(blueprintDocuments, new BlueprintCodeLensProvider(provider)),
   );
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/project.json");
-  context.subscriptions.push(watcher);
-  context.subscriptions.push(watcher.onDidChange(async () => refresh(provider, diagnostics)));
-  context.subscriptions.push(watcher.onDidCreate(async () => refresh(provider, diagnostics)));
-  context.subscriptions.push(watcher.onDidDelete(async () => refresh(provider, diagnostics)));
-
-  // Owner annotations are read from `.isabelle-blueprint/assignments.json`; keep
-  // the tree in sync when assignments change. The glob is scoped to that exact
-  // path (not a bare `**/assignments.json`) so unrelated files named
-  // `assignments.json` elsewhere in the workspace don't trigger needless
-  // refreshes, and the watcher stays aligned with the path readAssignments() reads.
-  const assignmentsWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.isabelle-blueprint/assignments.json",
-  );
-  context.subscriptions.push(assignmentsWatcher);
-  context.subscriptions.push(assignmentsWatcher.onDidChange(async () => refresh(provider, diagnostics)));
-  context.subscriptions.push(assignmentsWatcher.onDidCreate(async () => refresh(provider, diagnostics)));
-  context.subscriptions.push(assignmentsWatcher.onDidDelete(async () => refresh(provider, diagnostics)));
-  context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(async () => refresh(provider, diagnostics)));
-
-  for (const pattern of ["**/blueprint.md", "**/blueprint.tex", "**/isabelle-blueprint.toml"]) {
-    const sourceWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-    context.subscriptions.push(sourceWatcher);
-    context.subscriptions.push(sourceWatcher.onDidChange(async () => refresh(provider, diagnostics)));
-    context.subscriptions.push(sourceWatcher.onDidCreate(async () => refresh(provider, diagnostics)));
-    context.subscriptions.push(sourceWatcher.onDidDelete(async () => refresh(provider, diagnostics)));
+  const reloadOwners = async (folder: vscode.WorkspaceFolder) => {
+    const owners = await readAssignments(folder);
+    const current = provider.loadedProjects().find((p) => p.folder.uri.fsPath === folder.uri.fsPath);
+    if (current) replace(folder.uri.fsPath, { ...current, owners });
+  };
+  const changed = (uri?: vscode.Uri) => {
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      if (uri && path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, "/") === ".isabelle-blueprint/assignments.json") {
+        void reloadOwners(folder);
+        continue;
+      }
+      const old = provider.loadedProjects().find((p) => p.folder.uri.fsPath === folder.uri.fsPath);
+      if (!uri || affectsProject(uri.fsPath, folder, old)) void activeQueue?.request(folder.uri.fsPath, 250);
+    }
+  };
+  // Bootstrap known names/native files; canonical metadata adds exact custom paths.
+  // loadEvidence also checks fresh metadata against dirty documents before applying.
+  for (const pattern of ["**/{*.thy,*.ML,ROOT,ROOTS,blueprint.md,blueprint.tex,isabelle-blueprint.toml,project.json,check_report.json,dump_report.json}", "**/.isabelle-blueprint/assignments.json"]) {
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+    context.subscriptions.push(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed));
   }
-
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((event) => changed(event.document.uri)),
+    vscode.workspace.onDidSaveTextDocument((document) => changed(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((event) => { if (event.affectsConfiguration("isabelleBlueprint")) changed(); }),
+    vscode.window.onDidChangeWindowState((state) => { if (state.focused) changed(); }),
+    vscode.workspace.onDidGrantWorkspaceTrust(() => changed()),
+    vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+      for (const folder of event.removed) {
+        activeQueue?.remove(folder.uri.fsPath);
+        inputWatchers.get(folder.uri.fsPath)?.forEach((watcher) => watcher.dispose());
+        inputWatchers.delete(folder.uri.fsPath);
+        watchSignatures.delete(folder.uri.fsPath);
+        replace(folder.uri.fsPath, undefined);
+      }
+      changed();
+    }),
+  );
   void refresh(provider, diagnostics);
+  // A copy of the view state is useful to integrations and extension-host tests.
+  return { snapshotState: () => provider.loadedProjects().map((loaded) => ({
+    projectRoot: loaded.folder.uri.fsPath, state: loaded.evidenceState,
+    reason: loaded.evidenceReason, metrics: { ...loaded.metrics },
+    readyTaskIds: [...loaded.readyTaskIds], project: JSON.parse(JSON.stringify(loaded.project)), owners: Object.fromEntries(loaded.owners),
+  })) };
 }
 
 export function deactivate(): void {
-  return;
+  activeQueue?.dispose();
+}
+
+function invalidated(loaded: LoadedProject, reason: string): LoadedProject {
+  return { ...loaded, project: invalidateProject(loaded.project, reason),
+    metrics: pendingMetrics(loaded.metrics), stale: true, evidenceState: "pending",
+    evidenceReason: reason, readyTaskIds: new Set(), snapshot: undefined };
+}
+
+async function loadEvidence(folder: vscode.WorkspaceFolder, old: LoadedProject | undefined, dirty: boolean): Promise<LoadedProject | undefined> {
+  const settings = vscode.workspace.getConfiguration("isabelleBlueprint", folder.uri);
+  const jsonPath = path.resolve(folder.uri.fsPath, settings.get<string>("projectJson", "build/project.json"));
+  const owners = await readAssignments(folder);
+  let reason = dirty ? "Unsaved source changes; save the file, then refresh evidence." :
+    "Trust this workspace to query canonical evidence; this report is historical.";
+  if (dirty && old) return { ...invalidated(old, reason), owners };
+  if (!dirty && vscode.workspace.isTrusted) {
+    const cliPath = settings.get<string>("cliPath", "isabelle-blueprint");
+    try {
+      const result = await execFilePromise(cliPath, ["snapshot", folder.uri.fsPath, "--json"], folder.uri.fsPath, 45000);
+      const snapshot = decodeSnapshot(result.stdout);
+      const loaded: LoadedProject = { folder, jsonPath, project: snapshot.project, owners, snapshot, inputs: snapshot.inputs,
+        stale: snapshot.evidence.state !== "current", metrics: snapshotMetrics(snapshot),
+        evidenceState: snapshot.evidence.state, evidenceReason: snapshot.evidence.reason,
+        readyTaskIds: new Set(snapshot.ready_task_ids) };
+      const dirtyFiles = vscode.workspace.textDocuments.filter((doc) => doc.isDirty).map((doc) => doc.uri.fsPath);
+      return hasDirtySnapshotInputs(folder.uri.fsPath, snapshot, dirtyFiles)
+        ? invalidated(loaded, "Unsaved source changes; save the file, then refresh evidence.") : loaded;
+    } catch (error) {
+      const detail = (error instanceof Error ? error.message : String(error)).slice(0, 800);
+      reason = `Canonical evidence unavailable: ${detail}. Fix the reported source/configuration error, or check cliPath and CLI snapshot support, then refresh. Historical report only.`;
+    }
+  }
+  const project = await readProject(jsonPath);
+  if (!project) return old ? { ...invalidated(old, reason), evidenceState: "unavailable" } : undefined;
+  const loaded: LoadedProject = { folder, jsonPath, project: invalidateProject(project, reason), owners,
+    stale: true, metrics: emptyMetrics(), evidenceState: dirty ? "pending" : "historical",
+    evidenceReason: reason, readyTaskIds: new Set(), inputs: old?.inputs };
+  loaded.metrics = metricsForProject(loaded);
+  if (await isReportStale(folder, jsonPath, project)) loaded.evidenceReason += " Sources changed or are missing.";
+  return loaded;
+}
+
+function sourcePaths(folder: vscode.WorkspaceFolder, loaded?: LoadedProject): string[] {
+  return sourceInputPaths(folder.uri.fsPath, loaded?.project, loaded?.inputs, loaded?.jsonPath);
+}
+function affectsProject(file: string, folder: vscode.WorkspaceFolder, loaded?: LoadedProject): boolean {
+  return affectsSourcePath(folder.uri.fsPath, file, loaded?.project, loaded?.inputs, loaded?.jsonPath);
+}
+const watchSignatures = new Map<string, string>();
+function watchInputs(loaded: LoadedProject): void {
+  const root = loaded.folder.uri.fsPath;
+  const files = [...new Set(sourcePaths(loaded.folder, loaded))].sort();
+  const dirs = [...new Set(loaded.inputs?.isabelle_dirs ?? [])].sort();
+  const signature = JSON.stringify([files, dirs]);
+  if (watchSignatures.get(root) === signature) return;
+  inputWatchers.get(root)?.forEach((watcher) => watcher.dispose());
+  const watchers: vscode.Disposable[] = [];
+  const patterns = [...files.map((file) => new vscode.RelativePattern(path.dirname(file), path.basename(file))),
+    ...dirs.map((dir) => new vscode.RelativePattern(dir, "**/{*.thy,*.ML,ROOT,ROOTS}"))];
+  for (const pattern of patterns) {
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+    const changed = () => { void activeQueue?.request(root, 250); };
+    watchers.push(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed));
+  }
+  inputWatchers.set(root, watchers);
+  watchSignatures.set(root, signature);
 }
 
 async function refresh(
   provider: BlueprintTreeProvider,
   diagnostics: vscode.DiagnosticCollection,
 ): Promise<void> {
-  const projects: LoadedProject[] = [];
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    const configuredPath = vscode.workspace
-      .getConfiguration("isabelleBlueprint", folder.uri)
-      .get<string>("projectJson", "build/project.json");
-    const jsonPath = path.resolve(folder.uri.fsPath, configuredPath);
-    const project = await readProject(jsonPath);
-    if (project) {
-      const owners = await readAssignments(folder);
-      const stale = await isReportStale(folder, jsonPath, project);
-      const loaded = { folder, jsonPath, project, owners, stale, metrics: emptyMetrics() };
-      loaded.metrics = metricsForProject(loaded);
-      projects.push(loaded);
-    }
-  }
-  provider.setProjects(projects);
-  diagnostics.clear();
-  for (const loaded of projects) {
-    applyDiagnostics(loaded, diagnostics);
-  }
+  await Promise.all((vscode.workspace.workspaceFolders ?? []).map((folder) => activeQueue?.request(folder.uri.fsPath)));
+
 }
 
 async function runBlueprintCommand(
@@ -1060,9 +1132,10 @@ function execFilePromise(
   command: string,
   args: string[],
   cwd: string,
+  timeout?: number,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 8 }, (error, stdout, stderr) => {
+    execFile(command, args, { cwd, windowsHide: true, timeout, maxBuffer: 1024 * 1024 * 32 }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`${error.message}\n${stdout}${stderr}`));
         return;
@@ -1119,17 +1192,16 @@ async function readAssignments(folder: vscode.WorkspaceFolder): Promise<Map<stri
 async function readProject(jsonPath: string): Promise<BlueprintProject | undefined> {
   try {
     const raw = await fs.readFile(jsonPath, "utf8");
-    const parsed = JSON.parse(raw) as BlueprintProject;
+    const parsed: unknown = JSON.parse(raw);
+    if (!validProject(parsed)) throw new Error("malformed project report");
     return {
       name: parsed.name || "IsabelleBlueprint",
       source_files: Array.isArray(parsed.source_files) ? parsed.source_files : [],
       nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      void vscode.window.showWarningMessage(`Could not read IsabelleBlueprint project JSON: ${String(error)}`);
-    }
-    return undefined;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
   }
 }
 
@@ -1149,12 +1221,11 @@ function emptyMetrics(): ProjectMetrics {
 function metricsForProject(loaded: LoadedProject): ProjectMetrics {
   const metrics = emptyMetrics();
   metrics.nodeCount = loaded.project.nodes.length;
-  const byId = new Map(loaded.project.nodes.map((node) => [node.id, node]));
   for (const node of loaded.project.nodes) {
     if (node.status.formal !== "missing") metrics.targetCount += 1;
     if (node.status.formal === "proved") metrics.provedCount += 1;
     if (PROBLEM_FORMAL_STATUSES.has(node.status.formal)) metrics.problemCount += 1;
-    if (isReadyForTask(loaded, node, byId)) metrics.readyCount += 1;
+    if (isReadyForTask(loaded, node)) metrics.readyCount += 1;
   }
   metrics.coveragePercent = coveragePercent(metrics.provedCount, metrics.targetCount);
   return metrics;
@@ -1200,8 +1271,7 @@ async function isReportStale(
       const sourceStat = await fs.stat(sourcePath);
       if (sourceStat.mtimeMs > report.mtimeMs) return true;
     } catch {
-      // A deleted source will be surfaced by the next report/lint run; do not
-      // turn a missing optional source into a repeated notification here.
+      return true; // Missing sources invalidate historical evidence too.
     }
   }
   return false;
@@ -1347,16 +1417,8 @@ async function fileExists(filePath: string): Promise<boolean> {
 function isReadyForTask(
   loaded: LoadedProject,
   node: BlueprintNode,
-  byId = new Map(loaded.project.nodes.map((candidate) => [candidate.id, candidate])),
 ): boolean {
-  const completeStatuses = new Set(["found", "proved"]);
-  if (completeStatuses.has(node.status.formal)) {
-    return false;
-  }
-  return (node.uses ?? []).every((depId) => {
-    const dependency = byId.get(depId);
-    return dependency ? completeStatuses.has(dependency.status.formal) : false;
-  });
+  return loaded.readyTaskIds.has(node.id);
 }
 
 async function openLiveTaskPrompt(
